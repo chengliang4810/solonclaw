@@ -1,7 +1,7 @@
 solon:
   app:
     name: solonclaw
-  port: 41234
+  port: 12345
   env: dev
 
   # ==================== Solon AI 配置 ====================
@@ -63,3 +63,40 @@ solonclaw:
     enabled: true
     url: "${CALLBACK_URL:}"
     secret: "${CALLBACK_SECRET:}"
+
+  # ==================== 学习系统配置 ====================
+  learning:
+    enabled: true
+
+    # 反思配置
+    reflection:
+      cron: "0 0 * * * ?"              # 每小时执行一次反思
+      timeWindowHours: 1               # 分析最近1小时的数据
+      maxMessagesPerReflection: 200    # 每次反思最多处理的消息数
+
+    # 自动技能配置
+    autoSkill:
+      processCron: "0 */15 * * * ?"    # 每15分钟处理一次技能请求
+      minConfidenceThreshold: 0.8      # AI 置信度阈值
+      realtimeAnalysisEnabled: true    # 启用实时技能需求分析
+
+    # 知识库配置
+    knowledge:
+      maxSearchResults: 5              # 最大搜索结果数
+      minConfidenceThreshold: 0.6      # 最小置信度阈值
+
+  # ==================== 自主运行配置 ====================
+  autonomous:
+    enabled: true                      # 是否启用自主运行
+
+    runCron: "0/30 * * * * ?"         # 运行循环 cron（每30秒）
+    maxConcurrentTasks: 3             # 最大并发任务数
+    taskTimeoutSeconds: 300           # 任务超时时间（秒）
+    maxGoals: 20                       # 目标最大数量
+    maxTaskQueueSize: 100             # 任务队列最大大小
+
+    autoSkillInstall: true             # 是否启用自动技能安装
+    autoReflection: true               # 是否启用自动反思
+
+    decisionConfidenceThreshold: 0.7   # 决策引擎置信度阈值
+    cleanupIntervalHours: 24           # 资源清理间隔（小时）

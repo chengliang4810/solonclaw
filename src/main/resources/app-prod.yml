@@ -1,5 +1,5 @@
 solon:
-  port: 41234
+  port: 12345
   env: prod
   logging:
     level:

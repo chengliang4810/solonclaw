@@ -1,7 +1,7 @@
 solon:
   app:
     name: solonclaw-test
-  port: 41234
+  port: 12345
   env: dev
   ai:
     chat:
@@ -18,7 +18,7 @@ solon:
       dateAsTimeZone: 'GMT+8'
       nullAsWriteable: true
 
-nullclaw:
+solonclaw:
   workspace: "./workspace-test"
   directories:
     mcpConfig: "mcp.json"
@@ -60,3 +60,32 @@ nullclaw:
     enabled: true
     url: "${CALLBACK_URL:}"
     secret: "${CALLBACK_SECRET:}"
+
+  # 自主运行配置（测试中禁用）
+  autonomous:
+    enabled: false
+    runCron: "0/30 * * * * ?"
+    maxConcurrentTasks: 3
+    taskTimeoutSeconds: 60
+    maxGoals: 10
+    maxTaskQueueSize: 100
+    autoSkillInstall: false
+    autoReflection: false
+    decisionConfidenceThreshold: 0.7
+    cleanupIntervalHours: 24
+
+  # 学习系统配置（测试中禁用）
+  learning:
+    enabled: false
+    reflection:
+      cron: "0 0 * * * ?"
+      timeWindowHours: 1
+      maxMessagesPerReflection: 200
+    autoSkill:
+      processCron: "0 */15 * * * ?"
+      minConfidenceThreshold: 0.8
+      autoApprovedPackages: []
+      realtimeAnalysisEnabled: false
+    knowledge:
+      maxSearchResults: 5
+      minConfidenceThreshold: 0.6

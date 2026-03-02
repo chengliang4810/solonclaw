@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **技术栈**: Java 17 + Solon 3.9.4 + solon-ai-core
 - **主入口**: `com.jimuqu.solonclaw.SolonClawApp`
-- **默认端口**: 41234
+- **默认端口**: 12345
 - **包名**: `com.jimuqu.solonclaw`
 
 ## 常用命令
