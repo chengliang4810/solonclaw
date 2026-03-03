@@ -25,7 +25,6 @@ class WorkspaceConfigTest {
         @DisplayName("WorkspaceInfo getter 应返回正确值")
         void gettersShouldReturnCorrectValues() {
             Path workspace = Paths.get("/test/workspace");
-            Path mcpConfigFile = Paths.get("/test/mcp.json");
             Path skillsDir = Paths.get("/test/skills");
             Path jobsFile = Paths.get("/test/jobs.json");
             Path jobHistoryFile = Paths.get("/test/job-history.json");
@@ -35,7 +34,6 @@ class WorkspaceConfigTest {
 
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
                     workspace,
-                    mcpConfigFile,
                     skillsDir,
                     jobsFile,
                     jobHistoryFile,
@@ -45,7 +43,6 @@ class WorkspaceConfigTest {
             );
 
             assertEquals(workspace, info.workspace());
-            assertEquals(mcpConfigFile, info.mcpConfigFile());
             assertEquals(skillsDir, info.skillsDir());
             assertEquals(jobsFile, info.jobsFile());
             assertEquals(jobHistoryFile, info.jobHistoryFile());
@@ -58,11 +55,10 @@ class WorkspaceConfigTest {
         @DisplayName("WorkspaceInfo 应能处理 null 值")
         void shouldHandleNullValues() {
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
-                    null, null, null, null, null, null, null, null
+                    null, null, null, null, null, null, null
             );
 
             assertNull(info.workspace());
-            assertNull(info.mcpConfigFile());
             assertNull(info.skillsDir());
             assertNull(info.jobsFile());
             assertNull(info.jobHistoryFile());
@@ -81,7 +77,7 @@ class WorkspaceConfigTest {
         void mkdirsShouldNotThrow() {
             Path workspace = Paths.get("/test/workspace");
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
-                    workspace, Paths.get("/test/mcp.json"), Paths.get("/test/skills"),
+                    workspace, Paths.get("/test/skills"),
                     Paths.get("/test/jobs.json"), Paths.get("/test/job-history.json"),
                     Paths.get("/test/memory.db"), Paths.get("/test/shell"),
                     Paths.get("/test/logs")
@@ -95,7 +91,7 @@ class WorkspaceConfigTest {
         @DisplayName("mkdirs 应处理 null workspace")
         void mkdirsShouldHandleNullWorkspace() {
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
-                    null, null, null, null, null, null, null, null
+                    null, null, null, null, null, null, null
             );
 
             // workspace 为 null 时，mkdirs 应该抛出异常或安全处理
@@ -112,13 +108,10 @@ class WorkspaceConfigTest {
         @DisplayName("应能正确构建相对路径")
         void shouldBuildRelativePaths() {
             Path workspace = Paths.get("/test/workspace");
-            Path mcpConfigFile = Paths.get("/test/mcp.json");
 
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
-                    workspace, mcpConfigFile, null, null, null, null, null, null
+                    workspace, null, null, null, null, null, null
             );
-
-            assertEquals(mcpConfigFile, info.mcpConfigFile());
         }
 
         @Test
@@ -127,7 +120,7 @@ class WorkspaceConfigTest {
             Path workspace = Paths.get("/test/workspace").toAbsolutePath();
 
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
-                    workspace, null, null, null, null, null, null, null
+                    workspace, null, null, null, null, null, null
             );
 
             assertEquals(workspace, info.workspace());
@@ -140,7 +133,7 @@ class WorkspaceConfigTest {
             Path skillsDir = Paths.get("/test/skills");
 
             WorkspaceConfig.WorkspaceInfo info = new WorkspaceConfig.WorkspaceInfo(
-                    workspace, null, skillsDir, null, null, null, null, null
+                    workspace, skillsDir, null, null, null, null, null
             );
 
             assertEquals(skillsDir, info.skillsDir());
