@@ -25,35 +25,86 @@ public class FrontendController {
     @Mapping("/frontend/index.html")
     @Produces("text/html;charset=utf-8")
     public String index() {
-        // 从 classpath 读取前端文件
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("frontend/index.html")) {
-            if (is == null) {
-                return "<html><body>前端页面未找到</body></html>";
-            }
-
-            // 读取全部内容
-            byte[] bytes = is.readAllBytes();
-            return new String(bytes, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            return "<html><body>加载前端页面出错: " + e.getMessage() + "</body></html>";
-        }
+        return readFile("frontend/index.html", "<html><body>前端页面未找到</body></html>");
     }
 
     /**
-     * 返回前端 JavaScript 文件
+     * 返回自主任务页面
+     */
+    @Mapping("/frontend/autonomous.html")
+    @Produces("text/html;charset=utf-8")
+    public String autonomous() {
+        return readFile("frontend/autonomous.html", "<html><body>自主任务页面未找到</body></html>");
+    }
+
+    /**
+     * 返回自主任务 JavaScript 文件
+     */
+    @Mapping("/frontend/autonomous.js")
+    @Produces("application/javascript;charset=utf-8")
+    public String autonomousJs() {
+        return readFile("frontend/autonomous.js", "// autonomous.js 未找到");
+    }
+
+    /**
+     * 返回 app.js 文件
      */
     @Mapping("/frontend/app.js")
     @Produces("application/javascript;charset=utf-8")
     public String appJs() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("frontend/app.js")) {
-            if (is == null) {
-                return "// app.js 未找到";
-            }
+        return readFile("frontend/app.js", "// app.js 未找到");
+    }
 
+    /**
+     * 返回 RequestUtil.js 文件
+     */
+    @Mapping("/frontend/RequestUtil.js")
+    @Produces("application/javascript;charset=utf-8")
+    public String requestUtilJs() {
+        return readFile("frontend/RequestUtil.js", "// RequestUtil.js 未找到");
+    }
+
+    /**
+     * 返回 main.js 文件
+     */
+    @Mapping("/frontend/main.js")
+    @Produces("application/javascript;charset=utf-8")
+    public String mainJs() {
+        return readFile("frontend/main.js", "// main.js 未找到");
+    }
+
+    /**
+     * 返回 favicon.svg
+     */
+    @Mapping("/frontend/favicon.svg")
+    @Produces("image/svg+xml;charset=utf-8")
+    public String favicon() {
+        return readFile("frontend/favicon.svg", "");
+    }
+
+    /**
+     * 返回 pages 目录下的 HTML 文件
+     */
+    @Mapping("/frontend/pages/*")
+    @Produces("text/html;charset=utf-8")
+    public String pageFiles(Context ctx) {
+        String path = ctx.pathNew();
+        String fileName = path.substring(path.lastIndexOf('/') + 1);
+        return readFile("frontend/pages/" + fileName, "<html><body>页面未找到: " + fileName + "</body></html>");
+    }
+
+    /**
+     * 读取文件内容的通用方法
+     */
+    private String readFile(String resourcePath, String notFoundMessage) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                return notFoundMessage;
+            }
             byte[] bytes = is.readAllBytes();
             return new String(bytes, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            return "// 加载出错: " + e.getMessage();
+            return notFoundMessage + " - 错误: " + e.getMessage();
         }
     }
 
@@ -62,6 +113,14 @@ public class FrontendController {
      */
     @Mapping("/frontend")
     public void frontendRoot(Context ctx) {
+        ctx.redirect("/frontend/index.html");
+    }
+
+    /**
+     * 根路径重定向到前端
+     */
+    @Mapping("/")
+    public void rootPath(Context ctx) {
         ctx.redirect("/frontend/index.html");
     }
 }

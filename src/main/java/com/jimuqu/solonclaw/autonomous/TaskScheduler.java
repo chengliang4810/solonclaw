@@ -306,6 +306,9 @@ public class TaskScheduler {
     /**
      * 完成任务
      */
+    /**
+     * 完成任务
+     */
     private void completeTask(AutonomousTask task) {
         AutonomousTask completedTask = task.withStatus(TaskStatus.COMPLETED)
             .withCompletedAt(LocalDateTime.now());
@@ -314,6 +317,9 @@ public class TaskScheduler {
         completedTasks.put(task.getId(), completedTask);
 
         log.debug("任务完成: id={}", task.getId());
+
+        // 不再自动重新调度系统任务（只执行一次）
+        // 系统任务现在改为按需手动创建
     }
 
     /**

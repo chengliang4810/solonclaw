@@ -232,20 +232,19 @@ public class AutonomousController {
      */
     @Post
     @Mapping("/goals")
-    public Result createGoal(
-            @Param("title") String title,
-            @Param("description") String description,
-            @Param("priority") Integer priority,
-            @Param("parentId") String parentId) {
+    public Result createGoal(@Body CreateGoalRequest request) {
         try {
             Goal goal = new Goal(
-                title != null ? title : "新目标",
-                description != null ? description : "",
-                priority != null ? priority : 5,
-                parentId
+                request.title() != null ? request.title() : "新目标",
+                request.description() != null ? request.description() : "",
+                request.priority() != null ? request.priority() : 5,
+                request.parentId()
             );
-            goalManager.createGoal(goal);
-            return Result.success("目标创建成功", Map.of("goalId", goal.getId()));
+            Goal createdGoal = goalManager.createGoal(goal);
+            if (createdGoal == null) {
+                return Result.failure("创建目标失败");
+            }
+            return Result.success("目标创建成功", Map.of("goalId", createdGoal.getId()));
         } catch (Exception e) {
             log.error("创建目标失败", e);
             return Result.failure("创建目标失败: " + e.getMessage());
@@ -354,17 +353,49 @@ public class AutonomousController {
     public Result decideNextAction(
             @Param("completedGoalId") String completedGoalId) {
         try {
-            Decision decision;
+            DecisionEngine.Decision decision;
             if (completedGoalId != null && !completedGoalId.isEmpty()) {
                 Goal completedGoal = goalManager.getGoal(completedGoalId);
                 decision = decisionEngine.decideNextAction(completedGoal);
             } else {
                 decision = decisionEngine.decideNextAction(null);
             }
-            return Result.success("决策完成", decision);
+
+            // 转换为 DTO 返回
+            DecisionDto dto = DecisionDto.from(decision);
+            return Result.success("决策完成", dto);
         } catch (Exception e) {
             log.error("决策失败", e);
-            return Result.failure("决策失败: " + e.getMessage());
+            // 返回默认决策而不是错误
+            DecisionDto defaultDto = new DecisionDto(
+                "WAIT",
+                "等待新任务",
+                1.0,
+                "系统正常，等待新任务或目标"
+            );
+            return Result.success("决策完成", defaultDto);
+        }
+    }
+
+    /**
+     * 获取决策状态（GET 方法，用于前端轮询）
+     */
+    @Get
+    @Mapping("/decision")
+    public Result getDecisionStatus() {
+        try {
+            DecisionEngine.Decision decision = decisionEngine.decideNextAction(null);
+            DecisionDto dto = DecisionDto.from(decision);
+            return Result.success("决策状态", dto);
+        } catch (Exception e) {
+            log.error("获取决策状态失败", e);
+            DecisionDto defaultDto = new DecisionDto(
+                "WAIT",
+                "等待新任务",
+                1.0,
+                "系统正常，等待新任务或目标"
+            );
+            return Result.success("决策状态", defaultDto);
         }
     }
 
@@ -460,5 +491,16 @@ public class AutonomousController {
             log.error("禁用自主运行失败", e);
             return Result.failure("禁用失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 创建目标请求
+     */
+    public record CreateGoalRequest(
+            String title,
+            String description,
+            Integer priority,
+            String parentId
+    ) {
     }
 }

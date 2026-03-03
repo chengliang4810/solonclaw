@@ -93,10 +93,10 @@ public class GoalManager {
     /**
      * 创建目标
      */
-    public void createGoal(Goal goal) {
+    public Goal createGoal(Goal goal) {
         if (goal == null) {
             log.warn("目标为空，跳过");
-            return;
+            return null;
         }
 
         String goalId = generateGoalId();
@@ -110,6 +110,8 @@ public class GoalManager {
 
         log.info("创建目标: id={}, title={}, parent={}",
             goalId, goal.getTitle(), goal.getParentId());
+
+        return newGoal;
     }
 
     /**

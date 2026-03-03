@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolonClaw - 任务管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        .card-hover { transition: all 0.2s ease-in-out; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15); }
+        *:focus-visible { outline: 2px solid #3B82F6; outline-offset: 2px; }
+    </style>
+</head>
+<body class="bg-gray-100 h-full overflow-y-auto custom-scroll p-4">
+    <!-- 统计信息 -->
+    <div class="mb-4 bg-white rounded-xl shadow-md p-4">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">统计信息</h2>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="bg-gray-50 rounded-lg p-2">
+                <div class="text-gray-500">总任务数</div>
+                <div id="statTotalTasks" class="text-xl font-bold text-gray-800">0</div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-2">
+                <div class="text-gray-500">已完成任务</div>
+                <div id="statCompletedTasks" class="text-xl font-bold text-green-600">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务管理 -->
+    <div class="bg-white rounded-xl shadow-md">
+        <div class="border-b">
+            <div class="flex space-x-8 px-4">
+                <button onclick="showTaskTab('pending')" id="tab-pending" class="tab-btn py-3 px-2 border-b-2 border-blue-500 text-blue-600 font-medium">
+                    待执行任务
+                    <span id="count-pending" class="ml-1 text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">0</span>
+                </button>
+                <button onclick="showTaskTab('executing')" id="tab-executing" class="tab-btn py-3 px-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                    执行中
+                    <span id="count-executing" class="ml-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">0</span>
+                </button>
+                <button onclick="showTaskTab('completed')" id="tab-completed" class="tab-btn py-3 px-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                    已完成
+                    <span id="count-completed" class="ml-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">0</span>
+                </button>
+            </div>
+        </div>
+        <div id="taskContent" class="p-4">
+            <div class="flex items-center justify-center h-32 text-gray-400">
+                <span>加载中...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="../RequestUtil.js?v=1.0"></script>
+    <script src="tasks.js?v=1.0"></script>
+</body>
+</html>
