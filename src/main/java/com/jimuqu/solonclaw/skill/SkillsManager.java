@@ -1,5 +1,8 @@
 package com.jimuqu.solonclaw.skill;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjUtil;
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solonclaw.config.WorkspaceConfig;
 import com.jimuqu.solonclaw.tool.ToolRegistry;
 import org.noear.solon.annotation.Component;
@@ -90,7 +93,7 @@ public class SkillsManager {
             String content = Files.readString(skillFile);
             DynamicSkill.SkillConfig config = parseSkillConfig(content);
 
-            if (config == null || config.name() == null || config.name().isEmpty()) {
+            if (ObjUtil.isNull(config) || StrUtil.isBlank(config.name())) {
                 log.warn("无效的技能配置文件: {}", skillFile);
                 return;
             }
@@ -129,7 +132,7 @@ public class SkillsManager {
     private List<FunctionTool> resolveTools(List<String> toolNames) {
         List<FunctionTool> result = new ArrayList<>();
 
-        if (toolNames == null || toolNames.isEmpty()) {
+        if (CollUtil.isEmpty(toolNames)) {
             return result;
         }
 
@@ -181,7 +184,7 @@ public class SkillsManager {
      * 添加技能
      */
     public boolean addSkill(DynamicSkill.SkillConfig config) {
-        if (config == null || config.name() == null || config.name().isEmpty()) {
+        if (ObjUtil.isNull(config) || StrUtil.isBlank(config.name())) {
             return false;
         }
 
@@ -222,7 +225,7 @@ public class SkillsManager {
             saveSkillConfig(config);
 
             // 如果名称变了，删除旧文件
-            if (!name.equals(config.name())) {
+            if (!StrUtil.equals(name, config.name())) {
                 deleteSkillFile(name);
             }
 
@@ -339,7 +342,7 @@ public class SkillsManager {
             sb.append("  \"condition\": \"").append(escapeJson(config.condition())).append("\",\n");
             sb.append("  \"enabled\": ").append(config.enabled()).append(",\n");
             sb.append("  \"tools\": [");
-            if (config.tools() != null && !config.tools().isEmpty()) {
+            if (CollUtil.isNotEmpty(config.tools())) {
                 for (int i = 0; i < config.tools().size(); i++) {
                     if (i > 0) sb.append(", ");
                     sb.append("\"").append(escapeJson(config.tools().get(i))).append("\"");
@@ -373,7 +376,7 @@ public class SkillsManager {
 
     // JSON 辅助方法
     private String escapeJson(String s) {
-        if (s == null) return "";
+        if (StrUtil.isBlank(s)) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 

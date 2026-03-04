@@ -1,5 +1,6 @@
 package com.jimuqu.solonclaw.util;
 
+import cn.hutool.core.util.StrUtil;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.annotation.Inject;
 import org.slf4j.Logger;
@@ -60,7 +61,7 @@ public class FileService {
      * @return 文件路径列表
      */
     public java.util.List<String> extractImagePaths(String text) {
-        if (text == null || text.isEmpty()) {
+        if (StrUtil.isBlank(text)) {
             return new java.util.ArrayList<>();
         }
 
@@ -71,7 +72,7 @@ public class FileService {
             // 尝试所有分组，找到非 null 的那个
             for (int i = 1; i <= matcher.groupCount(); i++) {
                 String group = matcher.group(i);
-                if (group != null && !group.isEmpty()) {
+                if (StrUtil.isNotEmpty(group)) {
                     // 过滤掉扩展名分组（只获取文件路径）
                     if (!group.matches("^(png|jpg|jpeg|gif|webp|svg|PNG|JPG|JPEG|GIF|WEBP|SVG)$")) {
                         paths.add(group);
@@ -91,7 +92,7 @@ public class FileService {
      * @return 是否包含图片路径
      */
     public boolean containsImagePath(String text) {
-        if (text == null || text.isEmpty()) {
+        if (StrUtil.isBlank(text)) {
             return false;
         }
         return !extractImagePaths(text).isEmpty();
@@ -157,7 +158,7 @@ public class FileService {
      * @return 处理后的内容，包含 Markdown 图片语法
      */
     public String processImagesInContent(String content) {
-        if (content == null || content.isEmpty()) {
+        if (StrUtil.isBlank(content)) {
             return content;
         }
 

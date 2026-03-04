@@ -1,5 +1,6 @@
 package com.jimuqu.solonclaw.tool;
 
+import cn.hutool.core.util.ObjUtil;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.annotation.Inject;
@@ -70,7 +71,7 @@ public class ToolRegistry {
             Component componentAnnotation = beanClass.getAnnotation(Component.class);
 
             // 只扫描带有 @Component 注解的类
-            if (componentAnnotation != null) {
+            if (ObjUtil.isNotNull(componentAnnotation)) {
                 int toolsFound = scanClassForTools(bean, beanClass);
                 scannedCount += toolsFound;
             }
@@ -98,7 +99,7 @@ public class ToolRegistry {
 
         for (Method method : methods) {
             ToolMapping toolMapping = method.getAnnotation(ToolMapping.class);
-            if (toolMapping != null) {
+            if (ObjUtil.isNotNull(toolMapping)) {
                 registerTool(bean, method, toolMapping);
                 count++;
             }
@@ -202,7 +203,7 @@ public class ToolRegistry {
                 org.noear.solon.annotation.Param paramAnnotation =
                     param.getAnnotation(org.noear.solon.annotation.Param.class);
 
-                if (paramAnnotation != null) {
+                if (ObjUtil.isNotNull(paramAnnotation)) {
                     params.add(new ParameterInfo(
                         param.getName(),
                         paramAnnotation.description(),

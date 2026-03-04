@@ -43,6 +43,9 @@ public class WorkspaceConfig {
     @Inject("${solonclaw.directories.logsDir}")
     private String logsDir;
 
+    @Inject("${solonclaw.directories.autonomousStateFile}")
+    private String autonomousStateFile;
+
     @Bean
     public WorkspaceInfo workspaceInfo() {
         Path workspace = Paths.get(workspacePath).toAbsolutePath().normalize();
@@ -57,7 +60,8 @@ public class WorkspaceConfig {
                 workspace.resolve(jobHistoryFile),
                 workspace.resolve(databaseFile),
                 workspace.resolve(shellWorkspace),
-                workspace.resolve(logsDir)
+                workspace.resolve(logsDir),
+                workspace.resolve(autonomousStateFile)
         );
 
         // 创建必要的子目录
@@ -73,13 +77,14 @@ public class WorkspaceConfig {
     /**
      * 工作目录信息
      *
-     * @param workspace       工作目录根路径
-     * @param skillsDir       Skills 目录
-     * @param jobsFile        任务配置文件
-     * @param jobHistoryFile  任务历史文件
-     * @param databaseFile    数据库文件
-     * @param shellWorkspace  Shell 工作目录
-     * @param logsDir         日志目录
+     * @param workspace            工作目录根路径
+     * @param skillsDir            Skills 目录
+     * @param jobsFile             任务配置文件
+     * @param jobHistoryFile       任务历史文件
+     * @param databaseFile         数据库文件
+     * @param shellWorkspace       Shell 工作目录
+     * @param logsDir              日志目录
+     * @param autonomousStateFile  自主运行状态文件
      */
     public record WorkspaceInfo(
             Path workspace,
@@ -88,7 +93,8 @@ public class WorkspaceConfig {
             Path jobHistoryFile,
             Path databaseFile,
             Path shellWorkspace,
-            Path logsDir
+            Path logsDir,
+            Path autonomousStateFile
     ) {
         /**
          * 创建所有必要的目录

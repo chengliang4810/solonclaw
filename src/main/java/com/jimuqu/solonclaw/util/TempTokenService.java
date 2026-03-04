@@ -1,5 +1,7 @@
 package com.jimuqu.solonclaw.util;
 
+import cn.hutool.core.util.ObjUtil;
+import cn.hutool.core.util.StrUtil;
 import org.noear.solon.annotation.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,21 +126,21 @@ public class TempTokenService {
      * @return 文件路径，如果验证失败返回 null
      */
     public String verifyAndGetFilePath(String token, String randomFileName) {
-        if (token == null || token.isEmpty() || randomFileName == null || randomFileName.isEmpty()) {
+        if (StrUtil.isBlank(token) || StrUtil.isBlank(randomFileName)) {
             return null;
         }
 
         // 检查文件名是否匹配
         String key = token + ":" + randomFileName;
         String matchedToken = fileNameToToken.get(key);
-        if (matchedToken == null) {
+        if (ObjUtil.isNull(matchedToken)) {
             log.warn("文件名与 token 不匹配: token={}, fileName={}", token, randomFileName);
             return null;
         }
 
         TokenInfo tokenInfo = tokens.get(token);
 
-        if (tokenInfo == null) {
+        if (ObjUtil.isNull(tokenInfo)) {
             log.warn("Token 不存在: {}", token);
             return null;
         }
