@@ -1,6 +1,7 @@
 package com.jimuqu.solonclaw.autonomous;
 
 import com.jimuqu.solonclaw.autonomous.DecisionEngine.Decision;
+import com.jimuqu.solonclaw.config.WorkspaceConfig.WorkspaceInfo;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.annotation.Init;
 import org.noear.solon.annotation.Inject;
@@ -8,7 +9,13 @@ import org.noear.solon.scheduling.annotation.Scheduled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +47,9 @@ public class AutonomousRunner {
 
     @Inject
     private AutonomousConfig config;
+
+    @Inject
+    private WorkspaceInfo workspaceInfo;
 
     /**
      * 运行状态
@@ -168,6 +178,8 @@ public class AutonomousRunner {
             if (success) {
                 totalTasksExecuted++;
                 log.info("任务执行成功: id={}", nextTask.getId());
+                // 状态已变更，保存状态
+                saveRunningState();
             } else {
                 log.warn("任务执行失败: id={}", nextTask.getId());
             }
@@ -193,6 +205,9 @@ public class AutonomousRunner {
 
                         // 根据完成的自动创建新目标
                         createFollowUpGoals(goal);
+
+                        // 状态已变更，保存状态
+                        saveRunningState();
                     }
                 }
             }
@@ -316,18 +331,38 @@ public class AutonomousRunner {
      * 保存运行状态
      */
     private void saveRunningState() {
+        if (workspaceInfo == null || workspaceInfo.autonomousStateFile() == null) {
+            log.warn("工作目录配置未初始化，无法保存运行状态");
+            return;
+        }
+
+        Path stateFile = workspaceInfo.autonomousStateFile();
         try {
-            Map<String, Object> state = Map.of(
-                "isRunning", isRunning.get(),
-                "startTime", startTime != null ? startTime.toString() : null,
-                "lastActiveTime", lastActiveTime != null ? lastActiveTime.toString() : null,
-                "totalTasksExecuted", totalTasksExecuted,
-                "totalGoalsCompleted", totalGoalsCompleted
-            );
+            // 构建状态数据
+            Map<String, Object> state = new HashMap<>();
+            state.put("isRunning", isRunning.get());
+            state.put("startTime", startTime != null ? startTime.toString() : null);
+            state.put("lastActiveTime", lastActiveTime != null ? lastActiveTime.toString() : null);
+            state.put("totalTasksExecuted", totalTasksExecuted);
+            state.put("totalGoalsCompleted", totalGoalsCompleted);
+            state.put("savedAt", LocalDateTime.now().toString());
 
-            // TODO: 持久化到文件或数据库
-            log.debug("保存运行状态: {}", state);
+            // 转换为 JSON 格式
+            String jsonContent = toJsonString(state);
 
+            // 确保父目录存在
+            Files.createDirectories(stateFile.getParent());
+
+            // 写入文件
+            try (BufferedWriter writer = Files.newBufferedWriter(stateFile)) {
+                writer.write(jsonContent);
+            }
+
+            log.info("运行状态已保存: file={}, isRunning={}, tasksExecuted={}, goalsCompleted={}",
+                stateFile.getFileName(), isRunning.get(), totalTasksExecuted, totalGoalsCompleted);
+
+        } catch (IOException e) {
+            log.error("保存运行状态到文件失败: file={}", stateFile, e);
         } catch (Exception e) {
             log.error("保存运行状态失败", e);
         }
@@ -337,13 +372,257 @@ public class AutonomousRunner {
      * 加载运行状态
      */
     private void loadRunningState() {
-        try {
-            // TODO: 从文件或数据库加载
-            log.debug("加载运行状态");
+        if (workspaceInfo == null || workspaceInfo.autonomousStateFile() == null) {
+            log.warn("工作目录配置未初始化，无法加载运行状态");
+            return;
+        }
 
+        Path stateFile = workspaceInfo.autonomousStateFile();
+        if (!Files.exists(stateFile)) {
+            log.info("运行状态文件不存在，使用默认状态: file={}", stateFile);
+            return;
+        }
+
+        try (BufferedReader reader = Files.newBufferedReader(stateFile)) {
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line);
+            }
+
+            // 解析 JSON 状态
+            Map<String, Object> state = parseJsonString(content.toString());
+
+            if (state != null) {
+                // 恢复运行状态
+                Boolean wasRunning = (Boolean) state.get("isRunning");
+                if (wasRunning != null && wasRunning) {
+                    log.info("检测到上次运行状态为运行中，重置为停止状态");
+                    // 不自动恢复运行状态，需要手动启动
+                }
+
+                String startTimeStr = (String) state.get("startTime");
+                if (startTimeStr != null) {
+                    try {
+                        startTime = LocalDateTime.parse(startTimeStr);
+                    } catch (Exception e) {
+                        log.warn("解析启动时间失败: {}", startTimeStr);
+                    }
+                }
+
+                String lastActiveTimeStr = (String) state.get("lastActiveTime");
+                if (lastActiveTimeStr != null) {
+                    try {
+                        lastActiveTime = LocalDateTime.parse(lastActiveTimeStr);
+                    } catch (Exception e) {
+                        log.warn("解析最后活跃时间失败: {}", lastActiveTimeStr);
+                    }
+                }
+
+                Object tasksExecuted = state.get("totalTasksExecuted");
+                if (tasksExecuted instanceof Number) {
+                    totalTasksExecuted = ((Number) tasksExecuted).longValue();
+                }
+
+                Object goalsCompleted = state.get("totalGoalsCompleted");
+                if (goalsCompleted instanceof Number) {
+                    totalGoalsCompleted = ((Number) goalsCompleted).longValue();
+                }
+
+                log.info("运行状态已加载: tasksExecuted={}, goalsCompleted={}, startTime={}, lastActiveTime={}",
+                    totalTasksExecuted, totalGoalsCompleted, startTime, lastActiveTime);
+            }
+
+        } catch (IOException e) {
+            log.error("从文件加载运行状态失败: file={}", stateFile, e);
         } catch (Exception e) {
             log.error("加载运行状态失败", e);
         }
+    }
+
+    /**
+     * 简单的 Map 转 JSON 字符串
+     */
+    private String toJsonString(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        boolean first = true;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (!first) {
+                sb.append(",");
+            }
+            first = false;
+            sb.append("\"").append(entry.getKey()).append("\":");
+            Object value = entry.getValue();
+            if (value == null) {
+                sb.append("null");
+            } else if (value instanceof Boolean) {
+                sb.append(value);
+            } else if (value instanceof Number) {
+                sb.append(value);
+            } else {
+                sb.append("\"").append(escapeJsonString(value.toString())).append("\"");
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    /**
+     * 简单的 JSON 字符串解析为 Map
+     */
+    private Map<String, Object> parseJsonString(String json) {
+        Map<String, Object> result = new HashMap<>();
+        if (json == null || json.isEmpty() || !json.startsWith("{") || !json.endsWith("}")) {
+            return result;
+        }
+
+        // 移除首尾大括号
+        json = json.substring(1, json.length() - 1).trim();
+        if (json.isEmpty()) {
+            return result;
+        }
+
+        // 简单解析键值对
+        int i = 0;
+        while (i < json.length()) {
+            // 找 key
+            while (i < json.length() && json.charAt(i) != '"') i++;
+            if (i >= json.length()) break;
+            i++; // 跳过开始的引号
+            int keyStart = i;
+            while (i < json.length() && json.charAt(i) != '"') i++;
+            String key = json.substring(keyStart, i);
+            i++; // 跳过结束的引号
+
+            // 找冒号
+            while (i < json.length() && json.charAt(i) != ':') i++;
+            i++; // 跳过冒号
+
+            // 找 value
+            while (i < json.length() && Character.isWhitespace(json.charAt(i))) i++;
+            if (i >= json.length()) break;
+
+            int valueStart = i;
+            Object value;
+            if (json.charAt(i) == '"') {
+                // 字符串值
+                i++; // 跳过开始的引号
+                int strStart = i;
+                while (i < json.length() && json.charAt(i) != '"') {
+                    if (json.charAt(i) == '\\') i++; // 跳过转义字符
+                    i++;
+                }
+                value = unescapeJsonString(json.substring(strStart, i));
+                i++; // 跳过结束的引号
+            } else if (json.charAt(i) == 't' || json.charAt(i) == 'f') {
+                // 布尔值
+                if (json.substring(i).startsWith("true")) {
+                    value = true;
+                    i += 4;
+                } else if (json.substring(i).startsWith("false")) {
+                    value = false;
+                    i += 5;
+                } else {
+                    value = null;
+                    while (i < json.length() && json.charAt(i) != ',' && json.charAt(i) != '}') i++;
+                }
+            } else if (json.charAt(i) == 'n') {
+                // null
+                value = null;
+                i += 4;
+            } else if (Character.isDigit(json.charAt(i)) || json.charAt(i) == '-') {
+                // 数字
+                int numStart = i;
+                while (i < json.length() && (Character.isDigit(json.charAt(i)) || json.charAt(i) == '.' || json.charAt(i) == '-')) {
+                    i++;
+                }
+                String numStr = json.substring(numStart, i);
+                if (numStr.contains(".")) {
+                    value = Double.parseDouble(numStr);
+                } else {
+                    value = Long.parseLong(numStr);
+                }
+            } else {
+                value = null;
+                while (i < json.length() && json.charAt(i) != ',' && json.charAt(i) != '}') i++;
+            }
+
+            result.put(key, value);
+
+            // 找下一个逗号
+            while (i < json.length() && json.charAt(i) != ',') i++;
+            if (i < json.length()) i++; // 跳过逗号
+        }
+
+        return result;
+    }
+
+    /**
+     * 转义 JSON 字符串中的特殊字符
+     */
+    private String escapeJsonString(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < ' ') {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 反转义 JSON 字符串
+     */
+    private String unescapeJsonString(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case '"' -> { sb.append('"'); i++; }
+                    case '\\' -> { sb.append('\\'); i++; }
+                    case 'b' -> { sb.append('\b'); i++; }
+                    case 'f' -> { sb.append('\f'); i++; }
+                    case 'n' -> { sb.append('\n'); i++; }
+                    case 'r' -> { sb.append('\r'); i++; }
+                    case 't' -> { sb.append('\t'); i++; }
+                    case 'u' -> {
+                        if (i + 5 < s.length()) {
+                            String hex = s.substring(i + 2, i + 6);
+                            try {
+                                sb.append((char) Integer.parseInt(hex, 16));
+                                i += 5;
+                            } catch (NumberFormatException e) {
+                                sb.append(c);
+                            }
+                        } else {
+                            sb.append(c);
+                        }
+                    }
+                    default -> sb.append(c);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     /**
