@@ -1,6 +1,7 @@
 package com.jimuqu.solonclaw.monitor;
 
 import com.jimuqu.solonclaw.common.Result;
+import com.jimuqu.solonclaw.logging.UnifiedLogger;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -27,6 +28,9 @@ public class MonitorController {
 
     @Inject
     private SystemResourceMonitor systemResourceMonitor;
+
+    @Inject
+    private UnifiedLogger unifiedLogger;
 
     /**
      * 获取性能统计
@@ -192,6 +196,68 @@ public class MonitorController {
     }
 
     /**
+     * 获取 JSON 格式的性能指标
+     */
+    @ApiOperation(value = "获取性能指标", notes = "获取 JSON 格式的聚合性能指标，包含 CPU、内存、响应时间等")
+    @Get
+    @Mapping("/metrics/json")
+    public Result getMetricsJson() {
+        try {
+            Map<String, Object> metrics = new HashMap<>();
+
+            // 1. 请求性能指标
+            PerformanceStats stats = performanceMonitor.getStats();
+            Map<String, Object> requestMetrics = new HashMap<>();
+            requestMetrics.put("totalRequests", stats.getTotalRequests());
+            requestMetrics.put("successRequests", stats.getSuccessRequests());
+            requestMetrics.put("failedRequests", stats.getFailedRequests());
+            requestMetrics.put("averageResponseTimeMs", stats.getAverageResponseTime());
+            requestMetrics.put("successRate", stats.getSuccessRate());
+            requestMetrics.put("activeConversations", stats.getActiveConversations());
+            requestMetrics.put("totalConversations", stats.getTotalConversations());
+            requestMetrics.put("toolCallCounts", stats.getToolCallCounts());
+            requestMetrics.put("toolCallErrors", stats.getToolCallErrors());
+            metrics.put("request", requestMetrics);
+
+            // 2. 系统资源指标
+            Map<String, Object> resources = systemResourceMonitor.getCurrentResources();
+            Map<String, Object> systemMetrics = new HashMap<>();
+            systemMetrics.put("heapUsedBytes", resources.get("heap.used"));
+            systemMetrics.put("heapMaxBytes", resources.get("heap.max"));
+            systemMetrics.put("heapUsagePercent", resources.get("heap.usagePercent"));
+            systemMetrics.put("threadCount", resources.get("thread.count"));
+            systemMetrics.put("cpuLoad", resources.get("os.cpuLoad"));
+            systemMetrics.put("processCpuLoad", resources.get("os.processCpuLoad"));
+            systemMetrics.put("memoryUsedBytes", resources.get("os.memory.used"));
+            systemMetrics.put("memoryTotalBytes", resources.get("os.memory.total"));
+            systemMetrics.put("uptimeMs", resources.get("runtime.uptime"));
+            systemMetrics.put("gc", resources.get("gc"));
+            metrics.put("system", systemMetrics);
+
+            // 3. 告警统计
+            Map<String, Object> alertMetrics = new HashMap<>();
+            Map<AlertLevel, Long> alertCounts = alertService.getAlertCounts();
+            alertMetrics.put("counts", alertCounts);
+            alertMetrics.put("total", alertCounts.values().stream().mapToLong(Long::longValue).sum());
+            metrics.put("alerts", alertMetrics);
+
+            // 4. 历史趋势数据（最近 10 条）
+            List<SystemResourceMonitor.ResourceSnapshot> history = systemResourceMonitor.getResourceHistory();
+            if (history.size() > 10) {
+                history = history.subList(history.size() - 10, history.size());
+            }
+            metrics.put("history", history);
+
+            // 5. 时间戳
+            metrics.put("timestamp", System.currentTimeMillis());
+
+            return Result.success("获取性能指标成功", metrics);
+        } catch (Exception e) {
+            return Result.error("获取性能指标失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * Prometheus 格式指标导出
      */
     @ApiOperation(value = "Prometheus 指标", notes = "导出 Prometheus 格式的监控指标")
@@ -273,6 +339,36 @@ public class MonitorController {
         } catch (Exception e) {
             ctx.status(500);
             ctx.output("Error generating metrics: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取错误分类统计
+     */
+    @ApiOperation(value = "获取错误统计", notes = "获取错误分类统计，按异常类型和来源分类")
+    @Get
+    @Mapping("/errors/stats")
+    public Result getErrorStats() {
+        try {
+            UnifiedLogger.ErrorStatistics stats = unifiedLogger.getErrorStatistics();
+            return Result.success("获取错误统计成功", stats);
+        } catch (Exception e) {
+            return Result.error("获取错误统计失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 重置错误统计
+     */
+    @ApiOperation(value = "重置错误统计", notes = "重置所有错误分类统计数据")
+    @Post
+    @Mapping("/errors/reset")
+    public Result resetErrorStats() {
+        try {
+            unifiedLogger.resetErrorStats();
+            return Result.success("重置错误统计成功");
+        } catch (Exception e) {
+            return Result.error("重置错误统计失败: " + e.getMessage());
         }
     }
 }
