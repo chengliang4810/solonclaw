@@ -14,6 +14,8 @@ import org.noear.solon.scheduling.annotation.Scheduled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import cn.hutool.core.util.ObjUtil;
+import cn.hutool.core.util.StrUtil;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,7 +63,7 @@ public class SchedulerService {
     public void init() {
         // 获取 Solon 的 JobManager 实例
         jobManager = JobManager.getInstance();
-        log.info("SchedulerService 初始化，JobManager: {}", jobManager != null ? "已加载" : "未找到");
+        log.info("SchedulerService 初始化，JobManager: {}", ObjUtil.isNotNull(jobManager) ? "已加载" : "未找到");
 
         // 加载持久化的任务
         loadJobs();
@@ -167,7 +169,7 @@ public class SchedulerService {
      * 注册任务到 Solon 调度器
      */
     private void registerJob(JobInfo jobInfo) {
-        if (jobManager == null) {
+        if (ObjUtil.isNull(jobManager)) {
             log.warn("JobManager 未初始化，任务将只保存到配置文件");
             return;
         }
@@ -182,7 +184,7 @@ public class SchedulerService {
 
                 @Override
                 public String cron() {
-                    return jobInfo.cron() != null ? jobInfo.cron() : "";
+                    return StrUtil.blankToDefault(jobInfo.cron(), "");
                 }
 
                 @Override
@@ -268,13 +270,13 @@ public class SchedulerService {
      */
     public boolean removeJob(String name) {
         JobInfo jobInfo = jobs.remove(name);
-        if (jobInfo == null) {
+        if (ObjUtil.isNull(jobInfo)) {
             log.warn("任务不存在: {}", name);
             return false;
         }
 
         // 从 Solon 调度器中移除
-        if (jobManager != null && jobManager.jobExists(name)) {
+        if (ObjUtil.isNotNull(jobManager) && jobManager.jobExists(name)) {
             jobManager.jobRemove(name);
         }
 
@@ -296,7 +298,7 @@ public class SchedulerService {
         }
 
         try {
-            if (jobManager != null && jobManager.jobExists(name)) {
+            if (ObjUtil.isNotNull(jobManager) && jobManager.jobExists(name)) {
                 jobManager.jobStop(name);
                 log.info("暂停任务: {}", name);
                 return true;
@@ -321,7 +323,7 @@ public class SchedulerService {
         }
 
         try {
-            if (jobManager != null && jobManager.jobExists(name)) {
+            if (ObjUtil.isNotNull(jobManager) && jobManager.jobExists(name)) {
                 jobManager.jobStart(name, null);
                 log.info("恢复任务: {}", name);
                 return true;
@@ -424,7 +426,7 @@ public class SchedulerService {
     private void restoreJobs() {
         for (JobInfo jobInfo : jobs.values()) {
             try {
-                if (jobManager != null && !jobManager.jobExists(jobInfo.name())) {
+                if (ObjUtil.isNotNull(jobManager) && !jobManager.jobExists(jobInfo.name())) {
                     registerJob(jobInfo);
                     log.debug("恢复任务: {}", jobInfo.name());
                 }
@@ -449,7 +451,7 @@ public class SchedulerService {
                 if (i > 0) sb.append(",\n");
                 sb.append("  {\n");
                 sb.append("    \"name\": \"").append(escapeJson(job.name())).append("\",\n");
-                sb.append("    \"cron\": ").append(job.cron() != null ? "\"" + escapeJson(job.cron()) + "\"" : "null").append(",\n");
+                sb.append("    \"cron\": ").append(StrUtil.isNotEmpty(job.cron()) ? "\"" + escapeJson(job.cron()) + "\"" : "null").append(",\n");
                 sb.append("    \"fixedRate\": ").append(job.fixedRate()).append(",\n");
                 sb.append("    \"isOneTime\": ").append(job.isOneTime()).append(",\n");
                 sb.append("    \"scheduleTime\": ").append(job.scheduleTime()).append(",\n");
@@ -566,7 +568,7 @@ public class SchedulerService {
                 sb.append("    \"executionTime\": ").append(h.executionTime()).append(",\n");
                 sb.append("    \"duration\": ").append(h.duration()).append(",\n");
                 sb.append("    \"success\": ").append(h.success()).append(",\n");
-                sb.append("    \"errorMessage\": ").append(h.errorMessage() != null ? "\"" + escapeJson(h.errorMessage()) + "\"" : "null").append("\n");
+                sb.append("    \"errorMessage\": ").append(StrUtil.isNotEmpty(h.errorMessage()) ? "\"" + escapeJson(h.errorMessage()) + "\"" : "null").append("\n");
                 sb.append("  }");
             }
             sb.append("\n]");
@@ -643,7 +645,7 @@ public class SchedulerService {
 
     // JSON 辅助方法
     private String escapeJson(String s) {
-        if (s == null) return "";
+        if (StrUtil.isBlank(s)) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 
