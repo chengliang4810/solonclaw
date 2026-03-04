@@ -61,6 +61,17 @@ solonclaw:
     store:
       enabled: true
 
+    # ==================== 记忆摘要配置 ====================
+    summarization:
+      enabled: true                       # 是否启用记忆摘要（永不失忆功能）
+      maxMessages: 12                     # 超过 12 条消息时触发摘要压缩
+      strategy: composite                 # 摘要策略：lstm, keyInfo, hierarchical, composite
+      maxSummaryLength: 500               # 摘要最大长度（字符数）
+      keyInfoEnabled: true                # 是否启用关键信息提取
+      hierarchicalEnabled: true           # 是否启用层级滚动摘要
+      # keyInfoPrompt: ""                  # 关键信息提取提示词（可选，有默认值）
+      # hierarchicalPrompt: ""             # 层级摘要提示词（可选，有默认值）
+
   callback:
     enabled: true
     url: "${CALLBACK_URL:}"

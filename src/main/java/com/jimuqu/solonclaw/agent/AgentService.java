@@ -6,12 +6,16 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solonclaw.context.Context;
 import com.jimuqu.solonclaw.context.ContextBuilder;
 import com.jimuqu.solonclaw.memory.MemoryService;
+import com.jimuqu.solonclaw.memory.summary.MemorySummarizationConfig;
+import com.jimuqu.solonclaw.memory.summary.SummarizationStrategyFactory;
 import com.jimuqu.solonclaw.tool.ToolRegistry;
 import com.jimuqu.solonclaw.util.FileService;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
+import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.ChatResponse;
@@ -68,6 +72,12 @@ public class AgentService {
 
     @Inject(required = false)
     private com.jimuqu.solonclaw.skill.SkillsManager skillsManager;
+
+    @Inject(required = false)
+    private MemorySummarizationConfig summarizationConfig;
+
+    @Inject(required = false)
+    private SummarizationStrategyFactory summarizationStrategyFactory;
 
     /**
      * ReActAgent 实例（延迟初始化）
@@ -142,6 +152,25 @@ public class AgentService {
         }
 
         builder.defaultInterceptorAdd(new LoggingInterceptor());
+
+        // 添加记忆摘要拦截器（如果配置启用）
+        if (summarizationConfig != null && summarizationStrategyFactory != null) {
+            SummarizationStrategy strategy = summarizationStrategyFactory.createStrategy(summarizationConfig, chatModel);
+            if (strategy != null) {
+                SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(
+                        summarizationConfig.getMaxMessages(),
+                        strategy
+                );
+                builder.defaultInterceptorAdd(summarizationInterceptor);
+                log.info("已启用记忆摘要系统，策略: {}，最大消息数: {}",
+                        summarizationConfig.getStrategy(),
+                        summarizationConfig.getMaxMessages());
+            } else {
+                log.info("记忆摘要策略为 null，跳过添加摘要拦截器");
+            }
+        } else {
+            log.info("记忆摘要配置或工厂未注入，摘要功能未启用");
+        }
 
         ReActAgent agent = builder.build();
         log.info("ReActAgent 构建完成，已注册 {} 个工具, {} 个技能", toolObjects.size(),
