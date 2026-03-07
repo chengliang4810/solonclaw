@@ -9,7 +9,6 @@ import com.jimuqu.solonclaw.memory.MemoryService;
 import com.jimuqu.solonclaw.memory.summary.MemorySummarizationConfig;
 import com.jimuqu.solonclaw.memory.summary.SummarizationStrategyFactory;
 import com.jimuqu.solonclaw.tool.ToolRegistry;
-import com.jimuqu.solonclaw.util.FileService;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
@@ -57,9 +56,6 @@ public class AgentService {
 
     @Inject
     private AgentConfig agentConfig;
-
-    @Inject
-    private FileService fileService;
 
     @Inject(required = false)
     private com.jimuqu.solonclaw.learning.KnowledgeStore knowledgeStore;
@@ -276,7 +272,6 @@ public class AgentService {
                     .getContent();
 
             memoryService.saveAssistantMessage(sessionId, response);
-            response = fileService.processImagesInContent(response);
 
             log.info("Agent 响应：sessionId={}, length={}", sessionId, response.length());
 
