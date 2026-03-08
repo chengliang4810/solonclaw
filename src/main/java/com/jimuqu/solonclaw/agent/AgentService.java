@@ -9,15 +9,18 @@ import com.jimuqu.solonclaw.memory.MemoryService;
 import com.jimuqu.solonclaw.memory.summary.MemorySummarizationConfig;
 import com.jimuqu.solonclaw.memory.summary.SummarizationStrategyFactory;
 import com.jimuqu.solonclaw.tool.ToolRegistry;
+import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.react.ReActChunk;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
 import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
+import org.noear.solon.ai.agent.react.task.ActionChunk;
+import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
-import org.noear.solon.ai.chat.ChatResponse;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.annotation.Init;
@@ -29,7 +32,6 @@ import reactor.core.publisher.Flux;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
@@ -130,7 +132,7 @@ public class AgentService {
                 .instruction(buildAgentInstruction())
                 .maxSteps(agentConfig.getMaxToolIterations())
                 .sessionWindowSize(agentConfig.getMaxHistoryMessages())
-                .retryConfig(3, 1000L)
+                .retryConfig(5, 3000L)
                 .modelOptions(options -> options.temperature(0.7));
 
         // 注册内置工具
@@ -170,7 +172,7 @@ public class AgentService {
 
         ReActAgent agent = builder.build();
         log.info("ReActAgent 构建完成，已注册 {} 个工具, {} 个技能", toolObjects.size(),
-                skillsManager != null ? skillsManager.getSkills().size() : 0);
+                skillsManager != null ? skillsManager.getSkills().size(): 0);
 
         return agent;
     }
@@ -234,69 +236,82 @@ public class AgentService {
         try {
             memoryService.saveUserMessage(sessionId, message);
 
-            String enhancedMessage = message;
-            if (ObjUtil.isNotNull(contextBuilder)) {
-                try {
-                    Context context = contextBuilder.build(sessionId, message, null);
-                    enhancedMessage = context.buildPrompt(message);
-                    log.debug("已使用 ContextBuilder 构建上下文：sessionId={}", sessionId);
-                } catch (Exception e) {
-                    log.warn("使用 ContextBuilder 构建上下文失败，回退到原始消息", e);
-                    enhancedMessage = message;
-                }
-            }
-
-            List<Map<String, String>> history = memoryService.getSessionHistory(sessionId);
-            log.info("加载历史记录：sessionId={}, 历史消息数={}", sessionId, history.size());
+            String enhancedMessage = buildEnhancedMessage(message, sessionId);
+            AgentSession session = buildSession(sessionId);
 
             ReActAgent agent = getOrCreateAgent();
-            AgentSession session = InMemoryAgentSession.of(sessionId);
-
-            if (CollUtil.isNotEmpty(history)) {
-                List<ChatMessage> historyMessages = new ArrayList<>();
-                for (Map<String, String> msg : history) {
-                    String role = msg.get("role");
-                    String content = msg.get("content");
-                    if (StrUtil.equals("user", role)) {
-                        historyMessages.add(ChatMessage.ofUser(content));
-                    } else if (StrUtil.equals("assistant", role)) {
-                        historyMessages.add(ChatMessage.ofAssistant(content));
-                    }
-                }
-                session.addMessage(historyMessages);
-            }
-
             String response = agent.prompt(enhancedMessage)
                     .session(session)
                     .call()
                     .getContent();
 
             memoryService.saveAssistantMessage(sessionId, response);
-
             log.info("Agent 响应：sessionId={}, length={}", sessionId, response.length());
 
-            if (ObjUtil.isNotNull(learningOrchestrator)) {
-                try {
-                    learningOrchestrator.onChatComplete(sessionId, response, null);
-                } catch (Exception e) {
-                    log.warn("触发学习流程失败", e);
-                }
-            }
-
+            triggerLearning(sessionId, response, null);
             return response;
 
         } catch (Throwable e) {
             log.error("Agent 对话异常", e);
+            triggerLearning(sessionId, null, e);
+            throw new RuntimeException("AI 对话失败：" + e.getMessage(), e);
+        }
+    }
 
-            if (ObjUtil.isNotNull(learningOrchestrator)) {
-                try {
-                    learningOrchestrator.onChatComplete(sessionId, null, e);
-                } catch (Exception learnException) {
-                    log.warn("错误学习流程失败", learnException);
+    /**
+     * 构建增强消息（带上下文）
+     */
+    private String buildEnhancedMessage(String message, String sessionId) {
+        if (ObjUtil.isNull(contextBuilder)) {
+            return message;
+        }
+        try {
+            Context context = contextBuilder.build(sessionId, message, null);
+            String enhanced = context.buildPrompt(message);
+            log.debug("已使用 ContextBuilder 构建上下文：sessionId={}", sessionId);
+            return enhanced;
+        } catch (Exception e) {
+            log.warn("使用 ContextBuilder 构建上下文失败，回退到原始消息", e);
+            return message;
+        }
+    }
+
+    /**
+     * 构建 AgentSession 并加载历史记录
+     */
+    private AgentSession buildSession(String sessionId) {
+        List<Map<String, String>> history = memoryService.getSessionHistory(sessionId);
+        log.info("加载历史记录：sessionId={}, 历史消息数={}", sessionId, history.size());
+
+        AgentSession session = InMemoryAgentSession.of(sessionId);
+
+        if (CollUtil.isNotEmpty(history)) {
+            List<ChatMessage> historyMessages = new ArrayList<>();
+            for (Map<String, String> msg : history) {
+                String role = msg.get("role");
+                String content = msg.get("content");
+                if (StrUtil.equals("user", role)) {
+                    historyMessages.add(ChatMessage.ofUser(content));
+                } else if (StrUtil.equals("assistant", role)) {
+                    historyMessages.add(ChatMessage.ofAssistant(content));
                 }
             }
+            session.addMessage(historyMessages);
+        }
+        return session;
+    }
 
-            throw new RuntimeException("AI 对话失败：" + e.getMessage(), e);
+    /**
+     * 触发学习流程
+     */
+    private void triggerLearning(String sessionId, String response, Throwable error) {
+        if (ObjUtil.isNull(learningOrchestrator)) {
+            return;
+        }
+        try {
+            learningOrchestrator.onChatComplete(sessionId, response, error);
+        } catch (Exception e) {
+            log.warn("触发学习流程失败", e);
         }
     }
 
@@ -324,63 +339,67 @@ public class AgentService {
     }
 
     /**
-     * 流式对话
+     * 流式对话（支持 ReAct 思考过程和工具调用实时推送）
      * <p>
-     * 使用 ChatModel.stream() 实现真正的逐 token 流式输出
-     * 注意：此实现不使用 ReActAgent，因为 ReActAgent 需要推理和工具调用，不支持流式
+     * 使用 ReActAgent.stream() 方法，通过 Flux<AgentChunk> 实时推送思考过程和工具调用事件
      */
     public void chatStream(String message, String sessionId, Consumer<StreamEvent> eventConsumer) {
         log.info("Agent chatStream: sessionId={}, message={}", sessionId, message);
 
-        memoryService.saveUserMessage(sessionId, message);
-        eventConsumer.accept(new StreamEvent(StreamEventType.START, "开始处理", null));
-
         try {
-            List<Map<String, String>> history = memoryService.getSessionHistory(sessionId);
-            log.info("加载历史记录：sessionId={}, 历史消息数={}", sessionId, history.size());
+            memoryService.saveUserMessage(sessionId, message);
+            eventConsumer.accept(new StreamEvent(StreamEventType.START, "开始处理"));
 
-            List<ChatMessage> historyMessages = new ArrayList<>();
-            for (Map<String, String> msg : history) {
-                String role = msg.get("role");
-                String content = msg.get("content");
-                if (StrUtil.equals("user", role)) {
-                    historyMessages.add(ChatMessage.ofUser(content));
-                } else if (StrUtil.equals("assistant", role)) {
-                    historyMessages.add(ChatMessage.ofAssistant(content));
-                }
-            }
+            String enhancedMessage = buildEnhancedMessage(message, sessionId);
+            AgentSession session = buildSession(sessionId);
 
-            // 添加用户消息到历史
-            historyMessages.add(ChatMessage.ofUser(message));
+            ReActAgent agent = getOrCreateAgent();
 
-            // 使用 ChatModel.stream() 实现真正的流式输出
-            Flux<ChatResponse> flux = chatModel.prompt(historyMessages)
+            // 使用 stream() 方法获取流式输出
+            Flux<AgentChunk> chunks = agent.prompt(enhancedMessage)
+                    .session(session)
                     .stream();
 
-            CompletableFuture<String> fullResponseFuture = new CompletableFuture<>();
-            StringBuilder fullResponse = new StringBuilder();
+            StringBuilder finalAnswer = new StringBuilder();
 
-            flux.doOnNext(response -> {
-                        String content = response.getMessage().getContent();
-                        if (StrUtil.isNotEmpty(content)) {
-                            eventConsumer.accept(new StreamEvent(StreamEventType.CONTENT, content));
-                            fullResponse.append(content);
+            chunks.doOnNext(chunk -> {
+                        if (chunk instanceof ReasonChunk reasonChunk) {
+                            // 思考过程或最终答案 - 直接使用 isThinking() 判断
+                            ChatMessage chatMessage = reasonChunk.getMessage();
+                            String content = chatMessage.getContent();
+                            Boolean isThinking = chatMessage.isThinking();
+
+                            // 调试日志
+                            String preview = content.length() > 50 ? content.substring(0, 50) + "..." : content;
+                            log.info("[Stream] isThinking={}, content={}", isThinking, preview);
+
+                            // 前端逻辑：isThinking=true 显示思考，isThinking=false 显示答案
+                            // 直接使用 isThinking 标志
+                            eventConsumer.accept(new StreamEvent(StreamEventType.CONTENT, content, null, isThinking, null, null));
+
+                            // 最终答案保存到 finalAnswer
+                            if (!isThinking) {
+                                finalAnswer.append(content);
+                            }
+                        } else if (chunk instanceof ActionChunk actionChunk) {
+                            // 工具调用 - 只记录日志，不推送到前端
+                            String toolName = actionChunk.getToolName();
+                            Map<String, Object> args = actionChunk.getArgs();
+                            log.info("[ToolCall] 工具调用：{}，参数：{}", toolName, args);
+                        } else if (chunk instanceof ReActChunk reActChunk) {
+                            // 记录执行历史
+                            log.debug("ReAct 执行完成，历史记录：{}", reActChunk.getTrace().getFormattedHistory());
                         }
-                    })
-                    .doOnComplete(() -> {
-                        String responseText = fullResponse.toString();
-                        memoryService.saveAssistantMessage(sessionId, responseText);
-                        eventConsumer.accept(new StreamEvent(StreamEventType.END, "处理完成", null));
-                        fullResponseFuture.complete(responseText);
                     })
                     .doOnError(error -> {
                         log.error("流式对话异常", error);
                         eventConsumer.accept(new StreamEvent(StreamEventType.ERROR, "处理失败：" + error.getMessage(), error));
-                        fullResponseFuture.completeExceptionally(error);
                     })
-                    .subscribe();
-
-            fullResponseFuture.join();
+                    .doOnComplete(() -> {
+                        memoryService.saveAssistantMessage(sessionId, finalAnswer.toString());
+                        eventConsumer.accept(new StreamEvent(StreamEventType.END, "处理完成"));
+                    })
+                    .blockLast();
 
         } catch (Throwable e) {
             log.error("Agent 对话异常", e);
@@ -406,87 +425,80 @@ public class AgentService {
     public record StreamEvent(
             StreamEventType type,
             String content,
-            Throwable error
+            Throwable error,
+            Boolean isThinking,
+            String toolName,
+            Map<String, Object> toolArgs
     ) {
         public StreamEvent(StreamEventType type, String content) {
-            this(type, content, null);
+            this(type, content, null, null, null, null);
+        }
+
+        public StreamEvent(StreamEventType type, String content, Boolean isThinking) {
+            this(type, content, null, isThinking, null, null);
+        }
+
+        public StreamEvent(StreamEventType type, String content, String toolName, Map<String, Object> toolArgs) {
+            this(type, content, null, null, toolName, toolArgs);
+        }
+
+        public StreamEvent(StreamEventType type, String content, Throwable error) {
+            this(type, content, error, null, null, null);
         }
 
         public String toJson() {
             StringBuilder sb = new StringBuilder();
-            sb.append("{");
-            sb.append("\"type\":\"").append(type).append("\"");
+            sb.append("{\"type\":\"").append(type).append("\"");
             if (content != null) {
                 sb.append(",\"content\":").append(escapeJson(content));
             }
             if (error != null) {
                 sb.append(",\"error\":").append(escapeJson(error.getMessage()));
             }
+            if (isThinking != null) {
+                sb.append(",\"isThinking\":").append(isThinking);
+            }
+            if (toolName != null) {
+                sb.append(",\"toolName\":").append(escapeJson(toolName));
+            }
+            if (toolArgs != null) {
+                sb.append(",\"toolArgs\":").append(escapeJsonMap(toolArgs));
+            }
             sb.append("}");
             return sb.toString();
         }
 
-        private String escapeJson(String value) {
-            if (StrUtil.isBlank(value)) return "null";
+        private static String escapeJson(String value) {
+            if (value == null) return "null";
             return "\"" + StrUtil.replace(value, "\\", "\\\\")
                     .replace("\"", "\\\"")
                     .replace("\n", "\\n")
                     .replace("\r", "\\r")
                     .replace("\t", "\\t") + "\"";
         }
-    }
 
-    private String truncate(String text, int maxLength) {
-        if (StrUtil.isBlank(text)) return null;
-        if (text.length() <= maxLength) return text;
-        return StrUtil.sub(text, 0, maxLength) + "...";
-    }
-
-    @Deprecated
-    private String retrieveRelevantKnowledge(String message, String sessionId) {
-        if (ObjUtil.isNull(knowledgeStore)) {
-            return null;
-        }
-
-        try {
-            String keyword = extractKeyword(message);
-            List<com.jimuqu.solonclaw.memory.SessionStore.Experience> experiences =
-                knowledgeStore.searchAllExperiences(keyword, 5);
-
-            if (CollUtil.isEmpty(experiences)) {
-                return null;
-            }
-
-            StringBuilder knowledgeContext = new StringBuilder();
-            knowledgeContext.append("基于历史经验，以下信息可能对你有帮助：\n\n");
-
-            for (com.jimuqu.solonclaw.memory.SessionStore.Experience exp : experiences) {
-                if (exp.success() && exp.confidence() >= 0.6) {
-                    String content = exp.content();
-                    int contentLength = content != null ? content.length() : 0;
-                    knowledgeContext.append(String.format("- **%s**: %s (置信度：%.1f%%)\n",
-                        exp.title(),
-                        content != null ? content.substring(0, Math.min(100, contentLength)) : "",
-                        exp.confidence() * 100
-                    ));
+        private static String escapeJsonMap(Map<String, Object> map) {
+            if (map == null || map.isEmpty()) return "{}";
+            StringBuilder sb = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                if (!first) sb.append(",");
+                first = false;
+                sb.append("\"").append(escapeJson(entry.getKey()).replace("\"", "")).append("\":");
+                Object value = entry.getValue();
+                if (value == null) {
+                    sb.append("null");
+                } else if (value instanceof String) {
+                    sb.append(escapeJson((String) value));
+                } else if (value instanceof Number || value instanceof Boolean) {
+                    sb.append(value);
+                } else {
+                    sb.append(escapeJson(value.toString()));
                 }
             }
-
-            return knowledgeContext.toString();
-
-        } catch (Exception e) {
-            log.warn("检索知识失败：sessionId={}", sessionId, e);
-            return null;
+            sb.append("}");
+            return sb.toString();
         }
-    }
-
-    @Deprecated
-    private String extractKeyword(String message) {
-        if (StrUtil.isBlank(message)) {
-            return "";
-        }
-        int maxLength = Math.min(20, message.length());
-        return StrUtil.sub(message, 0, maxLength).trim();
     }
 
     /**
@@ -499,7 +511,7 @@ public class AgentService {
 
         @Override
         public void onAgentStart(ReActTrace trace) {
-            String traceId = ObjUtil.isNotNull(trace) ? extractTraceId(trace) : null;
+            String traceId = ObjUtil.isNotNull(trace) ? extractTraceId(trace): null;
             if (StrUtil.isBlank(traceId)) {
                 traceId = com.jimuqu.solonclaw.trace.TraceContext.generateTraceId();
             }
@@ -510,7 +522,7 @@ public class AgentService {
         @Override
         public void onThought(ReActTrace trace, String thought) {
             String traceId = com.jimuqu.solonclaw.trace.TraceContext.getTraceId();
-            String truncatedThought = truncate(thought, MAX_LOG_LENGTH);
+            String truncatedThought = truncate(thought);
             if (StrUtil.isNotEmpty(traceId)) {
                 log.debug("[TraceID: {}] Agent 思考：{}", traceId, truncatedThought);
                 if (thought.length() > MAX_LOG_LENGTH) {
@@ -565,10 +577,10 @@ public class AgentService {
             return null;
         }
 
-        private String truncate(String text, int maxLength) {
+        private String truncate(String text) {
             if (StrUtil.isBlank(text)) return null;
-            if (text.length() <= maxLength) return text;
-            return StrUtil.sub(text, 0, maxLength) + "... (截断，总长度：" + text.length() + ")";
+            if (text.length() <= MAX_LOG_LENGTH) return text;
+            return StrUtil.sub(text, 0, MAX_LOG_LENGTH) + "... (截断，总长度：" + text.length() + ")";
         }
 
         private String formatDetailedArgs(Map<String, Object> args) {
