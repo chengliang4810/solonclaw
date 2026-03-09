@@ -35,10 +35,10 @@ public class SchedulerService {
 
     private static final Logger log = LoggerFactory.getLogger(SchedulerService.class);
 
-    @Inject
+    @Inject(required = false)
     private WorkspaceConfig.WorkspaceInfo workspaceInfo;
 
-    @Inject
+    @Inject(required = false)
     private AgentService agentService;
 
     /**

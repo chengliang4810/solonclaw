@@ -19,7 +19,7 @@ public class KnowledgeStore {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeStore.class);
 
-    @Inject
+    @Inject(required = false)
     private com.jimuqu.solonclaw.memory.SessionStore sessionStore;
 
     // ==================== 反省管理 ====================

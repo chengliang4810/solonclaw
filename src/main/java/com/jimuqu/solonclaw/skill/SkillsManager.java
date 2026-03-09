@@ -32,10 +32,10 @@ public class SkillsManager {
 
     private static final Logger log = LoggerFactory.getLogger(SkillsManager.class);
 
-    @Inject
+    @Inject(required = false)
     private WorkspaceConfig.WorkspaceInfo workspaceInfo;
 
-    @Inject
+    @Inject(required = false)
     private ToolRegistry toolRegistry;
 
     /**

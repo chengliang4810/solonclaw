@@ -24,7 +24,7 @@ public class CronTool {
 
     private static final Logger log = LoggerFactory.getLogger(CronTool.class);
 
-    @Inject
+    @Inject(required = false)
     private SchedulerService schedulerService;
 
     /**
@@ -74,6 +74,11 @@ public class CronTool {
             Long fixedRateMs
     ) {
         log.info("Cron tool: action={}, name={}", action, name);
+
+        // 检查 SchedulerService 是否可用
+        if (schedulerService == null) {
+            return formatError("SchedulerService 未初始化，请检查应用配置");
+        }
 
         try {
             // 默认操作

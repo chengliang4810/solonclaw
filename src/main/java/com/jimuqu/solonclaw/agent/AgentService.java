@@ -47,13 +47,13 @@ public class AgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
 
-    @Inject
+    @Inject(required = false)
     private ChatModel chatModel;
 
-    @Inject
+    @Inject(required = false)
     private MemoryService memoryService;
 
-    @Inject
+    @Inject(required = false)
     private ToolRegistry toolRegistry;
 
     @Inject

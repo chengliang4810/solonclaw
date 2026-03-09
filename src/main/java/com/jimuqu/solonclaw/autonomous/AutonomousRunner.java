@@ -48,7 +48,7 @@ public class AutonomousRunner {
     @Inject
     private AutonomousConfig config;
 
-    @Inject
+    @Inject(required = false)
     private WorkspaceInfo workspaceInfo;
 
     /**

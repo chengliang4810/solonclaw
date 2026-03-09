@@ -24,7 +24,7 @@ public class DecisionEngine {
 
     private static final Logger log = LoggerFactory.getLogger(DecisionEngine.class);
 
-    @Inject
+    @Inject(required = false)
     private ChatModel chatModel;
 
     @Inject

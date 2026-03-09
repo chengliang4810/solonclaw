@@ -110,7 +110,7 @@ public class SolonClawAppTest {
                 // 验证关键配置项存在
                 assertTrue(content.contains("solon:"), "应包含 solon 配置节");
                 assertTrue(content.contains("port:"), "应包含端口配置");
-                assertTrue(content.contains("nullclaw:"), "应包含 nullclaw 配置节");
+                assertTrue(content.contains("solonclaw:"), "应包含 solonclaw 配置节");
                 assertTrue(content.contains("workspace:"), "应包含工作目录配置");
             }
         });
@@ -128,10 +128,10 @@ public class SolonClawAppTest {
                 String content = new String(input.readAllBytes());
 
                 // 验证端口配置
-                assertTrue(content.contains("port: 41234") ||
-                    content.contains("port:41234") ||
-                    content.contains("port:\n    41234"),
-                    "应配置端口 41234");
+                assertTrue(content.contains("port: 12345") ||
+                    content.contains("port:12345") ||
+                    content.contains("port:\n    12345"),
+                    "应配置端口 12345");
             }
         });
     }
@@ -273,9 +273,9 @@ public class SolonClawAppTest {
 
                 String content = new String(input.readAllBytes());
 
-                // 验证回调配置
-                assertTrue(content.contains("callback:"), "应包含回调配置节");
-                assertTrue(content.contains("enabled:"), "应包含回调启用配置");
+                // 验证心跳配置
+                assertTrue(content.contains("heartbeat:"), "应包含心跳配置节");
+                assertTrue(content.contains("enabled:"), "应包含心跳启用配置");
             }
         });
     }
@@ -462,7 +462,7 @@ public class SolonClawAppTest {
                 // 验证所有主要配置节存在
                 String[] requiredSections = {
                     "solon:", "ai:", "serialization:",
-                    "nullclaw:"
+                    "solonclaw:"
                 };
 
                 for (String section : requiredSections) {

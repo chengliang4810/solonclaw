@@ -26,7 +26,7 @@ public class HeartbeatReadTool {
 
     private static final String HEARTBEAT_FILENAME = "HEARTBEAT.md";
 
-    @Inject
+    @Inject(required = false)
     private WorkspaceConfig.WorkspaceInfo workspaceInfo;
 
     /**

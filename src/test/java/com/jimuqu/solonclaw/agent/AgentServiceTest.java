@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SolonTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class AgentServiceTest {
+public class AgentServiceTest {
 
     @Inject
     private AgentService agentService;

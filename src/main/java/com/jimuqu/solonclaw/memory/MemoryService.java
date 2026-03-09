@@ -22,7 +22,7 @@ public class MemoryService {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryService.class);
 
-    @Inject
+    @Inject(required = false)
     private SessionStore sessionStore;
 
     @Inject("${solonclaw.memory.session.maxHistory}")

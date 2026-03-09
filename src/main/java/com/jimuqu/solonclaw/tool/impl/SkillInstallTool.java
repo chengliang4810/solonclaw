@@ -30,7 +30,7 @@ public class SkillInstallTool {
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 300; // 5分钟超时
 
-    @Inject
+    @Inject(required = false)
     private WorkspaceConfig.WorkspaceInfo workspaceInfo;
 
     /**

@@ -83,3 +83,13 @@ solonclaw:
     knowledge:
       maxSearchResults: 5
       minConfidenceThreshold: 0.6
+
+  # Heartbeat 配置（测试中禁用）
+  heartbeat:
+    enabled: false
+    cron: "0 0/30 * * * ?"
+    target: "last"
+    activeHoursStart: "08:00"
+    activeHoursEnd: "22:00"
+    ackMaxChars: 300
+    smartSkip: true
