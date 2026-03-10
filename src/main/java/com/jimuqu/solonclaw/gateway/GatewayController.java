@@ -2,7 +2,14 @@ package com.jimuqu.solonclaw.gateway;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solonclaw.agent.AgentService;
-import org.noear.solon.annotation.*;
+import org.noear.solon.annotation.Body;
+import org.noear.solon.annotation.Controller;
+import org.noear.solon.annotation.Delete;
+import org.noear.solon.annotation.Get;
+import org.noear.solon.annotation.Inject;
+import org.noear.solon.annotation.Mapping;
+import org.noear.solon.annotation.Param;
+import org.noear.solon.annotation.Post;
 import org.noear.solon.core.handle.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +80,7 @@ public class GatewayController {
      * 创建会话
      */
     @Post
-    @Mapping("/session/create")
+    @Mapping("/sessions/new")
     public Result createSession() {
         log.info("创建新会话");
 
@@ -90,7 +97,7 @@ public class GatewayController {
      * 列出所有会话
      */
     @Get
-    @Mapping("/session/list")
+    @Mapping("/sessions/list")
     public Result listSessions() {
         log.info("列出所有会话");
 

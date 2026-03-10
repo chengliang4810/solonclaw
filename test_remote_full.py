@@ -72,34 +72,51 @@ def test_tools():
 def test_sessions():
     """测试会话管理"""
     print_section("3. 会话管理测试")
+    all_pass = True
+
     try:
-        # 创建会话
-        response = requests.post(f"{BASE_URL}/api/sessions", timeout=10)
+        # 测试创建会话
+        print("\n     测试创建会话:")
+        response = requests.post(f"{BASE_URL}/api/sessions/new", timeout=10)
         data = response.json()
 
         if data['code'] == 200:
             session_id = data['data']['sessionId']
-            print(f"[OK] 会话创建成功: {session_id}")
-
-            # 测试对话
-            chat_payload = {
-                "sessionId": session_id,
-                "message": "你好，请简单介绍一下你的能力"
-            }
-            chat_response = requests.post(f"{BASE_URL}/api/chat", json=chat_payload, timeout=30)
-
-            if chat_response.status_code == 200:
-                print("[OK] 对话接口正常（注意：可能因未配置 OPENAI_API_KEY 而超时）")
-            else:
-                print(f"[INFO] 对话接口状态码: {chat_response.status_code}")
-
-            return session_id
+            print(f"     [OK] 会话创建成功: {session_id}")
         else:
-            print(f"[FAIL] 创建会话失败: {data['message']}")
-            return None
+            print(f"     [FAIL] 创建会话失败: {data['message']}")
+            all_pass = False
+            return False
+
+        # 测试列出会话
+        print("\n     测试列出会话:")
+        list_response = requests.get(f"{BASE_URL}/api/sessions/list", timeout=10)
+        list_data = list_response.json()
+
+        if list_data['code'] == 200:
+            total = list_data['data']['total']
+            print(f"     [OK] 列出会话成功: 共 {total} 个会话")
+        else:
+            print(f"     [FAIL] 列出会话失败: {list_data['message']}")
+            all_pass = False
+
+        # 测试对话
+        print("\n     测试对话接口:")
+        chat_payload = {
+            "sessionId": session_id,
+            "message": "你好，请简单介绍一下你的能力"
+        }
+        chat_response = requests.post(f"{BASE_URL}/api/chat", json=chat_payload, timeout=30)
+
+        if chat_response.status_code == 200:
+            print("     [OK] 对话接口正常（注意：可能因未配置 OPENAI_API_KEY 而超时）")
+        else:
+            print(f"     [INFO] 对话接口状态码: {chat_response.status_code}")
+
+        return all_pass
     except Exception as e:
-        print(f"[WARN] 会话测试失败（可能是 API Key 未配置）: {e}")
-        return None
+        print(f"     [WARN] 会话测试失败（可能是 API Key 未配置）: {e}")
+        return False
 
 def test_internal_events():
     """测试内部事件系统"""
