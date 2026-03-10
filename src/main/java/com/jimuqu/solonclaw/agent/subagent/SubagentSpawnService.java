@@ -107,7 +107,7 @@ public class SubagentSpawnService {
         // 注册运行
         if (!subagentManager.registerRun(run)) {
             log.warn("子 Agent 注册失败: runId={}", runId);
-            return new SpawnResult(false, "达到并发或深度限制", null, null);
+            return new SpawnResult(false, "达到并发或深度限制", null, null, null);
         }
 
         try {
@@ -126,20 +126,20 @@ public class SubagentSpawnService {
             // 标记完成
             subagentManager.completeRun(runId, SubagentManager.RunOutcome.OK);
 
-            log.info("子 Agent 执行完成: runId={}, resultLength={}",
-                    runId, result != null ? result.length() : 0);
+            log.info("子 Agent 执行完成: runId={}, session={}, resultLength={}",
+                    runId, childSessionKey, result != null ? result.length() : 0);
 
-            return new SpawnResult(true, "执行成功", childSessionKey, result);
+            return new SpawnResult(true, "执行成功", childSessionKey, runId, result);
 
         } catch (TimeoutException e) {
             log.warn("子 Agent 执行超时: runId={}", runId);
             subagentManager.completeRun(runId, SubagentManager.RunOutcome.TIMEOUT);
-            return new SpawnResult(false, "执行超时", childSessionKey, null);
+            return new SpawnResult(false, "执行超时", childSessionKey, runId, null);
 
         } catch (Exception e) {
             log.error("子 Agent 执行异常: runId={}", runId, e);
             subagentManager.completeRun(runId, SubagentManager.RunOutcome.ERROR);
-            return new SpawnResult(false, "执行异常: " + e.getMessage(), childSessionKey, null);
+            return new SpawnResult(false, "执行异常: " + e.getMessage(), childSessionKey, runId, null);
         }
     }
 
@@ -180,7 +180,7 @@ public class SubagentSpawnService {
                 results.add(future.get());
             } catch (Exception e) {
                 log.error("并行执行异常", e);
-                results.add(new SpawnResult(false, "并行执行异常: " + e.getMessage(), null, null));
+                results.add(new SpawnResult(false, "并行执行异常: " + e.getMessage(), null, null, null));
             }
         }
 
@@ -266,7 +266,39 @@ public class SubagentSpawnService {
     }
 
     /**
+     * 子 Agent 生成模式
+     */
+    public enum SpawnMode {
+        /** 一次性运行模式 */
+        RUN,
+        /** 持久会话模式（支持多轮对话） */
+        SESSION
+    }
+
+    /**
+     * 沙箱模式
+     */
+    public enum SandboxMode {
+        /** 继承父 Agent 的沙箱设置 */
+        INHERIT,
+        /** 要求子 Agent 必须在沙箱中运行 */
+        REQUIRE
+    }
+
+    /**
+     * 清理策略
+     */
+    public enum CleanupStrategy {
+        /** 保留子会话 */
+        KEEP,
+        /** 删除子会话 */
+        DELETE
+    }
+
+    /**
      * 生成参数
+     * <p>
+     * 参考 OpenClaw 的 SpawnSubagentParams 设计
      */
     public static class SpawnParams {
         private final String parentSessionKey;
@@ -274,7 +306,13 @@ public class SubagentSpawnService {
         private final String task;
         private String replyInstruction;
         private String modelId;
-        private int thinkingLevel;
+        private String thinkingLevel;
+        private Integer timeoutSeconds;
+        private boolean threadRequested;
+        private SpawnMode spawnMode;
+        private CleanupStrategy cleanup;
+        private SandboxMode sandboxMode;
+        private boolean expectsCompletionMessage;
 
         public SpawnParams(
                 String parentSessionKey,
@@ -283,7 +321,11 @@ public class SubagentSpawnService {
             this.parentSessionKey = parentSessionKey;
             this.taskLabel = taskLabel;
             this.task = task;
-            this.thinkingLevel = 0; // 默认不启用思考
+            this.spawnMode = SpawnMode.RUN;
+            this.cleanup = CleanupStrategy.KEEP;
+            this.sandboxMode = SandboxMode.INHERIT;
+            this.expectsCompletionMessage = true;
+            this.threadRequested = false;
         }
 
         public SpawnParams setReplyInstruction(String replyInstruction) {
@@ -296,8 +338,65 @@ public class SubagentSpawnService {
             return this;
         }
 
-        public SpawnParams setThinkingLevel(int thinkingLevel) {
+        /**
+         * 设置思考级别
+         * 参考 OpenClaw 的 thinking 参数
+         * 可选值: "off", "minimal", "low", "medium", "high", "xhigh", "adaptive"
+         */
+        public SpawnParams setThinkingLevel(String thinkingLevel) {
             this.thinkingLevel = thinkingLevel;
+            return this;
+        }
+
+        /**
+         * 设置超时时间（秒）
+         */
+        public SpawnParams setTimeoutSeconds(int timeoutSeconds) {
+            this.timeoutSeconds = timeoutSeconds;
+            return this;
+        }
+
+        /**
+         * 设置是否请求线程绑定（支持多轮对话）
+         */
+        public SpawnParams setThreadRequested(boolean threadRequested) {
+            this.threadRequested = threadRequested;
+            if (threadRequested && this.spawnMode == SpawnMode.RUN) {
+                // 线程绑定应默认使用 SESSION 模式
+                this.spawnMode = SpawnMode.SESSION;
+            }
+            return this;
+        }
+
+        /**
+         * 设置生成模式
+         */
+        public SpawnParams setSpawnMode(SpawnMode spawnMode) {
+            this.spawnMode = spawnMode;
+            return this;
+        }
+
+        /**
+         * 设置清理策略
+         */
+        public SpawnParams setCleanup(CleanupStrategy cleanup) {
+            this.cleanup = cleanup;
+            return this;
+        }
+
+        /**
+         * 设置沙箱模式
+         */
+        public SpawnParams setSandboxMode(SandboxMode sandboxMode) {
+            this.sandboxMode = sandboxMode;
+            return this;
+        }
+
+        /**
+         * 设置是否期望完成消息
+         */
+        public SpawnParams setExpectsCompletionMessage(boolean expectsCompletionMessage) {
+            this.expectsCompletionMessage = expectsCompletionMessage;
             return this;
         }
 
@@ -307,7 +406,13 @@ public class SubagentSpawnService {
         public String getTask() { return task; }
         public String getReplyInstruction() { return replyInstruction; }
         public String getModelId() { return modelId; }
-        public int getThinkingLevel() { return thinkingLevel; }
+        public String getThinkingLevel() { return thinkingLevel; }
+        public Integer getTimeoutSeconds() { return timeoutSeconds; }
+        public boolean isThreadRequested() { return threadRequested; }
+        public SpawnMode getSpawnMode() { return spawnMode; }
+        public CleanupStrategy getCleanup() { return cleanup; }
+        public SandboxMode getSandboxMode() { return sandboxMode; }
+        public boolean isExpectsCompletionMessage() { return expectsCompletionMessage; }
     }
 
     /**
@@ -317,6 +422,7 @@ public class SubagentSpawnService {
             boolean success,
             String message,
             String childSessionKey,
+            String runId,
             String result
     ) {}
 

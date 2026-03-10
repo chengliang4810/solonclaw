@@ -127,15 +127,14 @@ public class AgentInternalEvent {
      * 格式化事件为提示词文本
      * <p>
      * 将内部事件转换为 AI 可理解的文本格式
+     * 参考 OpenClaw 的 formatTaskCompletionEvent 实现
      */
     public String formatForPrompt() {
         StringBuilder sb = new StringBuilder();
         sb.append("[Internal task completion event]\n");
         sb.append("source: ").append(source.getLabel()).append("\n");
         sb.append("session_key: ").append(childSessionKey).append("\n");
-        if (childSessionId != null) {
-            sb.append("session_id: ").append(childSessionId).append("\n");
-        }
+        sb.append("session_id: ").append(childSessionId != null ? childSessionId : "unknown").append("\n");
         sb.append("type: ").append(announceType).append("\n");
         sb.append("task: ").append(taskLabel).append("\n");
         sb.append("status: ").append(statusLabel).append("\n");

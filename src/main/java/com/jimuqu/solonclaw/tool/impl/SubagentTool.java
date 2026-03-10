@@ -33,6 +33,10 @@ public class SubagentTool {
      * @param taskLabel 任务标签，用于标识和跟踪任务（简短描述）
      * @param timeoutSeconds 超时时间（秒），默认 300 秒
      * @param replyInstruction 回复指令，指导子 Agent 如何回复结果
+     * @param modelId 模型 ID，为子 Agent 选择特定的模型
+     * @param thinkingLevel 思考级别，可选值: off, minimal, low, medium, high, xhigh, adaptive
+     * @param threadRequested 是否启用线程绑定（支持多轮对话）
+     * @param spawnMode 生成模式: run（一次性）或 session（持久会话）
      * @return 子 Agent 的执行结果
      */
     @ToolMapping(
@@ -43,16 +47,30 @@ public class SubagentTool {
                     - 需要将复杂任务分解为多个小任务
                     - 需要并行执行多个独立任务
                     - 需要在隔离的上下文中执行任务
+
+                    参数说明：
+                    - task: 详细的任务描述
+                    - taskLabel: 简短的任务标签（用于标识）
+                    - timeoutSeconds: 超时时间（秒），默认 300
+                    - replyInstruction: 回复指令，告诉子 Agent 如何输出结果
+                    - modelId: 可选，为子 Agent 选择特定模型
+                    - thinkingLevel: 可选，思考级别（off/minimal/low/medium/high/xhigh/adaptive）
+                    - threadRequested: 可选，是否启用多轮对话支持
+                    - spawnMode: 可选，run（一次性）或 session（持久会话）
                     """
     )
     public String spawnSubagent(
             String task,
             String taskLabel,
             Integer timeoutSeconds,
-            String replyInstruction
+            String replyInstruction,
+            String modelId,
+            String thinkingLevel,
+            Boolean threadRequested,
+            String spawnMode
     ) {
-        log.info("Agent 调用生成子 Agent: taskLabel={}, timeout={}",
-                taskLabel, timeoutSeconds);
+        log.info("Agent 调用生成子 Agent: taskLabel={}, model={}, thinking={}, thread={}, mode={}",
+                taskLabel, modelId, thinkingLevel, threadRequested, spawnMode);
 
         try {
             // 获取当前会话 ID（这里简化处理，实际应该从上下文获取）
@@ -65,8 +83,29 @@ public class SubagentTool {
                     task
             );
 
+            // 设置可选参数
             if (replyInstruction != null && !replyInstruction.isEmpty()) {
                 params.setReplyInstruction(replyInstruction);
+            }
+
+            if (modelId != null && !modelId.isEmpty()) {
+                params.setModelId(modelId);
+            }
+
+            if (thinkingLevel != null && !thinkingLevel.isEmpty()) {
+                params.setThinkingLevel(thinkingLevel);
+            }
+
+            if (timeoutSeconds != null && timeoutSeconds > 0) {
+                params.setTimeoutSeconds(timeoutSeconds);
+            }
+
+            if (threadRequested != null && threadRequested) {
+                params.setThreadRequested(true);
+            }
+
+            if ("session".equals(spawnMode)) {
+                params.setSpawnMode(SubagentSpawnService.SpawnMode.SESSION);
             }
 
             // 同步生成子 Agent
@@ -78,7 +117,7 @@ public class SubagentTool {
             if (result.success()) {
                 log.info("子 Agent 执行成功: taskLabel={}, resultLength={}",
                         taskLabel, result.result() != null ? result.result().length() : 0);
-                return formatSuccessResult(taskLabel, result.result());
+                return formatSuccessResult(taskLabel, result.childSessionKey(), result.result());
             } else {
                 log.warn("子 Agent 执行失败: taskLabel={}, message={}",
                         taskLabel, result.message());
@@ -105,15 +144,17 @@ public class SubagentTool {
     /**
      * 格式化成功结果
      */
-    private String formatSuccessResult(String taskLabel, String result) {
+    private String formatSuccessResult(String taskLabel, String childSessionKey, String result) {
         return String.format("""
                 ## 子任务完成：%s
+
+                子会话键：%s
 
                 %s
 
                 ---
                 *此任务由子 Agent 在独立会话中完成*
-                """, taskLabel, result != null ? result : "（无输出）");
+                """, taskLabel, childSessionKey != null ? childSessionKey : "N/A", result != null ? result : "（无输出）");
     }
 
     /**
