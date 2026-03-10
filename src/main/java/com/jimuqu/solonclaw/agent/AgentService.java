@@ -375,6 +375,21 @@ public class AgentService {
         log.info("清空会话历史：sessionId={}", sessionId);
     }
 
+    /**
+     * 列出所有会话
+     */
+    public List<Map<String, Object>> listSessions() {
+        return memoryService.listSessions().stream()
+                .map(info -> {
+                    Map<String, Object> session = new java.util.HashMap<>();
+                    session.put("sessionId", info.id());
+                    session.put("createdAt", info.createdAt());
+                    session.put("updatedAt", info.updatedAt());
+                    return session;
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     public Map<String, ToolRegistry.ToolInfo> getAvailableTools() {
         return toolRegistry.getTools();
     }

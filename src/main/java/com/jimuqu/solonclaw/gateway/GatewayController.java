@@ -70,6 +70,43 @@ public class GatewayController {
     }
 
     /**
+     * 创建会话
+     */
+    @Post
+    @Mapping("/session/create")
+    public Result createSession() {
+        log.info("创建新会话");
+
+        try {
+            String sessionId = generateSessionId();
+            return Result.success("会话创建成功", Map.of("sessionId", sessionId));
+        } catch (Exception e) {
+            log.error("创建会话异常", e);
+            return Result.error("创建失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 列出所有会话
+     */
+    @Get
+    @Mapping("/session/list")
+    public Result listSessions() {
+        log.info("列出所有会话");
+
+        try {
+            var sessions = agentService.listSessions();
+            return Result.success("获取成功", Map.of(
+                    "total", sessions.size(),
+                    "sessions", sessions
+            ));
+        } catch (Exception e) {
+            log.error("列出会话异常", e);
+            return Result.error("获取失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 获取会话历史
      */
     @Get
