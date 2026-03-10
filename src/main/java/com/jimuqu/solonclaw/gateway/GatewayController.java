@@ -8,6 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -87,6 +90,25 @@ public class GatewayController {
     }
 
     /**
+     * 获取会话历史（兼容接口）
+     * <p>
+     * 使用查询参数 sessionId
+     */
+    @Get
+    @Mapping("/history")
+    public Result getHistoryQuery(@Param("sessionId") String sessionId) {
+        log.info("获取会话历史（查询参数）: sessionId={}", sessionId);
+
+        try {
+            var history = agentService.getHistory(sessionId);
+            return Result.success("获取成功", history);
+        } catch (Exception e) {
+            log.error("获取会话历史异常", e);
+            return Result.error("获取失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 清空会话历史
      */
     @Delete
@@ -113,7 +135,30 @@ public class GatewayController {
     public Result getAvailableTools() {
         try {
             var tools = agentService.getAvailableTools();
-            return Result.success("获取成功", tools);
+
+            // 转换为简化 DTO，避免循环引用导致的序列化问题
+            Map<String, ToolInfoDTO> toolDTOs = new HashMap<>();
+            for (var entry : tools.entrySet()) {
+                var toolInfo = entry.getValue();
+                List<ToolInfoDTO.ParameterInfoDTO> params = new ArrayList<>();
+
+                // 转换参数信息
+                for (var param : toolInfo.getParameters()) {
+                    params.add(new ToolInfoDTO.ParameterInfoDTO(
+                            param.name(),
+                            param.description(),
+                            param.type()
+                    ));
+                }
+
+                toolDTOs.put(entry.getKey(), new ToolInfoDTO(
+                        toolInfo.name(),
+                        toolInfo.description(),
+                        params
+                ));
+            }
+
+            return Result.success("获取成功", toolDTOs);
         } catch (Exception e) {
             log.error("获取工具列表异常", e);
             return Result.error("获取失败: " + e.getMessage());
