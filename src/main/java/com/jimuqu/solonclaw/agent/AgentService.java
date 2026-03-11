@@ -148,6 +148,7 @@ public class AgentService {
                 .instruction(buildAgentInstruction())
                 .maxSteps(agentConfig.getMaxToolIterations())
                 .sessionWindowSize(agentConfig.getMaxHistoryMessages())
+                .maxStepsExtensible(true)
                 .retryConfig(5, 3000L)
                 .modelOptions(options -> options.temperature(0.7));
 

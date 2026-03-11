@@ -29,8 +29,8 @@ solonclaw:
     logsDir: "logs"
 
   agent:
-    maxHistoryMessages: 50
-    maxToolIterations: 50
+    maxHistoryMessages: 30
+    maxToolIterations: 30
 
   tools:
     shell:
