@@ -45,6 +45,7 @@ logs/
 
 # Workspace
 workspace/
+workspace-dev/
 memory.db
 
 # MCP
