@@ -3,6 +3,7 @@ package com.jimuqu.solonclaw.heartbeat;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solonclaw.agent.AgentService;
 import com.jimuqu.solonclaw.memory.MemoryService;
+import com.jimuqu.solonclaw.memory.file.MemoryFileManager;
 import org.noear.solon.annotation.Component;
 import org.noear.solon.annotation.Inject;
 import org.noear.solon.scheduling.annotation.Scheduled;
@@ -40,6 +41,9 @@ public class HeartbeatService {
 
     @Inject
     private MemoryService memoryService;
+
+    @Inject(required = false)
+    private MemoryFileManager memoryFileManager;
 
     /**
      * 是否正在执行心跳（防止并发）
@@ -134,6 +138,16 @@ public class HeartbeatService {
             // 7. 判断响应长度是否超过阈值
             boolean needsNotify = response.length() > properties.getAckMaxChars();
             log.info("Heartbeat 执行完成，响应长度: {}, 需要通知: {}", response.length(), needsNotify);
+
+            // 8. 清理过期记忆（使用 MemoryFileManager）
+            if (memoryFileManager != null) {
+                try {
+                    String cleanupResult = memoryFileManager.cleanupOldNotes();
+                    log.debug("记忆清理: {}", cleanupResult);
+                } catch (Exception e) {
+                    log.warn("记忆清理失败", e);
+                }
+            }
 
             return HeartbeatResult.success(response, duration, needsNotify);
 

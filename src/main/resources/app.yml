@@ -74,6 +74,13 @@ solonclaw:
       # keyInfoPrompt: ""                  # 关键信息提取提示词（可选，有默认值）
       # hierarchicalPrompt: ""             # 层级摘要提示词（可选，有默认值）
 
+    # ==================== 文件记忆配置 ====================
+    file:
+      enabled: true                       # 是否启用文件记忆
+      retainDays: 30                      # 笔记保留天数
+      autoAppendEvents: true              # 是否自动追加事件
+      maxNoteSize: 102400                # 最大笔记大小（字节）
+
   # ==================== 上下文构建器配置 ====================
   context:
     builder:

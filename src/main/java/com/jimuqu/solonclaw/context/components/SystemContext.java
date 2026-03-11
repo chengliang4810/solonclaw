@@ -30,6 +30,9 @@ public class SystemContext {
     @Inject(required = false)
     private BootstrapService bootstrapService;
 
+    @Inject(required = false)
+    private MemoryContext memoryContext;
+
     /**
      * 默认系统提示词
      */
@@ -85,6 +88,15 @@ public class SystemContext {
                     prompt.append("\n\n");
                     prompt.append(bootstrapPrompt);
                 }
+            }
+        }
+
+        // 添加记忆上下文
+        if (memoryContext != null) {
+            String memoryPrompt = memoryContext.build(sessionId, userMessage, options);
+            if (!memoryPrompt.isEmpty()) {
+                prompt.append("\n\n");
+                prompt.append(memoryPrompt);
             }
         }
 
