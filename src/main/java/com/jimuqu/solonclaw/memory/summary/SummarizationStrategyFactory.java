@@ -1,5 +1,6 @@
 package com.jimuqu.solonclaw.memory.summary;
 
+import cn.hutool.core.util.StrUtil;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
 import org.noear.solon.ai.agent.react.intercept.summarize.*;
@@ -18,17 +19,6 @@ import org.slf4j.LoggerFactory;
 public class SummarizationStrategyFactory {
 
     private static final Logger log = LoggerFactory.getLogger(SummarizationStrategyFactory.class);
-
-    private static final String DEFAULT_KEY_INFO_PROMPT = """
-            请从以下对话中提取关键信息，包括：
-            1. 重要的事实和数据
-            2. 用户需求和偏好
-            3. 已做出的决定和结论
-            4. 验证过的方法和解决方案
-            5. 需要记住的参数和配置
-
-            请以简洁的要点形式呈现，每点不超过一行。
-            """;
 
     private static final String DEFAULT_HIERARCHICAL_PROMPT = """
             请将以下对话内容整合为一段连贯的摘要：
@@ -82,11 +72,11 @@ public class SummarizationStrategyFactory {
         log.info("创建关键信息提取策略");
 
         String prompt = config.getKeyInfoPrompt();
-        if (prompt == null || prompt.isBlank()) {
-            prompt = DEFAULT_KEY_INFO_PROMPT;
+        KeyInfoExtractionStrategy keyInfoExtractionStrategy = new KeyInfoExtractionStrategy(chatModel);
+        if (StrUtil.isNotBlank(prompt)) {
+            keyInfoExtractionStrategy.setSystemInstruction(prompt);
         }
-
-        return new KeyInfoExtractionStrategy(chatModel, prompt);
+        return keyInfoExtractionStrategy;
     }
 
     /**
@@ -100,9 +90,9 @@ public class SummarizationStrategyFactory {
 
         String prompt = config.getHierarchicalPrompt();
         if (prompt != null && !prompt.isBlank()) {
-            strategy.setPromptTemplate(prompt);
+            strategy.setSystemInstruction(prompt);
         } else {
-            strategy.setPromptTemplate(
+            strategy.setSystemInstruction(
                 DEFAULT_HIERARCHICAL_PROMPT.replace("{max_length}", String.valueOf(config.getMaxSummaryLength()))
             );
         }
