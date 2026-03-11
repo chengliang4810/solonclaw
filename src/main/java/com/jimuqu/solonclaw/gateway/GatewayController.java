@@ -2,6 +2,7 @@ package com.jimuqu.solonclaw.gateway;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solonclaw.agent.AgentService;
+import com.jimuqu.solonclaw.memory.MemoryService;
 import org.noear.solon.annotation.Body;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Delete;
@@ -36,6 +37,9 @@ public class GatewayController {
     @Inject
     private AgentService agentService;
 
+    @Inject
+    private MemoryService memoryService;
+
     /**
      * 健康检查
      */
@@ -58,18 +62,22 @@ public class GatewayController {
                 request.sessionId(), request.message());
 
         try {
-            // 处理 sessionId
-            String sessionId = request.sessionId();
-            if (StrUtil.isBlank(sessionId)) {
-                sessionId = generateSessionId();
-            }
+            // 处理 sessionId（全局模式下忽略传入的 sessionId）
+            String sessionId = memoryService.resolveSessionId(request.sessionId());
 
             String response = agentService.chat(request.message(), sessionId);
 
-            return Result.success("对话成功", Map.of(
-                    "sessionId", sessionId,
-                    "response", response
-            ));
+            // 全局模式下不返回 sessionId（因为始终是同一个）
+            if (memoryService.isGlobalSession()) {
+                return Result.success("对话成功", Map.of(
+                        "response", response
+                ));
+            } else {
+                return Result.success("对话成功", Map.of(
+                        "sessionId", sessionId,
+                        "response", response
+                ));
+            }
         } catch (Exception e) {
             log.error("对话处理异常", e);
             return Result.error("处理失败: " + e.getMessage());
@@ -239,19 +247,18 @@ public class GatewayController {
         log.info("收到流式对话请求: sessionId={}, message={}",
                 request.sessionId(), request.message());
 
-        // 处理 sessionId
-        String sessionId = request.sessionId();
-        if (StrUtil.isBlank(sessionId)) {
-            sessionId = generateSessionId();
-        }
+        // 处理 sessionId（全局模式下忽略传入的 sessionId）
+        String sessionId = memoryService.resolveSessionId(request.sessionId());
 
         // 设置 SSE 响应头
         ctx.contentType("text/event-stream");
         ctx.charset("utf-8");
         ctx.status(200);
 
-        // 发送会话ID事件
-        sendSseEvent(ctx, "session", sessionId);
+        // 全局模式下不发送 sessionId 事件（因为始终是同一个）
+        if (!memoryService.isGlobalSession()) {
+            sendSseEvent(ctx, "session", sessionId);
+        }
 
         try {
             // 调用流式对话

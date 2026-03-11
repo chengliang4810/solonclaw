@@ -29,6 +29,42 @@ public class MemoryService {
     private int maxHistory;
 
     /**
+     * 是否启用全局会话模式（单用户模式）
+     */
+    @Inject("${solonclaw.memory.session.globalSession:false}")
+    private boolean globalSession;
+
+    /**
+     * 全局会话ID
+     */
+    @Inject("${solonclaw.memory.session.globalSessionId:global}")
+    private String globalSessionId;
+
+    /**
+     * 获取全局会话ID（如果启用全局模式）
+     */
+    public String getGlobalSessionId() {
+        return globalSessionId;
+    }
+
+    /**
+     * 是否启用全局会话模式
+     */
+    public boolean isGlobalSession() {
+        return globalSession;
+    }
+
+    /**
+     * 获取最终的 sessionId（全局模式下返回全局会话ID）
+     */
+    public String resolveSessionId(String providedSessionId) {
+        if (globalSession) {
+            return globalSessionId;
+        }
+        return providedSessionId;
+    }
+
+    /**
      * 保存用户消息
      */
     public void saveUserMessage(String sessionId, String message) {
