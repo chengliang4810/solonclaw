@@ -58,6 +58,8 @@ solonclaw:
     enabled: true
     session:
       maxHistory: 50
+      globalSession: true                 # 是否启用全局会话模式（单用户模式）
+      globalSessionId: "global"           # 全局会话ID（启用全局模式时使用）
     store:
       enabled: true
 
@@ -140,3 +142,14 @@ solonclaw:
     activeHoursEnd: "22:00"           # 活跃时间结束
     ackMaxChars: 300                  # 最大回复字符数（超过则发送通知）
     smartSkip: true                   # 是否启用智能跳过（HEARTBEAT_OK 时不发送通知）
+
+  # ==================== 钉钉渠道配置 ====================
+  dingtalk:
+    enabled: true
+
+    # 企业内部机器人配置（Stream 模式）
+    appKey: "dinggycia8zrla9md64s"
+    appSecret: "dtjVsB4dlaZafaf_2_srnJwuZCRtb-p--21nS9_7WuX4Lf3-4KLrHo-bb9J0_z7i"
+
+    # 机器人 Code（通常与 AppKey 相同）
+    robotCode: "dinggycia8zrla9md64s"
