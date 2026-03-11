@@ -79,9 +79,10 @@ public class DingTalkMessageSender {
      * 发送消息到群
      *
      * @param openConversationId 会话ID
-     * @param text               消息内容
+     * @param text               消息内容（支持 Markdown 格式）
+     * @param isMarkdown         是否使用 Markdown 格式
      */
-    public void sendToGroup(String openConversationId, String text) {
+    public void sendToGroup(String openConversationId, String text, boolean isMarkdown) {
         String robotCode = dingTalkConfig.getRobotCode();
         if (robotCode == null || robotCode.isBlank()) {
             log.warn("机器人 Code 未配置，无法发送消息");
@@ -95,13 +96,23 @@ public class DingTalkMessageSender {
             headers.setXAcsDingtalkAccessToken(accessToken);
 
             OrgGroupSendRequest request = new OrgGroupSendRequest();
-            request.setMsgKey("sampleText");
+
+            // 根据 isMarkdown 参数选择消息类型
+            if (isMarkdown) {
+                request.setMsgKey("sampleMarkdown");
+                JSONObject msgParam = new JSONObject();
+                msgParam.put("title", "AI 助手");
+                msgParam.put("text", text);
+                request.setMsgParam(msgParam.toJSONString());
+            } else {
+                request.setMsgKey("sampleText");
+                JSONObject msgParam = new JSONObject();
+                msgParam.put("content", text);
+                request.setMsgParam(msgParam.toJSONString());
+            }
+
             request.setRobotCode(robotCode);
             request.setOpenConversationId(openConversationId);
-
-            JSONObject msgParam = new JSONObject();
-            msgParam.put("content", text);
-            request.setMsgParam(msgParam.toJSONString());
 
             OrgGroupSendResponse response = robotClient.orgGroupSendWithOptions(request, headers, new RuntimeOptions());
 
@@ -115,6 +126,16 @@ public class DingTalkMessageSender {
         } catch (Exception e) {
             log.error("发送钉钉消息异常", e);
         }
+    }
+
+    /**
+     * 发送消息到群（默认使用 Markdown 格式）
+     *
+     * @param openConversationId 会话ID
+     * @param text               消息内容（支持 Markdown 格式）
+     */
+    public void sendToGroup(String openConversationId, String text) {
+        sendToGroup(openConversationId, text, true); // 默认启用 Markdown
     }
 
     /**
