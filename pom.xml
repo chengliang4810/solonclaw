@@ -84,7 +84,7 @@
     </dependencies>
 
     <build>
-        <finalName>${project.artifactId}</finalName>
+        <finalName>solonclaw</finalName>
 
         <plugins>
             <plugin>
