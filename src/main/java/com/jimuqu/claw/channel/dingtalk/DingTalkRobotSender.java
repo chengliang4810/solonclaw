@@ -14,11 +14,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
- * 基于钉钉机器人 OpenAPI 发送群聊和私聊文本消息。
+ * 基于钉钉机器人 OpenAPI 发送群聊和私聊消息。
  */
 public class DingTalkRobotSender {
+    private static final Pattern MARKDOWN_PREFIX = Pattern.compile("^[#>*`\\-\\s]+");
     /** 日志记录器。 */
     private static final Logger log = LoggerFactory.getLogger(DingTalkRobotSender.class);
     /** access_token 服务。 */
@@ -108,7 +110,7 @@ public class DingTalkRobotSender {
         headers.setXAcsDingtalkAccessToken(accessTokenService.getAccessToken());
 
         OrgGroupSendRequest request = new OrgGroupSendRequest();
-        request.setMsgKey("sampleText");
+        request.setMsgKey(resolveMsgKey(content));
         request.setRobotCode(properties.getRobotCode());
         request.setOpenConversationId(replyTarget.getConversationId());
         request.setMsgParam(messageParam(content));
@@ -133,12 +135,22 @@ public class DingTalkRobotSender {
         headers.setXAcsDingtalkAccessToken(accessTokenService.getAccessToken());
 
         BatchSendOTORequest request = new BatchSendOTORequest();
-        request.setMsgKey("sampleText");
+        request.setMsgKey(resolveMsgKey(content));
         request.setRobotCode(properties.getRobotCode());
         request.setUserIds(List.of(replyTarget.getUserId()));
         request.setMsgParam(messageParam(content));
 
         robotClient.batchSendOTOWithOptions(request, headers, new RuntimeOptions());
+    }
+
+    /**
+     * 返回钉钉消息类型键。
+     *
+     * @param content 文本内容
+     * @return 消息类型键
+     */
+    String resolveMsgKey(String content) {
+        return "sampleMarkdown";
     }
 
     /**
@@ -148,9 +160,42 @@ public class DingTalkRobotSender {
      * @return JSON 字符串
      */
     private String messageParam(String content) {
+        return markdownMessageParam(content);
+    }
+
+    /**
+     * 组装 markdown 消息参数。
+     *
+     * @param content 回复内容
+     * @return JSON 字符串
+     */
+    String markdownMessageParam(String content) {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("content", content);
+        jsonObject.put("title", resolveMarkdownTitle(content));
+        jsonObject.put("text", content);
         return jsonObject.toJSONString();
+    }
+
+    /**
+     * 从正文中提取 markdown 标题。
+     *
+     * @param content 回复内容
+     * @return 标题文本
+     */
+    String resolveMarkdownTitle(String content) {
+        if (content == null || content.isBlank()) {
+            return "SolonClaw";
+        }
+
+        String[] lines = content.split("\\R");
+        for (String line : lines) {
+            String normalized = MARKDOWN_PREFIX.matcher(line).replaceFirst("").trim();
+            if (!normalized.isEmpty()) {
+                return normalized.length() > 48 ? normalized.substring(0, 48) : normalized;
+            }
+        }
+
+        return "SolonClaw";
     }
 
     /**

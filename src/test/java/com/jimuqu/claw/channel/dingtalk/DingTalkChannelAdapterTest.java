@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -49,10 +50,24 @@ class DingTalkChannelAdapterTest {
     }
 
     /**
-     * 验证未命中白名单的消息会被拒绝。
+     * 验证白名单为空时默认放行群消息。
      */
     @Test
-    void rejectsMessageOutsideAllowList() {
+    void allowsGroupMessageWhenAllowListIsEmpty() {
+        SolonClawProperties.DingTalk properties = new SolonClawProperties.DingTalk();
+
+        DingTalkChannelAdapter adapter = new DingTalkChannelAdapter(null, null, null, properties);
+        InboundEnvelope inboundEnvelope = adapter.toInboundEnvelope(groupMessage("cid-other", "staff-1", "未授权群"));
+
+        assertNotNull(inboundEnvelope);
+        assertEquals(ConversationType.GROUP, inboundEnvelope.getConversationType());
+    }
+
+    /**
+     * 验证配置白名单后，未命中的消息会被拒绝。
+     */
+    @Test
+    void rejectsMessageOutsideAllowListWhenConfigured() {
         SolonClawProperties.DingTalk properties = new SolonClawProperties.DingTalk();
         properties.setGroupAllowFrom(List.of("cid-group"));
 

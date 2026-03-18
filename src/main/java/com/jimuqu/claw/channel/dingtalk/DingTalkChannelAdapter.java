@@ -162,6 +162,12 @@ public class DingTalkChannelAdapter implements
 
         ConversationType conversationType = resolveConversationType(message);
         if (!isAllowed(conversationType, senderId, conversationId)) {
+            log.info(
+                    "Ignore DingTalk message because whitelist does not match. senderId={}, conversationId={}, conversationType={}",
+                    senderId,
+                    conversationId,
+                    conversationType
+            );
             return null;
         }
 
@@ -222,9 +228,9 @@ public class DingTalkChannelAdapter implements
      */
     private boolean isAllowed(ConversationType conversationType, String senderId, String conversationId) {
         if (conversationType == ConversationType.GROUP) {
-            return !properties.getGroupAllowFrom().isEmpty() && properties.getGroupAllowFrom().contains(conversationId);
+            return properties.getGroupAllowFrom().isEmpty() || properties.getGroupAllowFrom().contains(conversationId);
         }
-        return !properties.getAllowFrom().isEmpty() && properties.getAllowFrom().contains(senderId);
+        return properties.getAllowFrom().isEmpty() || properties.getAllowFrom().contains(senderId);
     }
 
     /**
