@@ -1,0 +1,11 @@
+solonclaw:
+  channels:
+    dingtalk:
+      enabled: true
+      clientId: ""
+      clientSecret: ""
+      robotCode: ""
+      allowFrom:
+        - "staff-id-1"
+      groupAllowFrom:
+        - "open-conversation-id-1"

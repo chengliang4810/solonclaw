@@ -7,6 +7,24 @@ server:
 
 solonclaw:
   workspace: "./workspace"
+  storage:
+    runtimeDir: "./runtime"
+  agent:
+    systemPrompt: "你是 SolonClaw，一个长期运行的中文 AI 助手。请基于上下文直接回答；当信息不足时，明确说明。"
+    scheduler:
+      maxConcurrentPerConversation: 4
+      ackWhenBusy: true
+    heartbeat:
+      enabled: true
+      intervalSeconds: 1800
+  channels:
+    dingtalk:
+      enabled: false
+      clientId: ""
+      clientSecret: ""
+      robotCode: ""
+      allowFrom: []
+      groupAllowFrom: []
 
 ---
 solon.env.on: prod
