@@ -145,6 +145,12 @@ solonclaw:
     scheduler:
       maxConcurrentPerConversation: 4
       ackWhenBusy: false
+    tools:
+      # 是否为 CLI TerminalSkill 开启沙盒模式
+      # true: 只允许工作区相对路径、~/ 和 @skills 逻辑路径；禁止绝对路径与越界访问
+      # false: 允许绝对路径，CLI 能力更开放
+      # 说明：@skills 这类逻辑路径始终是只读挂载池，开关不会放开写入
+      sandboxMode: true
 
     heartbeat:
       enabled: true

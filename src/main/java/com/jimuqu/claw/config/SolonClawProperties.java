@@ -76,6 +76,8 @@ public class SolonClawProperties {
         private String systemPrompt;
         /** 调度器配置。 */
         private Scheduler scheduler = new Scheduler();
+        /** 工具配置。 */
+        private Tools tools = new Tools();
         /** 心跳配置。 */
         private Heartbeat heartbeat = new Heartbeat();
 
@@ -116,6 +118,24 @@ public class SolonClawProperties {
         }
 
         /**
+         * 返回工具配置。
+         *
+         * @return 工具配置
+         */
+        public Tools getTools() {
+            return tools;
+        }
+
+        /**
+         * 设置工具配置。
+         *
+         * @param tools 工具配置
+         */
+        public void setTools(Tools tools) {
+            this.tools = tools;
+        }
+
+        /**
          * 返回心跳配置。
          *
          * @return 心跳配置
@@ -131,6 +151,32 @@ public class SolonClawProperties {
          */
         public void setHeartbeat(Heartbeat heartbeat) {
             this.heartbeat = heartbeat;
+        }
+    }
+
+    /**
+     * 描述工具能力配置。
+     */
+    public static class Tools {
+        /** CLI TerminalSkill 是否启用沙盒模式。 */
+        private boolean sandboxMode = true;
+
+        /**
+         * 返回 TerminalSkill 是否启用沙盒模式。
+         *
+         * @return 若启用则返回 true
+         */
+        public boolean isSandboxMode() {
+            return sandboxMode;
+        }
+
+        /**
+         * 设置 TerminalSkill 是否启用沙盒模式。
+         *
+         * @param sandboxMode 启用标记
+         */
+        public void setSandboxMode(boolean sandboxMode) {
+            this.sandboxMode = sandboxMode;
         }
     }
 

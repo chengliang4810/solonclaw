@@ -67,11 +67,6 @@ public class ConversationRuntimeTools {
         return workspaceAgentTools.editFile(filePath, oldText, newText);
     }
 
-    @ToolMapping(name = "exec_command", description = "在工作区目录执行命令，返回标准输出与标准错误")
-    public String execCommand(@Param(description = "要执行的命令文本") String command) throws Exception {
-        return workspaceAgentTools.execCommand(command);
-    }
-
     @ToolMapping(name = "notify_user", description = "向当前会话已绑定的用户主动发送通知；只发送，不接收")
     public String notifyUser(
             @Param(description = "通知内容") String message,

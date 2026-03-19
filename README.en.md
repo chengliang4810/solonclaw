@@ -13,7 +13,7 @@
 - 🤖 Unified Agent runtime
 - 💬 Shared runtime for Debug Web and DingTalk
 - 🧠 Workspace-driven prompt assembly and memory files
-- 🛠️ Built-in tools for file IO, command execution, notifications, and job management
+- 🛠️ Built-in tools for file IO, notifications, job management, and CLI terminal skills
 - 🧩 Child task spawning with continuation back to the parent conversation
 - ⏰ Persistent scheduled jobs restored on startup
 - 📁 File-based runtime storage for runs, conversations, dedup, routes, and media
@@ -54,7 +54,6 @@ Built-in tools currently include:
 - `read_file`
 - `write_file`
 - `edit_file`
-- `exec_command`
 - `notify_user`
 - `spawn_task`
 - `list_child_runs`
@@ -70,10 +69,18 @@ Built-in tools currently include:
 Behavioral notes:
 
 - File access is restricted to the configured workspace.
-- Commands are executed inside the workspace directory.
+- Command execution now goes through CLI `TerminalSkill` via `bash`.
+- `TerminalSkill` sandbox mode is enabled by default and can be controlled with `solonclaw.agent.tools.sandboxMode`.
 - Child runs use independent session keys and can be aggregated by `batchKey`.
 - Scheduled jobs are bound to the latest external reply route.
 - Heartbeat checks read `HEARTBEAT.md` and trigger a silent internal run.
+
+`sandboxMode` rules:
+
+- `true`: CLI abilities such as `bash`, `ls`, `read`, `grep`, and `glob` only allow workspace-relative paths, `~/`, and logical pool paths like `@skills`
+- `true`: absolute paths are blocked, and relative traversal outside the workspace is blocked
+- `true`: logical pool paths such as `@skills` remain readable/executable but are still read-only
+- `false`: absolute-path access is allowed and the CLI becomes more open
 
 ## Workspace Layout
 
@@ -240,6 +247,7 @@ Current important settings:
 - `solonclaw.workspace=./workspace`
 - `solonclaw.agent.scheduler.maxConcurrentPerConversation=4`
 - `solonclaw.agent.scheduler.ackWhenBusy=false`
+- `solonclaw.agent.tools.sandboxMode=true`
 - `solonclaw.agent.heartbeat.enabled=true`
 - `solonclaw.agent.heartbeat.intervalSeconds=1800`
 - `solonclaw.channels.dingtalk.*`

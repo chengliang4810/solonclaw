@@ -212,7 +212,6 @@
 - `read_file`
 - `write_file`
 - `edit_file`
-- `exec_command`
 - `notify_user`
 - `spawn_task`
 - `list_child_runs`
@@ -228,8 +227,6 @@
 工作区工具边界：
 
 - 文件读写路径必须在工作区内
-- `exec_command` 也在工作区目录下执行
-- 命令执行默认 30 秒超时
 - 工具输出会截断，避免模型上下文过大
 
 ### 2. CLI 技能
@@ -238,6 +235,15 @@
 
 - 技能池名：`@skills`
 - 实际目录：`./workspace/skills`
+- `TerminalSkill` 的 `bash` 能力默认启用沙盒模式，可通过 `solonclaw.agent.tools.sandboxMode` 配置开关
+
+当前 `sandboxMode` 行为边界：
+
+- `true`：`bash` / `ls` / `read` / `grep` / `glob` 等 CLI 能力只允许工作区相对路径、`~/` 和 `@skills` 这类逻辑路径
+- `true`：禁止在命令或路径参数中直接使用绝对路径，也禁止通过相对路径越出工作区
+- `true`：`@skills` 这类逻辑路径仍可读、可执行，但保持只读，不能写入
+- `false`：允许绝对路径访问，CLI 能力会进入更开放模式
+- 无论开关如何，`@skills` 逻辑路径始终是只读挂载池
 
 协作规则：
 
@@ -400,6 +406,7 @@
 - `solonclaw.workspace=./workspace`
 - `solonclaw.agent.scheduler.maxConcurrentPerConversation=4`
 - `solonclaw.agent.scheduler.ackWhenBusy=false`
+- `solonclaw.agent.tools.sandboxMode=true`
 - `solonclaw.agent.heartbeat.enabled=true`
 - `solonclaw.agent.heartbeat.intervalSeconds=1800`
 - `solonclaw.channels.dingtalk.*`

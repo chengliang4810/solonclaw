@@ -40,6 +40,11 @@ solonclaw:
     scheduler:
       maxConcurrentPerConversation: 4
       ackWhenBusy: false
+    tools:
+      # CLI TerminalSkill 沙盒开关
+      # true: 只允许工作区相对路径、~/ 和 @skills 逻辑路径；禁止绝对路径与越界访问
+      # false: 允许绝对路径，CLI 能力更开放
+      sandboxMode: true
     heartbeat:
       enabled: true
       intervalSeconds: 1800

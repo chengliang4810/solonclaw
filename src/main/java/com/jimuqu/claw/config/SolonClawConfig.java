@@ -87,7 +87,9 @@ public class SolonClawConfig {
      * @return 工具集
      */
     @Bean
-    public WorkspaceAgentTools workspaceAgentTools(AgentWorkspaceService workspaceService) {
+    public WorkspaceAgentTools workspaceAgentTools(
+            AgentWorkspaceService workspaceService
+    ) {
         return new WorkspaceAgentTools(workspaceService);
     }
 
@@ -138,12 +140,21 @@ public class SolonClawConfig {
      * @return CLI 技能提供者
      */
     @Bean
-    public CliSkillProvider cliSkillProvider(AgentWorkspaceService workspaceService) {
+    public CliSkillProvider cliSkillProvider(
+            AgentWorkspaceService workspaceService,
+            SolonClawProperties properties
+    ) {
         String workDir = workspaceService.getWorkspaceDir().getAbsolutePath();
         String skillsDir = FileUtil.mkdir(workspaceService.fileInWorkspace("skills")).getAbsolutePath();
 
-        return new CliSkillProvider(workDir)
+        CliSkillProvider cliSkillProvider = new CliSkillProvider(workDir)
                 .skillPool("@skills", skillsDir);
+
+        cliSkillProvider.getTerminalSkill().setSandboxMode(
+                properties.getAgent().getTools().isSandboxMode()
+        );
+
+        return cliSkillProvider;
     }
 
     /**
