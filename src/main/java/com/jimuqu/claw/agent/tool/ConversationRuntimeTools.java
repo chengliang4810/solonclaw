@@ -94,11 +94,15 @@ public class ConversationRuntimeTools {
             return "当前运行不支持 spawn_task";
         }
 
-        SpawnTaskResult result = spawnTaskSupport.spawnTask(taskDescription, batchKey);
-        return "已创建子任务。childRunId=" + result.getRunId()
-                + ", childSessionKey=" + result.getSessionKey()
-                + ", task=" + result.getTaskDescription()
-                + (StrUtil.isBlank(result.getBatchKey()) ? "" : ", batchKey=" + result.getBatchKey());
+        try {
+            SpawnTaskResult result = spawnTaskSupport.spawnTask(taskDescription, batchKey);
+            return "已创建子任务。childRunId=" + result.getRunId()
+                    + ", childSessionKey=" + result.getSessionKey()
+                    + ", task=" + result.getTaskDescription()
+                    + (StrUtil.isBlank(result.getBatchKey()) ? "" : ", batchKey=" + result.getBatchKey());
+        } catch (RuntimeException e) {
+            return "创建子任务失败: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
+        }
     }
 
     @ToolMapping(name = "list_child_runs", description = "查看当前会话最近的子任务列表，返回 runId、状态、任务描述和结果摘要")

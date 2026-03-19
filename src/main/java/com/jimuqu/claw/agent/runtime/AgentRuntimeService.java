@@ -360,7 +360,7 @@ public class AgentRuntimeService {
             request.setChildRun(StrUtil.isNotBlank(run.getParentRunId()));
             request.setParentRunId(run.getParentRunId());
             request.setHistory(runtimeStoreService.loadConversationHistoryBefore(inboundEnvelope.getSessionKey(), inboundEnvelope.getSessionVersion()));
-            request.setSpawnTaskSupport((taskDescription, batchKey) -> spawnTask(runId, inboundEnvelope, taskDescription, batchKey));
+            request.setSpawnTaskSupport(buildSpawnTaskSupport(runId, run, inboundEnvelope));
             request.setRunQuerySupport(buildRunQuerySupport(inboundEnvelope.getSessionKey()));
             request.setNotificationSupport(buildNotificationSupport(inboundEnvelope.getSessionKey(), runId));
 
@@ -555,15 +555,28 @@ public class AgentRuntimeService {
             return;
         }
 
-        String internalMessage = buildChildCompletionMessage(run);
         AgentRun parentRun = runtimeStoreService.getRun(run.getParentRunId());
         long sourceUserVersion = parentRun == null ? 0L : parentRun.getSourceUserVersion();
+        ParentRunChildrenSummary overallSummary = runtimeStoreService.summarizeChildRuns(run.getParentRunId(), null);
+        ParentRunChildrenSummary batchSummary = StrUtil.isBlank(run.getBatchKey())
+                ? null
+                : runtimeStoreService.summarizeChildRuns(run.getParentRunId(), run.getBatchKey());
+        appendParentChildCompletionEvents(run, overallSummary, batchSummary);
+
+        String internalMessage = buildChildCompletionMessage(run, overallSummary, batchSummary);
         runtimeStoreService.appendChildRunCompletedEvent(run.getParentSessionKey(), run.getParentRunId(), sourceUserVersion, run);
-        submitSystemMessage(
+        String continuationRunId = submitSystemMessage(
                 run.getParentSessionKey(),
                 run.getParentReplyTarget(),
                 internalMessage,
                 "child-complete:" + run.getParentRunId()
+        );
+        runtimeStoreService.appendRunEvent(
+                run.getParentRunId(),
+                "child_continuation_submitted",
+                "childRunId=" + run.getRunId()
+                        + ", continuationRunId=" + continuationRunId
+                        + ", pendingChildren=" + (overallSummary == null ? 0 : overallSummary.getPendingChildren())
         );
     }
 
@@ -603,7 +616,11 @@ public class AgentRuntimeService {
      * @param run 子运行
      * @return 内部消息文本
      */
-    private String buildChildCompletionMessage(AgentRun run) {
+    private String buildChildCompletionMessage(
+            AgentRun run,
+            ParentRunChildrenSummary overallSummary,
+            ParentRunChildrenSummary batchSummary
+    ) {
         StringBuilder builder = new StringBuilder();
         builder.append("[内部事件] 子任务已完成").append('\n');
         builder.append("父运行ID: ").append(run.getParentRunId()).append('\n');
@@ -613,13 +630,116 @@ public class AgentRuntimeService {
         if (StrUtil.isNotBlank(run.getTaskDescription())) {
             builder.append("任务: ").append(run.getTaskDescription()).append('\n');
         }
+        if (overallSummary != null && overallSummary.getTotalChildren() > 0) {
+            builder.append("全部子任务汇总: total=").append(overallSummary.getTotalChildren())
+                    .append(", succeeded=").append(overallSummary.getSucceededChildren())
+                    .append(", failed=").append(overallSummary.getFailedChildren())
+                    .append(", pending=").append(overallSummary.getPendingChildren())
+                    .append(", allCompleted=").append(overallSummary.isAllCompleted())
+                    .append('\n');
+        }
+        if (batchSummary != null && batchSummary.getTotalChildren() > 0) {
+            builder.append("当前批次汇总: batchKey=").append(StrUtil.blankToDefault(batchSummary.getBatchKey(), "(空)"))
+                    .append(", total=").append(batchSummary.getTotalChildren())
+                    .append(", succeeded=").append(batchSummary.getSucceededChildren())
+                    .append(", failed=").append(batchSummary.getFailedChildren())
+                    .append(", pending=").append(batchSummary.getPendingChildren())
+                    .append(", allCompleted=").append(batchSummary.isAllCompleted())
+                    .append('\n');
+        }
         if (run.getStatus() == RunStatus.SUCCEEDED) {
             builder.append("结果:\n").append(StrUtil.blankToDefault(run.getFinalResponse(), "(空结果)"));
         } else {
             builder.append("错误:\n").append(StrUtil.blankToDefault(run.getErrorMessage(), "(未知错误)"));
         }
-        builder.append("\n\n请基于已有上下文继续处理，必要时再派生新的子任务。");
+        builder.append("\n\n请基于已有上下文继续处理。");
+        if (overallSummary != null && overallSummary.getPendingChildren() > 0) {
+            builder.append("\n- 仍有子任务未完成时，优先返回 NO_REPLY，避免过早对外回复。");
+            builder.append("\n- 若需要了解进度，可用 get_child_summary 或 list_child_runs 查看当前状态。");
+        } else {
+            builder.append("\n- 如果现在需要统一对外回复，优先使用 FINAL_REPLY_ONCE: 前缀给出最终聚合结果。");
+            builder.append("\n- 如果只需要结束内部编排、不需要外发，请返回 NO_REPLY。");
+        }
         return builder.toString();
+    }
+
+    /**
+     * 为当前运行构造子任务派生能力，并在子任务场景下应用默认的防扇出限制。
+     *
+     * @param runId 当前运行标识
+     * @param run 当前运行对象
+     * @param inboundEnvelope 当前入站消息
+     * @return 子任务派生能力
+     */
+    private SpawnTaskSupport buildSpawnTaskSupport(String runId, AgentRun run, InboundEnvelope inboundEnvelope) {
+        if (run == null) {
+            return null;
+        }
+        if (StrUtil.isBlank(run.getParentRunId()) || properties.getAgent().getSubtasks().isAllowNestedSpawn()) {
+            return (taskDescription, batchKey) -> spawnTask(runId, inboundEnvelope, taskDescription, batchKey);
+        }
+
+        return (taskDescription, batchKey) -> {
+            String reason = "当前子任务默认禁止继续派生子任务；请先返回结果给父任务，由父任务决定是否继续拆分";
+            runtimeStoreService.appendRunEvent(
+                    runId,
+                    "spawn_task_blocked",
+                    reason + (StrUtil.isBlank(taskDescription) ? "" : "，task=" + taskDescription.trim())
+            );
+            throw new IllegalStateException(reason);
+        };
+    }
+
+    /**
+     * 在父运行上追加与子任务完成相关的结构化调试事件。
+     *
+     * @param childRun 已完成的子任务
+     * @param overallSummary 父运行下的全部子任务汇总
+     * @param batchSummary 当前批次汇总
+     */
+    private void appendParentChildCompletionEvents(
+            AgentRun childRun,
+            ParentRunChildrenSummary overallSummary,
+            ParentRunChildrenSummary batchSummary
+    ) {
+        if (childRun == null || StrUtil.isBlank(childRun.getParentRunId())) {
+            return;
+        }
+
+        StringBuilder received = new StringBuilder();
+        received.append("childRunId=").append(childRun.getRunId())
+                .append(", status=").append(childRun.getStatus());
+        if (StrUtil.isNotBlank(childRun.getBatchKey())) {
+            received.append(", batchKey=").append(childRun.getBatchKey());
+        }
+        if (overallSummary != null) {
+            received.append(", totalChildren=").append(overallSummary.getTotalChildren())
+                    .append(", pendingChildren=").append(overallSummary.getPendingChildren());
+        }
+        runtimeStoreService.appendRunEvent(childRun.getParentRunId(), "child_completion_received", received.toString());
+
+        if (batchSummary != null && batchSummary.getTotalChildren() > 0) {
+            runtimeStoreService.appendRunEvent(
+                    childRun.getParentRunId(),
+                    "child_batch_progress",
+                    "batchKey=" + StrUtil.blankToDefault(batchSummary.getBatchKey(), "(空)")
+                            + ", total=" + batchSummary.getTotalChildren()
+                            + ", succeeded=" + batchSummary.getSucceededChildren()
+                            + ", failed=" + batchSummary.getFailedChildren()
+                            + ", pending=" + batchSummary.getPendingChildren()
+            );
+        }
+
+        if (overallSummary != null) {
+            runtimeStoreService.appendRunEvent(
+                    childRun.getParentRunId(),
+                    overallSummary.isAllCompleted() ? "children_all_completed" : "children_pending",
+                    "total=" + overallSummary.getTotalChildren()
+                            + ", succeeded=" + overallSummary.getSucceededChildren()
+                            + ", failed=" + overallSummary.getFailedChildren()
+                            + ", pending=" + overallSummary.getPendingChildren()
+            );
+        }
     }
 
     /**
@@ -788,4 +908,5 @@ public class AgentRuntimeService {
         String prefix = "child-complete:";
         return senderId.startsWith(prefix) ? senderId.substring(prefix.length()) : null;
     }
+
 }
