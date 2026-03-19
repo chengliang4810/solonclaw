@@ -31,6 +31,10 @@ public class InboundEnvelope {
     private String sessionKey;
     /** 会话事件版本号。 */
     private long sessionVersion;
+    /** 当前入站触发类型。 */
+    private InboundTriggerType triggerType = InboundTriggerType.USER;
+    /** 当前运行关联到的历史锚点版本。 */
+    private long historyAnchorVersion;
     /** 是否允许将最终回复回发到外部渠道。 */
     private boolean externalReplyEnabled = true;
     /** 是否将当前入站消息写入会话历史。 */
@@ -252,6 +256,42 @@ public class InboundEnvelope {
      */
     public void setSessionVersion(long sessionVersion) {
         this.sessionVersion = sessionVersion;
+    }
+
+    /**
+     * 返回当前入站触发类型。
+     *
+     * @return 入站触发类型
+     */
+    public InboundTriggerType getTriggerType() {
+        return triggerType;
+    }
+
+    /**
+     * 设置当前入站触发类型。
+     *
+     * @param triggerType 入站触发类型
+     */
+    public void setTriggerType(InboundTriggerType triggerType) {
+        this.triggerType = triggerType;
+    }
+
+    /**
+     * 返回历史锚点版本。
+     *
+     * @return 历史锚点版本
+     */
+    public long getHistoryAnchorVersion() {
+        return historyAnchorVersion;
+    }
+
+    /**
+     * 设置历史锚点版本。
+     *
+     * @param historyAnchorVersion 历史锚点版本
+     */
+    public void setHistoryAnchorVersion(long historyAnchorVersion) {
+        this.historyAnchorVersion = historyAnchorVersion;
     }
 
     /**

@@ -4,8 +4,10 @@ import com.jimuqu.claw.agent.channel.ChannelAdapter;
 import com.jimuqu.claw.agent.channel.ChannelRegistry;
 import com.jimuqu.claw.agent.model.AgentRun;
 import com.jimuqu.claw.agent.model.ChannelType;
+import com.jimuqu.claw.agent.model.ConversationEvent;
 import com.jimuqu.claw.agent.model.ConversationType;
 import com.jimuqu.claw.agent.model.InboundEnvelope;
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import com.jimuqu.claw.agent.model.OutboundEnvelope;
 import com.jimuqu.claw.agent.model.ReplyTarget;
 import com.jimuqu.claw.agent.model.RunStatus;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -481,6 +484,48 @@ class AgentRuntimeServiceTest {
             assertEquals("dingtalk:group:group-1", store.getLatestExternalRoute().getSessionKey());
             assertEquals("group-1", store.getLatestExternalRoute().getReplyTarget().getConversationId());
             assertTrue(waitUntil(() -> adapter.outbounds.size() >= 2, 2000));
+        } finally {
+            scheduler.shutdown();
+        }
+    }
+
+    /**
+     * 验证可见系统触发不会被写成用户消息，并会带着系统触发类型进入执行层。
+     */
+    @Test
+    void visibleSystemMessageIsNotPersistedAsUserMessage() throws Exception {
+        RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
+        ConversationScheduler scheduler = new ConversationScheduler(1);
+        ChannelRegistry registry = new ChannelRegistry();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter();
+        registry.register(adapter);
+
+        AtomicReference<ConversationExecutionRequest> lastRequest = new AtomicReference<ConversationExecutionRequest>();
+        ConversationAgent conversationAgent = (request, progressConsumer) -> {
+            lastRequest.set(request);
+            return "reply-" + request.getCurrentMessage();
+        };
+
+        SolonClawProperties properties = new SolonClawProperties();
+        properties.getAgent().getScheduler().setAckWhenBusy(false);
+
+        try {
+            AgentRuntimeService runtimeService = new AgentRuntimeService(conversationAgent, store, scheduler, registry, properties);
+            runtimeService.submitInbound(inbound("msg-user", "normal-question"));
+            assertTrue(waitUntil(() -> adapter.messages.contains("reply-normal-question"), 5000));
+
+            ReplyTarget replyTarget = new ReplyTarget(ChannelType.DINGTALK, ConversationType.GROUP, "group-1", "user-1");
+            runtimeService.submitVisibleSystemMessage("dingtalk:group:group-1", replyTarget, "scheduled-task");
+
+            assertTrue(waitUntil(() -> adapter.messages.contains("reply-scheduled-task"), 5000));
+            assertEquals(InboundTriggerType.SYSTEM_VISIBLE, lastRequest.get().getCurrentMessageTriggerType());
+
+            List<ConversationEvent> events = store.readConversationEvents("dingtalk:group:group-1");
+            assertEquals("system_event", events.get(2).getEventType());
+            assertEquals("system", events.get(2).getRole());
+            assertEquals("assistant_reply", events.get(3).getEventType());
+            assertEquals(1L, events.get(2).getSourceUserVersion());
+            assertEquals(1L, events.get(3).getSourceUserVersion());
         } finally {
             scheduler.shutdown();
         }

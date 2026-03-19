@@ -1,5 +1,6 @@
 package com.jimuqu.claw.agent.runtime;
 
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 import java.util.ArrayList;
@@ -13,6 +14,8 @@ public class ConversationExecutionRequest {
     private String sessionKey;
     /** 当前待处理的用户消息。 */
     private String currentMessage;
+    /** 当前消息的触发类型。 */
+    private InboundTriggerType currentMessageTriggerType = InboundTriggerType.USER;
     /** 历史消息列表。 */
     private List<ChatMessage> history = new ArrayList<>();
     /** 当前运行可用的子任务派生能力。 */
@@ -56,6 +59,24 @@ public class ConversationExecutionRequest {
      */
     public void setCurrentMessage(String currentMessage) {
         this.currentMessage = currentMessage;
+    }
+
+    /**
+     * 返回当前消息的触发类型。
+     *
+     * @return 触发类型
+     */
+    public InboundTriggerType getCurrentMessageTriggerType() {
+        return currentMessageTriggerType;
+    }
+
+    /**
+     * 设置当前消息的触发类型。
+     *
+     * @param currentMessageTriggerType 触发类型
+     */
+    public void setCurrentMessageTriggerType(InboundTriggerType currentMessageTriggerType) {
+        this.currentMessageTriggerType = currentMessageTriggerType;
     }
 
     /**

@@ -7,6 +7,7 @@ import com.jimuqu.claw.agent.model.AgentRun;
 import com.jimuqu.claw.agent.model.ChannelType;
 import com.jimuqu.claw.agent.model.ConversationType;
 import com.jimuqu.claw.agent.model.InboundEnvelope;
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import com.jimuqu.claw.agent.model.OutboundEnvelope;
 import com.jimuqu.claw.agent.model.ReplyTarget;
 import com.jimuqu.claw.agent.model.RunEvent;
@@ -81,6 +82,7 @@ public class AgentRuntimeService {
         inboundEnvelope.setReceivedAt(System.currentTimeMillis());
         inboundEnvelope.setSessionKey("debug-web:" + sessionId);
         inboundEnvelope.setReplyTarget(new ReplyTarget(ChannelType.DEBUG_WEB, ConversationType.PRIVATE, sessionId, "debug-user"));
+        inboundEnvelope.setTriggerType(InboundTriggerType.USER);
         return submitInbound(inboundEnvelope);
     }
 
@@ -93,7 +95,19 @@ public class AgentRuntimeService {
      * @return 运行任务标识
      */
     public String submitSystemMessage(String sessionKey, ReplyTarget replyTarget, String content) {
-        return submitSystemMessage(sessionKey, replyTarget, content, "system");
+        return submitVisibleSystemMessage(sessionKey, replyTarget, content, "system");
+    }
+
+    /**
+     * 向指定外部路由提交一条可见系统消息。
+     *
+     * @param sessionKey 会话键
+     * @param replyTarget 回复目标
+     * @param content 文本内容
+     * @return 运行任务标识
+     */
+    public String submitVisibleSystemMessage(String sessionKey, ReplyTarget replyTarget, String content) {
+        return submitVisibleSystemMessage(sessionKey, replyTarget, content, "system");
     }
 
     /**
@@ -118,7 +132,29 @@ public class AgentRuntimeService {
      * @return 运行任务标识
      */
     public String submitSystemMessage(String sessionKey, ReplyTarget replyTarget, String content, String senderId) {
-        return submitSystemMessage(sessionKey, replyTarget, content, senderId, true, true, true);
+        return submitVisibleSystemMessage(sessionKey, replyTarget, content, senderId);
+    }
+
+    /**
+     * 向指定外部路由提交一条带自定义发送者的可见系统消息。
+     *
+     * @param sessionKey 会话键
+     * @param replyTarget 回复目标
+     * @param content 文本内容
+     * @param senderId 发送者标识
+     * @return 运行任务标识
+     */
+    public String submitVisibleSystemMessage(String sessionKey, ReplyTarget replyTarget, String content, String senderId) {
+        return submitSystemMessage(
+                sessionKey,
+                replyTarget,
+                content,
+                senderId,
+                InboundTriggerType.SYSTEM_VISIBLE,
+                true,
+                true,
+                true
+        );
     }
 
     /**
@@ -131,7 +167,16 @@ public class AgentRuntimeService {
      * @return 运行任务标识
      */
     public String submitSilentSystemMessage(String sessionKey, ReplyTarget replyTarget, String content, String senderId) {
-        return submitSystemMessage(sessionKey, replyTarget, content, senderId, false, false, false);
+        return submitSystemMessage(
+                sessionKey,
+                replyTarget,
+                content,
+                senderId,
+                InboundTriggerType.SYSTEM_SILENT,
+                false,
+                false,
+                false
+        );
     }
 
     /**
@@ -151,6 +196,7 @@ public class AgentRuntimeService {
             ReplyTarget replyTarget,
             String content,
             String senderId,
+            InboundTriggerType triggerType,
             boolean externalReplyEnabled,
             boolean persistInboundConversationEvent,
             boolean persistAssistantConversationEvent
@@ -166,6 +212,7 @@ public class AgentRuntimeService {
         inboundEnvelope.setReceivedAt(System.currentTimeMillis());
         inboundEnvelope.setSessionKey(sessionKey);
         inboundEnvelope.setReplyTarget(replyTarget);
+        inboundEnvelope.setTriggerType(triggerType);
         inboundEnvelope.setExternalReplyEnabled(externalReplyEnabled);
         inboundEnvelope.setPersistInboundConversationEvent(persistInboundConversationEvent);
         inboundEnvelope.setPersistAssistantConversationEvent(persistAssistantConversationEvent);
@@ -190,9 +237,12 @@ public class AgentRuntimeService {
 
         ConversationScheduler.SessionState state = conversationScheduler.inspect(inboundEnvelope.getSessionKey());
 
+        long latestConversationVersion = runtimeStoreService.getLatestConversationVersion(inboundEnvelope.getSessionKey());
+        long nextConversationVersion = latestConversationVersion + 1L;
+        inboundEnvelope.setHistoryAnchorVersion(resolveHistoryAnchorVersion(inboundEnvelope, nextConversationVersion));
         long version = inboundEnvelope.isPersistInboundConversationEvent()
                 ? runtimeStoreService.appendInboundConversationEvent(inboundEnvelope)
-                : runtimeStoreService.getLatestConversationVersion(inboundEnvelope.getSessionKey()) + 1L;
+                : nextConversationVersion;
         inboundEnvelope.setSessionVersion(version);
         if (inboundEnvelope.getChannelType() != ChannelType.SYSTEM) {
             runtimeStoreService.rememberReplyTarget(inboundEnvelope.getSessionKey(), inboundEnvelope.getReplyTarget());
@@ -209,7 +259,7 @@ public class AgentRuntimeService {
         run.setRunId(runtimeStoreService.newRunId());
         run.setSessionKey(inboundEnvelope.getSessionKey());
         run.setSourceMessageId(inboundEnvelope.getMessageId());
-        run.setSourceUserVersion(version);
+        run.setSourceUserVersion(inboundEnvelope.getHistoryAnchorVersion());
         run.setReplyTarget(inboundEnvelope.getReplyTarget());
         run.setStatus(RunStatus.QUEUED);
         run.setCreatedAt(System.currentTimeMillis());
@@ -305,6 +355,7 @@ public class AgentRuntimeService {
             ConversationExecutionRequest request = new ConversationExecutionRequest();
             request.setSessionKey(inboundEnvelope.getSessionKey());
             request.setCurrentMessage(inboundEnvelope.getContent());
+            request.setCurrentMessageTriggerType(inboundEnvelope.getTriggerType());
             request.setHistory(runtimeStoreService.loadConversationHistoryBefore(inboundEnvelope.getSessionKey(), inboundEnvelope.getSessionVersion()));
             request.setSpawnTaskSupport((taskDescription, batchKey) -> spawnTask(runId, inboundEnvelope, taskDescription, batchKey));
             request.setRunQuerySupport(buildRunQuerySupport(inboundEnvelope.getSessionKey()));
@@ -346,7 +397,7 @@ public class AgentRuntimeService {
                         inboundEnvelope.getSessionKey(),
                         runId,
                         inboundEnvelope.getMessageId(),
-                        inboundEnvelope.getSessionVersion(),
+                        resolveAssistantSourceUserVersion(inboundEnvelope),
                         visibleResponse
                 );
             }
@@ -435,15 +486,17 @@ public class AgentRuntimeService {
         childInbound.setReceivedAt(now);
         childInbound.setSessionKey(childSessionKey);
         childInbound.setReplyTarget(null);
+        childInbound.setTriggerType(InboundTriggerType.SYSTEM_VISIBLE);
 
         long version = runtimeStoreService.appendInboundConversationEvent(childInbound);
         childInbound.setSessionVersion(version);
+        childInbound.setHistoryAnchorVersion(resolveHistoryAnchorVersion(childInbound, version));
 
         AgentRun childRun = new AgentRun();
         childRun.setRunId(runtimeStoreService.newRunId());
         childRun.setSessionKey(childSessionKey);
         childRun.setSourceMessageId(childMessageId);
-        childRun.setSourceUserVersion(version);
+        childRun.setSourceUserVersion(childInbound.getHistoryAnchorVersion());
         childRun.setStatus(RunStatus.QUEUED);
         childRun.setCreatedAt(now);
         childRun.setParentRunId(parentRunId);
@@ -508,6 +561,36 @@ public class AgentRuntimeService {
                 internalMessage,
                 "child-complete:" + run.getParentRunId()
         );
+    }
+
+    /**
+     * 计算当前入站消息对应的历史锚点版本。
+     *
+     * @param inboundEnvelope 入站消息
+     * @param version 当前入站事件版本
+     * @return 历史锚点版本
+     */
+    private long resolveHistoryAnchorVersion(InboundEnvelope inboundEnvelope, long version) {
+        if (inboundEnvelope.getHistoryAnchorVersion() > 0) {
+            return inboundEnvelope.getHistoryAnchorVersion();
+        }
+        if (inboundEnvelope.getTriggerType() == null || inboundEnvelope.getTriggerType() == InboundTriggerType.USER) {
+            return version;
+        }
+        return runtimeStoreService.getLatestUserConversationVersion(inboundEnvelope.getSessionKey());
+    }
+
+    /**
+     * 计算助手回复事件要挂载到的来源用户版本。
+     *
+     * @param inboundEnvelope 入站消息
+     * @return 来源用户版本
+     */
+    private long resolveAssistantSourceUserVersion(InboundEnvelope inboundEnvelope) {
+        if (inboundEnvelope.getHistoryAnchorVersion() > 0) {
+            return inboundEnvelope.getHistoryAnchorVersion();
+        }
+        return inboundEnvelope.getSessionVersion();
     }
 
     /**
