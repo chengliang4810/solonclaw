@@ -16,7 +16,6 @@ import com.jimuqu.claw.agent.model.envelope.InboundEnvelope;
 import com.jimuqu.claw.agent.model.envelope.OutboundEnvelope;
 import com.jimuqu.claw.agent.model.route.ReplyTarget;
 import com.jimuqu.claw.agent.runtime.impl.AgentRuntimeService;
-import com.jimuqu.claw.agent.store.RuntimeStoreService;
 import com.jimuqu.claw.channel.dingtalk.sender.DingTalkRobotSender;
 import com.jimuqu.claw.config.SolonClawProperties;
 import org.slf4j.Logger;
@@ -32,8 +31,6 @@ public class DingTalkChannelAdapter implements
     private static final Logger log = LoggerFactory.getLogger(DingTalkChannelAdapter.class);
     /** Agent 运行时服务。 */
     private final AgentRuntimeService agentRuntimeService;
-    /** 运行时存储服务。 */
-    private final RuntimeStoreService runtimeStoreService;
     /** 钉钉消息发送服务。 */
     private final DingTalkRobotSender dingTalkRobotSender;
     /** 钉钉渠道配置。 */
@@ -45,18 +42,15 @@ public class DingTalkChannelAdapter implements
      * 创建钉钉渠道适配器。
      *
      * @param agentRuntimeService Agent 运行时服务
-     * @param runtimeStoreService 运行时存储服务
      * @param dingTalkRobotSender 钉钉消息发送服务
      * @param properties 钉钉渠道配置
      */
     public DingTalkChannelAdapter(
             AgentRuntimeService agentRuntimeService,
-            RuntimeStoreService runtimeStoreService,
             DingTalkRobotSender dingTalkRobotSender,
             SolonClawProperties.DingTalk properties
     ) {
         this.agentRuntimeService = agentRuntimeService;
-        this.runtimeStoreService = runtimeStoreService;
         this.dingTalkRobotSender = dingTalkRobotSender;
         this.properties = properties;
     }

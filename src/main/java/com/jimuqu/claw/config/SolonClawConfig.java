@@ -285,14 +285,12 @@ public class SolonClawConfig {
     @Bean(initMethod = "start", destroyMethod = "stop")
     public DingTalkChannelAdapter dingTalkChannelAdapter(
             AgentRuntimeService agentRuntimeService,
-            RuntimeStoreService runtimeStoreService,
             DingTalkRobotSender dingTalkRobotSender,
             ChannelRegistry channelRegistry,
             SolonClawProperties properties
     ) {
         DingTalkChannelAdapter adapter = new DingTalkChannelAdapter(
                 agentRuntimeService,
-                runtimeStoreService,
                 dingTalkRobotSender,
                 properties.getChannels().getDingtalk()
         );
