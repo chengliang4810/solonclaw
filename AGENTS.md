@@ -478,6 +478,7 @@ java -jar target/solonclaw.jar --env=dev
 8. 工具、子任务、通知、定时任务都应复用统一运行时，不要平行造轮子
 9. 工作区相关能力优先改 `AgentWorkspaceService / WorkspacePromptService / WorkspaceAgentTools`
 10. Git 提交信息使用中英双语描述，推荐格式：`增加了xx功能 (Add xx feature)`
+11. 提交代码时，默认按职责拆分 commit；优先拆成“提示词与上下文 / 运行时治理 / 配置默认值与注释 / 测试”这类最小修改单元，尽量做到一个 commit 只解决一类问题，避免把无关改动混在一起
 
 ## PR 规范
 
