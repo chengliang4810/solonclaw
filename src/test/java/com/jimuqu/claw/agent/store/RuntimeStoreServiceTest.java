@@ -2,8 +2,10 @@ package com.jimuqu.claw.agent.store;
 
 import com.jimuqu.claw.agent.model.AgentRun;
 import com.jimuqu.claw.agent.model.ChannelType;
+import com.jimuqu.claw.agent.model.ConversationEvent;
 import com.jimuqu.claw.agent.model.ConversationType;
 import com.jimuqu.claw.agent.model.InboundEnvelope;
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import com.jimuqu.claw.agent.model.ReplyTarget;
 import com.jimuqu.claw.agent.model.RunEvent;
 import com.jimuqu.claw.agent.model.RunStatus;
@@ -117,6 +119,59 @@ class RuntimeStoreServiceTest {
         assertEquals("SYSTEM", history.get(2).getRole().toString());
         assertTrue(history.get(1).getContent().contains("childRunId=child-1"));
         assertTrue(history.get(2).getContent().contains("result="));
+    }
+
+    /**
+     * 验证可见系统消息会以 system 角色写入会话事件。
+     */
+    @Test
+    void appendInboundConversationEventUsesSystemRoleForVisibleSystemTrigger() {
+        RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
+
+        InboundEnvelope user = inbound("session-a", "msg-1", "question");
+        long userVersion = store.appendInboundConversationEvent(user);
+
+        InboundEnvelope system = inbound("session-a", "system-1", "scheduled-task");
+        system.setChannelType(ChannelType.SYSTEM);
+        system.setTriggerType(InboundTriggerType.SYSTEM_VISIBLE);
+        system.setHistoryAnchorVersion(userVersion);
+
+        long systemVersion = store.appendInboundConversationEvent(system);
+        List<ConversationEvent> events = store.readConversationEvents("session-a");
+
+        assertEquals(2L, systemVersion);
+        assertEquals("user_message", events.get(0).getEventType());
+        assertEquals("system_event", events.get(1).getEventType());
+        assertEquals("system", events.get(1).getRole());
+        assertEquals(userVersion, events.get(1).getSourceUserVersion());
+    }
+
+    /**
+     * 验证同一锚点下的系统事件与回复会按事件版本顺序重建。
+     */
+    @Test
+    void loadConversationHistoryBeforeKeepsAnchoredSystemEventOrder() {
+        RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
+
+        InboundEnvelope user = inbound("session-a", "msg-1", "question");
+        long userVersion = store.appendInboundConversationEvent(user);
+        store.appendAssistantConversationEvent("session-a", "run-1", "msg-1", userVersion, "reply-user");
+
+        InboundEnvelope system = inbound("session-a", "system-1", "scheduled-task");
+        system.setChannelType(ChannelType.SYSTEM);
+        system.setTriggerType(InboundTriggerType.SYSTEM_VISIBLE);
+        system.setHistoryAnchorVersion(userVersion);
+        long systemVersion = store.appendInboundConversationEvent(system);
+        store.appendAssistantConversationEvent("session-a", "run-2", "system-1", userVersion, "reply-system");
+
+        List<ChatMessage> history = store.loadConversationHistoryBefore("session-a", systemVersion + 10L);
+
+        assertEquals(4, history.size());
+        assertEquals("question", history.get(0).getContent());
+        assertEquals("reply-user", history.get(1).getContent());
+        assertEquals("SYSTEM", history.get(2).getRole().toString());
+        assertEquals("scheduled-task", history.get(2).getContent());
+        assertEquals("reply-system", history.get(3).getContent());
     }
 
     /**

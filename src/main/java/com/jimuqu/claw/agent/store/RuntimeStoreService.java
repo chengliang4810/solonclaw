@@ -10,6 +10,7 @@ import com.jimuqu.claw.agent.model.ChildRunSpawnedData;
 import com.jimuqu.claw.agent.model.ChannelType;
 import com.jimuqu.claw.agent.model.ConversationEvent;
 import com.jimuqu.claw.agent.model.InboundEnvelope;
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import com.jimuqu.claw.agent.model.LatestReplyRoute;
 import com.jimuqu.claw.agent.model.ReplyTarget;
 import com.jimuqu.claw.agent.model.RunEvent;
@@ -114,9 +115,10 @@ public class RuntimeStoreService {
     public long appendInboundConversationEvent(InboundEnvelope inboundEnvelope) {
         ConversationEvent event = new ConversationEvent();
         event.setSessionKey(inboundEnvelope.getSessionKey());
-        event.setEventType(inboundEnvelope.isPersistInboundConversationEvent() ? "user_message" : "system_event");
+        event.setEventType(resolveInboundEventType(inboundEnvelope));
         event.setSourceMessageId(inboundEnvelope.getMessageId());
-        event.setRole(inboundEnvelope.isPersistInboundConversationEvent() ? "user" : "system");
+        event.setSourceUserVersion(resolveInboundSourceUserVersion(inboundEnvelope));
+        event.setRole(resolveInboundEventRole(inboundEnvelope));
         event.setContent(inboundEnvelope.getContent());
         event.setCreatedAt(inboundEnvelope.getReceivedAt());
         return appendConversationEvent(inboundEnvelope.getSessionKey(), event);
@@ -257,23 +259,26 @@ public class RuntimeStoreService {
     public List<ChatMessage> loadConversationHistoryBefore(String sessionKey, long beforeUserVersion) {
         List<ConversationEvent> allEvents = readConversationEvents(sessionKey);
         List<ConversationEvent> userEvents = new ArrayList<>();
-        Map<Long, List<ConversationEvent>> repliesBySource = new LinkedHashMap<>();
-        Map<Long, List<ConversationEvent>> sideEventsByAnchor = new LinkedHashMap<>();
-        List<ConversationEvent> unanchoredSideEvents = new ArrayList<>();
+        Map<Long, List<ConversationEvent>> anchoredEventsBySource = new LinkedHashMap<>();
+        List<ConversationEvent> unanchoredEvents = new ArrayList<>();
 
         for (ConversationEvent event : allEvents) {
             if ("user_message".equals(event.getEventType()) && event.getVersion() < beforeUserVersion) {
                 userEvents.add(event);
             }
             if ("assistant_reply".equals(event.getEventType()) && event.getSourceUserVersion() < beforeUserVersion) {
-                repliesBySource.computeIfAbsent(event.getSourceUserVersion(), key -> new ArrayList<>()).add(event);
+                if (event.getSourceUserVersion() > 0) {
+                    anchoredEventsBySource.computeIfAbsent(event.getSourceUserVersion(), key -> new ArrayList<>()).add(event);
+                } else {
+                    unanchoredEvents.add(event);
+                }
             }
             if (event.getVersion() < beforeUserVersion && isRenderableSystemEvent(event)) {
                 long anchorVersion = event.getSourceUserVersion();
                 if (anchorVersion > 0) {
-                    sideEventsByAnchor.computeIfAbsent(anchorVersion, key -> new ArrayList<>()).add(event);
+                    anchoredEventsBySource.computeIfAbsent(anchorVersion, key -> new ArrayList<>()).add(event);
                 } else {
-                    unanchoredSideEvents.add(event);
+                    unanchoredEvents.add(event);
                 }
             }
         }
@@ -282,25 +287,18 @@ public class RuntimeStoreService {
         List<ChatMessage> history = new ArrayList<>();
         for (ConversationEvent userEvent : userEvents) {
             history.add(ChatMessage.ofUser(userEvent.getContent()));
-            List<ConversationEvent> replies = repliesBySource.get(userEvent.getVersion());
-            if (replies != null) {
-                replies.sort(Comparator.comparingLong(ConversationEvent::getVersion));
-                for (ConversationEvent reply : replies) {
-                    history.add(ChatMessage.ofAssistant(reply.getContent()));
-                }
-            }
-            List<ConversationEvent> sideEvents = sideEventsByAnchor.get(userEvent.getVersion());
-            if (sideEvents != null) {
-                sideEvents.sort(Comparator.comparingLong(ConversationEvent::getVersion));
-                for (ConversationEvent sideEvent : sideEvents) {
-                    history.add(ChatMessage.ofSystem(renderConversationEvent(sideEvent)));
+            List<ConversationEvent> anchoredEvents = anchoredEventsBySource.get(userEvent.getVersion());
+            if (anchoredEvents != null) {
+                anchoredEvents.sort(Comparator.comparingLong(ConversationEvent::getVersion));
+                for (ConversationEvent anchoredEvent : anchoredEvents) {
+                    history.add(toHistoryMessage(anchoredEvent));
                 }
             }
         }
 
-        unanchoredSideEvents.sort(Comparator.comparingLong(ConversationEvent::getVersion));
-        for (ConversationEvent sideEvent : unanchoredSideEvents) {
-            history.add(ChatMessage.ofSystem(renderConversationEvent(sideEvent)));
+        unanchoredEvents.sort(Comparator.comparingLong(ConversationEvent::getVersion));
+        for (ConversationEvent event : unanchoredEvents) {
+            history.add(toHistoryMessage(event));
         }
 
         return history;
@@ -656,6 +654,23 @@ public class RuntimeStoreService {
     }
 
     /**
+     * 返回某个会话最近一次真实用户消息的版本号。
+     *
+     * @param sessionKey 会话键
+     * @return 最新用户消息版本号；不存在则返回 0
+     */
+    public long getLatestUserConversationVersion(String sessionKey) {
+        List<ConversationEvent> events = readConversationEvents(sessionKey);
+        for (int i = events.size() - 1; i >= 0; i--) {
+            ConversationEvent event = events.get(i);
+            if ("user_message".equals(event.getEventType())) {
+                return event.getVersion();
+            }
+        }
+        return 0L;
+    }
+
+    /**
      * 记录最近一次外部回复目标。
      *
      * @param sessionKey 会话键
@@ -850,6 +865,61 @@ public class RuntimeStoreService {
         return "system_event".equals(event.getEventType())
                 || "child_run_spawned".equals(event.getEventType())
                 || "child_run_completed".equals(event.getEventType());
+    }
+
+    /**
+     * 将会话事件转换为历史消息。
+     *
+     * @param event 会话事件
+     * @return 历史消息
+     */
+    private ChatMessage toHistoryMessage(ConversationEvent event) {
+        if ("assistant_reply".equals(event.getEventType())) {
+            return ChatMessage.ofAssistant(event.getContent());
+        }
+        return ChatMessage.ofSystem(renderConversationEvent(event));
+    }
+
+    /**
+     * 根据入站触发类型返回对应的会话事件类型。
+     *
+     * @param inboundEnvelope 入站消息
+     * @return 会话事件类型
+     */
+    private String resolveInboundEventType(InboundEnvelope inboundEnvelope) {
+        InboundTriggerType triggerType = inboundEnvelope == null ? null : inboundEnvelope.getTriggerType();
+        if (triggerType == null || triggerType == InboundTriggerType.USER) {
+            return "user_message";
+        }
+        return "system_event";
+    }
+
+    /**
+     * 根据入站触发类型返回对应的会话事件角色。
+     *
+     * @param inboundEnvelope 入站消息
+     * @return 会话事件角色
+     */
+    private String resolveInboundEventRole(InboundEnvelope inboundEnvelope) {
+        InboundTriggerType triggerType = inboundEnvelope == null ? null : inboundEnvelope.getTriggerType();
+        if (triggerType == null || triggerType == InboundTriggerType.USER) {
+            return "user";
+        }
+        return "system";
+    }
+
+    /**
+     * 解析入站事件要写入的历史锚点版本。
+     *
+     * @param inboundEnvelope 入站消息
+     * @return 历史锚点版本
+     */
+    private long resolveInboundSourceUserVersion(InboundEnvelope inboundEnvelope) {
+        InboundTriggerType triggerType = inboundEnvelope == null ? null : inboundEnvelope.getTriggerType();
+        if (triggerType == null || triggerType == InboundTriggerType.USER) {
+            return 0L;
+        }
+        return inboundEnvelope.getHistoryAnchorVersion();
     }
 
     private String renderConversationEvent(ConversationEvent event) {

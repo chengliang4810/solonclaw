@@ -16,6 +16,8 @@ import com.jimuqu.claw.agent.workspace.WorkspacePromptService;
 import com.jimuqu.claw.channel.dingtalk.DingTalkAccessTokenService;
 import com.jimuqu.claw.channel.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.claw.channel.dingtalk.DingTalkRobotSender;
+import com.jimuqu.claw.channel.feishu.FeishuBotSender;
+import com.jimuqu.claw.channel.feishu.FeishuChannelAdapter;
 import org.noear.solon.ai.skills.cli.CliSkillProvider;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.annotation.Bean;
@@ -87,7 +89,9 @@ public class SolonClawConfig {
      * @return 工具集
      */
     @Bean
-    public WorkspaceAgentTools workspaceAgentTools(AgentWorkspaceService workspaceService) {
+    public WorkspaceAgentTools workspaceAgentTools(
+            AgentWorkspaceService workspaceService
+    ) {
         return new WorkspaceAgentTools(workspaceService);
     }
 
@@ -138,12 +142,21 @@ public class SolonClawConfig {
      * @return CLI 技能提供者
      */
     @Bean
-    public CliSkillProvider cliSkillProvider(AgentWorkspaceService workspaceService) {
+    public CliSkillProvider cliSkillProvider(
+            AgentWorkspaceService workspaceService,
+            SolonClawProperties properties
+    ) {
         String workDir = workspaceService.getWorkspaceDir().getAbsolutePath();
         String skillsDir = FileUtil.mkdir(workspaceService.fileInWorkspace("skills")).getAbsolutePath();
 
-        return new CliSkillProvider(workDir)
+        CliSkillProvider cliSkillProvider = new CliSkillProvider(workDir)
                 .skillPool("@skills", skillsDir);
+
+        cliSkillProvider.getTerminalSkill().setSandboxMode(
+                properties.getAgent().getTools().isSandboxMode()
+        );
+
+        return cliSkillProvider;
     }
 
     /**
@@ -189,6 +202,17 @@ public class SolonClawConfig {
     @Bean
     public ChannelRegistry channelRegistry() {
         return new ChannelRegistry();
+    }
+
+    /**
+     * 创建飞书消息发送服务。
+     *
+     * @param properties 项目配置
+     * @return 飞书发送服务
+     */
+    @Bean
+    public FeishuBotSender feishuBotSender(SolonClawProperties properties) {
+        return new FeishuBotSender(properties.getChannels().getFeishu());
     }
 
     /**
@@ -244,7 +268,7 @@ public class SolonClawConfig {
                 channelRegistry,
                 properties
         );
-        workspaceJobService.setJobDispatcher(service::submitSystemMessage);
+        workspaceJobService.setJobDispatcher(service::submitVisibleSystemMessage);
         return service;
     }
 
@@ -271,6 +295,31 @@ public class SolonClawConfig {
                 runtimeStoreService,
                 dingTalkRobotSender,
                 properties.getChannels().getDingtalk()
+        );
+        channelRegistry.register(adapter);
+        return adapter;
+    }
+
+    /**
+     * 创建并注册飞书渠道适配器。
+     *
+     * @param agentRuntimeService Agent 运行时服务
+     * @param feishuBotSender 飞书消息发送服务
+     * @param channelRegistry 渠道注册表
+     * @param properties 项目配置
+     * @return 飞书渠道适配器
+     */
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public FeishuChannelAdapter feishuChannelAdapter(
+            AgentRuntimeService agentRuntimeService,
+            FeishuBotSender feishuBotSender,
+            ChannelRegistry channelRegistry,
+            SolonClawProperties properties
+    ) {
+        FeishuChannelAdapter adapter = new FeishuChannelAdapter(
+                agentRuntimeService,
+                feishuBotSender,
+                properties.getChannels().getFeishu()
         );
         channelRegistry.register(adapter);
         return adapter;

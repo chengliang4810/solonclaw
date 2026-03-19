@@ -1,22 +1,17 @@
 package com.jimuqu.claw.agent.tool;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.claw.agent.workspace.AgentWorkspaceService;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
- * 提供受工作区边界保护的基础文件与命令工具。
+ * 提供受工作区边界保护的基础文件工具。
  */
 public class WorkspaceAgentTools {
     private static final int MAX_RESULT_CHARS = 8000;
@@ -77,49 +72,8 @@ public class WorkspaceAgentTools {
         return "已修改文件: " + target;
     }
 
-    @ToolMapping(name = "exec_command", description = "在工作区目录执行命令，返回标准输出与标准错误")
-    public String execCommand(@Param(description = "要执行的命令文本") String command) throws Exception {
-        if (StrUtil.isBlank(command)) {
-            return "执行失败: command 不能为空";
-        }
-
-        ProcessBuilder builder = new ProcessBuilder(buildShellCommand(command));
-        builder.directory(workspaceService.getWorkspaceDir());
-        builder.redirectErrorStream(true);
-
-        Process process = builder.start();
-        CompletableFuture<String> outputFuture = CompletableFuture.supplyAsync(() -> readProcessOutput(process));
-
-        boolean completed = process.waitFor(30, TimeUnit.SECONDS);
-        if (!completed) {
-            process.destroyForcibly();
-            return "执行超时(30s): " + command;
-        }
-
-        String output = outputFuture.get(5, TimeUnit.SECONDS);
-        String body = StrUtil.isBlank(output) ? "(无输出)" : output.trim();
-        return truncate("exitCode=" + process.exitValue() + "\n" + body);
-    }
-
-    private String[] buildShellCommand(String command) {
-        String os = System.getProperty("os.name", "").toLowerCase();
-        if (os.contains("win")) {
-            return new String[]{"powershell", "-NoProfile", "-Command", command};
-        }
-
-        return new String[]{"/bin/sh", "-lc", command};
-    }
-
-    private String readProcessOutput(Process process) {
-        try (InputStream inputStream = process.getInputStream()) {
-            return IoUtil.read(inputStream, "UTF-8");
-        } catch (IOException e) {
-            return "读取命令输出失败: " + e.getMessage();
-        }
-    }
-
     private Path resolvePath(String pathText, boolean allowMissingLeaf) throws IOException {
-        if (StrUtil.isBlank(pathText)) {
+        if (pathText == null || pathText.trim().isEmpty()) {
             throw new IllegalArgumentException("filePath 不能为空");
         }
 

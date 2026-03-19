@@ -13,7 +13,7 @@
 - 🤖 构建一个可持续运行的个人/团队 AI 助手
 - 💬 同时接本地 Debug Web 与钉钉机器人
 - 🧠 让 Agent 基于工作区文件获得记忆、身份和行为约束
-- 🛠️ 让 Agent 通过工具读写工作区、执行命令、管理任务
+- 🛠️ 让 Agent 通过工具读写工作区、通过 CLI 技能执行命令、管理任务
 - 🧩 把复杂问题拆成多个子任务并回流父会话
 - ⏰ 创建持久化定时任务，让 Agent 定期执行工作
 
@@ -35,7 +35,7 @@
   `AGENTS.md / SOUL.md / IDENTITY.md / USER.md / TOOLS.md / HEARTBEAT.md / MEMORY.md / memory/YYYY-MM-DD.md` 会自动参与系统提示词拼装。
 
 - 🧰 内置工具与技能
-  支持文件读写、片段编辑、命令执行、任务查询、定时任务管理，并可从 `workspace/skills` 挂载 CLI 技能池 `@skills`。
+  支持文件读写、片段编辑、任务查询、定时任务管理，并可从 `workspace/skills` 挂载 CLI 技能池 `@skills`。
 
 - 🧪 本地调试友好
   自带 Debug Web 页面，可直接查看 run 状态、流式事件、子任务列表与聚合摘要。
@@ -167,7 +167,6 @@ workspace/
 - `read_file`
 - `write_file`
 - `edit_file`
-- `exec_command`
 - `notify_user`
 - `spawn_task`
 - `list_child_runs`
@@ -183,9 +182,17 @@ workspace/
 能力特点：
 
 - 文件读写受工作区边界保护
-- 命令执行默认在工作区目录进行
+- 命令执行走 CLI `TerminalSkill` 的 `bash` 能力
+- `TerminalSkill` 默认启用沙盒模式，可通过 `solonclaw.agent.tools.sandboxMode` 控制
 - 定时任务会绑定最近一次外部会话路由
 - 心跳检查会读取 `HEARTBEAT.md` 并触发静默内部运行
+
+`sandboxMode` 规则：
+
+- `true`：CLI 的 `bash` / `ls` / `read` / `grep` / `glob` 等能力只允许工作区相对路径、`~/` 和 `@skills` 逻辑路径
+- `true`：禁止绝对路径，禁止通过 `../` 等方式越出工作区
+- `true`：`@skills` 逻辑路径可读、可执行，但仍是只读挂载池
+- `false`：放开绝对路径访问，CLI 能力进入更开放模式
 
 ## 快速开始
 
@@ -302,6 +309,7 @@ java ${JAVA_OPTS} \
 - `solonclaw.workspace=./workspace`
 - `solonclaw.agent.scheduler.maxConcurrentPerConversation=4`
 - `solonclaw.agent.scheduler.ackWhenBusy=false`
+- `solonclaw.agent.tools.sandboxMode=true`
 - `solonclaw.agent.heartbeat.enabled=true`
 - `solonclaw.agent.heartbeat.intervalSeconds=1800`
 - `solonclaw.channels.dingtalk.*`

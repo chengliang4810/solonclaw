@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -60,6 +61,8 @@ class WorkspacePromptServiceTest {
         assertTrue(prompt.contains("用户偏好中文回复"));
         assertTrue(prompt.contains("昨天发生了重要事情。"));
         assertTrue(prompt.contains("今天需要继续跟进。"));
+        assertFalse(prompt.contains("## 心跳清单"));
+        assertFalse(prompt.contains("# HEARTBEAT"));
         assertEquals("Xiaolongxia", promptService.resolveAgentName());
     }
 

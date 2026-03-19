@@ -4,8 +4,10 @@ import com.jimuqu.claw.agent.channel.ChannelAdapter;
 import com.jimuqu.claw.agent.channel.ChannelRegistry;
 import com.jimuqu.claw.agent.model.AgentRun;
 import com.jimuqu.claw.agent.model.ChannelType;
+import com.jimuqu.claw.agent.model.ConversationEvent;
 import com.jimuqu.claw.agent.model.ConversationType;
 import com.jimuqu.claw.agent.model.InboundEnvelope;
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import com.jimuqu.claw.agent.model.OutboundEnvelope;
 import com.jimuqu.claw.agent.model.ReplyTarget;
 import com.jimuqu.claw.agent.model.RunStatus;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -487,6 +490,93 @@ class AgentRuntimeServiceTest {
     }
 
     /**
+     * 验证可见系统触发不会被写成用户消息，并会带着系统触发类型进入执行层。
+     */
+    @Test
+    void visibleSystemMessageIsNotPersistedAsUserMessage() throws Exception {
+        RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
+        ConversationScheduler scheduler = new ConversationScheduler(1);
+        ChannelRegistry registry = new ChannelRegistry();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter();
+        registry.register(adapter);
+
+        AtomicReference<ConversationExecutionRequest> lastRequest = new AtomicReference<ConversationExecutionRequest>();
+        ConversationAgent conversationAgent = (request, progressConsumer) -> {
+            lastRequest.set(request);
+            return "reply-" + request.getCurrentMessage();
+        };
+
+        SolonClawProperties properties = new SolonClawProperties();
+        properties.getAgent().getScheduler().setAckWhenBusy(false);
+
+        try {
+            AgentRuntimeService runtimeService = new AgentRuntimeService(conversationAgent, store, scheduler, registry, properties);
+            runtimeService.submitInbound(inbound("msg-user", "normal-question"));
+            assertTrue(waitUntil(() -> adapter.messages.contains("reply-normal-question"), 5000));
+
+            ReplyTarget replyTarget = new ReplyTarget(ChannelType.DINGTALK, ConversationType.GROUP, "group-1", "user-1");
+            runtimeService.submitVisibleSystemMessage("dingtalk:group:group-1", replyTarget, "scheduled-task");
+
+            assertTrue(waitUntil(() -> adapter.messages.contains("reply-scheduled-task"), 5000));
+            assertEquals(InboundTriggerType.SYSTEM_VISIBLE, lastRequest.get().getCurrentMessageTriggerType());
+
+            List<ConversationEvent> events = store.readConversationEvents("dingtalk:group:group-1");
+            assertEquals("system_event", events.get(2).getEventType());
+            assertEquals("system", events.get(2).getRole());
+            assertEquals("assistant_reply", events.get(3).getEventType());
+            assertEquals(1L, events.get(2).getSourceUserVersion());
+            assertEquals(1L, events.get(3).getSourceUserVersion());
+        } finally {
+            scheduler.shutdown();
+        }
+    }
+
+    /**
+     * 验证只有声明支持进度更新的渠道才会收到运行中的增量内容。
+     */
+    @Test
+    void progressIsDispatchedOnlyToProgressCapableChannel() throws Exception {
+        RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
+        ConversationScheduler scheduler = new ConversationScheduler(1);
+        ChannelRegistry registry = new ChannelRegistry();
+        ProgressChannelAdapter adapter = new ProgressChannelAdapter();
+        registry.register(adapter);
+
+        ConversationAgent conversationAgent = (request, progressConsumer) -> {
+            progressConsumer.accept("draft-1");
+            progressConsumer.accept("draft-2");
+            return "final-answer";
+        };
+
+        SolonClawProperties properties = new SolonClawProperties();
+        properties.getAgent().getScheduler().setAckWhenBusy(false);
+
+        try {
+            AgentRuntimeService runtimeService = new AgentRuntimeService(conversationAgent, store, scheduler, registry, properties);
+            InboundEnvelope inboundEnvelope = new InboundEnvelope();
+            inboundEnvelope.setMessageId("msg-feishu");
+            inboundEnvelope.setChannelType(ChannelType.FEISHU);
+            inboundEnvelope.setChannelInstanceId("feishu-default");
+            inboundEnvelope.setSenderId("ou-1");
+            inboundEnvelope.setConversationId("oc-1");
+            inboundEnvelope.setConversationType(ConversationType.GROUP);
+            inboundEnvelope.setContent("hello");
+            inboundEnvelope.setReplyTarget(new ReplyTarget(ChannelType.FEISHU, ConversationType.GROUP, "oc-1", "ou-1"));
+            inboundEnvelope.setReceivedAt(System.currentTimeMillis());
+            inboundEnvelope.setSessionKey("feishu:group:oc-1");
+
+            runtimeService.submitInbound(inboundEnvelope);
+
+            assertTrue(waitUntil(() -> adapter.outbounds.size() >= 3, 5000));
+            assertTrue(adapter.outbounds.get(0).isProgress());
+            assertTrue(adapter.outbounds.get(1).isProgress());
+            assertEquals("final-answer", adapter.outbounds.get(2).getContent());
+        } finally {
+            scheduler.shutdown();
+        }
+    }
+
+    /**
      * 构造一条测试入站消息。
      *
      * @param messageId 消息标识
@@ -534,9 +624,9 @@ class AgentRuntimeServiceTest {
      */
     private static class RecordingChannelAdapter implements ChannelAdapter {
         /** 记录发送文本。 */
-        private final List<String> messages = new CopyOnWriteArrayList<>();
+        protected final List<String> messages = new CopyOnWriteArrayList<>();
         /** 记录完整出站消息。 */
-        private final List<OutboundEnvelope> outbounds = new CopyOnWriteArrayList<>();
+        protected final List<OutboundEnvelope> outbounds = new CopyOnWriteArrayList<>();
 
         /**
          * 返回适配器渠道类型。
@@ -557,6 +647,21 @@ class AgentRuntimeServiceTest {
         public void send(OutboundEnvelope outboundEnvelope) {
             outbounds.add(outboundEnvelope);
             messages.add(outboundEnvelope.getContent());
+        }
+    }
+
+    /**
+     * 支持进度更新的伪渠道适配器。
+     */
+    private static class ProgressChannelAdapter extends RecordingChannelAdapter {
+        @Override
+        public ChannelType channelType() {
+            return ChannelType.FEISHU;
+        }
+
+        @Override
+        public boolean supportsProgressUpdates() {
+            return true;
         }
     }
 }

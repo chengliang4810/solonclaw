@@ -1,5 +1,6 @@
 package com.jimuqu.claw.agent.runtime;
 
+import com.jimuqu.claw.agent.model.InboundTriggerType;
 import com.jimuqu.claw.agent.tool.ConversationRuntimeTools;
 import com.jimuqu.claw.agent.tool.JobTools;
 import com.jimuqu.claw.agent.tool.WorkspaceAgentTools;
@@ -69,17 +70,24 @@ public class SolonAiConversationAgent implements ConversationAgent {
         }
 
         AtomicReference<String> latestChunk = new AtomicReference<>("");
+        VisibleProgressAccumulator progressAccumulator = new VisibleProgressAccumulator();
 
+        String prompt = resolvePrompt(request, session);
         Flux<AgentChunk> stream = buildAgent(request)
-                .prompt(request.getCurrentMessage())
+                .prompt(prompt)
                 .session(session)
                 .stream();
 
         AgentChunk finalChunk = stream.doOnNext(chunk -> {
-            String content = chunk.getContent();
-            if (StrUtil.isNotBlank(content) && !content.equals(latestChunk.get())) {
-                latestChunk.set(content);
-                progressConsumer.accept(content);
+            ChatMessage message = chunk.getMessage();
+            String content = message.getContent();
+            boolean thinking = message.isThinking();
+            boolean toolCalls = message.isToolCalls();
+
+            String visibleProgress = progressAccumulator.append(content, thinking, toolCalls);
+            if (StrUtil.isNotBlank(visibleProgress) && !visibleProgress.equals(latestChunk.get())) {
+                latestChunk.set(visibleProgress);
+                progressConsumer.accept(visibleProgress);
             }
         }).blockLast();
 
@@ -112,5 +120,31 @@ public class SolonAiConversationAgent implements ConversationAgent {
                 .retryConfig(5, 1000L)
                 .sessionWindowSize(64)
                 .build();
+    }
+
+    /**
+     * 为不同类型的触发生成合适的当前轮次提示。
+     *
+     * @param request 当前执行请求
+     * @param session 会话上下文
+     * @return 当前轮次提示
+     */
+    private String resolvePrompt(ConversationExecutionRequest request, SystemAwareAgentSession session) {
+        InboundTriggerType triggerType = request == null ? InboundTriggerType.USER : request.getCurrentMessageTriggerType();
+        String currentMessage = request == null ? null : request.getCurrentMessage();
+        if (triggerType == null || triggerType == InboundTriggerType.USER) {
+            return currentMessage;
+        }
+
+        if (currentMessage != null && currentMessage.trim().length() > 0) {
+            session.addMessage(ChatMessage.ofSystem(currentMessage));
+        }
+
+        if (triggerType == InboundTriggerType.SYSTEM_SILENT) {
+            return "这是一次静默内部检查。请结合最新的 system 消息和既有上下文继续处理，不要把它当作用户新消息。"
+                    + "如果当前没有需要对外说明的事项，请返回简洁状态或 NO_REPLY。";
+        }
+
+        return "这是一次内部系统触发。请优先依据最新的 system 消息和既有上下文继续处理，不要把它当作用户新消息。";
     }
 }

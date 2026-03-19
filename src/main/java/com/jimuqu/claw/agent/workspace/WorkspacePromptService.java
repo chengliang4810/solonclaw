@@ -42,7 +42,8 @@ public class WorkspacePromptService {
             "",
             "## 工作区",
             "- 工作区是默认文件根目录；除非用户明确要求，不要把运行期文件写到别处。",
-            "- 用户可编辑的工作区文件会在后文注入；如果存在 AGENTS.md、SOUL.md、USER.md、TOOLS.md、HEARTBEAT.md 等内容，应把它们视为当前运行的重要上下文。",
+            "- 用户可编辑的工作区文件会在后文注入；如果存在 AGENTS.md、SOUL.md、USER.md、TOOLS.md 等内容，应把它们视为当前运行的重要上下文。",
+            "- HEARTBEAT.md 只用于内部心跳或系统任务检查，不应在普通对话里直接当作用户消息理解。",
             "",
             "## 心跳",
             "- 如果收到心跳检查且当前没有需要处理的事项，就简洁确认状态正常。",
@@ -113,7 +114,6 @@ public class WorkspacePromptService {
         appendSection(lines, "身份记录", IDENTITY_FILE);
         appendSection(lines, "用户画像", USER_FILE);
         appendSection(lines, "工具备注", TOOLS_FILE);
-        appendSection(lines, "心跳清单", HEARTBEAT_FILE);
         appendSection(lines, "首次对话引导", BOOTSTRAP_FILE);
         appendSection(lines, "长期记忆", MEMORY_FILE);
         appendRecentDailyMemory(lines);
