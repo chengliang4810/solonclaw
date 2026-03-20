@@ -1,6 +1,7 @@
 package com.jimuqu.claw.agent.runtime.impl;
 
-import com.jimuqu.claw.agent.model.enums.InboundTriggerType;
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
 import com.jimuqu.claw.agent.runtime.api.ConversationAgent;
 import com.jimuqu.claw.agent.runtime.support.ConversationExecutionRequest;
 import com.jimuqu.claw.agent.runtime.support.SystemAwareAgentSession;
@@ -9,7 +10,7 @@ import com.jimuqu.claw.agent.tool.ConversationRuntimeTools;
 import com.jimuqu.claw.agent.tool.JobTools;
 import com.jimuqu.claw.agent.tool.WorkspaceAgentTools;
 import com.jimuqu.claw.agent.workspace.WorkspacePromptService;
-import cn.hutool.core.util.StrUtil;
+import lombok.Setter;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
@@ -48,7 +49,8 @@ public class SolonAiConversationAgent implements ConversationAgent {
     /**
      * 定时任务工具。
      */
-    private final JobTools jobTools;
+    @Setter
+    private JobTools jobTools;
     /**
      * ReAct 运行日志拦截器。
      */
@@ -68,14 +70,12 @@ public class SolonAiConversationAgent implements ConversationAgent {
             WorkspacePromptService workspacePromptService,
             WorkspaceAgentTools workspaceAgentTools,
             CliSkillProvider cliSkillProvider,
-            JobTools jobTools,
             ReActInterceptor reActInterceptor
     ) {
         this.chatModel = chatModel;
         this.workspacePromptService = workspacePromptService;
         this.workspaceAgentTools = workspaceAgentTools;
         this.cliSkillProvider = cliSkillProvider;
-        this.jobTools = jobTools;
         this.reActInterceptor = reActInterceptor;
     }
 
@@ -152,49 +152,11 @@ public class SolonAiConversationAgent implements ConversationAgent {
                 .retryConfig(5, 1000L)
                 .sessionWindowSize(64);
 
-        if (shouldEnableJobTools(request)) {
+        if (jobTools != null && shouldEnableJobTools(request)) {
             builder.defaultToolAdd(jobTools);
         }
 
         return builder.build();
-    }
-
-    /**
-     * 为不同类型的触发生成合适的当前轮次提示。
-     *
-     * @param request 当前执行请求
-     * @param session 会话上下文
-     * @return 当前轮次提示
-     */
-    private String resolvePrompt(ConversationExecutionRequest request, SystemAwareAgentSession session) {
-        InboundTriggerType triggerType = request == null ? InboundTriggerType.USER : request.getCurrentMessageTriggerType();
-        String currentMessage = request == null ? null : request.getCurrentMessage();
-        if (triggerType == null || triggerType == InboundTriggerType.USER) {
-            return currentMessage;
-        }
-
-        if (currentMessage != null && currentMessage.trim().length() > 0) {
-            session.addMessage(ChatMessage.ofSystem(currentMessage));
-        }
-
-        if (triggerType == InboundTriggerType.SYSTEM_SILENT) {
-            if (isScheduledReminderTrigger(currentMessage)) {
-                return "一个定时提醒已触发。提醒内容见最新的 system 消息。"
-                        + "请把这条提醒自然友好地告知用户，不要把它当作新的用户消息。"
-                        + "如果你已经通过 notify_user 发送了提醒，请返回 NO_REPLY。"
-                        + "如果你直接给出面向用户的提醒文案，运行时会代为发送一次。"
-                        + "除非用户明确要求，否则不要解释内部触发过程。";
-            }
-
-            return "这是一条内部事件，相关结果见最新的 system 消息。"
-                    + "请先在内部处理，不要把它当作新的用户消息。"
-                    + "除非用户明确要求，否则不要把这次内部处理过程转告用户。"
-                    + "如果没有需要面向用户的后续动作，请直接返回 NO_REPLY。";
-        }
-
-        return "这是一条内部系统事件，相关内容见最新的 system 消息。"
-                + "请结合既有上下文继续处理，不要把它当作新的用户消息。"
-                + "只有在确实需要用户看到结果时，才直接给出面向用户的最终回复。";
     }
 
     /**
@@ -207,18 +169,47 @@ public class SolonAiConversationAgent implements ConversationAgent {
         if (request == null) {
             return true;
         }
-        return request.getCurrentMessageTriggerType() != InboundTriggerType.SYSTEM_SILENT;
+        return request.getCurrentSourceKind() == RuntimeSourceKind.USER_MESSAGE;
     }
 
     /**
-     * 判断当前静默事件是否为定时提醒触发。
+     * 为不同来源类型生成合适的当前轮次提示。
      *
-     * @param currentMessage 当前消息文本
-     * @return 若为定时提醒触发则返回 true
+     * @param request 当前执行请求
+     * @param session 会话上下文
+     * @return 当前轮次提示
      */
-    private boolean isScheduledReminderTrigger(String currentMessage) {
-        return StrUtil.contains(StrUtil.blankToDefault(currentMessage, ""), "[内部定时任务触发]");
+    private String resolvePrompt(ConversationExecutionRequest request, SystemAwareAgentSession session) {
+        RuntimeSourceKind sourceKind = request == null ? RuntimeSourceKind.USER_MESSAGE : request.getCurrentSourceKind();
+        String currentMessage = request == null ? null : request.getCurrentMessage();
+        if (sourceKind == RuntimeSourceKind.USER_MESSAGE) {
+            return currentMessage;
+        }
+
+        if (StrUtil.isNotBlank(currentMessage)) {
+            session.addMessage(ChatMessage.ofSystem(currentMessage));
+        }
+
+        if (sourceKind == RuntimeSourceKind.JOB_SYSTEM_EVENT) {
+            return "一条定时任务事件已触发，具体内容见最新的 system 消息。"
+                    + "请直接处理这条内部事件；如果需要提醒用户，就生成一条自然友好的提醒文本，"
+                    + "或显式调用 notify_user。不要解释内部机制。";
+        }
+        if (sourceKind == RuntimeSourceKind.HEARTBEAT_EVENT) {
+            return "这是一条心跳内部检查事件，相关内容见最新的 system 消息。"
+                    + "请先在内部处理；如果没有明确的用户可见动作，请直接返回 NO_REPLY。";
+        }
+        if (sourceKind == RuntimeSourceKind.CHILD_CONTINUATION) {
+            return "一条子任务 continuation 事件已到达，结构化结果见最新的 system 消息。"
+                    + "请结合当前会话上下文继续聚合处理；如果还不能给用户最终答复，请返回 NO_REPLY。"
+                    + "如果需要最终聚合回复，请使用 FINAL_REPLY_ONCE: 前缀。";
+        }
+        if (sourceKind == RuntimeSourceKind.JOB_AGENT_TURN) {
+            return "这是一次隔离的自动化 agent turn。请根据当前任务描述完成工作。"
+                    + "不要把它当作新的用户对话，也不要解释内部调度过程。";
+        }
+
+        return currentMessage;
     }
 }
-
 

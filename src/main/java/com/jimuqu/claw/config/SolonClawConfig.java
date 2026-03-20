@@ -7,8 +7,10 @@ import com.jimuqu.claw.agent.runtime.impl.AgentRuntimeService;
 import com.jimuqu.claw.agent.runtime.api.ConversationAgent;
 import com.jimuqu.claw.agent.runtime.impl.ConversationScheduler;
 import com.jimuqu.claw.agent.runtime.impl.HeartbeatService;
+import com.jimuqu.claw.agent.runtime.impl.IsolatedAgentRunService;
 import com.jimuqu.claw.agent.runtime.impl.ReActLoggingInterceptor;
 import com.jimuqu.claw.agent.runtime.impl.SolonAiConversationAgent;
+import com.jimuqu.claw.agent.runtime.impl.SystemEventRunner;
 import com.jimuqu.claw.agent.store.RuntimeStoreService;
 import com.jimuqu.claw.agent.tool.JobTools;
 import com.jimuqu.claw.agent.tool.WorkspaceAgentTools;
@@ -113,17 +115,25 @@ public class SolonClawConfig {
      *
      * @param jobManager 任务管理器
      * @param jobStoreService 定时任务存储服务
-     * @param runtimeStoreService 运行时存储服务
-     * @param agentRuntimeService Agent 运行时服务
      * @return 工作区定时任务服务
      */
     @Bean(initMethod = "restorePersistedJobs")
     public WorkspaceJobService workspaceJobService(
             IJobManager jobManager,
             JobStoreService jobStoreService,
-            RuntimeStoreService runtimeStoreService
+            RuntimeStoreService runtimeStoreService,
+            SystemEventRunner systemEventRunner,
+            IsolatedAgentRunService isolatedAgentRunService,
+            SolonClawProperties properties
     ) {
-        return new WorkspaceJobService(jobManager, jobStoreService, runtimeStoreService);
+        return new WorkspaceJobService(
+                jobManager,
+                jobStoreService,
+                runtimeStoreService,
+                systemEventRunner,
+                isolatedAgentRunService,
+                properties
+        );
     }
 
     /**
@@ -133,8 +143,13 @@ public class SolonClawConfig {
      * @return 定时任务工具
      */
     @Bean
-    public JobTools jobTools(WorkspaceJobService workspaceJobService) {
-        return new JobTools(workspaceJobService);
+    public JobTools jobTools(
+            WorkspaceJobService workspaceJobService,
+            SolonAiConversationAgent conversationAgent
+    ) {
+        JobTools jobTools = new JobTools(workspaceJobService);
+        conversationAgent.setJobTools(jobTools);
+        return jobTools;
     }
 
     /**
@@ -190,12 +205,11 @@ public class SolonClawConfig {
      * @return 会话执行 Agent
      */
     @Bean
-    public ConversationAgent conversationAgent(
+    public SolonAiConversationAgent conversationAgent(
             ChatModel chatModel,
             WorkspacePromptService workspacePromptService,
             WorkspaceAgentTools workspaceAgentTools,
             CliSkillProvider cliSkillProvider,
-            JobTools jobTools,
             ReActInterceptor reActLoggingInterceptor
     ) {
         return new SolonAiConversationAgent(
@@ -203,7 +217,6 @@ public class SolonClawConfig {
                 workspacePromptService,
                 workspaceAgentTools,
                 cliSkillProvider,
-                jobTools,
                 reActLoggingInterceptor
         );
     }
@@ -216,6 +229,40 @@ public class SolonClawConfig {
     @Bean
     public ChannelRegistry channelRegistry() {
         return new ChannelRegistry();
+    }
+
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public SystemEventRunner systemEventRunner(
+            ConversationAgent conversationAgent,
+            RuntimeStoreService runtimeStoreService,
+            ConversationScheduler conversationScheduler,
+            ChannelRegistry channelRegistry,
+            SolonClawProperties properties
+    ) {
+        return new SystemEventRunner(
+                conversationAgent,
+                runtimeStoreService,
+                conversationScheduler,
+                channelRegistry,
+                properties
+        );
+    }
+
+    @Bean
+    public IsolatedAgentRunService isolatedAgentRunService(
+            ConversationAgent conversationAgent,
+            RuntimeStoreService runtimeStoreService,
+            ConversationScheduler conversationScheduler,
+            ChannelRegistry channelRegistry,
+            SolonClawProperties properties
+    ) {
+        return new IsolatedAgentRunService(
+                conversationAgent,
+                runtimeStoreService,
+                conversationScheduler,
+                channelRegistry,
+                properties
+        );
     }
 
     /**
@@ -272,18 +319,17 @@ public class SolonClawConfig {
             RuntimeStoreService runtimeStoreService,
             ConversationScheduler conversationScheduler,
             ChannelRegistry channelRegistry,
-            WorkspaceJobService workspaceJobService,
+            SystemEventRunner systemEventRunner,
             SolonClawProperties properties
     ) {
-        AgentRuntimeService service = new AgentRuntimeService(
+        return new AgentRuntimeService(
                 conversationAgent,
                 runtimeStoreService,
                 conversationScheduler,
                 channelRegistry,
+                systemEventRunner,
                 properties
         );
-        workspaceJobService.setJobDispatcher(service::submitSilentSystemMessage);
-        return service;
     }
 
     /**
@@ -347,11 +393,11 @@ public class SolonClawConfig {
      */
     @Bean(initMethod = "start", destroyMethod = "stop")
     public HeartbeatService heartbeatService(
-            AgentRuntimeService agentRuntimeService,
+            SystemEventRunner systemEventRunner,
             RuntimeStoreService runtimeStoreService,
             SolonClawProperties properties
     ) {
-        return new HeartbeatService(agentRuntimeService, runtimeStoreService, properties);
+        return new HeartbeatService(systemEventRunner, runtimeStoreService, properties);
     }
 }
 

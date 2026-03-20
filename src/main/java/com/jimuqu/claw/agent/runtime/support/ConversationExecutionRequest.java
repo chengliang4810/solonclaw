@@ -1,6 +1,6 @@
 package com.jimuqu.claw.agent.runtime.support;
 
-import com.jimuqu.claw.agent.model.enums.InboundTriggerType;
+import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
 import com.jimuqu.claw.agent.runtime.api.NotificationSupport;
 import com.jimuqu.claw.agent.runtime.api.RunQuerySupport;
 import com.jimuqu.claw.agent.runtime.api.SpawnTaskSupport;
@@ -24,8 +24,8 @@ public class ConversationExecutionRequest implements Serializable {
     private String sessionKey;
     /** 当前待处理的用户消息。 */
     private String currentMessage;
-    /** 当前消息的触发类型。 */
-    private InboundTriggerType currentMessageTriggerType = InboundTriggerType.USER;
+    /** 当前消息的来源类型。 */
+    private RuntimeSourceKind currentSourceKind = RuntimeSourceKind.USER_MESSAGE;
     /** 当前运行是否为父任务派生出的子任务。 */
     private boolean childRun;
     /** 当前子任务对应的父运行标识。 */

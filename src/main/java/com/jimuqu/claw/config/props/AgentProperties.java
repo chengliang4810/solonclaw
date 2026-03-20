@@ -23,4 +23,10 @@ public class AgentProperties implements Serializable {
     private SubtasksProperties subtasks = new SubtasksProperties();
     /** 心跳配置。 */
     private HeartbeatProperties heartbeat = new HeartbeatProperties();
+    /** 系统事件执行配置。 */
+    private SystemEventsProperties systemEvents = new SystemEventsProperties();
+    /** 定时任务执行配置。 */
+    private JobsProperties jobs = new JobsProperties();
+    /** 隔离 agent turn 配置。 */
+    private AgentTurnProperties agentTurn = new AgentTurnProperties();
 }

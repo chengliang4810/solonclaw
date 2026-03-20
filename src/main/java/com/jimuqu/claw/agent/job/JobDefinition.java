@@ -20,9 +20,14 @@ public class JobDefinition implements Serializable {
     private long initialDelay;
     private String zone;
     private boolean enabled = true;
-    private String prompt;
-    private String sessionKey;
-    private ReplyTarget replyTarget;
+    private JobPayloadKind payloadKind;
+    private JobSessionTarget sessionTarget;
+    private JobWakeMode wakeMode = JobWakeMode.NOW;
+    private JobDeliveryMode deliveryMode = JobDeliveryMode.NONE;
+    private String boundSessionKey;
+    private ReplyTarget boundReplyTarget;
+    private String systemEventText;
+    private AgentTurnSpec agentTurn = new AgentTurnSpec();
     private long createdAt;
     private long updatedAt;
 }

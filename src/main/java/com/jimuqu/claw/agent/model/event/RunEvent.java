@@ -1,5 +1,6 @@
 package com.jimuqu.claw.agent.model.event;
 
+import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -17,6 +18,8 @@ public class RunEvent implements Serializable {
     private long seq;
     /** 所属运行任务标识。 */
     private String runId;
+    /** 来源类型。 */
+    private RuntimeSourceKind sourceKind;
     /** 事件类型。 */
     private String eventType;
     /** 事件消息文本。 */

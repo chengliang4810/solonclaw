@@ -1,5 +1,6 @@
 package com.jimuqu.claw.agent.model.event;
 
+import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -21,6 +22,8 @@ public class ConversationEvent implements Serializable {
     private String eventType;
     /** 关联运行任务标识。 */
     private String runId;
+    /** 来源类型。 */
+    private RuntimeSourceKind sourceKind;
     /** 来源消息标识。 */
     private String sourceMessageId;
     /** 来源用户消息对应的版本号。 */
