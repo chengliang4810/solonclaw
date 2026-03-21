@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
 import com.jimuqu.claw.agent.runtime.api.ConversationAgent;
 import com.jimuqu.claw.agent.runtime.support.ConversationExecutionRequest;
+import com.jimuqu.claw.agent.runtime.support.RunTurnControl;
 import com.jimuqu.claw.agent.runtime.support.SystemAwareAgentSession;
 import com.jimuqu.claw.agent.runtime.support.VisibleProgressAccumulator;
 import com.jimuqu.claw.agent.tool.ConversationRuntimeTools;
@@ -31,6 +32,7 @@ import java.util.function.Consumer;
 public class SolonAiConversationAgent implements ConversationAgent {
 
     private static final Logger log = LoggerFactory.getLogger(SolonAiConversationAgent.class);
+    private static final int MAX_PROMPT_LOG_LENGTH = 500;
     /**
      * 聊天模型。
      */
@@ -96,44 +98,63 @@ public class SolonAiConversationAgent implements ConversationAgent {
     @Override
     public String execute(ConversationExecutionRequest request, Consumer<String> progressConsumer) throws Throwable {
         SystemAwareAgentSession session = SystemAwareAgentSession.of(request.getSessionKey());
+        if (StrUtil.isNotBlank(request.getTaskTitle())) {
+            session.getSnapshot().put("taskTitle", request.getTaskTitle());
+        }
         for (ChatMessage historyMessage : request.getHistory()) {
             session.addMessage(historyMessage);
         }
+        RunTurnControl turnControl = RunTurnControl.begin(session, request.getCurrentSourceKind());
 
-        AtomicReference<String> latestChunk = new AtomicReference<>("");
-        VisibleProgressAccumulator progressAccumulator = new VisibleProgressAccumulator();
-
-        String prompt = resolvePrompt(request, session);
-
-        Flux<AgentChunk> stream = buildAgent(request)
-                .prompt(prompt)
-                .session(session)
-                .stream();
-
-        AgentChunk finalChunk;
         try {
-            finalChunk = stream.doOnNext(chunk -> {
-                ChatMessage message = chunk.getMessage();
-                String content = message.getContent();
-                boolean thinking = message.isThinking();
-                boolean toolCalls = message.isToolCalls();
+            AtomicReference<String> latestChunk = new AtomicReference<>("");
+            VisibleProgressAccumulator progressAccumulator = new VisibleProgressAccumulator();
 
-                String visibleProgress = progressAccumulator.append(content, thinking, toolCalls);
-                if (StrUtil.isNotBlank(visibleProgress) && !visibleProgress.equals(latestChunk.get())) {
-                    latestChunk.set(visibleProgress);
-                    progressConsumer.accept(visibleProgress);
-                }
-            }).blockLast();
-        } catch (Exception e) {
-            log.error("Failed to execute conversation: {}", e.getMessage(), e);
-            return "执行会话失败：" + e.getMessage();
+            String prompt = resolvePrompt(request, session);
+
+            logResolvedPrompt(request, prompt);
+
+            Flux<AgentChunk> stream = buildAgent(request)
+                    .prompt(prompt)
+                    .session(session)
+                    .stream();
+
+            AgentChunk finalChunk;
+            try {
+                finalChunk = stream.doOnNext(chunk -> {
+                    ChatMessage message = chunk.getMessage();
+                    String content = message.getContent();
+                    boolean thinking = message.isThinking();
+                    boolean toolCalls = message.isToolCalls();
+
+                    String visibleProgress = progressAccumulator.append(content, thinking, toolCalls);
+                    if (StrUtil.isNotBlank(visibleProgress) && !visibleProgress.equals(latestChunk.get())) {
+                        latestChunk.set(visibleProgress);
+                        progressConsumer.accept(visibleProgress);
+                    }
+                }).blockLast();
+            } catch (Exception e) {
+                log.error("Failed to execute conversation: {}", e.getMessage(), e);
+                return "执行会话失败：" + e.getMessage();
+            }
+
+            String finalContent = finalChunk == null ? null : finalChunk.getContent();
+            if (StrUtil.isNotBlank(finalContent)) {
+                return finalContent;
+            }
+
+            if (StrUtil.isNotBlank(latestChunk.get())) {
+                return latestChunk.get();
+            }
+
+            if (StrUtil.isNotBlank(turnControl.getForcedResponse())) {
+                return turnControl.getForcedResponse();
+            }
+
+            return finalContent;
+        } finally {
+            RunTurnControl.clear();
         }
-
-        if (finalChunk == null) {
-            return latestChunk.get();
-        }
-
-        return finalChunk.getContent();
     }
 
     /**
@@ -209,9 +230,10 @@ public class SolonAiConversationAgent implements ConversationAgent {
                     + "请先在内部处理；如果没有明确的用户可见动作，请直接返回 NO_REPLY。";
         }
         if (sourceKind == RuntimeSourceKind.CHILD_CONTINUATION) {
-            return "一条子任务 continuation 事件已到达，结构化结果见最新的 system 消息。"
-                    + "请结合当前会话上下文继续聚合处理；如果还不能给用户最终答复，请返回 NO_REPLY。"
-                    + "如果需要最终聚合回复，请使用 FINAL_REPLY_ONCE: 前缀。";
+            return "一条 continuation 事件已到达，结构化结果见最新的 system 消息。"
+                    + "请严格遵守最新 system 消息中的“调度要求”。"
+                    + "按本次结果做总结，或者在确实无需对外说话时返回 NO_REPLY。"
+                    + "当前 continuation 不支持再次派生子任务，也不要把任务重新从头做一遍。";
         }
         if (sourceKind == RuntimeSourceKind.JOB_AGENT_TURN) {
             return "这是一次隔离的自动化 agent turn。请根据当前任务描述完成工作。"
@@ -219,6 +241,44 @@ public class SolonAiConversationAgent implements ConversationAgent {
         }
 
         return currentMessage;
+    }
+
+    private void logResolvedPrompt(ConversationExecutionRequest request, String prompt) {
+        String sessionKey = request == null ? "未知会话" : StrUtil.blankToDefault(request.getSessionKey(), "未知会话");
+        RuntimeSourceKind sourceKind = request == null ? RuntimeSourceKind.USER_MESSAGE : request.getCurrentSourceKind();
+        int historyCount = request == null || request.getHistory() == null ? 0 : request.getHistory().size();
+        boolean childRun = request != null && request.isChildRun();
+        String parentRunId = request == null ? null : request.getParentRunId();
+
+        log.info(
+                "Resolved prompt. sourceKind={}, session={}, childRun={}, parentRunId={}, historyMessages={}, prompt={}",
+                sourceKind,
+                sessionKey,
+                childRun,
+                StrUtil.blankToDefault(parentRunId, "-"),
+                historyCount,
+                compactForLog(prompt)
+        );
+
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Resolved prompt detail. sourceKind={}, session={}, childRun={}, parentRunId={}\n{}",
+                    sourceKind,
+                    sessionKey,
+                    childRun,
+                    StrUtil.blankToDefault(parentRunId, "-"),
+                    StrUtil.blankToDefault(prompt, "")
+            );
+        }
+    }
+
+    private String compactForLog(String text) {
+        if (StrUtil.isBlank(text)) {
+            return "";
+        }
+
+        String normalized = text.replace("\r", " ").replace("\n", "\\n").trim();
+        return StrUtil.maxLength(normalized, MAX_PROMPT_LOG_LENGTH);
     }
 }
 

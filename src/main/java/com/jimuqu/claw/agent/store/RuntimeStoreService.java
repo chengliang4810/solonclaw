@@ -190,6 +190,7 @@ public class RuntimeStoreService {
         data.setParentRunId(parentRunId);
         data.setChildRunId(childRun.getRunId());
         data.setChildSessionKey(childRun.getSessionKey());
+        data.setTaskTitle(childRun.getTaskTitle());
         data.setTaskDescription(childRun.getTaskDescription());
         data.setBatchKey(childRun.getBatchKey());
 
@@ -221,6 +222,7 @@ public class RuntimeStoreService {
         data.setChildRunId(childRun.getRunId());
         data.setChildSessionKey(childRun.getSessionKey());
         data.setStatus(childRun.getStatus() == null ? null : childRun.getStatus().name());
+        data.setTaskTitle(childRun.getTaskTitle());
         data.setTaskDescription(childRun.getTaskDescription());
         data.setBatchKey(childRun.getBatchKey());
         data.setResult(childRun.getFinalResponse());
@@ -941,6 +943,7 @@ public class RuntimeStoreService {
                     + "parentRunId=" + StrUtil.blankToDefault(data.getParentRunId(), "(未知)") + "\n"
                     + "childRunId=" + StrUtil.blankToDefault(data.getChildRunId(), "(未知)") + "\n"
                     + "childSessionKey=" + StrUtil.blankToDefault(data.getChildSessionKey(), "(未知)") + "\n"
+                    + (StrUtil.isBlank(data.getTaskTitle()) ? "" : "taskTitle=" + data.getTaskTitle() + "\n")
                     + (StrUtil.isBlank(data.getBatchKey()) ? "" : "batchKey=" + data.getBatchKey() + "\n")
                     + "task=" + StrUtil.blankToDefault(data.getTaskDescription(), "(未记录任务描述)");
         }
@@ -950,6 +953,9 @@ public class RuntimeStoreService {
             builder.append("parentRunId=").append(StrUtil.blankToDefault(data.getParentRunId(), "(未知)")).append('\n');
             builder.append("childRunId=").append(StrUtil.blankToDefault(data.getChildRunId(), "(未知)")).append('\n');
             builder.append("status=").append(StrUtil.blankToDefault(data.getStatus(), "(未知)")).append('\n');
+            if (StrUtil.isNotBlank(data.getTaskTitle())) {
+                builder.append("taskTitle=").append(data.getTaskTitle()).append('\n');
+            }
             if (StrUtil.isNotBlank(data.getBatchKey())) {
                 builder.append("batchKey=").append(data.getBatchKey()).append('\n');
             }

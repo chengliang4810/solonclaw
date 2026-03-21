@@ -169,6 +169,7 @@ public class AgentRuntimeService {
             request.setCurrentSourceKind(run.getSourceKind());
             request.setChildRun(StrUtil.isNotBlank(run.getParentRunId()));
             request.setParentRunId(run.getParentRunId());
+            request.setTaskTitle(run.getTaskTitle());
             request.setHistory(runtimeStoreService.loadConversationHistoryBefore(
                     inboundEnvelope.getSessionKey(),
                     inboundEnvelope.getSessionVersion()
@@ -201,6 +202,17 @@ public class AgentRuntimeService {
             run.setFinalResponse(visibleResponse);
 
             if (run.getStatus() == RunStatus.WAITING_CHILDREN) {
+                if (!suppressReply) {
+                    runtimeStoreService.appendAssistantConversationEvent(
+                            inboundEnvelope.getSessionKey(),
+                            runId,
+                            inboundEnvelope.getMessageId(),
+                            inboundEnvelope.getHistoryAnchorVersion(),
+                            run.getSourceKind(),
+                            visibleResponse
+                    );
+                    dispatchFinalReply(runId, inboundEnvelope.getReplyTarget(), visibleResponse);
+                }
                 run.setFinishedAt(System.currentTimeMillis());
                 runtimeStoreService.saveRun(run);
                 runtimeStoreService.appendRunEvent(runId, "reply", visibleResponse);
@@ -229,21 +241,8 @@ public class AgentRuntimeService {
             log.info("Run {} succeeded for session {}", runId, inboundEnvelope.getSessionKey());
             handleChildRunCompletion(run);
 
-            if (!suppressReply
-                    && inboundEnvelope.getReplyTarget() != null) {
-                OutboundEnvelope outboundEnvelope = new OutboundEnvelope();
-                outboundEnvelope.setRunId(runId);
-                outboundEnvelope.setReplyTarget(inboundEnvelope.getReplyTarget());
-                outboundEnvelope.setContent(visibleResponse);
-                DeliveryResult deliveryResult = channelRegistry.send(outboundEnvelope);
-                recordDeliveryResult(runId, deliveryResult);
-                log.info(
-                        "Run {} reply dispatched. channelType={}, conversationType={}, conversationId={}",
-                        runId,
-                        inboundEnvelope.getReplyTarget().getChannelType(),
-                        inboundEnvelope.getReplyTarget().getConversationType(),
-                        inboundEnvelope.getReplyTarget().getConversationId()
-                );
+            if (!suppressReply) {
+                dispatchFinalReply(runId, inboundEnvelope.getReplyTarget(), visibleResponse);
             }
         } catch (Throwable throwable) {
             run.setStatus(RunStatus.FAILED);
@@ -266,7 +265,10 @@ public class AgentRuntimeService {
         }
     }
 
-    private SpawnTaskResult spawnTask(String parentRunId, InboundEnvelope parentInbound, String taskDescription, String batchKey) {
+    private SpawnTaskResult spawnTask(String parentRunId, InboundEnvelope parentInbound, String taskTitle, String taskDescription, String batchKey) {
+        if (StrUtil.isBlank(taskTitle)) {
+            throw new IllegalArgumentException("taskTitle 不能为空");
+        }
         if (StrUtil.isBlank(taskDescription)) {
             throw new IllegalArgumentException("taskDescription 不能为空");
         }
@@ -287,7 +289,7 @@ public class AgentRuntimeService {
         childInbound.setSenderId("parent-run:" + parentRunId);
         childInbound.setConversationId(childSessionKey);
         childInbound.setConversationType(ConversationType.PRIVATE);
-        childInbound.setContent(taskDescription.trim());
+        childInbound.setContent(buildChildTaskPrompt(taskTitle, taskDescription));
         childInbound.setReceivedAt(now);
         childInbound.setSessionKey(childSessionKey);
         childInbound.setReplyTarget(null);
@@ -308,6 +310,7 @@ public class AgentRuntimeService {
         childRun.setParentRunId(parentRunId);
         childRun.setParentSessionKey(parentInbound.getSessionKey());
         childRun.setParentReplyTarget(parentInbound.getReplyTarget());
+        childRun.setTaskTitle(taskTitle.trim());
         childRun.setTaskDescription(taskDescription.trim());
         childRun.setBatchKey(StrUtil.blankToDefault(StrUtil.trim(batchKey), null));
         runtimeStoreService.saveRun(childRun);
@@ -320,6 +323,7 @@ public class AgentRuntimeService {
                 "spawn_task",
                 "childRunId=" + childRun.getRunId()
                         + ", childSessionKey=" + childSessionKey
+                        + ", title=" + taskTitle.trim()
                         + ", task=" + taskDescription.trim()
                         + (StrUtil.isBlank(childRun.getBatchKey()) ? "" : ", batchKey=" + childRun.getBatchKey())
         );
@@ -335,6 +339,7 @@ public class AgentRuntimeService {
         SpawnTaskResult result = new SpawnTaskResult();
         result.setRunId(childRun.getRunId());
         result.setSessionKey(childSessionKey);
+        result.setTaskTitle(taskTitle.trim());
         result.setTaskDescription(taskDescription.trim());
         result.setBatchKey(childRun.getBatchKey());
         return result;
@@ -358,7 +363,7 @@ public class AgentRuntimeService {
         request.setSourceKind(RuntimeSourceKind.CHILD_CONTINUATION);
         request.setSessionKey(run.getParentSessionKey());
         request.setReplyTarget(run.getParentReplyTarget());
-        request.setPolicy(com.jimuqu.claw.agent.model.enums.SystemEventPolicy.AGGREGATE_ONLY);
+        request.setPolicy(com.jimuqu.claw.agent.model.enums.SystemEventPolicy.USER_VISIBLE_OPTIONAL);
         request.setContent(buildChildCompletionMessage(run, overallSummary, batchSummary));
         request.setSourceUserVersion(sourceUserVersion);
         request.setRelatedRunId(run.getParentRunId());
@@ -383,6 +388,9 @@ public class AgentRuntimeService {
         builder.append("父运行ID: ").append(run.getParentRunId()).append('\n');
         builder.append("子运行ID: ").append(run.getRunId()).append('\n');
         builder.append("状态: ").append(run.getStatus()).append('\n');
+        if (StrUtil.isNotBlank(run.getTaskTitle())) {
+            builder.append("任务标题: ").append(run.getTaskTitle()).append('\n');
+        }
         if (StrUtil.isNotBlank(run.getTaskDescription())) {
             builder.append("任务: ").append(run.getTaskDescription()).append('\n');
         }
@@ -408,6 +416,17 @@ public class AgentRuntimeService {
         } else {
             builder.append("错误:\n").append(StrUtil.blankToDefault(run.getErrorMessage(), "(未知错误)"));
         }
+        builder.append('\n').append('\n');
+        builder.append("调度要求:").append('\n');
+        if (overallSummary != null && overallSummary.isAllCompleted()) {
+            builder.append("- 当前父运行下的全部子任务已完成。").append('\n');
+            builder.append("- 现在必须给用户输出最终汇总回复。").append('\n');
+            builder.append("- 不要返回 NO_REPLY，不要继续等待，也不要重新派生子任务。");
+        } else {
+            builder.append("- 还有子任务未完成。").append('\n');
+            builder.append("- 你可以基于本次新结果增量同步给用户，或者在确实无需对外说话时返回 NO_REPLY。").append('\n');
+            builder.append("- 不要重新从头执行整个任务，也不要重新派生子任务。");
+        }
         return builder.toString().trim();
     }
 
@@ -416,15 +435,17 @@ public class AgentRuntimeService {
             return null;
         }
         if (StrUtil.isBlank(run.getParentRunId()) || properties.getAgent().getSubtasks().isAllowNestedSpawn()) {
-            return (taskDescription, batchKey) -> spawnTask(runId, inboundEnvelope, taskDescription, batchKey);
+            return (taskTitle, taskDescription, batchKey) -> spawnTask(runId, inboundEnvelope, taskTitle, taskDescription, batchKey);
         }
 
-        return (taskDescription, batchKey) -> {
+        return (taskTitle, taskDescription, batchKey) -> {
             String reason = "当前子任务默认禁止继续派生子任务；请先返回结果给父任务，由父任务决定是否继续拆分";
             runtimeStoreService.appendRunEvent(
                     runId,
                     "spawn_task_blocked",
-                    reason + (StrUtil.isBlank(taskDescription) ? "" : "，task=" + taskDescription.trim())
+                    reason
+                            + (StrUtil.isBlank(taskTitle) ? "" : "，title=" + taskTitle.trim())
+                            + (StrUtil.isBlank(taskDescription) ? "" : "，task=" + taskDescription.trim())
             );
             throw new IllegalStateException(reason);
         };
@@ -636,6 +657,36 @@ public class AgentRuntimeService {
         result.setFinalLength(deliveryResult.getFinalLength());
         result.setChannelType(deliveryResult.getChannelType() == null ? null : deliveryResult.getChannelType().name());
         result.setMessage(deliveryResult.getMessage());
+    }
+
+    private void dispatchFinalReply(String runId, ReplyTarget replyTarget, String content) {
+        if (replyTarget == null || StrUtil.isBlank(content)) {
+            return;
+        }
+
+        OutboundEnvelope outboundEnvelope = new OutboundEnvelope();
+        outboundEnvelope.setRunId(runId);
+        outboundEnvelope.setReplyTarget(replyTarget);
+        outboundEnvelope.setContent(content);
+        DeliveryResult deliveryResult = channelRegistry.send(outboundEnvelope);
+        recordDeliveryResult(runId, deliveryResult);
+        log.info(
+                "Run {} reply dispatched. channelType={}, conversationType={}, conversationId={}",
+                runId,
+                replyTarget.getChannelType(),
+                replyTarget.getConversationType(),
+                replyTarget.getConversationId()
+        );
+    }
+
+    private String buildChildTaskPrompt(String taskTitle, String taskDescription) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("任务标题: ").append(taskTitle.trim()).append('\n');
+        builder.append("任务说明:").append('\n');
+        builder.append(taskDescription.trim()).append('\n');
+        builder.append('\n');
+        builder.append("执行约束: 必须严格围绕这个任务标题和任务说明完成工作，不要串到其他项目或其他任务。");
+        return builder.toString().trim();
     }
 
     private void recordDeliveryResult(String runId, DeliveryResult deliveryResult) {

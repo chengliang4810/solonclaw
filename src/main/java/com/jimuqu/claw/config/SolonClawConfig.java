@@ -197,7 +197,7 @@ public class SolonClawConfig {
      * @return ReAct 日志拦截器
      */
     @Bean
-    public ReActInterceptor reActLoggingInterceptor() {
+    public ReActLoggingInterceptor reActLoggingInterceptor() {
         return new ReActLoggingInterceptor();
     }
 
@@ -227,7 +227,7 @@ public class SolonClawConfig {
             WorkspacePromptService workspacePromptService,
             WorkspaceAgentTools workspaceAgentTools,
             CliSkillProvider cliSkillProvider,
-            ReActInterceptor reActLoggingInterceptor,
+            ReActLoggingInterceptor reActLoggingInterceptor,
             HITLInterceptor blacklistInterceptor
     ) {
         return new SolonAiConversationAgent(

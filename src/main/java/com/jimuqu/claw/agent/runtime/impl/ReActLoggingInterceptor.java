@@ -16,6 +16,7 @@ import java.util.Map;
  */
 public class ReActLoggingInterceptor implements ReActInterceptor {
     private static final String SUB_AGENT_MARKER = ":subtask:";
+    private static final String TASK_TITLE_KEY = "taskTitle";
     private static final Logger log = LoggerFactory.getLogger(ReActLoggingInterceptor.class);
     private static final int MAX_LOG_TEXT_LENGTH = 500;
 
@@ -169,6 +170,18 @@ public class ReActLoggingInterceptor implements ReActInterceptor {
 
     private String roleLabel(ReActTrace trace) {
         String sessionId = sessionId(trace);
-        return StrUtil.contains(sessionId, SUB_AGENT_MARKER) ? "SubAgent" : "Agent";
+        String role = StrUtil.contains(sessionId, SUB_AGENT_MARKER) ? "SubAgent" : "Agent";
+        String taskTitle = taskTitle(trace);
+        if (StrUtil.isBlank(taskTitle)) {
+            return role;
+        }
+        return role + ":" + compact(taskTitle);
+    }
+
+    private String taskTitle(ReActTrace trace) {
+        if (trace == null || trace.getContext() == null) {
+            return null;
+        }
+        return trace.getContext().getAs(TASK_TITLE_KEY);
     }
 }

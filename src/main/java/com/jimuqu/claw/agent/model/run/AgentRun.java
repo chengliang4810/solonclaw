@@ -35,6 +35,8 @@ public class AgentRun implements Serializable {
     private ReplyTarget parentReplyTarget;
     /** 当前运行承载的任务描述。 */
     private String taskDescription;
+    /** 当前运行承载的任务标题。 */
+    private String taskTitle;
     /** 当前运行所属的子任务批次键。 */
     private String batchKey;
     /** 当前运行关联的业务运行标识，例如 continuation 对应的父运行。 */

@@ -197,7 +197,9 @@ public class SystemEventRunner {
             runtimeStoreService.appendRunEvent(runId, "reply", visibleResponse);
             runtimeStoreService.appendRunEvent(runId, "status", "succeeded");
 
-            if (delivered && request.getPolicy() == SystemEventPolicy.AGGREGATE_ONLY) {
+            if (delivered
+                    && (request.getPolicy() == SystemEventPolicy.AGGREGATE_ONLY
+                    || request.getPolicy() == SystemEventPolicy.USER_VISIBLE_OPTIONAL)) {
                 runtimeStoreService.appendAssistantConversationEvent(
                         request.getSessionKey(),
                         runId,

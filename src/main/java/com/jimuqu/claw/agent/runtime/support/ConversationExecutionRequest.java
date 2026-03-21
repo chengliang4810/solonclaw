@@ -33,6 +33,8 @@ public class ConversationExecutionRequest implements Serializable {
     private boolean childRun;
     /** 当前子任务对应的父运行标识。 */
     private String parentRunId;
+    /** 当前运行的任务标题。 */
+    private String taskTitle;
     /** 历史消息列表。 */
     private List<ChatMessage> history = new ArrayList<ChatMessage>();
     /** 当前运行可用的子任务派生能力。 */

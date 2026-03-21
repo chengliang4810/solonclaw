@@ -90,6 +90,7 @@ class RuntimeStoreServiceTest {
         AgentRun childRun = new AgentRun();
         childRun.setRunId("child-1");
         childRun.setSessionKey("session-a:subtask:1");
+        childRun.setTaskTitle("研究子任务");
         childRun.setTaskDescription("research-child");
         childRun.setStatus(RunStatus.SUCCEEDED);
         childRun.setFinalResponse("child-result");
@@ -103,6 +104,7 @@ class RuntimeStoreServiceTest {
         assertEquals("parent-question", history.get(0).getContent());
         assertEquals("SYSTEM", history.get(1).getRole().toString());
         assertEquals("SYSTEM", history.get(2).getRole().toString());
+        assertTrue(history.get(1).getContent().contains("taskTitle=研究子任务"));
         assertTrue(history.get(1).getContent().contains("childRunId=child-1"));
         assertTrue(history.get(2).getContent().contains("result="));
     }

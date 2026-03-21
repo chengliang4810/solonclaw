@@ -117,24 +117,35 @@ class AgentRuntimeServiceTest {
     }
 
     @Test
-    void childRunCompletionUsesSystemEventRunnerForAggregateReply() throws Exception {
+    void parentRunRepliesArrangementAndChildCompletionCanReplyIncrementally() throws Exception {
         RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
         ConversationScheduler scheduler = new ConversationScheduler(1);
         ChannelRegistry registry = new ChannelRegistry();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter();
         registry.register(adapter);
+        CountDownLatch releaseSecondChild = new CountDownLatch(1);
 
         ConversationAgent conversationAgent = (request, progressConsumer) -> {
             String message = request.getCurrentMessage();
             if (request.getCurrentSourceKind() == RuntimeSourceKind.USER_MESSAGE && "question-parent".equals(message)) {
-                request.getSpawnTaskSupport().spawnTask("research-child");
-                return "parent-waiting";
+                request.getSpawnTaskSupport().spawnTask("分析 A 任务", "research-child-a", "batch-a");
+                request.getSpawnTaskSupport().spawnTask("分析 B 任务", "research-child-b", "batch-a");
+                return "已安排 2 个子任务并行分析，我会随着结果陆续同步。";
             }
-            if (request.isChildRun() && "research-child".equals(message)) {
-                return "child-result";
+            if (request.isChildRun() && "research-child-a".equals(message)) {
+                return "child-result-a";
             }
-            if (request.getCurrentSourceKind() == RuntimeSourceKind.CHILD_CONTINUATION) {
-                return AgentRuntimeService.FINAL_REPLY_ONCE_PREFIX + "final-parent-answer";
+            if (request.isChildRun() && "research-child-b".equals(message)) {
+                assertTrue(releaseSecondChild.await(5, TimeUnit.SECONDS));
+                return "child-result-b";
+            }
+            if (request.getCurrentSourceKind() == RuntimeSourceKind.CHILD_CONTINUATION
+                    && request.getCurrentMessage().contains("child-result-a")) {
+                return "第一个子任务已完成：child-result-a";
+            }
+            if (request.getCurrentSourceKind() == RuntimeSourceKind.CHILD_CONTINUATION
+                    && request.getCurrentMessage().contains("child-result-b")) {
+                return "第二个子任务已完成：child-result-b";
             }
             return "reply-" + message;
         };
@@ -144,15 +155,16 @@ class AgentRuntimeServiceTest {
         try {
             String parentRunId = runtimeService.submitInbound(inbound("msg-parent", "question-parent"));
             assertNotNull(parentRunId);
-            assertTrue(waitUntil(() -> adapter.messages.contains("final-parent-answer"), 5000));
-            assertEquals(1, adapter.outbounds.stream()
-                    .filter(outbound -> "final-parent-answer".equals(outbound.getContent()))
-                    .count());
-            assertTrue(store.hasRunEventType(parentRunId, "children_aggregated"));
-            assertTrue(store.getRunEvents(parentRunId, 0).stream()
-                    .map(RunEvent::getEventType)
-                    .anyMatch("child_continuation_triggered"::equals));
+            assertTrue(waitUntil(() -> adapter.messages.contains("已安排 2 个子任务并行分析，我会随着结果陆续同步。"), 5000));
+            assertTrue(waitUntil(() -> runtimeService.getRun(parentRunId).getStatus() == RunStatus.WAITING_CHILDREN, 5000));
+            assertTrue(runtimeService.listChildRuns(parentRunId, "batch-a").stream()
+                    .anyMatch(child -> "分析 A 任务".equals(child.getTaskTitle())));
+            assertEquals(2, runtimeService.listChildRuns(parentRunId, "batch-a").size());
+            releaseSecondChild.countDown();
+            assertTrue(waitUntil(() -> runtimeService.listChildRuns(parentRunId, "batch-a").stream()
+                    .allMatch(child -> child.getStatus() == RunStatus.SUCCEEDED), 5000));
         } finally {
+            releaseSecondChild.countDown();
             scheduler.shutdown();
         }
     }

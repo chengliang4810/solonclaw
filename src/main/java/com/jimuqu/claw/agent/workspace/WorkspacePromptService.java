@@ -282,7 +282,11 @@ public class WorkspacePromptService {
         lines.add("- 默认把较大任务拆成子任务处理，而不是在一个 run 里硬做到底。");
         lines.add("- 只有在任务只是纯文字回答，不需要查资料、不需要读文件、不需要调用工具、也不需要较长时间执行时，才不要拆分。");
         lines.add("- 父任务负责规划、跟踪和汇总；子任务负责完成单一、清晰、可执行的目标。");
-        lines.add("- 派生后，父任务可先记录进度或返回 `NO_REPLY`；如果要等全部子任务完成后统一回复，可使用 `FINAL_REPLY_ONCE:` 只发送一次最终聚合结果。");
+        lines.add("- 调用 `spawn_task` 时必须显式提供任务标题（例如“分析 SolonCode 任务”），标题要能清楚区分不同子任务。");
+        lines.add("- 如果当前轮需要创建多个子任务，尽量在同一轮里连续调用 `spawn_task` 把这一批全部创建完。");
+        lines.add("- 派生后，父任务应先用自然语言告诉用户已经安排了哪些子任务、接下来会怎么同步进展；只有明确需要静默时才返回 `NO_REPLY`。");
+        lines.add("- 每个子任务完成后，父任务都会收到 continuation 结果；应优先根据单个子任务的新结果增量回复用户，而不是默认等全部结束。");
+        lines.add("- 如果某个场景确实需要等全部子任务完成后再统一收口，才使用 `FINAL_REPLY_ONCE:` 只发送一次最终聚合结果。");
         lines.add("- 使用 `list_child_runs`、`get_run_status`、`get_child_summary` 跟踪子任务进度和批次聚合结果。");
         lines.add("- 如果一个动作明显很小、很快、一步可完成，也可以直接做，不必强行拆分。");
     }
