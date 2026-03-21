@@ -145,11 +145,13 @@
 实现特点：
 
 - 子任务使用独立 `childSessionKey`
+- 子任务应显式携带 `taskTitle` 与 `taskDescription`；标题用于日志、汇总和区分不同子任务
 - 子任务 run 会记录 `parentRunId`、`parentSessionKey`、`parentReplyTarget`
 - 子任务完成后，会向父会话写入结构化事件并自动触发一次 continuation run
 - 父运行可进入 `WAITING_CHILDREN`
-- 父运行可以用 `NO_REPLY` 抑制中间回复
-- 父运行可以用 `FINAL_REPLY_ONCE:` 前缀实现“仅发送一次最终聚合回复”
+- 父运行派生子任务后，默认应先向用户说明已经安排了哪些子任务以及后续同步方式
+- 子任务每次完成后，父会话都可以基于该次结果立即增量回复，不必默认等待全部子任务结束
+- 只有在确实需要“全部结束后统一收口”的场景，才使用 `FINAL_REPLY_ONCE:` 前缀实现“仅发送一次最终聚合回复”
 - `batchKey` 可用于给同一批子任务分组聚合
 
 ### 5. 主动通知能力
