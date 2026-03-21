@@ -15,7 +15,6 @@ import com.jimuqu.claw.agent.runtime.api.ConversationAgent;
 import com.jimuqu.claw.agent.runtime.impl.AgentRuntimeService;
 import com.jimuqu.claw.agent.runtime.impl.ConversationScheduler;
 import com.jimuqu.claw.agent.runtime.impl.SystemEventRunner;
-import com.jimuqu.claw.agent.runtime.support.ConversationExecutionRequest;
 import com.jimuqu.claw.agent.runtime.support.DeliveryResult;
 import com.jimuqu.claw.agent.runtime.support.NotificationResult;
 import com.jimuqu.claw.agent.runtime.support.ParentRunChildrenSummary;
@@ -30,12 +29,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentRuntimeServiceTest {
@@ -155,50 +152,6 @@ class AgentRuntimeServiceTest {
             assertTrue(store.getRunEvents(parentRunId, 0).stream()
                     .map(RunEvent::getEventType)
                     .anyMatch("child_continuation_triggered"::equals));
-        } finally {
-            scheduler.shutdown();
-        }
-    }
-
-    @Test
-    void debugWebInboundIsHandledLikeNormalUserMessage() throws Exception {
-        RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
-        ConversationScheduler scheduler = new ConversationScheduler(1);
-        ChannelRegistry registry = new ChannelRegistry();
-        RecordingChannelAdapter debugAdapter = new RecordingChannelAdapter(ChannelType.DEBUG_WEB);
-        registry.register(debugAdapter);
-        AtomicReference<ConversationExecutionRequest> lastRequest = new AtomicReference<ConversationExecutionRequest>();
-        ConversationAgent conversationAgent = (request, progressConsumer) -> {
-            lastRequest.set(request);
-            return "debug-reply";
-        };
-        SolonClawProperties properties = new SolonClawProperties();
-        AgentRuntimeService runtimeService = runtimeService(conversationAgent, store, scheduler, registry, properties);
-
-        try {
-            InboundEnvelope inboundEnvelope = new InboundEnvelope();
-            inboundEnvelope.setMessageId("debug-1");
-            inboundEnvelope.setChannelType(ChannelType.DEBUG_WEB);
-            inboundEnvelope.setChannelInstanceId("debug-web");
-            inboundEnvelope.setSenderId("debug-user");
-            inboundEnvelope.setConversationId("debug-1");
-            inboundEnvelope.setConversationType(ConversationType.PRIVATE);
-            inboundEnvelope.setContent("hello");
-            inboundEnvelope.setReplyTarget(new ReplyTarget(ChannelType.DEBUG_WEB, ConversationType.PRIVATE, "debug-1", "debug-user"));
-            inboundEnvelope.setReceivedAt(System.currentTimeMillis());
-            inboundEnvelope.setSessionKey("debug-web:debug-1");
-            inboundEnvelope.setSourceKind(RuntimeSourceKind.USER_MESSAGE);
-
-            String runId = runtimeService.submitInbound(inboundEnvelope);
-            assertNotNull(runId);
-            assertTrue(waitUntil(() -> {
-                AgentRun run = runtimeService.getRun(runId);
-                return run != null && run.getStatus() == RunStatus.SUCCEEDED;
-            }, 5000));
-            assertEquals(RuntimeSourceKind.USER_MESSAGE, lastRequest.get().getCurrentSourceKind());
-            assertNotNull(store.getLatestExternalRoute());
-            assertEquals(ChannelType.DEBUG_WEB, store.getLatestExternalRoute().getReplyTarget().getChannelType());
-            assertEquals("debug-reply", debugAdapter.messages.get(0));
         } finally {
             scheduler.shutdown();
         }

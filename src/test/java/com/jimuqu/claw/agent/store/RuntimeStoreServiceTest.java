@@ -51,7 +51,7 @@ class RuntimeStoreServiceTest {
         RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
         AgentRun run = new AgentRun();
         run.setRunId("run-abort");
-        run.setSessionKey("debug-web:test");
+        run.setSessionKey("session-abort");
         run.setSourceKind(RuntimeSourceKind.USER_MESSAGE);
         run.setStatus(RunStatus.RUNNING);
         run.setCreatedAt(System.currentTimeMillis());
@@ -153,7 +153,7 @@ class RuntimeStoreServiceTest {
         InboundEnvelope envelope = new InboundEnvelope();
         envelope.setSessionKey(sessionKey);
         envelope.setMessageId(messageId);
-        envelope.setChannelType(ChannelType.DEBUG_WEB);
+        envelope.setChannelType(ChannelType.DINGTALK);
         envelope.setConversationType(ConversationType.PRIVATE);
         envelope.setConversationId("conv");
         envelope.setSenderId("user");
