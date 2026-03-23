@@ -72,12 +72,16 @@ class RuntimeStoreServiceTest {
     void remembersLatestExternalRouteWithSessionKey() {
         RuntimeStoreService store = new RuntimeStoreService(tempDir.toFile());
         ReplyTarget replyTarget = new ReplyTarget(ChannelType.DINGTALK, ConversationType.GROUP, "cid", "uid");
+        replyTarget.setChannelInstanceId("account-1");
+        replyTarget.setContextToken("ctx-1");
 
         store.rememberReplyTarget("dingtalk:group:cid", replyTarget);
 
         assertEquals("dingtalk:group:cid", store.getLatestExternalRoute().getSessionKey());
         assertEquals("cid", store.getLatestExternalRoute().getReplyTarget().getConversationId());
         assertEquals("cid", store.getReplyTarget("dingtalk:group:cid").getConversationId());
+        assertEquals("account-1", store.getReplyTarget("dingtalk:group:cid").getChannelInstanceId());
+        assertEquals("ctx-1", store.getReplyTarget("dingtalk:group:cid").getContextToken());
     }
 
     @Test

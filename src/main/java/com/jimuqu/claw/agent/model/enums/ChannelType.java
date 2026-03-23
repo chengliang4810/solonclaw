@@ -8,6 +8,8 @@ public enum ChannelType {
     FEISHU,
     /** 钉钉机器人渠道。 */
     DINGTALK,
+    /** 微信 Bot 渠道。 */
+    WEIXIN,
     /** 系统内部触发渠道。 */
     SYSTEM
 }

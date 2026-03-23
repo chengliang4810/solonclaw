@@ -27,6 +27,12 @@ import com.jimuqu.claw.channel.dingtalk.adapter.DingTalkChannelAdapter;
 import com.jimuqu.claw.channel.dingtalk.sender.DingTalkRobotSender;
 import com.jimuqu.claw.channel.feishu.sender.FeishuBotSender;
 import com.jimuqu.claw.channel.feishu.adapter.FeishuChannelAdapter;
+import com.jimuqu.claw.channel.weixin.adapter.WeixinChannelAdapter;
+import com.jimuqu.claw.channel.weixin.sender.WeixinRobotSender;
+import com.jimuqu.claw.channel.weixin.service.WeixinAccountStoreService;
+import com.jimuqu.claw.channel.weixin.service.WeixinApiGateway;
+import com.jimuqu.claw.channel.weixin.service.WeixinHttpGateway;
+import com.jimuqu.claw.channel.weixin.service.WeixinLoginService;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.skills.cli.CliSkillProvider;
 import org.noear.solon.ai.chat.ChatModel;
@@ -230,6 +236,35 @@ public class SolonClawConfig {
         return new FeishuBotSender(properties.getChannels().getFeishu());
     }
 
+    @Bean
+    public WeixinAccountStoreService weixinAccountStoreService(AgentWorkspaceService workspaceService) {
+        return new WeixinAccountStoreService(workspaceService);
+    }
+
+    @Bean
+    public WeixinApiGateway weixinApiGateway() {
+        return new WeixinHttpGateway();
+    }
+
+    @Bean
+    public WeixinLoginService weixinLoginService(
+            WeixinApiGateway apiGateway,
+            WeixinAccountStoreService accountStoreService,
+            SolonClawProperties properties,
+            WeixinChannelAdapter weixinChannelAdapter
+    ) {
+        return new WeixinLoginService(apiGateway, accountStoreService, properties.getChannels().getWeixin(), weixinChannelAdapter);
+    }
+
+    @Bean
+    public WeixinRobotSender weixinRobotSender(
+            WeixinApiGateway apiGateway,
+            WeixinAccountStoreService accountStoreService,
+            SolonClawProperties properties
+    ) {
+        return new WeixinRobotSender(apiGateway, accountStoreService, properties.getChannels().getWeixin());
+    }
+
     @Bean(initMethod = "start", destroyMethod = "stop")
     public DingTalkAccessTokenService dingTalkAccessTokenService(SolonClawProperties properties) {
         return new DingTalkAccessTokenService(properties.getChannels().getDingtalk());
@@ -291,6 +326,26 @@ public class SolonClawConfig {
                 agentRuntimeService,
                 feishuBotSender,
                 properties.getChannels().getFeishu()
+        );
+        channelRegistry.register(adapter);
+        return adapter;
+    }
+
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public WeixinChannelAdapter weixinChannelAdapter(
+            AgentRuntimeService agentRuntimeService,
+            WeixinRobotSender weixinRobotSender,
+            WeixinAccountStoreService accountStoreService,
+            WeixinApiGateway apiGateway,
+            ChannelRegistry channelRegistry,
+            SolonClawProperties properties
+    ) {
+        WeixinChannelAdapter adapter = new WeixinChannelAdapter(
+                agentRuntimeService,
+                weixinRobotSender,
+                accountStoreService,
+                apiGateway,
+                properties.getChannels().getWeixin()
         );
         channelRegistry.register(adapter);
         return adapter;

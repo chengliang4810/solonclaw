@@ -73,6 +73,13 @@ solonclaw:
       robotCode: ""
       allowFrom: []
       groupAllowFrom: []
+    weixin:
+      enabled: false
+      baseUrl: "https://ilinkai.weixin.qq.com"
+      botType: "3"
+      longPollTimeoutMs: 35000
+      loginTimeoutMs: 480000
+      allowFrom: []
 
 ---
 solon.env.on: prod
