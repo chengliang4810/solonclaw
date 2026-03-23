@@ -2,6 +2,8 @@ package com.jimuqu.claw.agent.workspace;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
+import com.jimuqu.claw.agent.model.enums.RunStatus;
+import com.jimuqu.claw.agent.runtime.registry.ActiveTaskEntry;
 import com.jimuqu.claw.agent.runtime.support.ConversationExecutionRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -183,6 +185,30 @@ class WorkspacePromptServiceTest {
         assertTrue(prompt.contains("你是在 SolonClaw 内运行的个人助理。"));
         assertTrue(prompt.contains("## 工具使用"));
         assertTrue(prompt.contains("## 长任务与子任务"));
+    }
+
+    @Test
+    void promptIncludesActiveTasksSnapshot(@TempDir Path tempDir) {
+        AgentWorkspaceService workspaceService = new AgentWorkspaceService(tempDir.toString());
+        WorkspacePromptService promptService = new WorkspacePromptService(workspaceService, "基础系统提示");
+
+        ConversationExecutionRequest request = new ConversationExecutionRequest();
+        ActiveTaskEntry entry = new ActiveTaskEntry();
+        entry.setRunId("child-1");
+        entry.setTaskTitle("调研 Solon");
+        entry.setStatus(RunStatus.RUNNING);
+        entry.setLatestPhase("信息收集");
+        entry.setLatestProgressDetail("已读取 README 并开始分析模块结构");
+        request.setActiveTasks(java.util.Collections.singletonList(entry));
+
+        String prompt = promptService.buildSystemPrompt(request);
+
+        assertTrue(prompt.contains("## 当前活跃子任务"));
+        assertTrue(prompt.contains("runId=child-1"));
+        assertTrue(prompt.contains("标题=调研 Solon"));
+        assertTrue(prompt.contains("状态=RUNNING"));
+        assertTrue(prompt.contains("阶段=信息收集"));
+        assertTrue(prompt.contains("已读取 README 并开始分析模块结构"));
     }
 }
 

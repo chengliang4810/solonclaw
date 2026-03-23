@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.claw.agent.model.enums.RuntimeSourceKind;
+import com.jimuqu.claw.agent.runtime.registry.ActiveTaskEntry;
 import com.jimuqu.claw.agent.runtime.support.ConversationExecutionRequest;
 
 import java.io.File;
@@ -75,11 +76,30 @@ public class WorkspacePromptService {
     static final String DAILY_MEMORY_DIR = "memory";
     /** 每日记忆文件名格式。 */
     static final DateTimeFormatter DAILY_MEMORY_FILE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
+    /** 工作区文件缓存 TTL（毫秒）。 */
+    static final long FILE_CACHE_TTL_MS = 15000L;
 
     /** 工作区服务。 */
     private final AgentWorkspaceService workspaceService;
     /** 基础系统提示词。 */
     private final String baseSystemPrompt;
+    /** 工作区文件缓存。 */
+    private final java.util.concurrent.ConcurrentHashMap<String, CachedFileContent> fileCache = new java.util.concurrent.ConcurrentHashMap<String, CachedFileContent>();
+
+    /**
+     * 缓存的文件内容。
+     */
+    private static final class CachedFileContent {
+        private final String content;
+        private final long loadedAt;
+        private final long lastModified;
+
+        private CachedFileContent(String content, long loadedAt, long lastModified) {
+            this.content = content;
+            this.loadedAt = loadedAt;
+            this.lastModified = lastModified;
+        }
+    }
 
     /**
      * 创建工作区提示词服务，并确保引导文件存在。
@@ -123,6 +143,7 @@ public class WorkspacePromptService {
         List<String> lines = new ArrayList<>();
         lines.add(baseSystemPrompt.trim());
         appendExecutionGuidance(lines, request, childRun, lightContext);
+        appendActiveTasksSection(lines, request);
         lines.add("");
         lines.add("当前工作区: " + workspaceService.getWorkspaceDir().getAbsolutePath());
         lines.add("除非用户明确要求，否则所有运行期文件与引导文件都以该工作区为根目录。");
@@ -210,10 +231,62 @@ public class WorkspacePromptService {
     private String readFile(String fileName) {
         File file = workspaceService.fileInWorkspace(fileName);
         if (!file.exists()) {
+            fileCache.remove(fileName);
             return null;
         }
+
+        CachedFileContent cached = fileCache.get(fileName);
+        long now = System.currentTimeMillis();
+        if (cached != null && now - cached.loadedAt < FILE_CACHE_TTL_MS && cached.lastModified == file.lastModified()) {
+            return cached.content;
+        }
+
         String content = FileUtil.readUtf8String(file).trim();
-        return content.isEmpty() ? null : content;
+        if (content.isEmpty()) {
+            fileCache.remove(fileName);
+            return null;
+        }
+
+        fileCache.put(fileName, new CachedFileContent(content, now, file.lastModified()));
+        return content;
+    }
+
+    /**
+     * 将当前活跃子任务快照注入系统提示词。
+     *
+     * @param lines   结果行集合
+     * @param request 当前执行请求
+     */
+    private void appendActiveTasksSection(List<String> lines, ConversationExecutionRequest request) {
+        if (request == null || request.getActiveTasks() == null || request.getActiveTasks().isEmpty()) {
+            return;
+        }
+
+        lines.add("");
+        lines.add("## 当前活跃子任务");
+        lines.add("以下是当前会话中正在执行的子任务状态，可直接用于回答用户的进度、状态、是否完成等问题：");
+        int index = 1;
+        int maxTasks = Math.min(request.getActiveTasks().size(), 5);
+        for (ActiveTaskEntry entry : request.getActiveTasks().subList(0, maxTasks)) {
+            StringBuilder builder = new StringBuilder();
+            builder.append(index++)
+                    .append(". runId=").append(entry.getRunId())
+                    .append(", 标题=").append(StrUtil.blankToDefault(entry.getTaskTitle(), "(未记录任务标题)"))
+                    .append(", 状态=").append(entry.getStatus());
+            if (StrUtil.isNotBlank(entry.getLatestPhase())) {
+                builder.append(", 阶段=").append(entry.getLatestPhase());
+            }
+            if (StrUtil.isNotBlank(entry.getLatestProgressDetail())) {
+                builder.append(", 进度=").append(StrUtil.maxLength(entry.getLatestProgressDetail(), 120));
+            }
+            if (StrUtil.isNotBlank(entry.getBatchKey())) {
+                builder.append(", batchKey=").append(entry.getBatchKey());
+            }
+            lines.add(builder.toString());
+        }
+        if (request.getActiveTasks().size() > maxTasks) {
+            lines.add("... 其余 " + (request.getActiveTasks().size() - maxTasks) + " 个活跃任务已省略");
+        }
     }
 
     /**
