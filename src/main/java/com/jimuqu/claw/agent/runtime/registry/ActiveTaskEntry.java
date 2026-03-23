@@ -2,6 +2,7 @@ package com.jimuqu.claw.agent.runtime.registry;
 
 import com.jimuqu.claw.agent.model.enums.RunStatus;
 import lombok.Data;
+import org.noear.solon.ai.chat.ChatSession;
 
 /**
  * 活跃任务条目，用于跟踪正在执行的子任务状态和运行时控制。
@@ -34,6 +35,8 @@ public class ActiveTaskEntry {
     private long latestProgressAt;
     /** 执行当前任务的线程（运行时控制，不持久化）。 */
     private volatile Thread executionThread;
+    /** 运行中会话引用（运行时控制，不持久化）。 */
+    private volatile ChatSession agentSession;
     /** 合作取消标志（运行时控制，不持久化）。 */
     private volatile boolean cancelRequested;
 }

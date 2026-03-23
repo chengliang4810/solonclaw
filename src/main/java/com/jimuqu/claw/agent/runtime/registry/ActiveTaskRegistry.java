@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.jimuqu.claw.agent.model.enums.RunStatus;
 import com.jimuqu.claw.agent.model.run.AgentRun;
+import org.noear.solon.ai.chat.ChatSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,6 +78,7 @@ public class ActiveTaskRegistry {
         }
         entry.setStatus(finalStatus);
         entry.setExecutionThread(null);
+        entry.setAgentSession(null);
 
         CopyOnWriteArrayList<ActiveTaskEntry> list = byParentSession.get(entry.getParentSessionKey());
         if (list != null) {
@@ -108,6 +110,18 @@ public class ActiveTaskRegistry {
         if (entry != null) {
             entry.setExecutionThread(thread);
         }
+    }
+
+    public void setAgentSession(String runId, ChatSession session) {
+        ActiveTaskEntry entry = byRunId.get(runId);
+        if (entry != null) {
+            entry.setAgentSession(session);
+        }
+    }
+
+    public ChatSession getAgentSession(String runId) {
+        ActiveTaskEntry entry = byRunId.get(runId);
+        return entry == null ? null : entry.getAgentSession();
     }
 
     public void requestCancel(String runId) {

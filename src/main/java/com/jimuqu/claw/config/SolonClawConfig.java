@@ -173,7 +173,8 @@ public class SolonClawConfig {
             CliSkillProvider cliSkillProvider,
             ReActLoggingInterceptor reActLoggingInterceptor,
             HITLInterceptor blacklistInterceptor,
-            CancellationInterceptor cancellationInterceptor
+            CancellationInterceptor cancellationInterceptor,
+            ActiveTaskRegistry activeTaskRegistry
     ) {
         SolonAiConversationAgent agent = new SolonAiConversationAgent(
                 chatModel,
@@ -184,6 +185,7 @@ public class SolonClawConfig {
                 blacklistInterceptor
         );
         agent.setCancellationInterceptor(cancellationInterceptor);
+        agent.setActiveTaskRegistry(activeTaskRegistry);
         return agent;
     }
 

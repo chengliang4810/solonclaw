@@ -623,6 +623,12 @@ public class AgentRuntimeService {
                         runId,
                         "[父任务追加指令]\n" + instruction.trim()
                 );
+                org.noear.solon.ai.chat.ChatSession session = activeTaskRegistry.getAgentSession(runId);
+                if (session != null) {
+                    synchronized (session) {
+                        session.addMessage(org.noear.solon.ai.chat.message.ChatMessage.ofSystem("[父任务追加指令]\n" + instruction.trim()));
+                    }
+                }
                 runtimeStoreService.appendRunEvent(runId, "instruction_injected", instruction.trim());
                 result.setCode("instruction_injected");
                 result.setSuccess(true);
