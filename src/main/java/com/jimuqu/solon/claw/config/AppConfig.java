@@ -1269,6 +1269,20 @@ public class AppConfig {
                                                 overrides,
                                                 "terminal.sudo_password",
                                                 null))));
+        config.getTerminal()
+                .setMaxForegroundTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.terminal.maxForegroundTimeoutSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.max_foreground_timeout",
+                                                        600))),
+                                600));
 
         config.normalizePaths();
         syncRuntimeConfigExample(config.getRuntime().getHome());
@@ -1490,6 +1504,7 @@ public class AppConfig {
     private void copyTerminal(TerminalConfig other) {
         this.terminal.setCredentialFiles(new ArrayList<String>(other.getCredentialFiles()));
         this.terminal.setSudoPassword(other.getSudoPassword());
+        this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
     }
 
     private void copySecurity(SecurityConfig other) {
@@ -2700,6 +2715,9 @@ public class AppConfig {
 
         /** 对齐 Hermes SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
         private String sudoPassword;
+
+        /** 对齐 Hermes TERMINAL_MAX_FOREGROUND_TIMEOUT；单位秒。 */
+        private int maxForegroundTimeoutSeconds = 600;
     }
 
     @Getter

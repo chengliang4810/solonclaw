@@ -90,7 +90,8 @@ public class RuntimeSettingsService {
                     "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
                     "terminal.credentialFiles",
-                    "terminal.sudoPassword");
+                    "terminal.sudoPassword",
+                    "terminal.maxForegroundTimeoutSeconds");
 
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =
             Arrays.asList(
@@ -428,7 +429,8 @@ public class RuntimeSettingsService {
                 || "gateway.injectionReplayWindowSeconds".equals(key)
                 || "security.tirithTimeoutSeconds".equals(key)
                 || "approvals.timeoutSeconds".equals(key)
-                || "approvals.gatewayTimeoutSeconds".equals(key)) {
+                || "approvals.gatewayTimeoutSeconds".equals(key)
+                || "terminal.maxForegroundTimeoutSeconds".equals(key)) {
             return Integer.valueOf(value);
         }
         if ("react.summarizationEnabled".equals(key)) {

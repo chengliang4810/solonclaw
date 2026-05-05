@@ -109,4 +109,30 @@ public class HermesShellSkillTest {
                 .hasMessageContaining("Blocked")
                 .hasMessageContaining("disallowed character");
     }
+
+    @Test
+    void shouldRejectForegroundTimeoutAboveHermesCap() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setMaxForegroundTimeoutSeconds(1);
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute("echo should_not_run", 2000);
+
+        assertThat(result)
+                .contains("Foreground timeout 2000ms exceeds the maximum of 1000ms")
+                .contains("background=true");
+    }
+
+    @Test
+    void shouldTimeoutSudoRewriteBranchWithoutWaitingForOutputEof() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("testpass");
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute("sudo ping 127.0.0.1", 10);
+
+        assertThat(result).contains("执行超时");
+    }
 }

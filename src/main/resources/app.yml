@@ -81,6 +81,7 @@ solonclaw.task.toolOutputTurnBudget: 200000
 # 终端/沙箱执行
 solonclaw.terminal.credentialFiles:
 solonclaw.terminal.sudoPassword:
+solonclaw.terminal.maxForegroundTimeoutSeconds: 600
 
 # 安全策略
 solonclaw.security.allowPrivateUrls: false

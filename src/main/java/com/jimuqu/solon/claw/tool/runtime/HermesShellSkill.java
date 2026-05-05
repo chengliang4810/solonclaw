@@ -7,6 +7,8 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.sys.ShellSkill;
@@ -48,17 +50,21 @@ public class HermesShellSkill extends ShellSkill {
     @ToolMapping(name = "execute_shell", description = "在本地系统中执行单行指令或多行脚本，并获取标准输出。")
     public String execute(
             @Param("code") String code,
-            @Param(name = "timeout", required = false, defaultValue = "120000", description = "可选超时时间，单位为毫秒")
+            @Param(name = "timeout", required = false, defaultValue = "180000", description = "可选超时时间，单位为毫秒")
                     Integer timeout) {
         HermesCodeExecutionSkills.assertSafe(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 code,
                 securityPolicyService);
+        Integer effectiveTimeout = normalizeForegroundTimeout(timeout);
+        if (effectiveTimeout == null) {
+            return foregroundTimeoutExceededMessage(timeout);
+        }
         SudoTransform transform = transformSudoCommand(code);
         if (!transform.isChanged()) {
-            return super.execute(code, timeout);
+            return super.execute(code, effectiveTimeout);
         }
-        return executeWithStdin(transform.getCommand(), transform.getStdin(), timeout);
+        return executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout);
     }
 
     public SudoTransform transformSudoCommand(String command) {
@@ -252,6 +258,15 @@ public class HermesShellSkill extends ShellSkill {
             builder.directory(workPath.toFile());
             builder.redirectErrorStream(true);
             Process process = builder.start();
+            CompletableFuture<String> outputFuture =
+                    CompletableFuture.supplyAsync(
+                            () -> {
+                                try {
+                                    return readOutput(process);
+                                } catch (Exception e) {
+                                    return "系统失败: " + e.getMessage();
+                                }
+                            });
             if (stdin != null) {
                 OutputStreamWriter writer =
                         new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
@@ -259,13 +274,13 @@ public class HermesShellSkill extends ShellSkill {
                 writer.flush();
                 writer.close();
             }
-            String output = readOutput(process);
             int timeout = timeoutMs == null || timeoutMs < 0 ? 120000 : timeoutMs;
-            boolean finished = process.waitFor(timeout, java.util.concurrent.TimeUnit.MILLISECONDS);
+            boolean finished = process.waitFor(timeout, TimeUnit.MILLISECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 return "执行超时：运行时间超过 " + timeout + " 毫秒。";
             }
+            String output = outputFuture.get(1, TimeUnit.SECONDS);
             String result = StrUtil.nullToEmpty(output).trim();
             return result.length() == 0 ? "执行成功" : result;
         } catch (Exception e) {
@@ -278,6 +293,33 @@ public class HermesShellSkill extends ShellSkill {
                 }
             }
         }
+    }
+
+    private Integer normalizeForegroundTimeout(Integer timeoutMs) {
+        if (timeoutMs == null || timeoutMs < 0) {
+            return 180000;
+        }
+        int maxSeconds = 600;
+        if (appConfig != null && appConfig.getTerminal() != null) {
+            maxSeconds = appConfig.getTerminal().getMaxForegroundTimeoutSeconds();
+        }
+        int maxMs = Math.max(1, maxSeconds) * 1000;
+        if (timeoutMs > maxMs) {
+            return null;
+        }
+        return timeoutMs;
+    }
+
+    private String foregroundTimeoutExceededMessage(Integer timeoutMs) {
+        int maxSeconds = 600;
+        if (appConfig != null && appConfig.getTerminal() != null) {
+            maxSeconds = appConfig.getTerminal().getMaxForegroundTimeoutSeconds();
+        }
+        return "Foreground timeout "
+                + timeoutMs
+                + "ms exceeds the maximum of "
+                + (Math.max(1, maxSeconds) * 1000)
+                + "ms. Use background=true with notify_on_complete=true for long-running commands.";
     }
 
     private String readOutput(Process process) throws Exception {

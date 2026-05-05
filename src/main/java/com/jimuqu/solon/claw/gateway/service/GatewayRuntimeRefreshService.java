@@ -510,7 +510,8 @@ public class GatewayRuntimeRefreshService {
                     ".sendChunkRetries",
                     ".toolPreviewLength",
                     ".progressThrottleMs",
-                    ".tirithTimeoutSeconds");
+                    ".tirithTimeoutSeconds",
+                    ".maxForegroundTimeoutSeconds");
 
     private static final Set<String> DOUBLE_SUFFIXES =
             setOf(".sendChunkDelaySeconds", ".sendChunkRetryDelaySeconds");
