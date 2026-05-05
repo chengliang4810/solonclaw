@@ -32,6 +32,10 @@ solonclaw.llm.contextWindowTokens: 128000
 # 定时任务调度
 solonclaw.scheduler.enabled: true
 solonclaw.scheduler.tickSeconds: 60
+solonclaw.scheduler.wrapResponse: true
+solonclaw.scheduler.scriptTimeoutSeconds: 120
+solonclaw.scheduler.cronApprovalMode: deny
+solonclaw.scheduler.enabledToolsets:
 
 # 上下文压缩
 solonclaw.compression.enabled: true
@@ -54,6 +58,7 @@ solonclaw.rollback.maxCheckpointsPerSource: 20
 # 聊天窗口显示
 solonclaw.display.toolProgress: all
 solonclaw.display.showReasoning: false
+solonclaw.display.resumeDisplay: full
 solonclaw.display.toolPreviewLength: 80
 solonclaw.display.progressThrottleMs: 1500
 
@@ -67,6 +72,30 @@ solonclaw.react.delegateRetryDelayMs: 2500
 solonclaw.react.summarizationEnabled: true
 solonclaw.react.summarizationMaxMessages: 40
 solonclaw.react.summarizationMaxTokens: 32000
+
+# 运行中输入策略
+solonclaw.task.busyPolicy: interrupt
+solonclaw.task.toolOutputInlineLimit: 4000
+solonclaw.task.toolOutputTurnBudget: 200000
+
+# 终端/沙箱执行
+solonclaw.terminal.credentialFiles:
+solonclaw.terminal.sudoPassword:
+
+# 安全策略
+solonclaw.security.allowPrivateUrls: false
+solonclaw.security.websiteBlocklist.enabled: false
+solonclaw.security.websiteBlocklist.domains:
+solonclaw.security.websiteBlocklist.sharedFiles:
+solonclaw.security.tirithEnabled: true
+solonclaw.security.tirithPath: tirith
+solonclaw.security.tirithTimeoutSeconds: 5
+solonclaw.security.tirithFailOpen: true
+
+# 审批/确认策略
+solonclaw.approvals.mode: on
+solonclaw.approvals.cronMode: deny
+solonclaw.approvals.mcpReloadConfirm: true
 
 # 预定义人格
 solonclaw.agent.personalities.helpful.description: 友好、通用的默认助手

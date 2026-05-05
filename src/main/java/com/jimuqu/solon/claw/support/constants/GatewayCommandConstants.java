@@ -44,14 +44,19 @@ public interface GatewayCommandConstants {
     String COMMAND_RESUME = "resume";
     String COMMAND_STATUS = "status";
     String COMMAND_USAGE = "usage";
+    String COMMAND_BUSY = "busy";
     String COMMAND_STOP = "stop";
     String COMMAND_PERSONALITY = "personality";
     String COMMAND_VERSION = "version";
     String COMMAND_MODEL = "model";
     String COMMAND_TOOLS = "tools";
     String COMMAND_SKILLS = "skills";
+    String COMMAND_RELOAD_MCP = "reload-mcp";
     String COMMAND_CRON = "cron";
     String COMMAND_KANBAN = "kanban";
+    String COMMAND_GOAL = "goal";
+    String COMMAND_RECAP = "recap";
+    String COMMAND_TRAJECTORY = "trajectory";
     String COMMAND_PLATFORMS = "platforms";
     String COMMAND_SETHOME = "sethome";
     String COMMAND_PAIRING = "pairing";
@@ -62,6 +67,8 @@ public interface GatewayCommandConstants {
     String COMMAND_AGENT = "agent";
     String COMMAND_APPROVE = "approve";
     String COMMAND_DENY = "deny";
+    String COMMAND_ALWAYS = "always";
+    String COMMAND_CANCEL = "cancel";
 
     /** Full slash command text. */
     String SLASH_NEW = COMMAND_PREFIX + COMMAND_NEW;
@@ -73,14 +80,19 @@ public interface GatewayCommandConstants {
     String SLASH_RESUME = COMMAND_PREFIX + COMMAND_RESUME;
     String SLASH_STATUS = COMMAND_PREFIX + COMMAND_STATUS;
     String SLASH_USAGE = COMMAND_PREFIX + COMMAND_USAGE;
+    String SLASH_BUSY = COMMAND_PREFIX + COMMAND_BUSY;
     String SLASH_STOP = COMMAND_PREFIX + COMMAND_STOP;
     String SLASH_PERSONALITY = COMMAND_PREFIX + COMMAND_PERSONALITY;
     String SLASH_VERSION = COMMAND_PREFIX + COMMAND_VERSION;
     String SLASH_MODEL = COMMAND_PREFIX + COMMAND_MODEL;
     String SLASH_TOOLS = COMMAND_PREFIX + COMMAND_TOOLS;
     String SLASH_SKILLS = COMMAND_PREFIX + COMMAND_SKILLS;
+    String SLASH_RELOAD_MCP = COMMAND_PREFIX + COMMAND_RELOAD_MCP;
     String SLASH_CRON = COMMAND_PREFIX + COMMAND_CRON;
     String SLASH_KANBAN = COMMAND_PREFIX + COMMAND_KANBAN;
+    String SLASH_GOAL = COMMAND_PREFIX + COMMAND_GOAL;
+    String SLASH_RECAP = COMMAND_PREFIX + COMMAND_RECAP;
+    String SLASH_TRAJECTORY = COMMAND_PREFIX + COMMAND_TRAJECTORY;
     String SLASH_PLATFORMS = COMMAND_PREFIX + COMMAND_PLATFORMS;
     String SLASH_SETHOME = COMMAND_PREFIX + COMMAND_SETHOME;
     String SLASH_PAIRING = COMMAND_PREFIX + COMMAND_PAIRING;
@@ -91,4 +103,6 @@ public interface GatewayCommandConstants {
     String SLASH_AGENT = COMMAND_PREFIX + COMMAND_AGENT;
     String SLASH_APPROVE = COMMAND_PREFIX + COMMAND_APPROVE;
     String SLASH_DENY = COMMAND_PREFIX + COMMAND_DENY;
+    String SLASH_ALWAYS = COMMAND_PREFIX + COMMAND_ALWAYS;
+    String SLASH_CANCEL = COMMAND_PREFIX + COMMAND_CANCEL;
 }

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.noear.solon.annotation.Param;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -53,6 +54,17 @@ public class DashboardCronController {
     @Mapping(value = "/api/cron/jobs/{id}/trigger", method = MethodType.POST)
     public Map<String, Object> trigger(String id) throws Exception {
         return DashboardResponse.ok(cronService.trigger(id));
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/runs", method = MethodType.GET)
+    public Map<String, Object> history(String id, @Param(defaultValue = "20") Integer limit)
+            throws Exception {
+        List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("job_id", id);
+        data.put("runs", runs);
+        data.put("count", Integer.valueOf(runs.size()));
+        return DashboardResponse.ok(data);
     }
 
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.DELETE)

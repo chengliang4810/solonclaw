@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.storage.repository;
 
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -19,7 +20,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, workdir, no_agent, context_from_json, enabled_toolsets_json, wrap_response, last_status, last_error, last_delivery_error, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, base_url, wrap_response, last_status, last_error, last_delivery_error, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, job.getJobId());
             statement.setString(2, job.getName());
             statement.setString(3, job.getCronExpr());
@@ -37,18 +38,21 @@ public class SqliteCronJobRepository implements CronJobRepository {
             statement.setInt(15, job.isNoAgent() ? 1 : 0);
             statement.setString(16, job.getContextFromJson());
             statement.setString(17, job.getEnabledToolsetsJson());
-            statement.setInt(18, job.isWrapResponse() ? 1 : 0);
-            statement.setString(19, job.getLastStatus());
-            statement.setString(20, job.getLastError());
-            statement.setString(21, job.getLastDeliveryError());
-            statement.setLong(22, job.getPausedAt());
-            statement.setString(23, job.getPausedReason());
-            statement.setString(24, job.getLastOutput());
-            statement.setString(25, job.getStatus());
-            statement.setLong(26, job.getNextRunAt());
-            statement.setLong(27, job.getLastRunAt());
-            statement.setLong(28, job.getCreatedAt());
-            statement.setLong(29, job.getUpdatedAt());
+            statement.setString(18, job.getModel());
+            statement.setString(19, job.getProvider());
+            statement.setString(20, job.getBaseUrl());
+            statement.setInt(21, job.isWrapResponse() ? 1 : 0);
+            statement.setString(22, job.getLastStatus());
+            statement.setString(23, job.getLastError());
+            statement.setString(24, job.getLastDeliveryError());
+            statement.setLong(25, job.getPausedAt());
+            statement.setString(26, job.getPausedReason());
+            statement.setString(27, job.getLastOutput());
+            statement.setString(28, job.getStatus());
+            statement.setLong(29, job.getNextRunAt());
+            statement.setLong(30, job.getLastRunAt());
+            statement.setLong(31, job.getCreatedAt());
+            statement.setLong(32, job.getUpdatedAt());
             statement.executeUpdate();
             statement.close();
             return job;
@@ -251,6 +255,59 @@ public class SqliteCronJobRepository implements CronJobRepository {
         }
     }
 
+    @Override
+    public CronJobRunRecord saveRun(CronJobRunRecord run) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert or replace into cron_runs (run_id, job_id, source_key, trigger_type, attempt, started_at, finished_at, status, summary, output, error, delivery_error) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            statement.setString(1, run.getRunId());
+            statement.setString(2, run.getJobId());
+            statement.setString(3, run.getSourceKey());
+            statement.setString(4, run.getTriggerType());
+            statement.setInt(5, run.getAttempt());
+            statement.setLong(6, run.getStartedAt());
+            statement.setLong(7, run.getFinishedAt());
+            statement.setString(8, run.getStatus());
+            statement.setString(9, run.getSummary());
+            statement.setString(10, run.getOutput());
+            statement.setString(11, run.getError());
+            statement.setString(12, run.getDeliveryError());
+            statement.executeUpdate();
+            statement.close();
+            return run;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public List<CronJobRunRecord> listRuns(String jobId, int limit) throws Exception {
+        List<CronJobRunRecord> runs = new ArrayList<CronJobRunRecord>();
+        int safeLimit = limit <= 0 ? 20 : Math.min(limit, 100);
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from cron_runs where job_id = ? order by started_at desc limit ?");
+            statement.setString(1, jobId);
+            statement.setInt(2, safeLimit);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    runs.add(mapRun(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return runs;
+    }
+
     private CronJobRecord map(ResultSet resultSet) throws Exception {
         CronJobRecord record = new CronJobRecord();
         record.setJobId(resultSet.getString("job_id"));
@@ -270,6 +327,9 @@ public class SqliteCronJobRepository implements CronJobRepository {
         record.setNoAgent(resultSet.getInt("no_agent") == 1);
         record.setContextFromJson(resultSet.getString("context_from_json"));
         record.setEnabledToolsetsJson(resultSet.getString("enabled_toolsets_json"));
+        record.setModel(resultSet.getString("model"));
+        record.setProvider(resultSet.getString("provider"));
+        record.setBaseUrl(resultSet.getString("base_url"));
         record.setWrapResponse(resultSet.getInt("wrap_response") != 0);
         record.setLastStatus(resultSet.getString("last_status"));
         record.setLastError(resultSet.getString("last_error"));
@@ -282,6 +342,23 @@ public class SqliteCronJobRepository implements CronJobRepository {
         record.setLastRunAt(resultSet.getLong("last_run_at"));
         record.setCreatedAt(resultSet.getLong("created_at"));
         record.setUpdatedAt(resultSet.getLong("updated_at"));
+        return record;
+    }
+
+    private CronJobRunRecord mapRun(ResultSet resultSet) throws Exception {
+        CronJobRunRecord record = new CronJobRunRecord();
+        record.setRunId(resultSet.getString("run_id"));
+        record.setJobId(resultSet.getString("job_id"));
+        record.setSourceKey(resultSet.getString("source_key"));
+        record.setTriggerType(resultSet.getString("trigger_type"));
+        record.setAttempt(resultSet.getInt("attempt"));
+        record.setStartedAt(resultSet.getLong("started_at"));
+        record.setFinishedAt(resultSet.getLong("finished_at"));
+        record.setStatus(resultSet.getString("status"));
+        record.setSummary(resultSet.getString("summary"));
+        record.setOutput(resultSet.getString("output"));
+        record.setError(resultSet.getString("error"));
+        record.setDeliveryError(resultSet.getString("delivery_error"));
         return record;
     }
 }

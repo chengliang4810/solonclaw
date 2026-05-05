@@ -10,7 +10,9 @@ import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
+import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -29,6 +31,8 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
@@ -42,17 +46,21 @@ import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** 默认 slash 命令实现，统一承接 Hermes 风格的会话控制命令。 */
 public class DefaultCommandService implements CommandService {
@@ -109,6 +117,10 @@ public class DefaultCommandService implements CommandService {
     private final AgentProfileService agentProfileService;
     private final AgentRunRepository agentRunRepository;
     private final KanbanService kanbanService;
+    private final DashboardMcpService dashboardMcpService;
+    private final GoalService goalService;
+    private final SessionArtifactService sessionArtifactService;
+    private final SlashConfirmService slashConfirmService;
 
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -225,6 +237,162 @@ public class DefaultCommandService implements CommandService {
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
             KanbanService kanbanService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                new SessionArtifactService());
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -248,6 +416,11 @@ public class DefaultCommandService implements CommandService {
         this.agentProfileService = agentProfileService;
         this.agentRunRepository = agentRunRepository;
         this.kanbanService = kanbanService;
+        this.dashboardMcpService = dashboardMcpService;
+        this.goalService = goalService == null ? new GoalService(sessionRepository) : goalService;
+        this.sessionArtifactService =
+                sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
+        this.slashConfirmService = new SlashConfirmService(globalSettingRepository);
     }
 
     /** 判断当前命令是否由默认命令服务承接。 */
@@ -262,6 +435,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_RESUME,
                         GatewayCommandConstants.COMMAND_STATUS,
                         GatewayCommandConstants.COMMAND_USAGE,
+                        GatewayCommandConstants.COMMAND_BUSY,
                         GatewayCommandConstants.COMMAND_REASONING,
                         GatewayCommandConstants.COMMAND_STOP,
                         GatewayCommandConstants.COMMAND_PERSONALITY,
@@ -269,8 +443,12 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_MODEL,
                         GatewayCommandConstants.COMMAND_TOOLS,
                         GatewayCommandConstants.COMMAND_SKILLS,
+                        GatewayCommandConstants.COMMAND_RELOAD_MCP,
                         GatewayCommandConstants.COMMAND_CRON,
                         GatewayCommandConstants.COMMAND_KANBAN,
+                        GatewayCommandConstants.COMMAND_GOAL,
+                        GatewayCommandConstants.COMMAND_RECAP,
+                        GatewayCommandConstants.COMMAND_TRAJECTORY,
                         GatewayCommandConstants.COMMAND_PLATFORMS,
                         GatewayCommandConstants.COMMAND_COMPRESS,
                         GatewayCommandConstants.COMMAND_ROLLBACK,
@@ -278,6 +456,8 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_PAIRING,
                         GatewayCommandConstants.COMMAND_APPROVE,
                         GatewayCommandConstants.COMMAND_DENY,
+                        GatewayCommandConstants.COMMAND_ALWAYS,
+                        GatewayCommandConstants.COMMAND_CANCEL,
                         GatewayCommandConstants.COMMAND_AGENT,
                         GatewayCommandConstants.COMMAND_HELP)
                 .contains(commandName);
@@ -296,6 +476,18 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(
                     agentProfileService.handleCommand(
                             args, sessionRepository, message.sourceKey()));
+        }
+
+        if (GatewayCommandConstants.COMMAND_GOAL.equals(command)) {
+            return handleGoal(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_RECAP.equals(command)) {
+            return handleRecap(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_TRAJECTORY.equals(command)) {
+            return handleTrajectory(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_NEW.equals(command)
@@ -368,7 +560,7 @@ public class DefaultCommandService implements CommandService {
                 return GatewayReply.error("未找到对应会话或分支：" + args);
             }
             sessionRepository.bindSource(message.sourceKey(), session.getSessionId());
-            GatewayReply reply = GatewayReply.ok("已恢复会话：" + session.getSessionId());
+            GatewayReply reply = GatewayReply.ok(formatResumeReply(session));
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -400,6 +592,14 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_USAGE.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
             GatewayReply reply = GatewayReply.ok(formatUsage(session));
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+
+        if (GatewayCommandConstants.COMMAND_BUSY.equals(command)) {
+            SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply reply = handleBusy(args, message.sourceKey());
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -500,6 +700,10 @@ public class DefaultCommandService implements CommandService {
             return handleSkills(message, args);
         }
 
+        if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(command)) {
+            return handleReloadMcp(message, args);
+        }
+
         if (GatewayCommandConstants.COMMAND_SETHOME.equals(command)) {
             return gatewayAuthorizationService.setHome(message);
         }
@@ -509,11 +713,25 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_APPROVE.equals(command)) {
+            if (hasPendingSlashConfirm(message)) {
+                return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_ONCE);
+            }
             return handleDangerousApprove(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_DENY.equals(command)) {
+            if (hasPendingSlashConfirm(message)) {
+                return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
+            }
             return handleDangerousDeny(message);
+        }
+
+        if (GatewayCommandConstants.COMMAND_ALWAYS.equals(command)) {
+            return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_ALWAYS);
+        }
+
+        if (GatewayCommandConstants.COMMAND_CANCEL.equals(command)) {
+            return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
         }
 
         if (GatewayCommandConstants.COMMAND_CRON.equals(command)) {
@@ -531,11 +749,26 @@ public class DefaultCommandService implements CommandService {
             SessionRecord session = requireSession(message.sourceKey());
             String systemPrompt = contextService.buildSystemPrompt(message.sourceKey());
             session.setSystemPromptSnapshot(systemPrompt);
-            session = contextCompressionService.compressNow(session, systemPrompt, args);
+            CompressionOutcome outcome =
+                    contextCompressionService.compressNowWithOutcome(session, systemPrompt, args);
+            session = outcome.getSession();
             sessionRepository.save(session);
-            GatewayReply reply =
-                    GatewayReply.ok(
-                            StrUtil.isBlank(args) ? "已完成当前会话的上下文压缩。" : "已按关注主题完成当前会话的上下文压缩。");
+            GatewayReply reply;
+            if (outcome.isFailed()) {
+                reply =
+                        GatewayReply.error(
+                                "上下文压缩失败："
+                                        + StrUtil.blankToDefault(
+                                                outcome.getErrorMessage(), "摘要生成异常"));
+            } else if (outcome.isCompressed()) {
+                reply =
+                        GatewayReply.ok(
+                                StrUtil.isBlank(args)
+                                        ? "已完成当前会话的上下文压缩。"
+                                        : "已按关注主题完成当前会话的上下文压缩。");
+            } else {
+                reply = GatewayReply.ok("当前会话没有足够的可压缩历史，已跳过上下文压缩。");
+            }
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -621,7 +854,30 @@ public class DefaultCommandService implements CommandService {
         GatewayReply reply = handle(message, commandLine);
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         emitDirectReply(reply, eventSink, session == null ? null : session.getSessionId());
+        String goalKickoff = textMetadata(reply, "goal_kickoff");
+        if (StrUtil.isNotBlank(goalKickoff)) {
+            GatewayMessage kickoffMessage =
+                    new GatewayMessage(
+                            message.getPlatform(),
+                            message.getChatId(),
+                            message.getUserId(),
+                            goalKickoff);
+            kickoffMessage.setThreadId(message.getThreadId());
+            kickoffMessage.setChatType(message.getChatType());
+            kickoffMessage.setChatName(message.getChatName());
+            kickoffMessage.setUserName(message.getUserName());
+            kickoffMessage.setSourceKeyOverride(message.sourceKey());
+            return conversationOrchestrator.handleIncoming(kickoffMessage, eventSink);
+        }
         return reply;
+    }
+
+    private String textMetadata(GatewayReply reply, String key) {
+        if (reply == null || reply.getRuntimeMetadata() == null) {
+            return "";
+        }
+        Object value = reply.getRuntimeMetadata().get(key);
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private GatewayReply handleStop(GatewayMessage message) throws Exception {
@@ -646,6 +902,163 @@ public class DefaultCommandService implements CommandService {
             reply.setBranchName(session.getBranchName());
         }
         return reply;
+    }
+
+    private GatewayReply handleGoal(GatewayMessage message, String args) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        String raw = StrUtil.nullToEmpty(args).trim();
+        if (StrUtil.isBlank(raw) || "status".equalsIgnoreCase(raw)) {
+            GatewayReply reply = GatewayReply.ok(goalService.statusLine(session));
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        if ("pause".equalsIgnoreCase(raw)) {
+            GoalState state = goalService.pause(session, "user-paused");
+            GatewayReply reply =
+                    GatewayReply.ok(
+                            state == null
+                                    ? "No goal set."
+                                    : "⏸ Goal paused: " + state.getGoal());
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        if ("resume".equalsIgnoreCase(raw)) {
+            GoalState state = goalService.resume(session, true);
+            GatewayReply reply =
+                    GatewayReply.ok(
+                            state == null
+                                    ? "No goal to resume."
+                                    : "▶ Goal resumed: "
+                                            + state.getGoal()
+                                            + "\n"
+                                            + goalService.nextContinuationPrompt(state));
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        if ("clear".equalsIgnoreCase(raw)) {
+            boolean had = goalService.clear(session);
+            GatewayReply reply = GatewayReply.ok(had ? "✓ Goal cleared." : "No active goal.");
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        int maxTurns = parseGoalMaxTurns(raw, GoalState.DEFAULT_MAX_TURNS);
+        String goal = stripGoalOptions(raw);
+        GoalState state = goalService.set(session, goal, maxTurns);
+        GatewayReply reply =
+                GatewayReply.ok(
+                        "⊙ Goal set ("
+                                + state.getMaxTurns()
+                                + "-turn budget): "
+                                + state.getGoal()
+                                + "\nI'll keep working until the goal is done, you pause/clear it, or the budget is exhausted.\n"
+                                + "Controls: /goal status · /goal pause · /goal resume · /goal clear");
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("goal_kickoff", state.getGoal());
+        return reply;
+    }
+
+    private GatewayReply handleRecap(GatewayMessage message, String args) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        GatewayReply reply =
+                GatewayReply.ok(sessionArtifactService.recapText(session, parsePositiveInt(args, 10)));
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        return reply;
+    }
+
+    private String formatResumeReply(SessionRecord session) throws Exception {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("已恢复会话：").append(session.getSessionId());
+        if (StrUtil.isNotBlank(session.getTitle())) {
+            buffer.append(" \"").append(session.getTitle()).append("\"");
+        }
+        buffer.append(" (messages=")
+                .append(MessageSupport.countMessages(session.getNdjson()))
+                .append(")");
+
+        String resumeDisplay =
+                appConfig == null || appConfig.getDisplay() == null
+                        ? "full"
+                        : StrUtil.blankToDefault(appConfig.getDisplay().getResumeDisplay(), "full");
+        if ("minimal".equalsIgnoreCase(resumeDisplay)) {
+            return buffer.toString();
+        }
+        String recap = sessionArtifactService.recapText(session, 10);
+        if (StrUtil.isNotBlank(recap)) {
+            buffer.append("\n\n历史摘要：\n").append(recap);
+        }
+        return buffer.toString();
+    }
+
+    private GatewayReply handleTrajectory(GatewayMessage message, String args) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        String raw = StrUtil.nullToEmpty(args).trim();
+        String action = firstToken(raw);
+        if ("save".equalsIgnoreCase(action)) {
+            String tail = raw.length() <= action.length() ? "" : raw.substring(action.length()).trim();
+            boolean completed = !containsTrajectoryFailedFlag(tail);
+            String userQuery = stripTrajectorySaveFlags(tail);
+            Map<String, Object> saved =
+                    sessionArtifactService.saveTrajectory(
+                            session, StrUtil.blankToDefault(userQuery, null), completed);
+            GatewayReply reply =
+                    GatewayReply.ok(
+                            "已保存 trajectory："
+                                    + saved.get("path")
+                                    + "\nformat=jsonl, completed="
+                                    + completed);
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        String userQuery = StrUtil.blankToDefault(raw, null);
+        GatewayReply reply =
+                GatewayReply.ok(sessionArtifactService.trajectoryJson(session, userQuery, true));
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        return reply;
+    }
+
+    private boolean containsTrajectoryFailedFlag(String raw) {
+        String[] parts = StrUtil.nullToEmpty(raw).trim().split("\\s+");
+        for (String part : parts) {
+            if ("--failed".equalsIgnoreCase(part) || "--incomplete".equalsIgnoreCase(part)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String stripTrajectorySaveFlags(String raw) {
+        String[] parts = StrUtil.nullToEmpty(raw).trim().split("\\s+");
+        List<String> kept = new ArrayList<String>();
+        for (String part : parts) {
+            if (StrUtil.isBlank(part)
+                    || "--failed".equalsIgnoreCase(part)
+                    || "--incomplete".equalsIgnoreCase(part)
+                    || "--completed".equalsIgnoreCase(part)) {
+                continue;
+            }
+            kept.add(part);
+        }
+        return String.join(" ", kept).trim();
+    }
+
+    private int parsePositiveInt(String raw, int defaultValue) {
+        String text = StrUtil.nullToEmpty(raw).trim();
+        if (StrUtil.isBlank(text)) {
+            return defaultValue;
+        }
+        try {
+            return Math.max(1, Integer.parseInt(text.split("\\s+", 2)[0]));
+        } catch (Exception ignored) {
+            return defaultValue;
+        }
     }
 
     private void recordSlashCommand(GatewayMessage message, String command, String args) {
@@ -687,8 +1100,120 @@ public class DefaultCommandService implements CommandService {
                 || GatewayCommandConstants.COMMAND_BRANCH.equals(command)
                 || GatewayCommandConstants.COMMAND_RESUME.equals(command)
                 || GatewayCommandConstants.COMMAND_STOP.equals(command)
+                || GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(command)
                 || GatewayCommandConstants.COMMAND_COMPRESS.equals(command)
                 || GatewayCommandConstants.COMMAND_ROLLBACK.equals(command);
+    }
+
+    private GatewayReply handleReloadMcp(GatewayMessage message, String args) throws Exception {
+        String action = firstToken(args);
+        if (StrUtil.isBlank(action)) {
+            if (!appConfig.getApprovals().isMcpReloadConfirm()
+                    || slashConfirmService.isAlwaysConfirmed(GatewayCommandConstants.COMMAND_RELOAD_MCP)) {
+                return executeReloadMcp(false);
+            }
+            SlashConfirmService.PendingConfirm confirm =
+                    slashConfirmService.register(
+                            message.sourceKey(),
+                            GatewayCommandConstants.COMMAND_RELOAD_MCP,
+                            reloadMcpConfirmPrompt());
+            return GatewayReply.ok(formatSlashConfirmPrompt(confirm));
+        }
+        if (!"now".equalsIgnoreCase(action) && !"always".equalsIgnoreCase(action)) {
+            return GatewayReply.error(
+                    "用法：" + GatewayCommandConstants.SLASH_RELOAD_MCP + " [now|always]");
+        }
+        if ("always".equalsIgnoreCase(action)) {
+            slashConfirmService.addAlwaysConfirmed(GatewayCommandConstants.COMMAND_RELOAD_MCP);
+            persistMcpReloadConfirm(false);
+        }
+        return executeReloadMcp("always".equalsIgnoreCase(action));
+    }
+
+    private GatewayReply handleSlashConfirmChoice(
+            GatewayMessage message, String args, String defaultChoice) throws Exception {
+        SlashConfirmService.PendingConfirm pending = slashConfirmService.getPending(message.sourceKey());
+        if (pending == null) {
+            return GatewayReply.error("当前没有待确认的 slash 命令。");
+        }
+        String choice = normalizeSlashConfirmChoice(StrUtil.blankToDefault(firstToken(args), defaultChoice));
+        if (choice == null) {
+            return GatewayReply.error("用法：/approve、/approve always、/always 或 /cancel");
+        }
+        pending = slashConfirmService.resolve(message.sourceKey());
+        if (pending == null) {
+            return GatewayReply.error("待确认的 slash 命令已过期，请重新发起。");
+        }
+        if (SlashConfirmService.CHOICE_CANCEL.equals(choice)) {
+            return GatewayReply.ok("已取消 /" + pending.getCommand() + "。");
+        }
+        if (SlashConfirmService.CHOICE_ALWAYS.equals(choice)) {
+            slashConfirmService.addAlwaysConfirmed(pending.getCommand());
+            if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(pending.getCommand())) {
+                persistMcpReloadConfirm(false);
+            }
+        }
+        if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(pending.getCommand())) {
+            return executeReloadMcp(SlashConfirmService.CHOICE_ALWAYS.equals(choice));
+        }
+        return GatewayReply.error("Unsupported slash confirm command: /" + pending.getCommand());
+    }
+
+    private boolean hasPendingSlashConfirm(GatewayMessage message) {
+        return message != null && slashConfirmService.getPending(message.sourceKey()) != null;
+    }
+
+    private String normalizeSlashConfirmChoice(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim().toLowerCase();
+        if (StrUtil.isBlank(value) || "once".equals(value) || "now".equals(value)) {
+            return SlashConfirmService.CHOICE_ONCE;
+        }
+        if ("always".equals(value) || "永久".equals(value)) {
+            return SlashConfirmService.CHOICE_ALWAYS;
+        }
+        if ("cancel".equals(value) || "deny".equals(value) || "no".equals(value)) {
+            return SlashConfirmService.CHOICE_CANCEL;
+        }
+        return null;
+    }
+
+    private String reloadMcpConfirmPrompt() {
+        return "⚠️ /reload-mcp 会重新加载 MCP 工具并让下一轮模型请求重新发送完整工具 schema。";
+    }
+
+    private String formatSlashConfirmPrompt(SlashConfirmService.PendingConfirm confirm) {
+        return confirm.getPrompt()
+                + "\n确认编号："
+                + confirm.getConfirmId()
+                + "\n回复 /approve 执行一次，/approve always 或 /always 执行并永久记住，/deny 或 /cancel 取消。";
+    }
+
+    private GatewayReply executeReloadMcp(boolean savedAlways) throws Exception {
+        if (dashboardMcpService == null) {
+            return GatewayReply.error("MCP registry is not available in this runtime.");
+        }
+        DashboardMcpService.McpReloadResult result = dashboardMcpService.reloadAll();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("MCP reload completed: ");
+        buffer.append(result.isEnabled() ? "enabled" : "disabled");
+        buffer.append(", tools=").append(result.getToolCount());
+        buffer.append(", changed_servers=").append(result.getChangedServers());
+        buffer.append(", unchanged_servers=").append(result.getUnchangedServers());
+        if (savedAlways) {
+            buffer.append("\n已永久确认 /reload-mcp，后续将直接执行。");
+        }
+        return GatewayReply.ok(buffer.toString());
+    }
+
+    private void persistMcpReloadConfirm(boolean confirmRequired) {
+        appConfig.getApprovals().setMcpReloadConfirm(confirmRequired);
+        if (runtimeSettingsService != null) {
+            try {
+                runtimeSettingsService.setConfigValue(
+                        "approvals.mcpReloadConfirm", String.valueOf(confirmRequired));
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     /** 处理工具开关命令。 */
@@ -859,6 +1384,7 @@ public class DefaultCommandService implements CommandService {
 
     /** 处理定时任务命令。 */
     private GatewayReply handleCron(GatewayMessage message, String args) throws Exception {
+        boolean overview = StrUtil.isBlank(args);
         String[] parts = args.split("\\s+", 2);
         String action =
                 parts.length == 0 || StrUtil.isBlank(parts[0])
@@ -876,42 +1402,38 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
-            List<CronJobRecord> jobs = cronJobService.listBySource(message.sourceKey(), true);
-            StringBuilder buffer = new StringBuilder();
-            for (CronJobRecord job : jobs) {
-                if (buffer.length() > 0) {
-                    buffer.append('\n');
-                }
-                buffer.append(job.getJobId())
-                        .append(" ")
-                        .append(job.getName())
-                        .append(" ")
-                        .append(job.getStatus())
-                        .append(" ")
-                        .append(job.getCronExpr());
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            List<CronJobRecord> jobs = cronJobService.listBySource(message.sourceKey(), options.all);
+            String listText = formatCronList(jobs);
+            return GatewayReply.ok(overview ? cronOverview(listText) : listText);
+        }
+
+        if ("history".equals(action)) {
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            if (options.positionals.isEmpty()) {
+                return GatewayReply.error(
+                        "用法：" + GatewayCommandConstants.SLASH_CRON + " history <job-id> [--limit 20]");
             }
-            return GatewayReply.ok(buffer.length() == 0 ? "当前没有定时任务。" : buffer.toString());
+            int limit = options.limit == null ? 20 : options.limit.intValue();
+            List<CronJobRunRecord> runs = cronJobService.history(options.positionals.get(0), limit);
+            return GatewayReply.ok(formatCronHistory(options.positionals.get(0), runs));
         }
 
         if (GatewayCommandConstants.ACTION_CREATE.equalsIgnoreCase(action)) {
-            String[] fields = tail.split("\\|", -1);
-            if (fields.length < 3) {
+            Map<String, Object> body = parseCronCreate(tail);
+            if (body == null) {
                 return GatewayReply.error(
                         "用法："
                                 + GatewayCommandConstants.SLASH_CRON
-                                + " add <name>|<schedule>|<prompt>|[--skill a,b]|[--deliver local]|[--repeat N]|[--script path]|[--no-agent]");
+                                + " add <name>|<schedule>|<prompt>|[--skill a,b] 或 "
+                                + GatewayCommandConstants.SLASH_CRON
+                                + " add \"every 2h\" \"Check server\" [--skill blogwatcher]");
             }
 
-            String[] sourceParts = SourceKeySupport.split(message.sourceKey());
-            Map<String, Object> body = parseCronOptions(fields, 3);
-            body.put("name", fields[0].trim());
-            body.put("schedule", fields[1].trim());
-            body.put("prompt", fields[2].trim());
             if (!body.containsKey("deliver")) {
-                body.put("deliver", sourceParts[0]);
+                body.put("deliver", "origin");
             }
-            body.put("deliver_chat_id", sourceParts[1]);
-            body.put("deliver_thread_id", message.getThreadId());
+            body.put("origin", cronOrigin(message));
             CronJobRecord job = cronJobService.create(message.sourceKey(), body);
             return GatewayReply.ok("已创建定时任务：" + job.getJobId());
         }
@@ -932,24 +1454,14 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.ACTION_UPDATE.equalsIgnoreCase(action)) {
-            String[] fields = tail.split("\\|", -1);
-            if (fields.length < 2) {
+            CronEditRequest edit = parseCronEdit(tail);
+            if (edit == null) {
                 return GatewayReply.error(
                         "用法："
                                 + GatewayCommandConstants.SLASH_CRON
-                                + " edit <job-id>|[name]|[schedule]|[prompt]|[--skill a,b]|[--deliver local]");
+                                + " edit <job-id> [--schedule ...] [--prompt ...] [--skill ...|--add-skill ...|--remove-skill ...|--clear-skills]");
             }
-            Map<String, Object> body = parseCronOptions(fields, 4);
-            if (fields.length > 1 && StrUtil.isNotBlank(fields[1])) {
-                body.put("name", fields[1].trim());
-            }
-            if (fields.length > 2 && StrUtil.isNotBlank(fields[2])) {
-                body.put("schedule", fields[2].trim());
-            }
-            if (fields.length > 3 && StrUtil.isNotBlank(fields[3])) {
-                body.put("prompt", fields[3].trim());
-            }
-            CronJobRecord job = cronJobService.update(fields[0].trim(), body);
+            CronJobRecord job = cronJobService.update(edit.jobId, edit.body);
             return GatewayReply.ok("已更新定时任务：" + job.getJobId());
         }
 
@@ -961,7 +1473,229 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list|add|edit|pause|resume|remove|run]");
+                        + " [list [--all]|add|edit|pause|resume|remove|run|history]");
+    }
+
+    private String cronOverview(String listText) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("Cron 定时任务\n")
+                .append("命令：\n")
+                .append("/cron list - 查看启用中的定时任务\n")
+                .append("/cron list --all - 查看全部定时任务，包括已暂停任务\n")
+                .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
+                .append("/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
+                .append("/cron edit <job-id> --skill blogwatcher --skill maps - 替换绑定技能\n")
+                .append("/cron edit <job-id> --remove-skill blogwatcher - 移除绑定技能\n")
+                .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
+                .append("/cron pause <job-id> - 暂停定时任务\n")
+                .append("/cron resume <job-id> - 恢复定时任务\n")
+                .append("/cron run <job-id> - 立即触发定时任务\n")
+                .append("/cron history <job-id> [--limit 20] - 查看执行历史\n")
+                .append("/cron remove <job-id> - 删除定时任务\n")
+                .append('\n')
+                .append(listText);
+        return buffer.toString();
+    }
+
+    private String formatCronHistory(String jobId, List<CronJobRunRecord> runs) {
+        if (runs == null || runs.isEmpty()) {
+            return "定时任务 " + jobId + " 暂无执行历史。";
+        }
+        StringBuilder buffer = new StringBuilder("Cron 执行历史：").append(jobId);
+        for (CronJobRunRecord run : runs) {
+            buffer.append('\n')
+                    .append("Run: ")
+                    .append(run.getRunId())
+                    .append('\n')
+                    .append("Status: ")
+                    .append(StrUtil.blankToDefault(run.getStatus(), "?"))
+                    .append(" trigger=")
+                    .append(StrUtil.blankToDefault(run.getTriggerType(), "scheduled"))
+                    .append(" attempt=")
+                    .append(run.getAttempt())
+                    .append('\n')
+                    .append("Started: ")
+                    .append(run.getStartedAt())
+                    .append(" Finished: ")
+                    .append(run.getFinishedAt());
+            if (StrUtil.isNotBlank(run.getError())) {
+                buffer.append('\n').append("Error: ").append(run.getError());
+            }
+            if (StrUtil.isNotBlank(run.getDeliveryError())) {
+                buffer.append('\n').append("Delivery error: ").append(run.getDeliveryError());
+            }
+            if (StrUtil.isNotBlank(run.getOutput())) {
+                buffer.append('\n').append("Output: ").append(StrUtil.maxLength(run.getOutput(), 300));
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String formatCronList(List<CronJobRecord> jobs) {
+        if (jobs == null || jobs.isEmpty()) {
+            return "当前没有定时任务。";
+        }
+        StringBuilder buffer = new StringBuilder("Scheduled Jobs:");
+        for (CronJobRecord job : jobs) {
+            Map<String, Object> view = cronJobService.toView(job);
+            buffer.append('\n')
+                    .append("ID: ")
+                    .append(job.getJobId())
+                    .append('\n')
+                    .append("Name: ")
+                    .append(StrUtil.blankToDefault(job.getName(), ""))
+                    .append('\n')
+                    .append("State: ")
+                    .append(StrUtil.blankToDefault(String.valueOf(view.get("state")), "scheduled"))
+                    .append('\n')
+                    .append("Schedule: ")
+                    .append(job.getCronExpr())
+                    .append('\n')
+                    .append("Next run: ")
+                    .append(job.getNextRunAt() <= 0 ? "N/A" : String.valueOf(job.getNextRunAt()));
+            Object skills = view.get("skills");
+            if (skills instanceof Iterable) {
+                String text = joinIterable((Iterable<?>) skills, ", ");
+                if (StrUtil.isNotBlank(text)) {
+                    buffer.append('\n').append("Skills: ").append(text);
+                }
+            }
+            buffer.append('\n')
+                    .append("Prompt: ")
+                    .append(StrUtil.blankToDefault(String.valueOf(view.get("prompt_preview")), ""));
+            if (job.getLastRunAt() > 0) {
+                buffer.append('\n')
+                        .append("Last run: ")
+                        .append(job.getLastRunAt())
+                        .append(" (")
+                        .append(StrUtil.blankToDefault(job.getLastStatus(), "?"))
+                        .append(")");
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String joinIterable(Iterable<?> values, String delimiter) {
+        StringBuilder buffer = new StringBuilder();
+        for (Object value : values) {
+            String text = value == null ? "" : String.valueOf(value).trim();
+            if (StrUtil.isBlank(text)) {
+                continue;
+            }
+            if (buffer.length() > 0) {
+                buffer.append(delimiter);
+            }
+            buffer.append(text);
+        }
+        return buffer.toString();
+    }
+
+    private Map<String, Object> parseCronCreate(String tail) {
+        if (StrUtil.isBlank(tail)) {
+            return null;
+        }
+        if (tail.contains("|")) {
+            String[] fields = tail.split("\\|", -1);
+            if (fields.length < 3) {
+                return null;
+            }
+            Map<String, Object> body = parseCronOptions(fields, 3);
+            body.put("name", fields[0].trim());
+            body.put("schedule", fields[1].trim());
+            body.put("prompt", fields[2].trim());
+            return body;
+        }
+
+        CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+        if (options.positionals.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        String schedule = StrUtil.blankToDefault(options.schedule, options.positionals.get(0));
+        String prompt = options.prompt;
+        if (StrUtil.isBlank(prompt) && options.positionals.size() > 1) {
+            prompt = join(options.positionals.subList(1, options.positionals.size()), " ");
+        }
+        putIfNotBlank(body, "name", options.name);
+        putIfNotBlank(body, "schedule", schedule);
+        putIfNotBlank(body, "prompt", prompt);
+        appendCronFlagOptions(body, options);
+        return body;
+    }
+
+    private Map<String, Object> cronOrigin(GatewayMessage message) {
+        String[] sourceParts = SourceKeySupport.split(message.sourceKey());
+        Map<String, Object> origin = new LinkedHashMap<String, Object>();
+        origin.put("platform", sourceParts[0]);
+        origin.put("chat_id", sourceParts[1]);
+        origin.put("user_id", sourceParts[2]);
+        if (StrUtil.isNotBlank(message.getThreadId())) {
+            origin.put("thread_id", message.getThreadId());
+        }
+        return origin;
+    }
+
+    @SuppressWarnings("unchecked")
+    private CronEditRequest parseCronEdit(String tail) throws Exception {
+        if (StrUtil.isBlank(tail)) {
+            return null;
+        }
+        if (tail.contains("|")) {
+            String[] fields = tail.split("\\|", -1);
+            if (fields.length < 2 || StrUtil.isBlank(fields[0])) {
+                return null;
+            }
+            Map<String, Object> body = parseCronOptions(fields, 4);
+            if (fields.length > 1 && StrUtil.isNotBlank(fields[1])) {
+                body.put("name", fields[1].trim());
+            }
+            if (fields.length > 2 && StrUtil.isNotBlank(fields[2])) {
+                body.put("schedule", fields[2].trim());
+            }
+            if (fields.length > 3 && StrUtil.isNotBlank(fields[3])) {
+                body.put("prompt", fields[3].trim());
+            }
+            return new CronEditRequest(fields[0].trim(), body);
+        }
+
+        CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+        if (options.positionals.isEmpty()) {
+            return null;
+        }
+        String jobId = options.positionals.get(0);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        putIfNotBlank(body, "name", options.name);
+        putIfNotBlank(body, "schedule", options.schedule);
+        putIfNotBlank(body, "prompt", options.prompt);
+        appendCronFlagOptions(body, options);
+
+        List<String> replacementSkills = normalizeList(options.skills);
+        List<String> addSkills = normalizeList(options.addSkills);
+        Set<String> removeSkills = new LinkedHashSet<String>(normalizeList(options.removeSkills));
+        if (options.clearSkills) {
+            body.put("skills", new ArrayList<String>());
+        } else if (!replacementSkills.isEmpty()) {
+            body.put("skills", replacementSkills);
+        } else if (!addSkills.isEmpty() || !removeSkills.isEmpty()) {
+            CronJobRecord existing = cronJobService.require(jobId);
+            List<String> finalSkills = new ArrayList<String>();
+            Object existingSkills = cronJobService.toView(existing).get("skills");
+            if (existingSkills instanceof Iterable) {
+                for (Object item : (Iterable<Object>) existingSkills) {
+                    String skill = item == null ? "" : String.valueOf(item).trim();
+                    if (StrUtil.isNotBlank(skill) && !removeSkills.contains(skill)) {
+                        finalSkills.add(skill);
+                    }
+                }
+            }
+            for (String skill : addSkills) {
+                if (!finalSkills.contains(skill)) {
+                    finalSkills.add(skill);
+                }
+            }
+            body.put("skills", finalSkills);
+        }
+        return new CronEditRequest(jobId, body);
     }
 
     private Map<String, Object> parseCronOptions(String[] fields, int start) {
@@ -973,6 +1707,10 @@ public class DefaultCommandService implements CommandService {
             }
             if (field.startsWith("--skill ")) {
                 body.put("skills", field.substring("--skill ".length()).trim());
+            } else if (field.startsWith("--add-skill ")) {
+                body.put("skills", field.substring("--add-skill ".length()).trim());
+            } else if ("--clear-skills".equals(field)) {
+                body.put("skills", new ArrayList<String>());
             } else if (field.startsWith("--skills ")) {
                 body.put("skills", field.substring("--skills ".length()).trim());
             } else if (field.startsWith("--deliver ")) {
@@ -994,6 +1732,151 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return body;
+    }
+
+    private void appendCronFlagOptions(Map<String, Object> body, CronFlagOptions options) {
+        putIfNotBlank(body, "deliver", options.deliver);
+        if (options.repeat != null) {
+            body.put("repeat", options.repeat);
+        }
+        putIfNotBlank(body, "script", options.script);
+        putIfNotBlank(body, "workdir", options.workdir);
+        putIfNotBlank(body, "context_from", options.contextFrom);
+        putIfNotBlank(body, "enabled_toolsets", options.enabledToolsets);
+        if (options.noAgent) {
+            body.put("no_agent", Boolean.TRUE);
+        }
+        if (options.raw) {
+            body.put("wrap_response", Boolean.FALSE);
+        }
+        if (!options.skills.isEmpty()) {
+            body.put("skills", normalizeList(options.skills));
+        }
+    }
+
+    private CronFlagOptions parseCronFlags(List<String> tokens) {
+        CronFlagOptions options = new CronFlagOptions();
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            if ("--name".equals(token) && i + 1 < tokens.size()) {
+                options.name = tokens.get(++i);
+            } else if ("--deliver".equals(token) && i + 1 < tokens.size()) {
+                options.deliver = tokens.get(++i);
+            } else if ("--repeat".equals(token) && i + 1 < tokens.size()) {
+                options.repeat = Integer.valueOf(tokens.get(++i));
+            } else if ("--limit".equals(token) && i + 1 < tokens.size()) {
+                options.limit = Integer.valueOf(tokens.get(++i));
+            } else if ("--skill".equals(token) && i + 1 < tokens.size()) {
+                options.skills.add(tokens.get(++i));
+            } else if ("--skills".equals(token) && i + 1 < tokens.size()) {
+                options.skills.add(tokens.get(++i));
+            } else if ("--add-skill".equals(token) && i + 1 < tokens.size()) {
+                options.addSkills.add(tokens.get(++i));
+            } else if ("--remove-skill".equals(token) && i + 1 < tokens.size()) {
+                options.removeSkills.add(tokens.get(++i));
+            } else if ("--clear-skills".equals(token)) {
+                options.clearSkills = true;
+            } else if ("--all".equals(token)) {
+                options.all = true;
+            } else if ("--prompt".equals(token) && i + 1 < tokens.size()) {
+                options.prompt = tokens.get(++i);
+            } else if ("--schedule".equals(token) && i + 1 < tokens.size()) {
+                options.schedule = tokens.get(++i);
+            } else if ("--script".equals(token) && i + 1 < tokens.size()) {
+                options.script = tokens.get(++i);
+            } else if ("--workdir".equals(token) && i + 1 < tokens.size()) {
+                options.workdir = tokens.get(++i);
+            } else if ("--context-from".equals(token) && i + 1 < tokens.size()) {
+                options.contextFrom = tokens.get(++i);
+            } else if ("--toolsets".equals(token) && i + 1 < tokens.size()) {
+                options.enabledToolsets = tokens.get(++i);
+            } else if ("--no-agent".equals(token)) {
+                options.noAgent = true;
+            } else if ("--raw".equals(token) || "--no-wrap".equals(token)) {
+                options.raw = true;
+            } else {
+                options.positionals.add(token);
+            }
+        }
+        return options;
+    }
+
+    private List<String> splitCommandLine(String raw) {
+        List<String> tokens = new ArrayList<String>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        char quote = 0;
+        boolean escaping = false;
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (escaping) {
+                current.append(ch);
+                escaping = false;
+                continue;
+            }
+            if (ch == '\\') {
+                escaping = true;
+                continue;
+            }
+            if (quoted) {
+                if (ch == quote) {
+                    quoted = false;
+                } else {
+                    current.append(ch);
+                }
+                continue;
+            }
+            if (ch == '"' || ch == '\'') {
+                quoted = true;
+                quote = ch;
+                continue;
+            }
+            if (Character.isWhitespace(ch)) {
+                if (current.length() > 0) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+            } else {
+                current.append(ch);
+            }
+        }
+        if (escaping) {
+            current.append('\\');
+        }
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+        return tokens;
+    }
+
+    private List<String> normalizeList(List<String> values) {
+        List<String> result = new ArrayList<String>();
+        for (String value : values) {
+            for (String part : StrUtil.nullToEmpty(value).split(",")) {
+                String text = part.trim();
+                if (StrUtil.isNotBlank(text) && !result.contains(text)) {
+                    result.add(text);
+                }
+            }
+        }
+        return result;
+    }
+
+    private String join(List<String> values, String delimiter) {
+        StringBuilder buffer = new StringBuilder();
+        for (String value : values) {
+            if (buffer.length() > 0) {
+                buffer.append(delimiter);
+            }
+            buffer.append(value);
+        }
+        return buffer.toString();
+    }
+
+    private void putIfNotBlank(Map<String, Object> body, String key, String value) {
+        if (StrUtil.isNotBlank(value)) {
+            body.put(key, value.trim());
+        }
     }
 
     /** 处理 pairing 相关命令。 */
@@ -1153,6 +2036,66 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok("已关闭当前来源键的 reasoning 展示。");
         }
         return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_REASONING + " [show|hide]");
+    }
+
+    private GatewayReply handleBusy(String args, String sourceKey) {
+        String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        if (StrUtil.isBlank(normalized) || "status".equals(normalized)) {
+            return GatewayReply.ok(formatBusyStatus(sourceKey));
+        }
+        if ("queue".equals(normalized)
+                || "steer".equals(normalized)
+                || "interrupt".equals(normalized)
+                || "reject".equals(normalized)) {
+            persistBusyPolicy(normalized);
+            return GatewayReply.ok(
+                    "已切换运行中输入策略为 "
+                            + normalized
+                            + "。\n"
+                            + formatBusyPolicyDescription(normalized));
+        }
+        return GatewayReply.error(
+                "用法："
+                        + GatewayCommandConstants.SLASH_BUSY
+                        + " [status|queue|steer|interrupt|reject]");
+    }
+
+    private void persistBusyPolicy(String policy) {
+        if (runtimeSettingsService != null) {
+            runtimeSettingsService.setConfigValue("task.busyPolicy", policy);
+            return;
+        }
+        appConfig.getTask().setBusyPolicy(policy);
+    }
+
+    private String formatBusyStatus(String sourceKey) {
+        String policy = StrUtil.blankToDefault(appConfig.getTask().getBusyPolicy(), "queue");
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("busy_policy=").append(policy).append('\n');
+        buffer.append("source_running=")
+                .append(agentRunControlService != null && agentRunControlService.isRunning(sourceKey))
+                .append('\n');
+        buffer.append("any_running=")
+                .append(agentRunControlService != null && agentRunControlService.hasRunningRuns())
+                .append('\n');
+        buffer.append(formatBusyPolicyDescription(policy)).append('\n');
+        buffer.append("用法：")
+                .append(GatewayCommandConstants.SLASH_BUSY)
+                .append(" [status|queue|steer|interrupt|reject]");
+        return buffer.toString();
+    }
+
+    private String formatBusyPolicyDescription(String policy) {
+        if ("steer".equals(policy)) {
+            return "steer：运行中收到的新消息会作为 steer 指令注入当前 run。";
+        }
+        if ("interrupt".equals(policy)) {
+            return "interrupt：运行中收到的新消息会打断当前 run，并立即启动新 run。";
+        }
+        if ("reject".equals(policy)) {
+            return "reject：运行中收到的新消息会被拒绝，需等待或手动停止当前 run。";
+        }
+        return "queue：运行中收到的新消息会进入队列，当前 run 结束后自动执行。";
     }
 
     private DangerousCommandApprovalService.ApprovalScope parseApprovalScope(String args) {
@@ -1459,6 +2402,14 @@ public class DefaultCommandService implements CommandService {
                                 "恢复指定会话或分支"),
                         helpLine(GatewayCommandConstants.SLASH_STATUS, "查看当前会话状态"),
                         helpLine(GatewayCommandConstants.SLASH_USAGE, "查看当前会话运行信息"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_GOAL
+                                        + " [status|pause|resume|clear|<目标>]",
+                                "设置跨轮长目标并由 judge 驱动自动继续"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_BUSY
+                                        + " [status|queue|steer|interrupt|reject]",
+                                "查看或切换运行中输入策略"),
                         helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_PERSONALITY + " [name|none]",
@@ -1482,17 +2433,24 @@ public class DefaultCommandService implements CommandService {
                                         + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",
                                 "管理本地技能与 Skills Hub"),
                         helpLine(
+                                GatewayCommandConstants.SLASH_RELOAD_MCP
+                                        + " [now|always]；确认：/approve|/always|/cancel",
+                                "重新加载 MCP 工具并刷新工具变更基线"),
+                        helpLine(
                                 GatewayCommandConstants.SLASH_AGENT
                                         + " [name|list|create|show|model|tools|skills|memory]",
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list|create|pause|resume|delete|run]",
+                                        + " [list [--all]|add|edit|pause|resume|remove|run|history]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
                                         + " [list|create|show|move|assign|comment|boards]",
                                 "管理 Hermes 风格协作看板"),
+                        helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
+                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出 Hermes-style trajectory JSON"),
+                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),
                         helpLine(GatewayCommandConstants.SLASH_COMPRESS + " [focus]", "压缩当前会话上下文"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_ROLLBACK
@@ -1573,5 +2531,68 @@ public class DefaultCommandService implements CommandService {
                                         new java.util.Date(session.getLastUsageAt()))
                                 : "");
         return buffer.toString();
+    }
+
+    private int parseGoalMaxTurns(String raw, int defaultValue) {
+        String[] tokens = StrUtil.nullToEmpty(raw).split("\\s+");
+        for (int i = 0; i < tokens.length; i++) {
+            String token = tokens[i];
+            if (("--max-turns".equals(token) || "--max".equals(token)) && i + 1 < tokens.length) {
+                try {
+                    return Math.max(1, Integer.parseInt(tokens[i + 1]));
+                } catch (Exception ignored) {
+                    return defaultValue;
+                }
+            }
+        }
+        return defaultValue;
+    }
+
+    private String stripGoalOptions(String raw) {
+        String[] tokens = StrUtil.nullToEmpty(raw).trim().split("\\s+");
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < tokens.length; i++) {
+            String token = tokens[i];
+            if (("--max-turns".equals(token) || "--max".equals(token)) && i + 1 < tokens.length) {
+                i++;
+                continue;
+            }
+            if (buffer.length() > 0) {
+                buffer.append(' ');
+            }
+            buffer.append(token);
+        }
+        return buffer.toString().trim();
+    }
+
+    private static class CronFlagOptions {
+        private String name;
+        private String deliver;
+        private Integer repeat;
+        private Integer limit;
+        private final List<String> skills = new ArrayList<String>();
+        private final List<String> addSkills = new ArrayList<String>();
+        private final List<String> removeSkills = new ArrayList<String>();
+        private boolean clearSkills;
+        private boolean all;
+        private String prompt;
+        private String schedule;
+        private String script;
+        private String workdir;
+        private String contextFrom;
+        private String enabledToolsets;
+        private boolean noAgent;
+        private boolean raw;
+        private final List<String> positionals = new ArrayList<String>();
+    }
+
+    private static class CronEditRequest {
+        private final String jobId;
+        private final Map<String, Object> body;
+
+        private CronEditRequest(String jobId, Map<String, Object> body) {
+            this.jobId = jobId;
+            this.body = body;
+        }
     }
 }

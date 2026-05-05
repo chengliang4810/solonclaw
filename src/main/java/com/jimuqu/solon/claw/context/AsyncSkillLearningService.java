@@ -111,8 +111,9 @@ public class AsyncSkillLearningService implements SkillLearningService {
             learnSkill(session, message, true);
         }
 
-        session.setLastLearningAt(System.currentTimeMillis());
-        sessionRepository.save(session);
+        long learnedAt = System.currentTimeMillis();
+        session.setLastLearningAt(learnedAt);
+        sessionRepository.setLastLearningAt(session.getSessionId(), learnedAt);
     }
 
     private void learnSkill(

@@ -7,6 +7,7 @@ public interface RuntimePathConstants {
     String SKILLS_DIR_NAME = "skills";
     String CACHE_DIR_NAME = "cache";
     String DATA_DIR_NAME = "data";
+    String ARTIFACTS_DIR_NAME = "artifacts";
     String CONFIG_FILE_NAME = "config.yml";
     String CONFIG_EXAMPLE_FILE_NAME = "config.example.yml";
     String STATE_DB_FILE_NAME = "state.db";
@@ -14,6 +15,7 @@ public interface RuntimePathConstants {
     String CONTEXT_DIR = RUNTIME_HOME + "/" + CONTEXT_DIR_NAME;
     String SKILLS_DIR = RUNTIME_HOME + "/" + SKILLS_DIR_NAME;
     String CACHE_DIR = RUNTIME_HOME + "/" + CACHE_DIR_NAME;
+    String ARTIFACTS_DIR = RUNTIME_HOME + "/" + ARTIFACTS_DIR_NAME;
     String STATE_DB = RUNTIME_HOME + "/" + DATA_DIR_NAME + "/" + STATE_DB_FILE_NAME;
     String CONFIG_FILE = RUNTIME_HOME + "/" + CONFIG_FILE_NAME;
     String LOGS_DIR = RUNTIME_HOME + "/" + LOGS_DIR_NAME;

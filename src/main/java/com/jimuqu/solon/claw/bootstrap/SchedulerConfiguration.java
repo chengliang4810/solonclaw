@@ -13,6 +13,8 @@ import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
@@ -31,7 +33,9 @@ public class SchedulerConfiguration {
             CronJobService cronJobService,
             ConversationOrchestrator conversationOrchestrator,
             DeliveryService deliveryService,
-            GatewayPolicyRepository gatewayPolicyRepository) {
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AttachmentCacheService attachmentCacheService) {
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         appConfig,
@@ -39,7 +43,9 @@ public class SchedulerConfiguration {
                         cronJobService,
                         conversationOrchestrator,
                         deliveryService,
-                        gatewayPolicyRepository);
+                        gatewayPolicyRepository,
+                        dangerousCommandApprovalService,
+                        attachmentCacheService);
         scheduler.start();
         return scheduler;
     }

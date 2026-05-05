@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
@@ -37,6 +38,33 @@ public class DangerousCommandApprovalService {
     private static final String CONTEXT_PENDING_APPROVAL = "_dangerous_command_pending_";
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
 
+    private static final String SENSITIVE_WRITE_TARGET =
+            "(?:/etc/|/dev/sd|(?:~|\\$home|\\$\\{home\\})/\\.ssh(?:/|$)|"
+                    + "(?:~|\\$home|\\$\\{home\\})/\\.(?:bashrc|zshrc|profile|bash_profile|zprofile)\\b|"
+                    + "(?:~|\\$home|\\$\\{home\\})/\\.(?:netrc|pgpass|npmrc|pypirc)\\b|"
+                    + "(?:~/.jimuqu-agent/|~/.hermes/|(?:\\$home|\\$\\{home\\})/\\.jimuqu-agent/|(?:\\$home|\\$\\{home\\})/\\.hermes/|(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$hermes_home|\\$\\{hermes_home\\})/)\\.env\\b)";
+    private static final String PROJECT_SENSITIVE_WRITE_TARGET =
+            "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|config\\.ya?ml))";
+    private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
+    private static final Pattern SHELL_LEVEL_BACKGROUND =
+            pattern("\\b(?:nohup|disown|setsid)\\b");
+    private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
+    private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
+    private static final Pattern ANSI_CONTROL_SEQUENCE =
+            Pattern.compile(
+                    "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|[\\u0080-\\u009F]");
+    private static final List<Pattern> LONG_LIVED_FOREGROUND_PATTERNS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            pattern("\\b(?:npm|pnpm|yarn|bun)\\s+(?:run\\s+)?(?:dev|start|serve|watch)\\b"),
+                            pattern("\\bdocker\\s+compose\\s+up\\b"),
+                            pattern("\\bnext\\s+dev\\b"),
+                            pattern("\\bvite(?:\\s|$)"),
+                            pattern("\\bnodemon\\b"),
+                            pattern("\\buvicorn\\b"),
+                            pattern("\\bgunicorn\\b"),
+                            pattern("\\bpython(?:3)?\\s+-m\\s+http\\.server\\b")));
+
     private static final List<DangerRule> RULES =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -48,12 +76,22 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "recursive_delete",
                                     "recursive delete",
-                                    pattern("\\brm\\s+-[^\\s]*r"),
+                                    pattern("\\brm\\s+-(?!-)[^\\s]*r"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "recursive_delete_long_flag",
+                                    "recursive delete (long flag)",
+                                    pattern("\\brm\\s+--recursive\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "find_delete",
                                     "find -delete",
                                     pattern("\\bfind\\b.*-delete\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "find_exec_rm",
+                                    "find -exec rm",
+                                    pattern("\\bfind\\b.*-exec\\s+(/\\S*/)?rm\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "xargs_rm",
@@ -67,9 +105,20 @@ public class DangerousCommandApprovalService {
                                             "\\bchmod\\s+(-[^\\s]*\\s+)*(777|666|o\\+[rwx]*w|a\\+[rwx]*w)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "world_writable_long_flag",
+                                    "recursive world/other-writable (long flag)",
+                                    pattern(
+                                            "\\bchmod\\s+--recursive\\b.*(777|666|o\\+[rwx]*w|a\\+[rwx]*w)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "chown_root",
                                     "recursive chown to root",
                                     pattern("\\bchown\\s+(-[^\\s]*)?R\\s+root"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "chown_root_long_flag",
+                                    "recursive chown to root (long flag)",
+                                    pattern("\\bchown\\s+--recursive\\b.*root"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "mkfs",
@@ -85,6 +134,54 @@ public class DangerousCommandApprovalService {
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "write_block_device",
+                                    "write to block device",
+                                    pattern(">\\s*/dev/sd"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "shell_command_flag",
+                                    "shell command via -c/-lc flag",
+                                    pattern("\\b(bash|sh|zsh|ksh)\\s+-[^\\s]*c(\\s+|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "script_eval_flag",
+                                    "script execution via -e/-c flag",
+                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+-[ec]\\s+"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "remote_script_process_substitution",
+                                    "execute remote script via process substitution",
+                                    pattern("\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sensitive_tee",
+                                    "overwrite system file via tee",
+                                    pattern("\\btee\\b.*[\"']?" + SENSITIVE_WRITE_TARGET),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sensitive_redirection",
+                                    "overwrite system file via redirection",
+                                    pattern(">>?\\s*[\"']?" + SENSITIVE_WRITE_TARGET),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "project_sensitive_tee",
+                                    "overwrite project env/config via tee",
+                                    pattern(
+                                            "\\btee\\b.*[\"']?"
+                                                    + PROJECT_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"
+                                                    + COMMAND_TAIL),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "project_sensitive_redirection",
+                                    "overwrite project env/config via redirection",
+                                    pattern(
+                                            ">>?\\s*[\"']?"
+                                                    + PROJECT_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"
+                                                    + COMMAND_TAIL),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "stop_service",
@@ -107,6 +204,56 @@ public class DangerousCommandApprovalService {
                                     "fork bomb",
                                     pattern(
                                             ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "gateway_stop_restart",
+                                    "stop/restart gateway (kills running agents)",
+                                    pattern("\\b(?:hermes|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "app_update_restart",
+                                    "agent update (restarts gateway, kills running agents)",
+                                    pattern("\\b(?:hermes|jimuqu-agent|solon-claw)\\s+update\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "gateway_run_detached",
+                                    "start gateway outside managed lifecycle",
+                                    pattern(
+                                            "gateway\\s+run\\b.*(&\\s*$|&\\s*;|\\bdisown\\b|\\bsetsid\\b)|\\bnohup\\b.*gateway\\s+run\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kill_agent_process",
+                                    "kill agent/gateway process (self-termination)",
+                                    pattern("\\b(pkill|killall)\\b.*\\b(hermes|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kill_pgrep_expansion",
+                                    "kill process via pgrep expansion (self-termination)",
+                                    pattern("\\bkill\\b.*\\$\\(\\s*pgrep\\b|\\bkill\\b.*`\\s*pgrep\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "copy_into_etc",
+                                    "copy/move file into /etc/",
+                                    pattern("\\b(cp|mv|install)\\b.*\\s/etc/"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "copy_into_project_sensitive",
+                                    "overwrite project env/config file",
+                                    pattern(
+                                            "\\b(cp|mv|install)\\b.*\\s[\"']?"
+                                                    + PROJECT_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"
+                                                    + COMMAND_TAIL),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sed_inplace_etc",
+                                    "in-place edit of system config",
+                                    pattern("\\bsed\\s+-[^\\s]*i.*\\s/etc/|\\bsed\\s+--in-place\\b.*\\s/etc/"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "script_heredoc",
+                                    "script execution via heredoc",
+                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+<<"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "curl_pipe_shell",
@@ -136,6 +283,18 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "git_branch_force_delete",
+                                    "git branch force delete",
+                                    pattern("\\bgit\\s+branch\\s+-D\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "chmod_execute_script",
+                                    "chmod +x followed by immediate execution",
+                                    pattern("\\bchmod\\s+\\+x\\b.*[;&|]+\\s*\\./"),
+                                    ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sql_drop",
                                     "SQL DROP",
@@ -230,10 +389,113 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bfs\\.(rm|rmSync|unlink|unlinkSync)\\s*\\("),
                                     ToolNameConstants.EXECUTE_JS)));
 
+    private static final List<DangerRule> HARDLINE_RULES =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            new DangerRule(
+                                    "hardline_delete_root",
+                                    "recursive delete of root filesystem",
+                                    pattern("\\brm\\s+(-[^\\s]*\\s+)*(/|/\\*|/ \\*)(\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_delete_system_dir",
+                                    "recursive delete of system directory",
+                                    pattern(
+                                            "\\brm\\s+(-[^\\s]*\\s+)*(/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*)(\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_delete_home",
+                                    "recursive delete of home directory",
+                                    pattern("\\brm\\s+(-[^\\s]*\\s+)*(~|\\$HOME)(/?|/\\*)?(\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_mkfs",
+                                    "format filesystem (mkfs)",
+                                    pattern("\\bmkfs(\\.[a-z0-9]+)?\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_dd_device",
+                                    "dd to raw block device",
+                                    pattern(
+                                            "\\bdd\\b[^\\n]*\\bof=/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_redirect_device",
+                                    "redirect to raw block device",
+                                    pattern(">\\s*/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_shutdown",
+                                    "system shutdown/reboot",
+                                    pattern(
+                                            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:sudo\\s+(?:-[^\\s]+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*(shutdown(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_kill_all",
+                                    "kill all processes",
+                                    pattern("\\bkill\\s+(-[^\\s]+\\s+)*-1\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_fork_bomb",
+                                    "fork bomb",
+                                    pattern(
+                                            ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_format",
+                                    "format Windows volume",
+                                    pattern("\\bformat\\s+[a-z]:(\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_delete_profile",
+                                    "recursive delete of Windows user profile",
+                                    pattern(
+                                            "\\b(Remove-Item|rm|rmdir|rd)\\b[^\\n]*(?:-Recurse|/s)\\b[^\\n]*(?:\\$env:USERPROFILE|%USERPROFILE%|C:\\\\Users(?:\\\\\\*|\\\\[^\\s'\"`|;&<>]+)?)(?:\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_system_dir",
+                                    "recursive delete of Windows system directory",
+                                    pattern(
+                                            "\\b(Remove-Item|rm|rmdir|rd)\\b[^\\n]*(?:-Recurse|/s)\\b[^\\n]*(?:C:\\\\Windows|C:\\\\Program Files|C:\\\\Program Files \\(x86\\)|C:\\\\ProgramData)(?:\\\\\\*|\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_shutdown",
+                                    "Windows shutdown/reboot",
+                                    pattern(
+                                            "(?:^|[;&|\\n`])\\s*(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL)));
+
     private final GlobalSettingRepository globalSettingRepository;
+    private final AppConfig appConfig;
+    private final SecurityPolicyService securityPolicyService;
+    private final TirithSecurityService tirithSecurityService;
 
     public DangerousCommandApprovalService(GlobalSettingRepository globalSettingRepository) {
+        this(globalSettingRepository, null, null, null);
+    }
+
+    public DangerousCommandApprovalService(
+            GlobalSettingRepository globalSettingRepository,
+            SecurityPolicyService securityPolicyService) {
+        this(globalSettingRepository, null, securityPolicyService, null);
+    }
+
+    public DangerousCommandApprovalService(
+            GlobalSettingRepository globalSettingRepository,
+            AppConfig appConfig,
+            SecurityPolicyService securityPolicyService) {
+        this(globalSettingRepository, appConfig, securityPolicyService, null);
+    }
+
+    public DangerousCommandApprovalService(
+            GlobalSettingRepository globalSettingRepository,
+            AppConfig appConfig,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService) {
         this.globalSettingRepository = globalSettingRepository;
+        this.appConfig = appConfig;
+        this.securityPolicyService = securityPolicyService;
+        this.tirithSecurityService = tirithSecurityService;
     }
 
     public HITLInterceptor buildInterceptor() {
@@ -246,7 +508,33 @@ public class DangerousCommandApprovalService {
                         (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_PYTHON, args))
                 .onTool(
                         ToolNameConstants.EXECUTE_JS,
-                        (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_JS, args));
+                        (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_JS, args))
+                .onTool(
+                        ToolNameConstants.FILE_READ,
+                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
+                .onTool(
+                        ToolNameConstants.FILE_WRITE,
+                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
+                .onTool(
+                        ToolNameConstants.FILE_LIST,
+                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_LIST, args))
+                  .onTool(
+                          ToolNameConstants.FILE_DELETE,
+                          (trace, args) ->
+                                  evaluateFileTool(trace, ToolNameConstants.FILE_DELETE, args))
+                  .onTool(
+                          ToolNameConstants.PATCH,
+                          (trace, args) -> evaluateFileTool(trace, ToolNameConstants.PATCH, args))
+                  .onTool(
+                          ToolNameConstants.WEBFETCH,
+                        (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBFETCH, args))
+                .onTool(
+                        ToolNameConstants.WEBSEARCH,
+                        (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBSEARCH, args))
+                .onTool(
+                        ToolNameConstants.CODESEARCH,
+                        (trace, args) ->
+                                evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args));
     }
 
     public PendingApproval getPendingApproval(AgentSession session) {
@@ -286,10 +574,19 @@ public class DangerousCommandApprovalService {
         }
 
         if (scope == ApprovalScope.SESSION) {
-            addSessionApproval(
-                    session.getContext(), approvalPattern(pending.getToolName(), pending.getPatternKey()));
+            for (String patternKey : pending.effectivePatternKeys()) {
+                addSessionApproval(
+                        session.getContext(), approvalPattern(pending.getToolName(), patternKey));
+            }
         } else if (scope == ApprovalScope.ALWAYS) {
-            addAlwaysApproval(approvalPattern(pending.getToolName(), pending.getPatternKey()));
+            for (String patternKey : pending.effectivePatternKeys()) {
+                String approvalPattern = approvalPattern(pending.getToolName(), patternKey);
+                if (isTirithPattern(patternKey)) {
+                    addSessionApproval(session.getContext(), approvalPattern);
+                } else {
+                    addAlwaysApproval(approvalPattern);
+                }
+            }
         }
 
         String comment = scope.comment();
@@ -315,6 +612,7 @@ public class DangerousCommandApprovalService {
 
         DetectionResult detection = new DetectionResult();
         detection.setPatternKey(patternKey);
+        detection.setPatternKeys(Collections.singletonList(patternKey));
         detection.setDescription(description);
         detection.setNormalizedCode(normalize(command));
         session.getContext()
@@ -352,11 +650,56 @@ public class DangerousCommandApprovalService {
 
             DetectionResult result = new DetectionResult();
             result.setPatternKey(rule.getPatternKey());
+            result.setPatternKeys(Collections.singletonList(rule.getPatternKey()));
             result.setDescription(rule.getDescription());
             result.setNormalizedCode(normalized);
             return result;
         }
 
+        return null;
+    }
+
+    public DetectionResult detectHardline(String toolName, String code) {
+        String normalized = normalize(code);
+        if (StrUtil.isBlank(normalized)) {
+            return null;
+        }
+        for (DangerRule rule : HARDLINE_RULES) {
+            if (!rule.matches(toolName, normalized)) {
+                continue;
+            }
+            DetectionResult result = new DetectionResult();
+            result.setPatternKey(rule.getPatternKey());
+            result.setPatternKeys(Collections.singletonList(rule.getPatternKey()));
+            result.setDescription(rule.getDescription());
+            result.setNormalizedCode(normalized);
+            result.setHardline(true);
+            return result;
+        }
+        return null;
+    }
+
+    public String foregroundBackgroundGuidance(String toolName, String code) {
+        if (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
+            return null;
+        }
+        String normalized = normalize(code);
+        if (StrUtil.isBlank(normalized) || looksLikeHelpOrVersionCommand(normalized)) {
+            return null;
+        }
+
+        if (SHELL_LEVEL_BACKGROUND.matcher(normalized).find()) {
+            return "BLOCKED: 前台命令使用了 shell 级后台包装（nohup/disown/setsid）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
+        }
+        if (INLINE_BACKGROUND_AMP.matcher(normalized).find()
+                || TRAILING_BACKGROUND_AMP.matcher(normalized).find()) {
+            return "BLOCKED: 前台命令使用了 '&' 后台执行。请使用受管的后台进程能力启动长驻进程，然后在后续命令中执行健康检查或测试。";
+        }
+        for (Pattern pattern : LONG_LIVED_FOREGROUND_PATTERNS) {
+            if (pattern.matcher(normalized).find()) {
+                return "BLOCKED: 该前台命令看起来会启动长驻服务或 watch 进程。请改用受管的后台进程能力，等待健康检查或日志信号后，再用单独命令运行测试。";
+            }
+        }
         return null;
     }
 
@@ -461,14 +804,50 @@ public class DangerousCommandApprovalService {
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
         String code =
                 args == null || args.get("code") == null ? null : String.valueOf(args.get("code"));
-        DetectionResult detection = detect(toolName, code);
+        DetectionResult hardline = detectHardline(toolName, code);
+        if (hardline != null) {
+            trace.setFinalAnswer(buildHardlineMessage(toolName, hardline, code));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        SecurityPolicyService.FileVerdict fileVerdict = detectUnsafeCommandPath(code);
+        if (fileVerdict != null) {
+            trace.setFinalAnswer(buildFilePolicyMessage(toolName, fileVerdict));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        SecurityPolicyService.UrlVerdict urlVerdict = detectUnsafeCommandUrl(code);
+        if (urlVerdict != null) {
+            trace.setFinalAnswer(buildUrlPolicyMessage(urlVerdict));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        String foregroundGuidance = foregroundBackgroundGuidance(toolName, code);
+        if (foregroundGuidance != null) {
+            trace.setFinalAnswer(foregroundGuidance);
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        DetectionResult detection = detectCombined(toolName, code);
         if (detection == null) {
             persistTraceSnapshot(trace);
             return null;
         }
 
-        String approvalKey =
-                approvalKey(toolName, detection.getPatternKey(), detection.getNormalizedCode());
+        if ("off".equals(approvalMode())) {
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        String approvalKey = combinedApprovalKey(toolName, detection);
         PendingApproval pending = getPendingApproval(trace.getSession());
         if (trace.getContext().getAs(HITL.DECISION_PREFIX + toolName) != null) {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
@@ -494,10 +873,209 @@ public class DangerousCommandApprovalService {
         return buildPendingMessage(toolName, detection, code);
     }
 
+    private DetectionResult detectCombined(String toolName, String code) {
+        DetectionResult local = detect(toolName, code);
+        TirithSecurityService.ScanResult scan = scanWithTirith(toolName, code);
+        if (scan == null || !scan.requiresApproval()) {
+            return local;
+        }
+
+        List<String> keys = new ArrayList<String>();
+        List<String> descriptions = new ArrayList<String>();
+        keys.addAll(tirithPatternKeys(scan));
+        descriptions.add(tirithDescription(scan));
+        if (local != null) {
+            keys.addAll(local.effectivePatternKeys());
+            descriptions.add(local.getDescription());
+        }
+
+        DetectionResult combined = new DetectionResult();
+        combined.setPatternKeys(unique(keys));
+        combined.setPatternKey(combined.getPatternKeys().isEmpty() ? "tirith:security_scan" : combined.getPatternKeys().get(0));
+        combined.setDescription(joinDescriptions(descriptions));
+        combined.setNormalizedCode(normalize(code));
+        return combined;
+    }
+
+    private TirithSecurityService.ScanResult scanWithTirith(String toolName, String code) {
+        if (tirithSecurityService == null) {
+            return null;
+        }
+        return tirithSecurityService.checkCommandSecurityForTool(toolName, code);
+    }
+
+    private List<String> tirithPatternKeys(TirithSecurityService.ScanResult scan) {
+        List<String> keys = new ArrayList<String>();
+        if (scan != null) {
+            for (TirithSecurityService.Finding finding : scan.getFindings()) {
+                if (finding != null && StrUtil.isNotBlank(finding.getRuleId())) {
+                    keys.add("tirith:" + finding.getRuleId().trim());
+                }
+            }
+        }
+        if (keys.isEmpty()) {
+            keys.add("tirith:security_scan");
+        }
+        return keys;
+    }
+
+    private String tirithDescription(TirithSecurityService.ScanResult scan) {
+        StringBuilder buffer = new StringBuilder("Security scan");
+        if (scan != null && StrUtil.isNotBlank(scan.getAction())) {
+            buffer.append(" ").append(scan.getAction());
+        }
+        if (scan != null && StrUtil.isNotBlank(scan.getSummary())) {
+            buffer.append(": ").append(scan.getSummary().trim());
+        }
+        if (scan != null && !scan.getFindings().isEmpty()) {
+            buffer.append(" (");
+            int count = 0;
+            for (TirithSecurityService.Finding finding : scan.getFindings()) {
+                String label = tirithFindingLabel(finding);
+                if (StrUtil.isBlank(label)) {
+                    continue;
+                }
+                if (count > 0) {
+                    buffer.append("; ");
+                }
+                buffer.append(label);
+                count++;
+                if (count >= 3) {
+                    break;
+                }
+            }
+            buffer.append(")");
+        }
+        return buffer.toString();
+    }
+
+    private String tirithFindingLabel(TirithSecurityService.Finding finding) {
+        if (finding == null) {
+            return "";
+        }
+        String label =
+                StrUtil.blankToDefault(
+                        finding.getTitle(),
+                        StrUtil.blankToDefault(finding.getRuleId(), finding.getDescription()));
+        if (StrUtil.isNotBlank(finding.getSeverity())) {
+            label = finding.getSeverity() + " " + label;
+        }
+        return StrUtil.nullToEmpty(label).trim();
+    }
+
+    private List<String> unique(Collection<String> values) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            if (StrUtil.isBlank(value)) {
+                continue;
+            }
+            String trimmed = value.trim();
+            if (!result.contains(trimmed)) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private String joinDescriptions(Collection<String> descriptions) {
+        StringBuilder buffer = new StringBuilder();
+        if (descriptions != null) {
+            for (String description : descriptions) {
+                if (StrUtil.isBlank(description)) {
+                    continue;
+                }
+                if (buffer.length() > 0) {
+                    buffer.append("; ");
+                }
+                buffer.append(description.trim());
+            }
+        }
+        return buffer.length() == 0 ? "Security scan warning" : buffer.toString();
+    }
+
+    private SecurityPolicyService.FileVerdict detectUnsafeCommandPath(String code) {
+        if (securityPolicyService == null) {
+            return null;
+        }
+        SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkCommandPaths(code);
+        return verdict.isAllowed() ? null : verdict;
+    }
+
+    private SecurityPolicyService.UrlVerdict detectUnsafeCommandUrl(String code) {
+        if (securityPolicyService == null) {
+            return null;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkCommandUrls(code);
+        return verdict.isAllowed() ? null : verdict;
+    }
+
+    private String evaluateFileTool(ReActTrace trace, String toolName, Map<String, Object> args) {
+        if (securityPolicyService == null) {
+            return null;
+        }
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs(toolName, args);
+        if (verdict.isAllowed()) {
+            return null;
+        }
+        trace.setFinalAnswer(buildFilePolicyMessage(toolName, verdict));
+        trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+        persistTraceSnapshot(trace);
+        return null;
+    }
+
+    private String evaluateUrlTool(ReActTrace trace, String toolName, Map<String, Object> args) {
+        if (securityPolicyService == null) {
+            return null;
+        }
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkToolArgs(toolName, args);
+        if (verdict.isAllowed()) {
+            return null;
+        }
+        trace.setFinalAnswer(buildUrlPolicyMessage(verdict));
+        trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+        persistTraceSnapshot(trace);
+        return null;
+    }
+
     private void persistTraceSnapshot(ReActTrace trace) {
         if (trace != null && trace.getSession() != null) {
             trace.getSession().updateSnapshot();
         }
+    }
+
+    public String approvalMode() {
+        String mode =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? "on"
+                        : appConfig.getApprovals().getMode();
+        mode = StrUtil.blankToDefault(mode, "on").trim().toLowerCase(Locale.ROOT);
+        if ("false".equals(mode)) {
+            return "off";
+        }
+        if ("true".equals(mode)) {
+            return "on";
+        }
+        if ("off".equals(mode) || "smart".equals(mode)) {
+            return mode;
+        }
+        return "on";
+    }
+
+    public String cronApprovalMode() {
+        String mode =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? ""
+                        : appConfig.getApprovals().getCronMode();
+        if (StrUtil.isBlank(mode) && appConfig != null && appConfig.getScheduler() != null) {
+            mode = appConfig.getScheduler().getCronApprovalMode();
+        }
+        mode = StrUtil.blankToDefault(mode, "deny").trim().toLowerCase(Locale.ROOT);
+        return "approve".equals(mode) || "off".equals(mode) ? "approve" : "deny";
     }
 
     private Map<String, Object> createPendingMap(
@@ -505,12 +1083,11 @@ public class DangerousCommandApprovalService {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("toolName", toolName);
         payload.put("patternKey", detection.getPatternKey());
+        payload.put("patternKeys", new ArrayList<String>(detection.effectivePatternKeys()));
         payload.put("description", detection.getDescription());
         payload.put("command", StrUtil.nullToEmpty(code));
         payload.put("commandHash", commandHash(detection.getNormalizedCode()));
-        payload.put(
-                "approvalKey",
-                approvalKey(toolName, detection.getPatternKey(), detection.getNormalizedCode()));
+        payload.put("approvalKey", combinedApprovalKey(toolName, detection));
         payload.put("createdAt", System.currentTimeMillis());
         return payload;
     }
@@ -528,11 +1105,57 @@ public class DangerousCommandApprovalService {
         return buffer.toString();
     }
 
+    private String buildHardlineMessage(String toolName, DetectionResult detection, String code) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("BLOCKED (hardline): ");
+        buffer.append(detection.getDescription());
+        buffer.append("。该命令属于不可通过 Agent 执行的高危操作，不能通过 /approve、/approve always 或会话审批绕过。");
+        buffer.append("\n工具：").append(toolLabel(toolName)).append("\n\n");
+        buffer.append("```").append(codeFence(toolName)).append('\n');
+        buffer.append(trimPreview(code));
+        buffer.append("\n```");
+        return buffer.toString();
+    }
+
+    private String buildFilePolicyMessage(
+            String toolName, SecurityPolicyService.FileVerdict verdict) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("BLOCKED: 文件安全策略阻止访问：");
+        buffer.append(verdict.getMessage());
+        buffer.append("\n工具：").append(toolLabel(toolName));
+        buffer.append("\n路径：").append(verdict.getPath());
+        buffer.append("\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。");
+        return buffer.toString();
+    }
+
+    private String buildUrlPolicyMessage(SecurityPolicyService.UrlVerdict verdict) {
+        return "BLOCKED: URL 安全策略阻止访问："
+                + verdict.getMessage()
+                + "\nURL: "
+                + SecretPreview.safeUrl(verdict.getUrl())
+                + "\n请换用公开、可信且符合网站访问策略的地址。";
+    }
+
     private boolean isApproved(FlowContext context, String approvalKey) {
         ApprovalKeyParts parts = parseApprovalKey(approvalKey);
         if (parts == null) {
             return loadSessionApprovals(context).contains(approvalKey)
                     || loadAlwaysApprovedPatterns().contains(approvalKey);
+        }
+
+        if (parts.patternKey.indexOf('+') >= 0) {
+            String[] patternKeys = parts.patternKey.split("\\+");
+            for (String patternKey : patternKeys) {
+                if (StrUtil.isBlank(patternKey)) {
+                    continue;
+                }
+                String pattern = approvalPattern(parts.toolName, patternKey);
+                if (!loadSessionApprovals(context).contains(pattern)
+                        && !loadAlwaysApprovedPatterns().contains(pattern)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         String approvalPattern = approvalPattern(parts.toolName, parts.patternKey);
@@ -653,6 +1276,7 @@ public class DangerousCommandApprovalService {
         PendingApproval pending = new PendingApproval();
         pending.setToolName(toolName);
         pending.setPatternKey(patternKey);
+        pending.setPatternKeys(listValue(map.get("patternKeys")));
         pending.setDescription(description);
         pending.setCommand(command);
         pending.setCommandHash(commandHash);
@@ -695,6 +1319,18 @@ public class DangerousCommandApprovalService {
         return value == null ? "" : String.valueOf(value);
     }
 
+    private List<String> listValue(Object raw) {
+        List<String> values = new ArrayList<String>();
+        if (raw instanceof Collection) {
+            for (Object item : (Collection<?>) raw) {
+                if (item != null && StrUtil.isNotBlank(String.valueOf(item))) {
+                    values.add(String.valueOf(item).trim());
+                }
+            }
+        }
+        return values;
+    }
+
     private static String stringValueStatic(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
@@ -705,6 +1341,9 @@ public class DangerousCommandApprovalService {
         }
         if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
             return "execute_js";
+        }
+        if (StrUtil.isNotBlank(toolName) && !ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
+            return toolName;
         }
         return "execute_shell";
     }
@@ -729,32 +1368,87 @@ public class DangerousCommandApprovalService {
 
     private String normalize(String code) {
         String normalized = StrUtil.nullToEmpty(code).replace("\u0000", "");
-        normalized = normalized.replaceAll("\\u001B\\[[;\\d]*[ -/]*[@-~]", "");
+        normalized = ANSI_CONTROL_SEQUENCE.matcher(normalized).replaceAll("");
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC);
         return normalized.trim();
     }
 
+    private boolean looksLikeHelpOrVersionCommand(String command) {
+        String normalized = StrUtil.nullToEmpty(command).toLowerCase(Locale.ROOT).trim();
+        while (normalized.contains("  ")) {
+            normalized = normalized.replace("  ", " ");
+        }
+        return normalized.contains(" --help")
+                || normalized.endsWith(" -h")
+                || normalized.contains(" --version")
+                || normalized.endsWith(" -v");
+    }
+
     private String approvalKey(String toolName, String patternKey, String normalizedCode) {
-        return approvalPattern(toolName, patternKey)
+        return approvalPattern(toolName, patternKey) + ":" + commandHash(normalizedCode);
+    }
+
+    private String combinedApprovalKey(String toolName, DetectionResult detection) {
+        if (detection == null) {
+            return approvalKey(toolName, "", "");
+        }
+        List<String> patternKeys = detection.effectivePatternKeys();
+        if (patternKeys.size() <= 1) {
+            return approvalKey(toolName, detection.getPatternKey(), detection.getNormalizedCode());
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (String patternKey : patternKeys) {
+            if (buffer.length() > 0) {
+                buffer.append('+');
+            }
+            buffer.append(patternKey);
+        }
+        return approvalPattern(toolName, buffer.toString())
                 + ":"
-                + commandHash(normalizedCode);
+                + commandHash(detection.getNormalizedCode());
     }
 
     private String approvalPattern(String toolName, String patternKey) {
-        return StrUtil.nullToEmpty(toolName).trim()
-                + ":"
-                + StrUtil.nullToEmpty(patternKey).trim();
+        return StrUtil.nullToEmpty(toolName).trim() + ":" + StrUtil.nullToEmpty(patternKey).trim();
+    }
+
+    private boolean isTirithPattern(String patternKey) {
+        return StrUtil.nullToEmpty(patternKey).startsWith("tirith:");
     }
 
     private ApprovalKeyParts parseApprovalKey(String approvalKey) {
         if (StrUtil.isBlank(approvalKey)) {
             return null;
         }
-        String[] parts = approvalKey.split(":", 3);
-        if (parts.length < 2 || StrUtil.hasBlank(parts[0], parts[1])) {
+        String text = approvalKey.trim();
+        int firstColon = text.indexOf(':');
+        if (firstColon <= 0 || firstColon >= text.length() - 1) {
             return null;
         }
-        return new ApprovalKeyParts(parts[0], parts[1]);
+        String toolName = text.substring(0, firstColon);
+        String patternKey = text.substring(firstColon + 1);
+        int lastColon = patternKey.lastIndexOf(':');
+        if (lastColon > 0 && looksLikeSha256(patternKey.substring(lastColon + 1))) {
+            patternKey = patternKey.substring(0, lastColon);
+        }
+        if (StrUtil.hasBlank(toolName, patternKey)) {
+            return null;
+        }
+        return new ApprovalKeyParts(toolName, patternKey);
+    }
+
+    private boolean looksLikeSha256(String value) {
+        if (value == null || value.length() != 64) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+            if (!hex) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String commandHash(String normalizedCode) {
@@ -800,6 +1494,7 @@ public class DangerousCommandApprovalService {
     public static class PendingApproval {
         private String toolName;
         private String patternKey;
+        private List<String> patternKeys = new ArrayList<String>();
         private String description;
         private String command;
         private String commandHash;
@@ -819,6 +1514,17 @@ public class DangerousCommandApprovalService {
 
         public void setPatternKey(String patternKey) {
             this.patternKey = patternKey;
+        }
+
+        public List<String> getPatternKeys() {
+            return patternKeys;
+        }
+
+        public void setPatternKeys(List<String> patternKeys) {
+            this.patternKeys =
+                    patternKeys == null
+                            ? new ArrayList<String>()
+                            : new ArrayList<String>(patternKeys);
         }
 
         public String getDescription() {
@@ -862,12 +1568,29 @@ public class DangerousCommandApprovalService {
                             + ":"
                             + StrUtil.nullToEmpty(commandHash));
         }
+
+        public List<String> effectivePatternKeys() {
+            List<String> values = new ArrayList<String>();
+            if (patternKeys != null) {
+                for (String key : patternKeys) {
+                    if (StrUtil.isNotBlank(key) && !values.contains(key.trim())) {
+                        values.add(key.trim());
+                    }
+                }
+            }
+            if (values.isEmpty() && StrUtil.isNotBlank(patternKey)) {
+                values.add(patternKey.trim());
+            }
+            return values;
+        }
     }
 
     public static class DetectionResult {
         private String patternKey;
+        private List<String> patternKeys = new ArrayList<String>();
         private String description;
         private String normalizedCode;
+        private boolean hardline;
 
         public String getPatternKey() {
             return patternKey;
@@ -875,6 +1598,17 @@ public class DangerousCommandApprovalService {
 
         public void setPatternKey(String patternKey) {
             this.patternKey = patternKey;
+        }
+
+        public List<String> getPatternKeys() {
+            return patternKeys;
+        }
+
+        public void setPatternKeys(List<String> patternKeys) {
+            this.patternKeys =
+                    patternKeys == null
+                            ? new ArrayList<String>()
+                            : new ArrayList<String>(patternKeys);
         }
 
         public String getDescription() {
@@ -891,6 +1625,35 @@ public class DangerousCommandApprovalService {
 
         public void setNormalizedCode(String normalizedCode) {
             this.normalizedCode = normalizedCode;
+        }
+
+        public boolean isHardline() {
+            return hardline;
+        }
+
+        public void setHardline(boolean hardline) {
+            this.hardline = hardline;
+        }
+
+        public List<String> effectivePatternKeys() {
+            List<String> values = new ArrayList<String>();
+            if (patternKeys != null) {
+                for (String key : patternKeys) {
+                    if (StrUtil.isNotBlank(key) && !values.contains(key.trim())) {
+                        values.add(key.trim());
+                    }
+                }
+            }
+            if (values.isEmpty() && StrUtil.isNotBlank(patternKey)) {
+                values.add(patternKey.trim());
+            }
+            return values;
+        }
+    }
+
+    private static class SecretPreview {
+        private static String safeUrl(String url) {
+            return com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(url);
         }
     }
 

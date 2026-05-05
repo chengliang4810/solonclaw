@@ -3,7 +3,9 @@ package com.jimuqu.solon.claw.storage.repository;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.kanban.KanbanBoardRecord;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
+import com.jimuqu.solon.claw.kanban.KanbanEventRecord;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
+import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
 import com.jimuqu.solon.claw.kanban.KanbanTaskRecord;
 import com.jimuqu.solon.claw.support.IdSupport;
 import java.sql.Connection;
@@ -11,8 +13,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.noear.snack4.ONode;
 
 /** SQLite-backed Kanban repository. */
 @RequiredArgsConstructor
@@ -195,6 +200,31 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public List<KanbanTaskRecord> listReadyTasks(String boardSlug) throws Exception {
+        String slug = StrUtil.isBlank(boardSlug) ? currentBoard().getSlug() : normalizeBoard(boardSlug);
+        List<KanbanTaskRecord> tasks = new ArrayList<KanbanTaskRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_tasks where board_slug = ? and status = 'ready' and claim_lock is null order by priority desc, created_at asc");
+            statement.setString(1, slug);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    tasks.add(mapTask(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return tasks;
+    }
+
+    @Override
     public KanbanTaskRecord findTask(String taskId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -219,6 +249,8 @@ public class SqliteKanbanRepository implements KanbanRepository {
             throw new IllegalArgumentException("task title is required");
         }
         long now = System.currentTimeMillis();
+        KanbanTaskRecord previous =
+                StrUtil.isBlank(task.getTaskId()) ? null : findTask(task.getTaskId());
         if (StrUtil.isBlank(task.getTaskId())) {
             task.setTaskId("KB-" + IdSupport.newId().substring(0, 8).toUpperCase());
         }
@@ -237,8 +269,8 @@ public class SqliteKanbanRepository implements KanbanRepository {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or replace into kanban_tasks (task_id, board_slug, title, body, assignee, status, priority, tenant, workspace_kind, workspace_path, created_by, result, created_at, updated_at, started_at, completed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                connection.prepareStatement(
+                            "insert or replace into kanban_tasks (task_id, board_slug, title, body, assignee, status, priority, tenant, workspace_kind, workspace_path, created_by, result, idempotency_key, claim_lock, claim_expires_at, worker_id, worker_pid, last_spawn_error, spawn_failures, max_runtime_seconds, last_heartbeat_at, current_run_id, workflow_template_id, current_step_key, skills_json, created_at, updated_at, started_at, completed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, task.getTaskId());
             statement.setString(2, task.getBoardSlug());
             statement.setString(3, task.getTitle());
@@ -251,22 +283,108 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.setString(10, task.getWorkspacePath());
             statement.setString(11, task.getCreatedBy());
             statement.setString(12, task.getResult());
-            statement.setLong(13, task.getCreatedAt());
-            statement.setLong(14, task.getUpdatedAt());
-            statement.setLong(15, task.getStartedAt());
-            statement.setLong(16, task.getCompletedAt());
+            statement.setString(13, task.getIdempotencyKey());
+            statement.setString(14, task.getClaimLock());
+            statement.setLong(15, task.getClaimExpiresAt());
+            statement.setString(16, task.getWorkerId());
+            statement.setLong(17, task.getWorkerPid());
+            statement.setString(18, task.getLastSpawnError());
+            statement.setInt(19, task.getSpawnFailures());
+            statement.setLong(20, task.getMaxRuntimeSeconds());
+            statement.setLong(21, task.getLastHeartbeatAt());
+            statement.setString(22, task.getCurrentRunId());
+            statement.setString(23, task.getWorkflowTemplateId());
+            statement.setString(24, task.getCurrentStepKey());
+            statement.setString(25, task.getSkillsJson());
+            statement.setLong(26, task.getCreatedAt());
+            statement.setLong(27, task.getUpdatedAt());
+            statement.setLong(28, task.getStartedAt());
+            statement.setLong(29, task.getCompletedAt());
+            statement.executeUpdate();
+            statement.close();
+            KanbanTaskRecord persisted = findTask(task.getTaskId());
+            if ("running".equals(persisted.getStatus())) {
+                ensureActiveRun(persisted, now, connection);
+            } else if (previous != null && StrUtil.isNotBlank(previous.getCurrentRunId())) {
+                if ("done".equals(persisted.getStatus())) {
+                    closeOrSynthesizeRun(
+                            persisted,
+                            "done",
+                            "completed",
+                            persisted.getResult(),
+                            null,
+                            null,
+                            now,
+                            connection);
+                } else if ("blocked".equals(persisted.getStatus())) {
+                    closeOrSynthesizeRun(
+                            persisted,
+                            "blocked",
+                            "blocked",
+                            persisted.getResult(),
+                            null,
+                            persisted.getResult(),
+                            now,
+                            connection);
+                } else {
+                    closeOrSynthesizeRun(
+                            persisted,
+                            "released",
+                            "released",
+                            persisted.getResult(),
+                            null,
+                            null,
+                            now,
+                            connection);
+                }
+            }
+        } finally {
+            connection.close();
+        }
+        return findTask(task.getTaskId());
+    }
+
+    @Override
+    public void linkTasks(String parentId, String childId) throws Exception {
+        if (StrUtil.hasBlank(parentId, childId) || StrUtil.equals(parentId, childId)) {
+            return;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert or ignore into kanban_task_links (parent_id, child_id) values (?, ?)");
+            statement.setString(1, parentId);
+            statement.setString(2, childId);
             statement.executeUpdate();
             statement.close();
         } finally {
             connection.close();
         }
-        return task;
+    }
+
+    @Override
+    public List<KanbanTaskRecord> listParents(String taskId) throws Exception {
+        return listLinkedTasks(
+                "select t.* from kanban_tasks t join kanban_task_links l on l.parent_id = t.task_id where l.child_id = ? order by t.updated_at desc",
+                taskId);
+    }
+
+    @Override
+    public List<KanbanTaskRecord> listChildren(String taskId) throws Exception {
+        return listLinkedTasks(
+                "select t.* from kanban_tasks t join kanban_task_links l on l.child_id = t.task_id where l.parent_id = ? order by t.priority desc, t.updated_at desc",
+                taskId);
     }
 
     @Override
     public boolean updateTaskStatus(String taskId, String status, String result) throws Exception {
         String normalized = normalizeStatus(status);
         long now = System.currentTimeMillis();
+        KanbanTaskRecord before = findTask(taskId);
+        if (before == null) {
+            return false;
+        }
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -282,6 +400,86 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.setString(8, taskId);
             int updated = statement.executeUpdate();
             statement.close();
+            if (updated <= 0) {
+                return false;
+            }
+            KanbanTaskRecord after = findTask(taskId);
+            if ("running".equals(normalized)) {
+                ensureActiveRun(after, now, connection);
+            } else if ("done".equals(normalized)) {
+                closeOrSynthesizeRun(
+                        after, "done", "completed", StrUtil.blankToDefault(result, after.getResult()), null, null, now, connection);
+            } else if ("blocked".equals(normalized)) {
+                closeOrSynthesizeRun(after, "blocked", "blocked", result, null, result, now, connection);
+            } else if ("archived".equals(normalized)) {
+                closeOrSynthesizeRun(after, "released", "archived", result, null, null, now, connection);
+            } else if (StrUtil.isNotBlank(before.getCurrentRunId())) {
+                closeOrSynthesizeRun(after, "released", "released", result, null, null, now, connection);
+            }
+            return true;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanTaskRecord findTaskByIdempotencyKey(String boardSlug, String idempotencyKey)
+            throws Exception {
+        if (StrUtil.isBlank(idempotencyKey)) {
+            return null;
+        }
+        String slug = StrUtil.isBlank(boardSlug) ? currentBoard().getSlug() : normalizeBoard(boardSlug);
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_tasks where board_slug = ? and idempotency_key = ? and status <> 'archived' order by updated_at desc limit 1");
+            statement.setString(1, slug);
+            statement.setString(2, idempotencyKey);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapTask(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean reclaimTask(String taskId, String reason) throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            KanbanTaskRecord task = findTask(taskId);
+            if (task == null) {
+                return false;
+            }
+            if (!"running".equals(task.getStatus()) && StrUtil.isBlank(task.getClaimLock())) {
+                return false;
+            }
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, current_run_id = null, updated_at = ? where task_id = ?");
+            statement.setLong(1, now);
+            statement.setString(2, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0) {
+                closeRunById(task.getCurrentRunId(), "released", "reclaimed", reason, null, null, now, connection);
+                KanbanEventRecord event = new KanbanEventRecord();
+                event.setTaskId(taskId);
+                event.setKind("reclaimed");
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("manual", Boolean.TRUE);
+                payload.put("reason", reason);
+                payload.put("prev_lock", task.getClaimLock());
+                payload.put("prev_worker", task.getWorkerId());
+                event.setPayloadJson(ONode.serialize(payload));
+                addEvent(event);
+            }
             return updated > 0;
         } finally {
             connection.close();
@@ -290,6 +488,10 @@ public class SqliteKanbanRepository implements KanbanRepository {
 
     @Override
     public boolean assignTask(String taskId, String assignee) throws Exception {
+        KanbanTaskRecord task = findTask(taskId);
+        if (task != null && "running".equals(task.getStatus())) {
+            return false;
+        }
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
@@ -307,6 +509,405 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public boolean setWorkspacePath(String taskId, String workspacePath) throws Exception {
+        if (StrUtil.isBlank(taskId)) {
+            return false;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set workspace_path = ?, updated_at = ? where task_id = ?");
+            statement.setString(1, workspacePath);
+            statement.setLong(2, System.currentTimeMillis());
+            statement.setString(3, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            return updated == 1;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean reassignTask(String taskId, String assignee, boolean reclaimFirst, String reason)
+            throws Exception {
+        if (reclaimFirst) {
+            reclaimTask(taskId, StrUtil.blankToDefault(reason, "reassign"));
+        }
+        boolean assigned = assignTask(taskId, assignee);
+        if (assigned) {
+            KanbanEventRecord event = new KanbanEventRecord();
+            event.setTaskId(taskId);
+            event.setKind("reassigned");
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("assignee", assignee);
+            payload.put("reclaim_first", Boolean.valueOf(reclaimFirst));
+            payload.put("reason", reason);
+            event.setPayloadJson(ONode.serialize(payload));
+            addEvent(event);
+        }
+        return assigned;
+    }
+
+    @Override
+    public boolean retryTask(String taskId, String reason) throws Exception {
+        KanbanTaskRecord task = findTask(taskId);
+        if (task == null) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            closeRunById(task.getCurrentRunId(), "released", "retried", reason, null, null, now, connection);
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, current_run_id = null, completed_at = 0, updated_at = ? where task_id = ?");
+            statement.setLong(1, now);
+            statement.setString(2, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0) {
+                KanbanEventRecord event = new KanbanEventRecord();
+                event.setTaskId(taskId);
+                event.setKind("retry");
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("reason", reason);
+                payload.put("previous_status", task.getStatus());
+                payload.put("previous_run_id", task.getCurrentRunId());
+                event.setPayloadJson(ONode.serialize(payload));
+                addEvent(event);
+            }
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanTaskRecord claimTask(
+            String taskId, String claimer, long ttlSeconds, String workerId, long workerPid)
+            throws Exception {
+        if (StrUtil.isBlank(taskId)) {
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        long expires = now + Math.max(1L, ttlSeconds) * 1000L;
+        String lock = StrUtil.blankToDefault(claimer, "local");
+        Connection connection = database.openConnection();
+        try {
+            KanbanTaskRecord task = findTask(taskId);
+            if (task == null) {
+                return null;
+            }
+            closeLeakedReadyRun(task, now, connection);
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'running', claim_lock = ?, claim_expires_at = ?, worker_id = ?, worker_pid = ?, last_spawn_error = null, started_at = case when started_at = 0 then ? else started_at end, updated_at = ? where task_id = ? and status = 'ready'");
+            statement.setString(1, lock);
+            statement.setLong(2, expires);
+            statement.setString(3, StrUtil.blankToDefault(workerId, lock));
+            statement.setLong(4, workerPid);
+            statement.setLong(5, now);
+            statement.setLong(6, now);
+            statement.setString(7, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated != 1) {
+                return null;
+            }
+            KanbanTaskRecord claimed = findTask(taskId);
+            ensureActiveRun(claimed, now, connection);
+            claimed = findTask(taskId);
+            syncActiveRunRuntime(claimed, connection);
+            addEvent(connection, taskId, "claimed", claimedPayload(claimed));
+            return findTask(taskId);
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanTaskRecord claimNextReady(
+            String boardSlug, String assignee, String claimer, long ttlSeconds, String workerId, long workerPid)
+            throws Exception {
+        String slug = StrUtil.isBlank(boardSlug) ? currentBoard().getSlug() : normalizeBoard(boardSlug);
+        Connection connection = database.openConnection();
+        try {
+            StringBuilder sql =
+                    new StringBuilder(
+                            "select task_id from kanban_tasks where board_slug = ? and status = 'ready'");
+            if (StrUtil.isNotBlank(assignee)) {
+                sql.append(" and assignee = ?");
+            }
+            sql.append(" order by priority desc, updated_at asc limit 1");
+            PreparedStatement statement = connection.prepareStatement(sql.toString());
+            statement.setString(1, slug);
+            if (StrUtil.isNotBlank(assignee)) {
+                statement.setString(2, assignee);
+            }
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                if (!resultSet.next()) {
+                    return null;
+                }
+                String taskId = resultSet.getString("task_id");
+                return claimTask(taskId, claimer, ttlSeconds, workerId, workerPid);
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean heartbeatClaim(String taskId, String claimer, long ttlSeconds) throws Exception {
+        if (StrUtil.hasBlank(taskId, claimer)) {
+            return false;
+        }
+        long expires = System.currentTimeMillis() + Math.max(1L, ttlSeconds) * 1000L;
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set claim_expires_at = ?, updated_at = ? where task_id = ? and status = 'running' and claim_lock = ?");
+            statement.setLong(1, expires);
+            statement.setLong(2, System.currentTimeMillis());
+            statement.setString(3, taskId);
+            statement.setString(4, claimer);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated == 1) {
+                KanbanTaskRecord task = findTask(taskId);
+                syncActiveRunRuntime(task, connection);
+                return true;
+            }
+            return false;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public int releaseStaleClaims(long now) throws Exception {
+        int reclaimed = 0;
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement select =
+                    connection.prepareStatement(
+                            "select * from kanban_tasks where status = 'running' and claim_expires_at > 0 and claim_expires_at < ?");
+            select.setLong(1, now);
+            ResultSet resultSet = select.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    KanbanTaskRecord task = mapTask(resultSet);
+                    if (reclaimRunningTask(connection, task, "reclaimed", "reclaimed", "stale_lock=" + task.getClaimLock(), "reclaimed", true, now)) {
+                        reclaimed++;
+                    }
+                }
+            } finally {
+                resultSet.close();
+                select.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return reclaimed;
+    }
+
+    @Override
+    public boolean heartbeatWorker(String taskId, String note) throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set last_heartbeat_at = ?, updated_at = ? where task_id = ? and status = 'running'");
+            statement.setLong(1, now);
+            statement.setLong(2, now);
+            statement.setString(3, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated != 1) {
+                return false;
+            }
+            KanbanTaskRecord task = findTask(taskId);
+            syncActiveRunRuntime(task, connection);
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("note", note);
+            addEvent(connection, taskId, "heartbeat", payload);
+            return true;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean markSpawnFailure(String taskId, String error) throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set last_spawn_error = ?, spawn_failures = spawn_failures + 1, worker_pid = 0, updated_at = ? where task_id = ?");
+            statement.setString(1, error);
+            statement.setLong(2, now);
+            statement.setString(3, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated == 1) {
+                KanbanTaskRecord task = findTask(taskId);
+                updateActiveRunError(task, error, connection);
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("error", error);
+                addEvent(connection, taskId, "spawn_failed", payload);
+                return true;
+            }
+            return false;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean clearSpawnFailures(String taskId, long workerPid) throws Exception {
+        if (StrUtil.isBlank(taskId)) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set spawn_failures = 0, last_spawn_error = null, worker_pid = ?, updated_at = ? where task_id = ? and status = 'running'");
+            statement.setLong(1, workerPid);
+            statement.setLong(2, now);
+            statement.setString(3, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated == 1) {
+                KanbanTaskRecord task = findTask(taskId);
+                syncActiveRunRuntime(task, connection);
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("worker_pid", workerPid <= 0 ? null : Long.valueOf(workerPid));
+                addEvent(connection, taskId, "spawned", payload);
+                return true;
+            }
+            return false;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean autoBlockAfterSpawnFailure(String taskId, int failureLimit, String reason)
+            throws Exception {
+        if (StrUtil.isBlank(taskId)) {
+            return false;
+        }
+        KanbanTaskRecord task = findTask(taskId);
+        if (task == null || task.getSpawnFailures() < Math.max(1, failureLimit)) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        String error = StrUtil.blankToDefault(reason, task.getLastSpawnError());
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'blocked', result = coalesce(?, result), claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, updated_at = ? where task_id = ? and status = 'running'");
+            statement.setString(1, error);
+            statement.setLong(2, now);
+            statement.setString(3, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated != 1) {
+                return false;
+            }
+            closeRunById(task.getCurrentRunId(), "blocked", "gave_up", error, null, error, now, connection);
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("failure_limit", Integer.valueOf(Math.max(1, failureLimit)));
+            payload.put("spawn_failures", Integer.valueOf(task.getSpawnFailures()));
+            payload.put("error", error);
+            addEvent(connection, taskId, "gave_up", payload);
+            return true;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public int recomputeReady(String boardSlug) throws Exception {
+        String slug = StrUtil.isBlank(boardSlug) ? currentBoard().getSlug() : normalizeBoard(boardSlug);
+        List<String> promotable = new ArrayList<String>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement select =
+                    connection.prepareStatement(
+                            "select t.task_id from kanban_tasks t where t.board_slug = ? and t.status = 'todo' and not exists (select 1 from kanban_task_links l join kanban_tasks p on p.task_id = l.parent_id where l.child_id = t.task_id and p.status <> 'done')");
+            select.setString(1, slug);
+            ResultSet resultSet = select.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    promotable.add(resultSet.getString("task_id"));
+                }
+            } finally {
+                resultSet.close();
+                select.close();
+            }
+            int promoted = 0;
+            for (String taskId : promotable) {
+                PreparedStatement update =
+                        connection.prepareStatement(
+                                "update kanban_tasks set status = 'ready', updated_at = ? where task_id = ? and status = 'todo'");
+                update.setLong(1, System.currentTimeMillis());
+                update.setString(2, taskId);
+                int count = update.executeUpdate();
+                update.close();
+                if (count == 1) {
+                    promoted++;
+                    Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                    payload.put("reason", "parents_done");
+                    addEvent(connection, taskId, "promoted_ready", payload);
+                }
+            }
+            return promoted;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public int reclaimTimedOutWorkers(long now) throws Exception {
+        int reclaimed = 0;
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement select =
+                    connection.prepareStatement(
+                            "select * from kanban_tasks where status = 'running' and max_runtime_seconds > 0 and started_at > 0 and (? - started_at) > max_runtime_seconds * 1000");
+            select.setLong(1, now);
+            ResultSet resultSet = select.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    KanbanTaskRecord task = mapTask(resultSet);
+                    String error = "runtime_limit=" + task.getMaxRuntimeSeconds();
+                    if (reclaimRunningTask(connection, task, "timed_out", "timed_out", error, "timed_out", true, now)) {
+                        reclaimed++;
+                    }
+                }
+            } finally {
+                resultSet.close();
+                select.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return reclaimed;
+    }
+
+    @Override
     public void deleteTask(String taskId) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -315,6 +916,23 @@ public class SqliteKanbanRepository implements KanbanRepository {
             comments.setString(1, taskId);
             comments.executeUpdate();
             comments.close();
+            PreparedStatement events =
+                    connection.prepareStatement("delete from kanban_events where task_id = ?");
+            events.setString(1, taskId);
+            events.executeUpdate();
+            events.close();
+            PreparedStatement runs =
+                    connection.prepareStatement("delete from kanban_runs where task_id = ?");
+            runs.setString(1, taskId);
+            runs.executeUpdate();
+            runs.close();
+            PreparedStatement links =
+                    connection.prepareStatement(
+                            "delete from kanban_task_links where parent_id = ? or child_id = ?");
+            links.setString(1, taskId);
+            links.setString(2, taskId);
+            links.executeUpdate();
+            links.close();
             PreparedStatement task =
                     connection.prepareStatement("delete from kanban_tasks where task_id = ?");
             task.setString(1, taskId);
@@ -377,6 +995,239 @@ public class SqliteKanbanRepository implements KanbanRepository {
             connection.close();
         }
         return comments;
+    }
+
+    @Override
+    public KanbanEventRecord addEvent(KanbanEventRecord event) throws Exception {
+        if (event == null || StrUtil.hasBlank(event.getTaskId(), event.getKind())) {
+            throw new IllegalArgumentException("task id and event kind are required");
+        }
+        if (StrUtil.isBlank(event.getEventId())) {
+            event.setEventId("event_" + IdSupport.newId());
+        }
+        if (event.getCreatedAt() <= 0) {
+            event.setCreatedAt(System.currentTimeMillis());
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into kanban_events (event_id, task_id, kind, payload_json, created_at) values (?, ?, ?, ?, ?)");
+            statement.setString(1, event.getEventId());
+            statement.setString(2, event.getTaskId());
+            statement.setString(3, event.getKind());
+            statement.setString(4, event.getPayloadJson());
+            statement.setLong(5, event.getCreatedAt());
+            statement.executeUpdate();
+            statement.close();
+            return event;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanRunRecord addRun(KanbanRunRecord run) throws Exception {
+        if (run == null || StrUtil.isBlank(run.getTaskId())) {
+            throw new IllegalArgumentException("task id is required");
+        }
+        if (StrUtil.isBlank(run.getRunId())) {
+            run.setRunId("run_" + IdSupport.newId());
+        }
+        if (StrUtil.isBlank(run.getStatus())) {
+            run.setStatus("running");
+        }
+        if (run.getStartedAt() <= 0) {
+            run.setStartedAt(System.currentTimeMillis());
+        }
+        Connection connection = database.openConnection();
+        try {
+            insertRun(run, connection);
+            if (run.getEndedAt() <= 0) {
+                PreparedStatement update =
+                        connection.prepareStatement(
+                                "update kanban_tasks set current_run_id = ? where task_id = ?");
+                update.setString(1, run.getRunId());
+                update.setString(2, run.getTaskId());
+                update.executeUpdate();
+                update.close();
+            }
+            return run;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public List<KanbanRunRecord> listRuns(String taskId, boolean includeActive) throws Exception {
+        List<KanbanRunRecord> runs = new ArrayList<KanbanRunRecord>();
+        Connection connection = database.openConnection();
+        try {
+            String sql =
+                    includeActive
+                            ? "select * from kanban_runs where task_id = ? order by started_at asc, run_id asc"
+                            : "select * from kanban_runs where task_id = ? and ended_at > 0 order by started_at asc, run_id asc";
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    runs.add(mapRun(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return runs;
+    }
+
+    @Override
+    public KanbanRunRecord latestRun(String taskId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_runs where task_id = ? order by started_at desc, run_id desc limit 1");
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapRun(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanRunRecord activeRun(String taskId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_runs where task_id = ? and ended_at = 0 order by started_at desc, run_id desc limit 1");
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapRun(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean closeActiveRun(
+            String taskId,
+            String status,
+            String outcome,
+            String summary,
+            String metadataJson,
+            String error)
+            throws Exception {
+        KanbanTaskRecord task = findTask(taskId);
+        if (task == null) {
+            return false;
+        }
+        Connection connection = database.openConnection();
+        try {
+            boolean closed =
+                    closeRunById(
+                            task.getCurrentRunId(),
+                            status,
+                            outcome,
+                            summary,
+                            metadataJson,
+                            error,
+                            System.currentTimeMillis(),
+                            connection);
+            PreparedStatement update =
+                    connection.prepareStatement(
+                            "update kanban_tasks set current_run_id = null where task_id = ?");
+            update.setString(1, taskId);
+            update.executeUpdate();
+            update.close();
+            return closed;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean updateLatestRun(String taskId, String summary, String metadataJson, String error)
+            throws Exception {
+        KanbanRunRecord run = latestRun(taskId);
+        if (run == null) {
+            return false;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_runs set summary = coalesce(?, summary), metadata_json = coalesce(?, metadata_json), error = coalesce(?, error) where run_id = ?");
+            statement.setString(1, summary);
+            statement.setString(2, metadataJson);
+            statement.setString(3, error);
+            statement.setString(4, run.getRunId());
+            int updated = statement.executeUpdate();
+            statement.close();
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public List<KanbanEventRecord> listEvents(String taskId) throws Exception {
+        List<KanbanEventRecord> events = new ArrayList<KanbanEventRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_events where task_id = ? order by created_at asc");
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    events.add(mapEvent(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return events;
+    }
+
+    private List<KanbanTaskRecord> listLinkedTasks(String sql, String taskId) throws Exception {
+        List<KanbanTaskRecord> tasks = new ArrayList<KanbanTaskRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setString(1, taskId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    tasks.add(mapTask(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return tasks;
     }
 
     private void ensureDefaultBoard() throws Exception {
@@ -460,6 +1311,19 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setWorkspacePath(resultSet.getString("workspace_path"));
         record.setCreatedBy(resultSet.getString("created_by"));
         record.setResult(resultSet.getString("result"));
+        record.setIdempotencyKey(resultSet.getString("idempotency_key"));
+        record.setClaimLock(resultSet.getString("claim_lock"));
+        record.setClaimExpiresAt(resultSet.getLong("claim_expires_at"));
+        record.setWorkerId(resultSet.getString("worker_id"));
+        record.setWorkerPid(resultSet.getLong("worker_pid"));
+        record.setLastSpawnError(resultSet.getString("last_spawn_error"));
+        record.setSpawnFailures(resultSet.getInt("spawn_failures"));
+        record.setMaxRuntimeSeconds(resultSet.getLong("max_runtime_seconds"));
+        record.setLastHeartbeatAt(resultSet.getLong("last_heartbeat_at"));
+        record.setCurrentRunId(resultSet.getString("current_run_id"));
+        record.setWorkflowTemplateId(resultSet.getString("workflow_template_id"));
+        record.setCurrentStepKey(resultSet.getString("current_step_key"));
+        record.setSkillsJson(resultSet.getString("skills_json"));
         record.setCreatedAt(resultSet.getLong("created_at"));
         record.setUpdatedAt(resultSet.getLong("updated_at"));
         record.setStartedAt(resultSet.getLong("started_at"));
@@ -475,5 +1339,274 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setBody(resultSet.getString("body"));
         record.setCreatedAt(resultSet.getLong("created_at"));
         return record;
+    }
+
+    private KanbanEventRecord mapEvent(ResultSet resultSet) throws Exception {
+        KanbanEventRecord record = new KanbanEventRecord();
+        record.setEventId(resultSet.getString("event_id"));
+        record.setTaskId(resultSet.getString("task_id"));
+        record.setKind(resultSet.getString("kind"));
+        record.setPayloadJson(resultSet.getString("payload_json"));
+        record.setCreatedAt(resultSet.getLong("created_at"));
+        return record;
+    }
+
+    private KanbanRunRecord mapRun(ResultSet resultSet) throws Exception {
+        KanbanRunRecord record = new KanbanRunRecord();
+        record.setRunId(resultSet.getString("run_id"));
+        record.setTaskId(resultSet.getString("task_id"));
+        record.setProfile(resultSet.getString("profile"));
+        record.setStepKey(resultSet.getString("step_key"));
+        record.setStatus(resultSet.getString("status"));
+        record.setClaimLock(resultSet.getString("claim_lock"));
+        record.setClaimExpiresAt(resultSet.getLong("claim_expires_at"));
+        record.setWorkerPid(resultSet.getLong("worker_pid"));
+        record.setWorkerId(resultSet.getString("worker_id"));
+        record.setMaxRuntimeSeconds(resultSet.getLong("max_runtime_seconds"));
+        record.setLastHeartbeatAt(resultSet.getLong("last_heartbeat_at"));
+        record.setStartedAt(resultSet.getLong("started_at"));
+        record.setEndedAt(resultSet.getLong("ended_at"));
+        record.setOutcome(resultSet.getString("outcome"));
+        record.setSummary(resultSet.getString("summary"));
+        record.setMetadataJson(resultSet.getString("metadata_json"));
+        record.setError(resultSet.getString("error"));
+        return record;
+    }
+
+    private void ensureActiveRun(KanbanTaskRecord task, long now, Connection connection)
+            throws Exception {
+        if (task == null || StrUtil.isNotBlank(task.getCurrentRunId())) {
+            return;
+        }
+        KanbanRunRecord run = new KanbanRunRecord();
+        run.setRunId("run_" + IdSupport.newId());
+        run.setTaskId(task.getTaskId());
+        run.setProfile(task.getAssignee());
+        run.setStepKey(task.getCurrentStepKey());
+        run.setStatus("running");
+        run.setClaimLock(task.getClaimLock());
+        run.setClaimExpiresAt(task.getClaimExpiresAt());
+        run.setWorkerId(task.getWorkerId());
+        run.setWorkerPid(task.getWorkerPid());
+        run.setMaxRuntimeSeconds(task.getMaxRuntimeSeconds());
+        run.setLastHeartbeatAt(task.getLastHeartbeatAt());
+        run.setStartedAt(now);
+        insertRun(run, connection);
+        PreparedStatement update =
+                connection.prepareStatement(
+                        "update kanban_tasks set current_run_id = ? where task_id = ?");
+        update.setString(1, run.getRunId());
+        update.setString(2, task.getTaskId());
+        update.executeUpdate();
+        update.close();
+    }
+
+    private void closeLeakedReadyRun(KanbanTaskRecord task, long now, Connection connection)
+            throws Exception {
+        if (task == null
+                || !"ready".equals(task.getStatus())
+                || StrUtil.isBlank(task.getCurrentRunId())) {
+            return;
+        }
+        closeRunById(
+                task.getCurrentRunId(),
+                "reclaimed",
+                "reclaimed",
+                "invariant recovery on re-claim",
+                null,
+                null,
+                now,
+                connection);
+        PreparedStatement update =
+                connection.prepareStatement(
+                        "update kanban_tasks set current_run_id = null where task_id = ?");
+        update.setString(1, task.getTaskId());
+        update.executeUpdate();
+        update.close();
+    }
+
+    private void syncActiveRunRuntime(KanbanTaskRecord task, Connection connection) throws Exception {
+        if (task == null || StrUtil.isBlank(task.getCurrentRunId())) {
+            return;
+        }
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update kanban_runs set claim_lock = ?, claim_expires_at = ?, worker_pid = ?, worker_id = ?, max_runtime_seconds = ?, last_heartbeat_at = ? where run_id = ? and ended_at = 0");
+        statement.setString(1, task.getClaimLock());
+        statement.setLong(2, task.getClaimExpiresAt());
+        statement.setLong(3, task.getWorkerPid());
+        statement.setString(4, task.getWorkerId());
+        statement.setLong(5, task.getMaxRuntimeSeconds());
+        statement.setLong(6, task.getLastHeartbeatAt());
+        statement.setString(7, task.getCurrentRunId());
+        statement.executeUpdate();
+        statement.close();
+    }
+
+    private void updateActiveRunError(KanbanTaskRecord task, String error, Connection connection)
+            throws Exception {
+        if (task == null || StrUtil.isBlank(task.getCurrentRunId())) {
+            return;
+        }
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update kanban_runs set error = coalesce(?, error), worker_pid = 0 where run_id = ? and ended_at = 0");
+        statement.setString(1, error);
+        statement.setString(2, task.getCurrentRunId());
+        statement.executeUpdate();
+        statement.close();
+    }
+
+    private boolean reclaimRunningTask(
+            Connection connection,
+            KanbanTaskRecord task,
+            String runStatus,
+            String outcome,
+            String error,
+            String eventKind,
+            boolean ready,
+            long now)
+            throws Exception {
+        if (task == null || !"running".equals(task.getStatus())) {
+            return false;
+        }
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update kanban_tasks set status = ?, claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, updated_at = ? where task_id = ? and status = 'running'");
+        statement.setString(1, ready ? "ready" : task.getStatus());
+        statement.setLong(2, now);
+        statement.setString(3, task.getTaskId());
+        int updated = statement.executeUpdate();
+        statement.close();
+        if (updated != 1) {
+            return false;
+        }
+        closeRunById(task.getCurrentRunId(), runStatus, outcome, error, null, error, now, connection);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("prev_lock", task.getClaimLock());
+        payload.put("prev_worker", task.getWorkerId());
+        payload.put("worker_pid", task.getWorkerPid() <= 0 ? null : Long.valueOf(task.getWorkerPid()));
+        payload.put("error", error);
+        addEvent(connection, task.getTaskId(), eventKind, payload);
+        return true;
+    }
+
+    private Map<String, Object> claimedPayload(KanbanTaskRecord task) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        if (task == null) {
+            return payload;
+        }
+        payload.put("claim_lock", task.getClaimLock());
+        payload.put("claim_expires_at", Long.valueOf(task.getClaimExpiresAt()));
+        payload.put("worker_id", task.getWorkerId());
+        payload.put("worker_pid", task.getWorkerPid() <= 0 ? null : Long.valueOf(task.getWorkerPid()));
+        return payload;
+    }
+
+    private void closeOrSynthesizeRun(
+            KanbanTaskRecord task,
+            String status,
+            String outcome,
+            String summary,
+            String metadataJson,
+            String error,
+            long now,
+            Connection connection)
+            throws Exception {
+        if (task == null) {
+            return;
+        }
+        boolean closed =
+                closeRunById(
+                        task.getCurrentRunId(), status, outcome, summary, metadataJson, error, now, connection);
+        if (!closed) {
+            KanbanRunRecord run = new KanbanRunRecord();
+            run.setRunId("run_" + IdSupport.newId());
+            run.setTaskId(task.getTaskId());
+            run.setProfile(task.getAssignee());
+            run.setStepKey(task.getCurrentStepKey());
+            run.setStatus(status);
+            run.setOutcome(outcome);
+            run.setSummary(summary);
+            run.setMetadataJson(metadataJson);
+            run.setError(error);
+            run.setStartedAt(now);
+            run.setEndedAt(now);
+            insertRun(run, connection);
+        }
+        PreparedStatement update =
+                connection.prepareStatement(
+                        "update kanban_tasks set current_run_id = null where task_id = ?");
+        update.setString(1, task.getTaskId());
+        update.executeUpdate();
+        update.close();
+    }
+
+    private boolean closeRunById(
+            String runId,
+            String status,
+            String outcome,
+            String summary,
+            String metadataJson,
+            String error,
+            long now,
+            Connection connection)
+            throws Exception {
+        if (StrUtil.isBlank(runId)) {
+            return false;
+        }
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update kanban_runs set status = ?, outcome = ?, summary = coalesce(?, summary), metadata_json = coalesce(?, metadata_json), error = coalesce(?, error), ended_at = case when ended_at = 0 then ? else ended_at end, claim_lock = null, claim_expires_at = 0 where run_id = ? and ended_at = 0");
+        statement.setString(1, status);
+        statement.setString(2, outcome);
+        statement.setString(3, summary);
+        statement.setString(4, metadataJson);
+        statement.setString(5, error);
+        statement.setLong(6, now);
+        statement.setString(7, runId);
+        int updated = statement.executeUpdate();
+        statement.close();
+        return updated > 0;
+    }
+
+    private void insertRun(KanbanRunRecord run, Connection connection) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "insert or replace into kanban_runs (run_id, task_id, profile, step_key, status, claim_lock, claim_expires_at, worker_pid, worker_id, max_runtime_seconds, last_heartbeat_at, started_at, ended_at, outcome, summary, metadata_json, error) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        statement.setString(1, run.getRunId());
+        statement.setString(2, run.getTaskId());
+        statement.setString(3, run.getProfile());
+        statement.setString(4, run.getStepKey());
+        statement.setString(5, run.getStatus());
+        statement.setString(6, run.getClaimLock());
+        statement.setLong(7, run.getClaimExpiresAt());
+        statement.setLong(8, run.getWorkerPid());
+        statement.setString(9, run.getWorkerId());
+        statement.setLong(10, run.getMaxRuntimeSeconds());
+        statement.setLong(11, run.getLastHeartbeatAt());
+        statement.setLong(12, run.getStartedAt());
+        statement.setLong(13, run.getEndedAt());
+        statement.setString(14, run.getOutcome());
+        statement.setString(15, run.getSummary());
+        statement.setString(16, run.getMetadataJson());
+        statement.setString(17, run.getError());
+        statement.executeUpdate();
+        statement.close();
+    }
+
+    private void addEvent(
+            Connection connection, String taskId, String kind, Map<String, Object> payload)
+            throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "insert into kanban_events (event_id, task_id, kind, payload_json, created_at) values (?, ?, ?, ?, ?)");
+        statement.setString(1, "event_" + IdSupport.newId());
+        statement.setString(2, taskId);
+        statement.setString(3, kind);
+        statement.setString(4, payload == null ? null : ONode.serialize(payload));
+        statement.setLong(5, System.currentTimeMillis());
+        statement.executeUpdate();
+        statement.close();
     }
 }

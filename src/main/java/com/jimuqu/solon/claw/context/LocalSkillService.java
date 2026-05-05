@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -293,6 +294,9 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Patch target not found.");
         }
         ensureWritable(view.getDescriptor());
+        if (StrUtil.isNotBlank(filePath)) {
+            validateSupportFilePath(filePath, true);
+        }
         File target = resolveSkillFile(view.getDescriptor(), filePath);
         writeTextAtomically(
                 target, view.getContent().replace(oldText, StrUtil.nullToEmpty(newText)));
@@ -321,7 +325,7 @@ public class LocalSkillService implements SkillCatalogService {
         if ("SKILL.md".equalsIgnoreCase(StrUtil.nullToEmpty(filePath).trim().replace('\\', '/'))) {
             return editSkill(nameOrPath, fileContent).canonicalName();
         }
-        validateSupportFilePath(filePath);
+        validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
         writeTextAtomically(target, StrUtil.nullToEmpty(fileContent));
         return "Wrote skill file: " + target.getAbsolutePath();
@@ -334,7 +338,7 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Skill not found: " + nameOrPath);
         }
         ensureWritable(descriptor);
-        validateSupportFilePath(filePath);
+        validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
         if (!target.exists()) {
             throw new IllegalStateException("Skill file not found: " + target.getAbsolutePath());
@@ -399,6 +403,14 @@ public class LocalSkillService implements SkillCatalogService {
                 new ArrayList<String>(
                         SkillFrontmatterSupport.parseStringList(frontmatter.get("platforms"))));
         descriptor.setMetadata(new LinkedHashMap<String, Object>(frontmatter));
+        Object credentialFiles = frontmatter.get("required_credential_files");
+        SkillCredentialFileService.CredentialFilePlan credentialFilePlan =
+                new SkillCredentialFileService(appConfig).plan(credentialFiles);
+        if (!credentialFilePlan.getMounts().isEmpty()
+                || !credentialFilePlan.getMissing().isEmpty()
+                || !credentialFilePlan.getRejected().isEmpty()) {
+            descriptor.getMetadata().put("credential_files", credentialFilePlan.toMetadata());
+        }
         descriptor.setSetupState(SkillFrontmatterSupport.resolveSetupState(frontmatter).name());
 
         HubInstallRecord hubRecord = findHubRecord(category, skillDir.getName());
@@ -637,8 +649,21 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 校验支持文件相对路径。 */
     private void validateSupportFilePath(String filePath) {
+        validateSupportFilePath(filePath, false);
+    }
+
+    private void validateSupportFilePath(String filePath, boolean writeLike) {
         if (StrUtil.isBlank(filePath) || filePath.contains("..")) {
             throw new IllegalStateException("Invalid skill file path: " + filePath);
+        }
+        SecurityPolicyService.FileVerdict verdict =
+                new SecurityPolicyService(appConfig).checkPath(filePath, writeLike);
+        if (!verdict.isAllowed()) {
+            throw new IllegalStateException(
+                    "Skill file path blocked by security policy: "
+                            + verdict.getPath()
+                            + " - "
+                            + verdict.getMessage());
         }
     }
 
@@ -781,6 +806,9 @@ public class LocalSkillService implements SkillCatalogService {
                     ToolNameConstants.WEBFETCH,
                     ToolNameConstants.CODESEARCH);
         }
+        if ("gateway".equalsIgnoreCase(toolset) || "tool_gateway".equalsIgnoreCase(toolset)) {
+            return java.util.Collections.singletonList(ToolNameConstants.TOOL_GATEWAY);
+        }
         if ("terminal".equalsIgnoreCase(toolset)) {
             return java.util.Arrays.asList(
                     ToolNameConstants.EXECUTE_SHELL,
@@ -790,7 +818,8 @@ public class LocalSkillService implements SkillCatalogService {
                     ToolNameConstants.FILE_READ,
                     ToolNameConstants.FILE_WRITE,
                     ToolNameConstants.FILE_LIST,
-                    ToolNameConstants.FILE_DELETE);
+                    ToolNameConstants.FILE_DELETE,
+                    ToolNameConstants.PATCH);
         }
         if ("skills".equalsIgnoreCase(toolset)) {
             return java.util.Arrays.asList(

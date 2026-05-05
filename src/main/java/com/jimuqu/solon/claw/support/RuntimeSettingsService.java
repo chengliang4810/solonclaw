@@ -48,6 +48,8 @@ public class RuntimeSettingsService {
                     "display.platforms.yuanbao.runtimeFooter.enabled",
                     "scheduler.enabled",
                     "scheduler.tickSeconds",
+                    "scheduler.wrapResponse",
+                    "scheduler.enabledToolsets",
                     "compression.enabled",
                     "compression.thresholdPercent",
                     "compression.summaryModel",
@@ -60,6 +62,7 @@ public class RuntimeSettingsService {
                     "skills.curator.minIdleHours",
                     "skills.curator.staleAfterDays",
                     "skills.curator.archiveAfterDays",
+                    "task.busyPolicy",
                     "agent.heartbeat.intervalMinutes",
                     "rollback.enabled",
                     "rollback.maxCheckpointsPerSource",
@@ -76,7 +79,16 @@ public class RuntimeSettingsService {
                     "gateway.allowAllUsers",
                     "gateway.injectionSecret",
                     "gateway.injectionMaxBodyBytes",
-                    "gateway.injectionReplayWindowSeconds");
+                    "gateway.injectionReplayWindowSeconds",
+                    "security.tirithEnabled",
+                    "security.tirithPath",
+                    "security.tirithTimeoutSeconds",
+                    "security.tirithFailOpen",
+                    "approvals.mode",
+                    "approvals.cronMode",
+                    "approvals.mcpReloadConfirm",
+                    "terminal.credentialFiles",
+                    "terminal.sudoPassword");
 
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =
             Arrays.asList(
@@ -376,11 +388,15 @@ public class RuntimeSettingsService {
                 || "display.showReasoning".equals(key)
                 || "display.runtimeFooter.enabled".equals(key)
                 || "scheduler.enabled".equals(key)
+                || "scheduler.wrapResponse".equals(key)
                 || "compression.enabled".equals(key)
                 || "learning.enabled".equals(key)
                 || "rollback.enabled".equals(key)
                 || "skills.curator.enabled".equals(key)
-                || "gateway.allowAllUsers".equals(key)) {
+                || "gateway.allowAllUsers".equals(key)
+                || "security.tirithEnabled".equals(key)
+                || "security.tirithFailOpen".equals(key)
+                || "approvals.mcpReloadConfirm".equals(key)) {
             return "true".equalsIgnoreCase(value)
                     || "1".equals(value)
                     || "yes".equalsIgnoreCase(value);
@@ -407,7 +423,8 @@ public class RuntimeSettingsService {
                 || "llm.maxTokens".equals(key)
                 || "llm.contextWindowTokens".equals(key)
                 || "gateway.injectionMaxBodyBytes".equals(key)
-                || "gateway.injectionReplayWindowSeconds".equals(key)) {
+                || "gateway.injectionReplayWindowSeconds".equals(key)
+                || "security.tirithTimeoutSeconds".equals(key)) {
             return Integer.valueOf(value);
         }
         if ("react.summarizationEnabled".equals(key)) {
@@ -426,7 +443,9 @@ public class RuntimeSettingsService {
         if (key.endsWith("allowedUsers")
                 || key.endsWith("groupAllowedUsers")
                 || "display.runtimeFooter.fields".equals(key)
-                || "gateway.allowedUsers".equals(key)) {
+                || "gateway.allowedUsers".equals(key)
+                || "terminal.credentialFiles".equals(key)
+                || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();
             if (value.length() == 0) {
                 return values;

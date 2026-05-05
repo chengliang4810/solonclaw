@@ -57,6 +57,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.FILE_WRITE,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
+                    ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,

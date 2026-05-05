@@ -52,10 +52,12 @@ import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillGuardService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillHubService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillImportService;
@@ -64,7 +66,6 @@ import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
-import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelStateRepository;
@@ -81,7 +82,10 @@ import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.io.File;
@@ -135,8 +139,7 @@ public class TestEnvironment {
     public static TestEnvironment withLiveLlm() throws Exception {
         AppConfig config = newConfig();
         String dialect = runtimeConfigValue("providers.default.dialect", "openai");
-        String baseUrl =
-                runtimeConfigValue("providers.default.baseUrl", "https://api.openai.com");
+        String baseUrl = runtimeConfigValue("providers.default.baseUrl", "https://api.openai.com");
         AppConfig.ProviderConfig provider = config.getProviders().get("default");
         provider.setDialect(dialect);
         provider.setBaseUrl(baseUrl);
@@ -225,7 +228,11 @@ public class TestEnvironment {
         CheckpointService checkpointService = new DefaultCheckpointService(config, database);
         ProcessRegistry processRegistry = new ProcessRegistry();
         DangerousCommandApprovalService dangerousCommandApprovalService =
-                new DangerousCommandApprovalService(globalSettingRepository);
+                new DangerousCommandApprovalService(
+                        globalSettingRepository,
+                        config,
+                        new SecurityPolicyService(config),
+                        new TirithSecurityService(config));
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(config);
         GatewayRuntimeRefreshService refreshService =
                 new GatewayRuntimeRefreshService(
@@ -271,6 +278,7 @@ public class TestEnvironment {
                         gitHubAuth,
                         gitHubSkillSource);
         CronJobService cronJobService = new CronJobService(config, cronJobRepository);
+        DashboardMcpService dashboardMcpService = new DashboardMcpService(config, database);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -278,6 +286,7 @@ public class TestEnvironment {
                         sessionRepository,
                         agentProfileService,
                         cronJobService,
+                        kanbanService,
                         deliveryService,
                         memoryService,
                         sessionSearchService,
@@ -298,6 +307,7 @@ public class TestEnvironment {
                         contextBudgetService,
                         llmGateway,
                         llmProviderService);
+        GoalService goalService = new GoalService(sessionRepository);
         ConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
@@ -312,7 +322,8 @@ public class TestEnvironment {
                         agentRunSupervisor,
                         runtimeFooterService,
                         agentRuntimeService,
-                        memoryManager);
+                        memoryManager,
+                        goalService);
         holder.set(orchestrator);
         SkillLearningService skillLearningService =
                 new AsyncSkillLearningService(
@@ -345,7 +356,10 @@ public class TestEnvironment {
                         agentRunSupervisor,
                         agentProfileService,
                         agentRunRepository,
-                        kanbanService);
+                        kanbanService,
+                        dashboardMcpService,
+                        goalService,
+                        new SessionArtifactService(config));
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,

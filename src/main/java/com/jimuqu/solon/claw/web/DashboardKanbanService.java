@@ -50,7 +50,76 @@ public class DashboardKanbanService {
         return kanbanService.status(
                 taskId,
                 body == null ? null : String.valueOf(body.get("status")),
-                body == null || body.get("result") == null ? null : String.valueOf(body.get("result")));
+                body == null || body.get("result") == null ? null : String.valueOf(body.get("result")),
+                body == null || body.get("summary") == null ? null : String.valueOf(body.get("summary")),
+                body == null ? null : body.get("created_cards"));
+    }
+
+    public Map<String, Object> reclaim(String taskId, Map<String, Object> body) throws Exception {
+        return kanbanService.reclaim(
+                taskId,
+                body == null || body.get("reason") == null ? null : String.valueOf(body.get("reason")));
+    }
+
+    public Map<String, Object> reassign(String taskId, Map<String, Object> body) throws Exception {
+        return kanbanService.reassign(
+                taskId,
+                body == null || body.get("assignee") == null ? null : String.valueOf(body.get("assignee")),
+                body != null && Boolean.parseBoolean(String.valueOf(body.get("reclaim_first"))),
+                body == null || body.get("reason") == null ? null : String.valueOf(body.get("reason")));
+    }
+
+    public Map<String, Object> retry(String taskId, Map<String, Object> body) throws Exception {
+        return kanbanService.retry(
+                taskId,
+                body == null || body.get("reason") == null ? null : String.valueOf(body.get("reason")));
+    }
+
+    public Map<String, Object> claim(String taskId, Map<String, Object> body) throws Exception {
+        return kanbanService.claim(taskId, body);
+    }
+
+    public Map<String, Object> claimNext(Map<String, Object> body) throws Exception {
+        return kanbanService.claimNext(body);
+    }
+
+    public Map<String, Object> heartbeatClaim(String taskId, Map<String, Object> body)
+            throws Exception {
+        return kanbanService.heartbeatClaim(taskId, body);
+    }
+
+    public Map<String, Object> heartbeatWorker(String taskId, Map<String, Object> body)
+            throws Exception {
+        return kanbanService.heartbeatWorker(taskId, body);
+    }
+
+    public Map<String, Object> markSpawnFailure(String taskId, Map<String, Object> body)
+            throws Exception {
+        return kanbanService.markSpawnFailure(taskId, body);
+    }
+
+    public Map<String, Object> releaseStaleClaims() throws Exception {
+        return kanbanService.releaseStaleClaims();
+    }
+
+    public Map<String, Object> reclaimTimedOutWorkers() throws Exception {
+        return kanbanService.reclaimTimedOutWorkers();
+    }
+
+    public Map<String, Object> dispatch(Map<String, Object> body) throws Exception {
+        return kanbanService.dispatch(body);
+    }
+
+    public Map<String, Object> daemonStatus() {
+        return kanbanService.daemonStatus();
+    }
+
+    public Map<String, Object> startDaemon(Map<String, Object> body) {
+        return kanbanService.startDaemon(body);
+    }
+
+    public Map<String, Object> stopDaemon() {
+        return kanbanService.stopDaemon();
     }
 
     public Map<String, Object> comment(String taskId, Map<String, Object> body) throws Exception {

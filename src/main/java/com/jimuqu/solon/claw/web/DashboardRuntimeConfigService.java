@@ -131,6 +131,20 @@ public class DashboardRuntimeConfigService {
                                 true,
                                 "llm"),
                         item(
+                                "solonclaw.scheduler.wrapResponse",
+                                "默认包装 Cron 投递回复",
+                                "runtime",
+                                false,
+                                false,
+                                "cron"),
+                        item(
+                                "solonclaw.task.busyPolicy",
+                                "运行中输入策略：queue / steer / interrupt / reject",
+                                "runtime",
+                                false,
+                                false,
+                                "agent"),
+                        item(
                                 "solonclaw.compression.summaryModel",
                                 "压缩/工作记忆摘要模型",
                                 "provider",

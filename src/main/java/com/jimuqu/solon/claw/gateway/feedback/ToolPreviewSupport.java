@@ -99,7 +99,8 @@ public final class ToolPreviewSupport {
     private static String[] preferredKeys(String toolName) {
         if ("file_read".equals(toolName)
                 || "file_write".equals(toolName)
-                || "file_delete".equals(toolName)) {
+                || "file_delete".equals(toolName)
+                || "patch".equals(toolName)) {
             return new String[] {"fileName", "path", "filePath"};
         }
         if ("file_list".equals(toolName)) {

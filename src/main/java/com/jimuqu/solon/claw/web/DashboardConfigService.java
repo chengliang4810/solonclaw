@@ -119,6 +119,9 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "display.showReasoning", "boolean", "general", "默认允许 reasoning 进入聊天窗口"));
+        addField(
+                new FieldDefinition("display.resumeDisplay", "select", "general", "恢复会话历史展示")
+                        .options("full", "minimal"));
         addField(new FieldDefinition("display.toolPreviewLength", "number", "general", "工具参数预览长度"));
         addField(
                 new FieldDefinition(
@@ -170,6 +173,7 @@ public class DashboardConfigService {
                         "元宝 runtime footer 覆盖开关"));
         addField(new FieldDefinition("scheduler.enabled", "boolean", "general", "启用定时调度"));
         addField(new FieldDefinition("scheduler.tickSeconds", "number", "general", "调度轮询周期（秒）"));
+        addField(new FieldDefinition("scheduler.wrapResponse", "boolean", "general", "默认包装定时任务投递回复"));
 
         addField(new FieldDefinition("learning.enabled", "boolean", "agent", "启用主回复后的自动学习"));
         addField(
@@ -190,6 +194,9 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "skills.curator.archiveAfterDays", "number", "agent", "技能多久未使用后归档"));
+        addField(
+                new FieldDefinition("task.busyPolicy", "select", "agent", "运行中输入策略")
+                        .options("queue", "steer", "interrupt", "reject"));
         addField(
                 new FieldDefinition(
                         "agent.heartbeat.intervalMinutes",
@@ -304,6 +311,66 @@ public class DashboardConfigService {
                         "number",
                         "security",
                         "HTTP 网关注入重放窗口秒数"));
+        addField(
+                new FieldDefinition(
+                        "security.allowPrivateUrls", "boolean", "security", "允许 URL 工具访问内网地址"));
+        addField(
+                new FieldDefinition(
+                        "security.websiteBlocklist.enabled",
+                        "boolean",
+                        "security",
+                        "启用网站阻断策略"));
+        addField(
+                new FieldDefinition(
+                        "security.websiteBlocklist.domains",
+                        "list",
+                        "security",
+                        "网站阻断域名列表"));
+        addField(
+                new FieldDefinition(
+                        "security.websiteBlocklist.sharedFiles",
+                        "list",
+                        "security",
+                        "共享网站阻断列表文件"));
+        addField(
+                new FieldDefinition("security.tirithEnabled", "boolean", "security", "启用 Tirith 命令扫描"));
+        addField(
+                new FieldDefinition("security.tirithPath", "string", "security", "Tirith 可执行文件路径"));
+        addField(
+                new FieldDefinition(
+                        "security.tirithTimeoutSeconds", "number", "security", "Tirith 扫描超时秒数"));
+        addField(
+                new FieldDefinition(
+                        "security.tirithFailOpen", "boolean", "security", "Tirith 不可用时放行"));
+        addField(
+                new FieldDefinition(
+                        "approvals.mode",
+                        "select",
+                        "security",
+                        "危险命令审批模式")
+                        .options("on", "off", "smart"));
+        addField(
+                new FieldDefinition(
+                        "approvals.cronMode",
+                        "select",
+                        "security",
+                        "Cron 危险命令策略")
+                        .options("deny", "approve"));
+        addField(
+                new FieldDefinition(
+                        "approvals.mcpReloadConfirm",
+                        "boolean",
+                        "security",
+                        "MCP reload 需要确认"));
+        addField(
+                new FieldDefinition(
+                        "terminal.credentialFiles",
+                        "list",
+                        "security",
+                        "终端凭据文件挂载清单"));
+        addField(
+                new FieldDefinition(
+                        "terminal.sudoPassword", "password", "security", "sudo 密码"));
 
         addChannelFields("feishu");
         addField(

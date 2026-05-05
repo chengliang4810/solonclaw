@@ -1,0 +1,113 @@
+package com.jimuqu.solon.claw;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
+import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.McpPackageSecurityService;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+public class McpPackageSecurityServiceTest {
+    @Test
+    void shouldBlockOnlyMalwareAdvisoriesFromOsv() throws Exception {
+        FakeOsvHttpClient http =
+                new FakeOsvHttpClient(
+                        "{\"vulns\":[{\"id\":\"MAL-2026-0001\",\"summary\":\"malicious package\"},{\"id\":\"GHSA-regular\",\"summary\":\"ordinary vuln\"}]}");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("npx", Arrays.asList("-y", "@scope/server@1.2.3", "--stdio"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("MAL-2026-0001");
+        assertThat(verdict.getMessage()).doesNotContain("GHSA-regular");
+        assertThat(http.lastBody).contains("\"name\":\"@scope/server\"");
+        assertThat(http.lastBody).contains("\"ecosystem\":\"npm\"");
+        assertThat(http.lastBody).contains("\"version\":\"1.2.3\"");
+    }
+
+    @Test
+    void shouldFailOpenWhenOsvRequestFails() throws Exception {
+        FakeOsvHttpClient http = new FakeOsvHttpClient(null);
+        http.throwOnPost = true;
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("uvx", Arrays.asList("demo-mcp==0.1.0"));
+
+        assertThat(verdict.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldPersistBlockedMcpPackageStatus() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeOsvHttpClient http =
+                new FakeOsvHttpClient(
+                        "{\"vulns\":[{\"id\":\"MAL-2026-9999\",\"summary\":\"known malware\"}]}");
+        DashboardMcpService service =
+                new DashboardMcpService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        new McpPackageSecurityService(http, "https://osv.test/query"));
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "bad-mcp");
+        body.put("name", "Bad MCP");
+        body.put("transport", "stdio");
+        body.put("command", "npx");
+        body.put("args", Arrays.asList("-y", "bad-mcp-server"));
+        body.put("tools", Arrays.asList(tool("bad_tool")));
+
+        Map<String, Object> saved = service.save(body);
+        Map<String, Object> checked = service.check("bad-mcp");
+        Map<String, Object> listed = service.list();
+
+        assertThat(String.valueOf(saved.get("security"))).contains("allowed=false");
+        assertThat(checked.get("status")).isEqualTo("blocked");
+        assertThat(String.valueOf(checked.get("security"))).contains("MAL-2026-9999");
+        assertThat(String.valueOf(listed.get("servers"))).contains("blocked");
+        assertThat(String.valueOf(listed.get("servers"))).contains("MAL-2026-9999");
+    }
+
+    private Map<String, Object> tool(String name) {
+        Map<String, Object> tool = new LinkedHashMap<String, Object>();
+        tool.put("name", name);
+        return tool;
+    }
+
+    private static class FakeOsvHttpClient implements SkillHubHttpClient {
+        private final String response;
+        private String lastBody;
+        private boolean throwOnPost;
+
+        private FakeOsvHttpClient(String response) {
+            this.response = response;
+        }
+
+        @Override
+        public String getText(String url, Map<String, String> headers) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public byte[] getBytes(String url, Map<String, String> headers) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String postJson(String url, Map<String, String> headers, String jsonBody)
+                throws Exception {
+            if (throwOnPost) {
+                throw new IllegalStateException("network down");
+            }
+            this.lastBody = jsonBody;
+            return response;
+        }
+    }
+}

@@ -21,6 +21,35 @@ export interface KanbanComment {
   created_at: string
 }
 
+export interface KanbanEvent {
+  id: string
+  task_id: string
+  kind: string
+  payload?: unknown
+  created_at: string
+}
+
+export interface KanbanRun {
+  id: string
+  run_id: string
+  task_id: string
+  profile?: string | null
+  step_key?: string | null
+  status: string
+  claim_lock?: string | null
+  claim_expires_at?: string | null
+  worker_pid?: number | null
+  worker_id?: string | null
+  max_runtime_seconds?: number | null
+  last_heartbeat_at?: string | null
+  started_at?: string | null
+  ended_at?: string | null
+  outcome?: string | null
+  summary?: string | null
+  metadata?: unknown
+  error?: string | null
+}
+
 export interface KanbanTask {
   id: string
   task_id: string
@@ -35,11 +64,33 @@ export interface KanbanTask {
   workspace_path?: string | null
   created_by?: string | null
   result?: string | null
+  idempotency_key?: string | null
+  claim_lock?: string | null
+  claim_expires_at?: string | null
+  worker_id?: string | null
+  worker_pid?: number | null
+  last_spawn_error?: string | null
+  spawn_failures?: number
+  max_runtime_seconds?: number | null
+  last_heartbeat_at?: string | null
+  current_run_id?: string | null
+  workflow_template_id?: string | null
+  current_step_key?: string | null
+  skills?: unknown
   created_at: string
   updated_at: string
   started_at?: string | null
   completed_at?: string | null
   comments?: KanbanComment[]
+  events?: KanbanEvent[]
+  warnings?: KanbanEvent[]
+  runs?: KanbanRun[]
+  active_run?: KanbanRun | null
+  latest_run?: KanbanRun | null
+  retry_count?: number
+  parents?: Array<Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>>
+  children?: Array<Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>>
+  worker_context?: string
 }
 
 export interface CreateKanbanTaskRequest {
@@ -50,6 +101,41 @@ export interface CreateKanbanTaskRequest {
   status?: KanbanStatus
   priority?: number
   tenant?: string
+  idempotency_key?: string
+  parents?: string[]
+  max_runtime_seconds?: number
+  skills?: string[]
+  workflow_template_id?: string
+  current_step_key?: string
+}
+
+export interface KanbanDispatchResult {
+  reclaimed: number
+  promoted: number
+  timed_out: number
+  spawned: Array<{ task_id: string; assignee?: string; workspace_path?: string; worker_pid?: number | null }>
+  skipped_unassigned: string[]
+  skipped_nonspawnable: string[]
+  spawn_failures: string[]
+  auto_blocked: string[]
+}
+
+export interface KanbanDaemonStatus {
+  running: boolean
+  board?: string | null
+  max_spawn: number
+  failure_limit: number
+  ttl_seconds: number
+  interval_seconds: number
+  dry_run: boolean
+  started_at?: number | null
+  last_tick_at?: number | null
+  tick_count: number
+  last_result?: KanbanDispatchResult | null
+  last_error?: string | null
+  started?: boolean
+  already_running?: boolean
+  stopping?: boolean
 }
 
 export async function fetchKanbanBoards(): Promise<KanbanBoard[]> {
@@ -85,7 +171,10 @@ export async function createKanbanTask(data: CreateKanbanTaskRequest): Promise<K
   })
 }
 
-export async function updateKanbanTask(taskId: string, data: Partial<CreateKanbanTaskRequest & { result: string }>): Promise<KanbanTask> {
+export async function updateKanbanTask(
+  taskId: string,
+  data: Partial<CreateKanbanTaskRequest & { result: string; claim_lock: string; claim_expires_at: number; worker_id: string }>,
+): Promise<KanbanTask> {
   return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}`, {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -103,5 +192,68 @@ export async function addKanbanComment(taskId: string, body: string, author = 'd
   return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/comments`, {
     method: 'POST',
     body: JSON.stringify({ author, body }),
+  })
+}
+
+export async function reclaimKanbanTask(taskId: string, reason?: string): Promise<KanbanTask> {
+  return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/reclaim`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export async function reassignKanbanTask(
+  taskId: string,
+  assignee: string,
+  reclaimFirst = false,
+  reason?: string,
+): Promise<KanbanTask> {
+  return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/reassign`, {
+    method: 'POST',
+    body: JSON.stringify({ assignee, reclaim_first: reclaimFirst, reason }),
+  })
+}
+
+export async function retryKanbanTask(taskId: string, reason?: string): Promise<KanbanTask> {
+  return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/retry`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export async function dispatchKanban(data: {
+  board?: string
+  max_spawn?: number
+  dry_run?: boolean
+  ttl_seconds?: number
+  failure_limit?: number
+}): Promise<KanbanDispatchResult> {
+  return request<KanbanDispatchResult>('/api/kanban/dispatch', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function fetchKanbanDaemon(): Promise<KanbanDaemonStatus> {
+  return request<KanbanDaemonStatus>('/api/kanban/daemon')
+}
+
+export async function startKanbanDaemon(data: {
+  board?: string
+  max_spawn?: number
+  interval_seconds?: number
+  ttl_seconds?: number
+  failure_limit?: number
+  dry_run?: boolean
+}): Promise<KanbanDaemonStatus> {
+  return request<KanbanDaemonStatus>('/api/kanban/daemon/start', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function stopKanbanDaemon(): Promise<KanbanDaemonStatus> {
+  return request<KanbanDaemonStatus>('/api/kanban/daemon/stop', {
+    method: 'POST',
   })
 }

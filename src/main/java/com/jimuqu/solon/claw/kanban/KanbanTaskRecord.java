@@ -14,6 +14,19 @@ public class KanbanTaskRecord {
     private String workspacePath;
     private String createdBy;
     private String result;
+    private String idempotencyKey;
+    private String claimLock;
+    private long claimExpiresAt;
+    private String workerId;
+    private long workerPid;
+    private String lastSpawnError;
+    private int spawnFailures;
+    private long maxRuntimeSeconds;
+    private long lastHeartbeatAt;
+    private String currentRunId;
+    private String workflowTemplateId;
+    private String currentStepKey;
+    private String skillsJson;
     private long createdAt;
     private long updatedAt;
     private long startedAt;
@@ -113,6 +126,110 @@ public class KanbanTaskRecord {
 
     public void setResult(String result) {
         this.result = result;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public String getClaimLock() {
+        return claimLock;
+    }
+
+    public void setClaimLock(String claimLock) {
+        this.claimLock = claimLock;
+    }
+
+    public long getClaimExpiresAt() {
+        return claimExpiresAt;
+    }
+
+    public void setClaimExpiresAt(long claimExpiresAt) {
+        this.claimExpiresAt = claimExpiresAt;
+    }
+
+    public String getWorkerId() {
+        return workerId;
+    }
+
+    public void setWorkerId(String workerId) {
+        this.workerId = workerId;
+    }
+
+    public long getWorkerPid() {
+        return workerPid;
+    }
+
+    public void setWorkerPid(long workerPid) {
+        this.workerPid = workerPid;
+    }
+
+    public String getLastSpawnError() {
+        return lastSpawnError;
+    }
+
+    public void setLastSpawnError(String lastSpawnError) {
+        this.lastSpawnError = lastSpawnError;
+    }
+
+    public int getSpawnFailures() {
+        return spawnFailures;
+    }
+
+    public void setSpawnFailures(int spawnFailures) {
+        this.spawnFailures = spawnFailures;
+    }
+
+    public long getMaxRuntimeSeconds() {
+        return maxRuntimeSeconds;
+    }
+
+    public void setMaxRuntimeSeconds(long maxRuntimeSeconds) {
+        this.maxRuntimeSeconds = maxRuntimeSeconds;
+    }
+
+    public long getLastHeartbeatAt() {
+        return lastHeartbeatAt;
+    }
+
+    public void setLastHeartbeatAt(long lastHeartbeatAt) {
+        this.lastHeartbeatAt = lastHeartbeatAt;
+    }
+
+    public String getCurrentRunId() {
+        return currentRunId;
+    }
+
+    public void setCurrentRunId(String currentRunId) {
+        this.currentRunId = currentRunId;
+    }
+
+    public String getWorkflowTemplateId() {
+        return workflowTemplateId;
+    }
+
+    public void setWorkflowTemplateId(String workflowTemplateId) {
+        this.workflowTemplateId = workflowTemplateId;
+    }
+
+    public String getCurrentStepKey() {
+        return currentStepKey;
+    }
+
+    public void setCurrentStepKey(String currentStepKey) {
+        this.currentStepKey = currentStepKey;
+    }
+
+    public String getSkillsJson() {
+        return skillsJson;
+    }
+
+    public void setSkillsJson(String skillsJson) {
+        this.skillsJson = skillsJson;
     }
 
     public long getCreatedAt() {

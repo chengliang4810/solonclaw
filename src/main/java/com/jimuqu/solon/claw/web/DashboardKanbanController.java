@@ -66,6 +66,76 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.status(taskId, body(context)));
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/reclaim", method = MethodType.POST)
+    public Map<String, Object> reclaim(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.reclaim(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/reassign", method = MethodType.POST)
+    public Map<String, Object> reassign(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.reassign(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/retry", method = MethodType.POST)
+    public Map<String, Object> retry(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.retry(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/claim", method = MethodType.POST)
+    public Map<String, Object> claim(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.claim(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/claim-next", method = MethodType.POST)
+    public Map<String, Object> claimNext(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.claimNext(body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/heartbeat-claim", method = MethodType.POST)
+    public Map<String, Object> heartbeatClaim(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.heartbeatClaim(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/heartbeat", method = MethodType.POST)
+    public Map<String, Object> heartbeatWorker(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.heartbeatWorker(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/spawn-failure", method = MethodType.POST)
+    public Map<String, Object> markSpawnFailure(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.markSpawnFailure(taskId, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/release-stale", method = MethodType.POST)
+    public Map<String, Object> releaseStaleClaims() throws Exception {
+        return DashboardResponse.ok(kanbanService.releaseStaleClaims());
+    }
+
+    @Mapping(value = "/api/kanban/reclaim-timeouts", method = MethodType.POST)
+    public Map<String, Object> reclaimTimedOutWorkers() throws Exception {
+        return DashboardResponse.ok(kanbanService.reclaimTimedOutWorkers());
+    }
+
+    @Mapping(value = "/api/kanban/dispatch", method = MethodType.POST)
+    public Map<String, Object> dispatch(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.dispatch(body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/daemon", method = MethodType.GET)
+    public Map<String, Object> daemonStatus() {
+        return DashboardResponse.ok(kanbanService.daemonStatus());
+    }
+
+    @Mapping(value = "/api/kanban/daemon/start", method = MethodType.POST)
+    public Map<String, Object> startDaemon(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.startDaemon(body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/daemon/stop", method = MethodType.POST)
+    public Map<String, Object> stopDaemon() {
+        return DashboardResponse.ok(kanbanService.stopDaemon());
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/comments", method = MethodType.POST)
     public Map<String, Object> comment(String taskId, Context context) throws Exception {
         return DashboardResponse.ok(kanbanService.comment(taskId, body(context)));

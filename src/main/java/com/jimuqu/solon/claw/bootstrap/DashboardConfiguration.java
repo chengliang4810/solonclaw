@@ -9,19 +9,25 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.kanban.ConversationKanbanWorkerSpawner;
+import com.jimuqu.solon.claw.kanban.KanbanDispatcherService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.kanban.KanbanWorkerSpawner;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
@@ -37,6 +43,7 @@ import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
+import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -82,9 +89,17 @@ public class DashboardConfiguration {
     }
 
     @Bean
+    public SessionArtifactService sessionArtifactService(AppConfig appConfig) {
+        return new SessionArtifactService(appConfig);
+    }
+
+    @Bean
     public DashboardSessionService dashboardSessionService(
-            SessionRepository sessionRepository, CheckpointService checkpointService) {
-        return new DashboardSessionService(sessionRepository, checkpointService);
+            SessionRepository sessionRepository,
+            CheckpointService checkpointService,
+            SessionArtifactService sessionArtifactService) {
+        return new DashboardSessionService(
+                sessionRepository, checkpointService, sessionArtifactService);
     }
 
     @Bean
@@ -189,14 +204,36 @@ public class DashboardConfiguration {
     }
 
     @Bean
+    public KanbanWorkerSpawner kanbanWorkerSpawner(
+            ConversationOrchestrator conversationOrchestrator, KanbanService kanbanService) {
+        return new ConversationKanbanWorkerSpawner(conversationOrchestrator, kanbanService);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public KanbanDispatcherService kanbanDispatcherService(
+            KanbanRepository kanbanRepository,
+            KanbanService kanbanService,
+            KanbanWorkerSpawner kanbanWorkerSpawner) {
+        KanbanDispatcherService dispatcherService =
+                new KanbanDispatcherService(kanbanRepository, kanbanService, kanbanWorkerSpawner);
+        kanbanService.setDispatcherService(dispatcherService);
+        return dispatcherService;
+    }
+
+    @Bean
     public DashboardKanbanService dashboardKanbanService(KanbanService kanbanService) {
         return new DashboardKanbanService(kanbanService);
     }
 
     @Bean
     public DashboardMcpService dashboardMcpService(
-            AppConfig appConfig, SqliteDatabase sqliteDatabase) {
-        return new DashboardMcpService(appConfig, sqliteDatabase);
+            AppConfig appConfig, SqliteDatabase sqliteDatabase, McpRuntimeService mcpRuntimeService) {
+        return new DashboardMcpService(
+                appConfig,
+                sqliteDatabase,
+                new McpPackageSecurityService(
+                        new com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient()),
+                mcpRuntimeService);
     }
 
     @Bean

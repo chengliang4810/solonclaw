@@ -32,6 +32,31 @@ public class DashboardSessionController {
         return DashboardResponse.ok(sessionService.getSessionMessages(id));
     }
 
+    @Mapping(value = "/api/sessions/{id}/recap", method = MethodType.GET)
+    public Map<String, Object> recap(String id, Context context) throws Exception {
+        return DashboardResponse.ok(sessionService.recap(id, context.paramAsInt("limit", 10)));
+    }
+
+    @Mapping(value = "/api/sessions/{id}/trajectory", method = MethodType.GET)
+    public Map<String, Object> trajectory(String id, Context context) throws Exception {
+        String userQuery = context.param("user_query");
+        if (userQuery == null || userQuery.trim().length() == 0) {
+            userQuery = context.param("userQuery");
+        }
+        boolean completed = !"false".equalsIgnoreCase(context.param("completed"));
+        return DashboardResponse.ok(sessionService.trajectory(id, userQuery, completed));
+    }
+
+    @Mapping(value = "/api/sessions/{id}/trajectory/save", method = MethodType.POST)
+    public Map<String, Object> saveTrajectory(String id, Context context) throws Exception {
+        String userQuery = context.param("user_query");
+        if (userQuery == null || userQuery.trim().length() == 0) {
+            userQuery = context.param("userQuery");
+        }
+        boolean completed = !"false".equalsIgnoreCase(context.param("completed"));
+        return DashboardResponse.ok(sessionService.saveTrajectory(id, userQuery, completed));
+    }
+
     @Mapping(value = "/api/sessions/{id}/tree", method = MethodType.GET)
     public Map<String, Object> tree(String id) throws Exception {
         return DashboardResponse.ok(sessionService.sessionTree(id));

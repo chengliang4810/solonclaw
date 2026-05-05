@@ -60,6 +60,23 @@ public final class CronSupport {
         return fromEpochMillis + 60000L;
     }
 
+    public static long periodMillis(String cronExpr, long fromEpochMillis) {
+        if (StrUtil.isBlank(cronExpr) || isOneShot(cronExpr)) {
+            return 0L;
+        }
+        Long direct = directIntervalMillis(cronExpr);
+        if (direct != null) {
+            return direct.longValue();
+        }
+        try {
+            long first = nextRunAt(cronExpr, fromEpochMillis);
+            long second = nextRunAt(cronExpr, first);
+            return Math.max(0L, second - first);
+        } catch (Exception ignored) {
+            return 0L;
+        }
+    }
+
     /** 将 Java 星期映射为 cron 星期值后做匹配。 */
     private static boolean matchesDayOfWeek(String expr, int dayOfWeek) {
         int normalized = dayOfWeek - 1;
@@ -101,16 +118,7 @@ public final class CronSupport {
         String normalized = schedule.trim().toLowerCase(Locale.ROOT);
         Matcher matcher = INTERVAL_PATTERN.matcher(normalized);
         if (matcher.matches()) {
-            long amount = Long.parseLong(matcher.group(1));
-            String unit = matcher.group(2);
-            long millis;
-            if (unit.startsWith("h")) {
-                millis = amount * 60L * 60L * 1000L;
-            } else if (unit.startsWith("d")) {
-                millis = amount * 24L * 60L * 60L * 1000L;
-            } else {
-                millis = amount * 60L * 1000L;
-            }
+            long millis = intervalMillis(matcher);
             return Long.valueOf(fromEpochMillis + Math.max(60000L, millis));
         }
         try {
@@ -119,6 +127,26 @@ public final class CronSupport {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static Long directIntervalMillis(String schedule) {
+        Matcher matcher = INTERVAL_PATTERN.matcher(schedule.trim().toLowerCase(Locale.ROOT));
+        if (!matcher.matches()) {
+            return null;
+        }
+        return Long.valueOf(Math.max(60000L, intervalMillis(matcher)));
+    }
+
+    private static long intervalMillis(Matcher matcher) {
+        long amount = Long.parseLong(matcher.group(1));
+        String unit = matcher.group(2);
+        if (unit.startsWith("h")) {
+            return amount * 60L * 60L * 1000L;
+        }
+        if (unit.startsWith("d")) {
+            return amount * 24L * 60L * 1000L;
+        }
+        return amount * 60L * 1000L;
     }
 
     private static long parseIsoMillis(String value) {

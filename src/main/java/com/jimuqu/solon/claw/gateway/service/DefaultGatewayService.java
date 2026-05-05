@@ -94,7 +94,10 @@ public class DefaultGatewayService {
 
             if (reply != null) {
                 safeDeliver(message, reply);
+                safeDeliverGoalNotice(message, reply);
                 safeScheduleLearning(message, reply);
+                safeScheduleGoalKickoff(message, reply);
+                safeScheduleGoalContinuation(message, reply);
             }
             return reply;
         } catch (Exception e) {
@@ -122,6 +125,113 @@ public class DefaultGatewayService {
             }
             return errorReply;
         }
+    }
+
+    private void safeDeliverGoalNotice(GatewayMessage message, GatewayReply reply) {
+        if (reply == null
+                || reply.getRuntimeMetadata() == null
+                || !hasTextMetadata(reply, "goal_message")) {
+            return;
+        }
+        GatewayReply notice = GatewayReply.ok(textMetadata(reply, "goal_message"));
+        safeDeliver(message, notice);
+    }
+
+    private void safeScheduleGoalKickoff(final GatewayMessage message, GatewayReply reply) {
+        if (reply == null
+                || reply.getRuntimeMetadata() == null
+                || !hasTextMetadata(reply, "goal_kickoff")) {
+            return;
+        }
+        final String kickoff = textMetadata(reply, "goal_kickoff");
+        Thread thread =
+                new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    GatewayMessage kickoffMessage =
+                                            new GatewayMessage(
+                                                    message.getPlatform(),
+                                                    message.getChatId(),
+                                                    message.getUserId(),
+                                                    kickoff);
+                                    kickoffMessage.setThreadId(message.getThreadId());
+                                    kickoffMessage.setChatType(message.getChatType());
+                                    kickoffMessage.setChatName(message.getChatName());
+                                    kickoffMessage.setUserName(message.getUserName());
+                                    kickoffMessage.setSourceKeyOverride(message.sourceKey());
+                                    GatewayReply next = conversationOrchestrator.runScheduled(kickoffMessage);
+                                    if (next != null) {
+                                        safeDeliver(kickoffMessage, next);
+                                        safeDeliverGoalNotice(kickoffMessage, next);
+                                        safeScheduleLearning(kickoffMessage, next);
+                                        safeScheduleGoalContinuation(kickoffMessage, next);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Goal kickoff dispatch failed: sourceKey={}", message.sourceKey(), e);
+                                }
+                            }
+                        },
+                        "jimuqu-goal-kickoff");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void safeScheduleGoalContinuation(final GatewayMessage message, GatewayReply reply) {
+        if (reply == null
+                || reply.getRuntimeMetadata() == null
+                || !Boolean.TRUE.equals(reply.getRuntimeMetadata().get("goal_should_continue"))) {
+            return;
+        }
+        final String prompt = textMetadata(reply, "goal_continuation_prompt");
+        if (StrUtil.isBlank(prompt)) {
+            return;
+        }
+        Thread thread =
+                new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    GatewayMessage continuation =
+                                            new GatewayMessage(
+                                                    message.getPlatform(),
+                                                    message.getChatId(),
+                                                    message.getUserId(),
+                                                    prompt);
+                                    continuation.setThreadId(message.getThreadId());
+                                    continuation.setChatType(message.getChatType());
+                                    continuation.setChatName(message.getChatName());
+                                    continuation.setUserName(message.getUserName());
+                                    continuation.setSourceKeyOverride(message.sourceKey());
+                                    GatewayReply next = conversationOrchestrator.runScheduled(continuation);
+                                    if (next != null) {
+                                        safeDeliver(continuation, next);
+                                        safeDeliverGoalNotice(continuation, next);
+                                        safeScheduleLearning(continuation, next);
+                                        safeScheduleGoalContinuation(continuation, next);
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Goal continuation dispatch failed: sourceKey={}", message.sourceKey(), e);
+                                }
+                            }
+                        },
+                        "jimuqu-goal-continuation");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private boolean hasTextMetadata(GatewayReply reply, String key) {
+        return StrUtil.isNotBlank(textMetadata(reply, key));
+    }
+
+    private String textMetadata(GatewayReply reply, String key) {
+        if (reply == null || reply.getRuntimeMetadata() == null) {
+            return "";
+        }
+        Object value = reply.getRuntimeMetadata().get(key);
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     /** 安全投递当前回复，不让渠道发送失败打断主链。 */

@@ -30,7 +30,7 @@ public class DashboardAuthFilter implements Filter {
                         && ctx.header("X-SolonClaw-Signature") != null;
         if (path.startsWith("/api/")
                 && !signedGatewayInjection
-                && !authService.isPublicApiPath(path)
+                && !authService.isPublicApiPath(path, ctx.method())
                 && !authService.isAuthorized(ctx)) {
             ctx.status(401);
             ctx.contentType("application/json;charset=UTF-8");

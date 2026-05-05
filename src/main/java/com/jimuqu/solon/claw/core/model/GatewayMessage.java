@@ -41,6 +41,18 @@ public class GatewayMessage {
     /** 来源键覆盖值，供逻辑子会话等场景复用同一消息模型。 */
     private String sourceKeyOverride;
 
+    /** 本轮消息使用的临时模型覆盖；不会持久化到会话。 */
+    private String modelOverride;
+
+    /** 本轮消息使用的临时工具集覆盖；不会持久化到会话。 */
+    private List<String> enabledToolsetsOverride = new ArrayList<String>();
+
+    /** 本轮消息需要临时禁用的工具集；不会持久化到会话。 */
+    private List<String> disabledToolsetsOverride = new ArrayList<String>();
+
+    /** 本轮消息使用的临时工作目录覆盖；不会持久化到会话。 */
+    private String workspaceDirOverride;
+
     /** 是否为 heartbeat 触发的合成消息。 */
     private boolean heartbeat;
 

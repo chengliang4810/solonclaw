@@ -15,6 +15,8 @@ import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -25,14 +27,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import org.noear.solon.ai.skills.file.FileReadWriteSkill;
-import org.noear.solon.ai.skills.sys.NodejsSkill;
-import org.noear.solon.ai.skills.sys.PythonSkill;
+import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.skill.Skill;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.skills.sys.ShellSkill;
 import org.noear.solon.ai.skills.sys.SystemClockSkill;
-import org.noear.solon.ai.skills.web.CodeSearchTool;
-import org.noear.solon.ai.skills.web.WebfetchTool;
-import org.noear.solon.ai.skills.web.WebsearchTool;
+import org.noear.solon.ai.skills.toolgateway.ToolGatewaySkill;
 
 /** 默认工具注册表。 */
 public class DefaultToolRegistry implements ToolRegistry {
@@ -43,6 +44,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.FILE_WRITE,
                     ToolNameConstants.FILE_LIST,
                     ToolNameConstants.FILE_DELETE,
+                    ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
@@ -66,10 +68,19 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.SKILLS_HUB_TAP,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
+                    ToolNameConstants.KANBAN_SHOW,
+                    ToolNameConstants.KANBAN_COMPLETE,
+                    ToolNameConstants.KANBAN_BLOCK,
+                    ToolNameConstants.KANBAN_HEARTBEAT,
+                    ToolNameConstants.KANBAN_COMMENT,
+                    ToolNameConstants.KANBAN_CREATE,
+                    ToolNameConstants.KANBAN_LINK,
                     ToolNameConstants.CONFIG_GET,
                     ToolNameConstants.CONFIG_SET,
                     ToolNameConstants.CONFIG_SET_SECRET,
                     ToolNameConstants.CONFIG_REFRESH,
+                    ToolNameConstants.TOOL_GATEWAY,
+                    ToolNameConstants.MCP,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH);
@@ -88,6 +99,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** 定时任务仓储。 */
     private final CronJobService cronJobService;
+
+    /** Kanban 服务。 */
+    private final KanbanService kanbanService;
 
     /** 渠道投递服务。 */
     private final DeliveryService deliveryService;
@@ -119,12 +133,19 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 运行时配置刷新服务。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
 
+    /** 文件/URL 安全策略。 */
+    private final SecurityPolicyService securityPolicyService;
+
+    /** MCP 运行时工具发现服务。 */
+    private final McpRuntimeService mcpRuntimeService;
+
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
+            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -135,11 +156,91 @@ public class DefaultToolRegistry implements ToolRegistry {
             AttachmentCacheService attachmentCacheService,
             RuntimeSettingsService runtimeSettingsService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                null,
+                null);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                null);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            McpRuntimeService mcpRuntimeService) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
         this.agentProfileService = agentProfileService;
         this.cronJobService = cronJobService;
+        this.kanbanService = kanbanService;
         this.deliveryService = deliveryService;
         this.memoryService = memoryService;
         this.sessionSearchService = sessionSearchService;
@@ -150,6 +251,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.attachmentCacheService = attachmentCacheService;
         this.runtimeSettingsService = runtimeSettingsService;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
+        this.securityPolicyService = securityPolicyService;
+        this.mcpRuntimeService = mcpRuntimeService;
     }
 
     @Override
@@ -180,21 +283,32 @@ public class DefaultToolRegistry implements ToolRegistry {
         MessagingTools messagingTools =
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
+        KanbanTools kanbanTools = new KanbanTools(kanbanService);
+        boolean kanbanToolsAdded = false;
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools = new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService);
         String sysWorkDir = resolveWorkDir(agentScope);
-        FileReadWriteSkill fileSkill = new FileReadWriteSkill(sysWorkDir);
-        ShellSkill shellSkill = new ShellSkill(sysWorkDir);
-        PythonSkill pythonSkill = new PythonSkill(sysWorkDir, defaultPythonCommand());
-        NodejsSkill nodejsSkill = new NodejsSkill(sysWorkDir);
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(sysWorkDir, securityPolicyService);
+        HermesPatchTools patchTools = new HermesPatchTools(sysWorkDir, securityPolicyService);
+        ShellSkill shellSkill = new HermesShellSkill(sysWorkDir, appConfig, securityPolicyService);
+        HermesCodeExecutionSkills.SafePythonSkill pythonSkill =
+                new HermesCodeExecutionSkills.SafePythonSkill(
+                        sysWorkDir, defaultPythonCommand(), securityPolicyService);
+        HermesCodeExecutionSkills.SafeNodejsSkill nodejsSkill =
+                new HermesCodeExecutionSkills.SafeNodejsSkill(sysWorkDir, securityPolicyService);
         SystemClockSkill systemClockSkill = new SystemClockSkill();
-        WebsearchTool websearchTool = WebsearchTool.getInstance();
-        WebfetchTool webfetchTool = WebfetchTool.getInstance();
-        CodeSearchTool codeSearchTool = CodeSearchTool.getInstance();
+        HermesWebTools.SafeWebsearchTool websearchTool =
+                new HermesWebTools.SafeWebsearchTool(securityPolicyService);
+        HermesWebTools.SafeWebfetchTool webfetchTool =
+                new HermesWebTools.SafeWebfetchTool(securityPolicyService);
+        HermesWebTools.SafeCodeSearchTool codeSearchTool =
+                new HermesWebTools.SafeCodeSearchTool(securityPolicyService);
         boolean fileSkillAdded = false;
         boolean clockSkillAdded = false;
+        List<Object> gatewayCandidates = new ArrayList<Object>();
 
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
             if (!isEnabled(sourceKey, toolName)) {
@@ -206,6 +320,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                     tools.add(fileSkill);
                     fileSkillAdded = true;
                 }
+            } else if (ToolNameConstants.PATCH.equals(toolName)) {
+                tools.add(patchTools);
             } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
                 tools.add(shellSkill);
             } else if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
@@ -225,6 +341,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(new ConfigTools.ConfigSetSecretTool(configTools));
             } else if (ToolNameConstants.CONFIG_REFRESH.equals(toolName)) {
                 tools.add(new ConfigTools.ConfigRefreshTool(configTools));
+            } else if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {
+                // Added after direct tools are collected to avoid recursively wrapping itself.
+            } else if (ToolNameConstants.MCP.equals(toolName)) {
+                if (mcpRuntimeService != null) {
+                    tools.addAll(mcpRuntimeService.resolveEnabledToolProviders());
+                }
             } else if (ToolNameConstants.MEMORY.equals(toolName)) {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {
@@ -257,6 +379,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(messagingTools);
             } else if (ToolNameConstants.CRONJOB.equals(toolName)) {
                 tools.add(cronjobTools);
+            } else if (isKanbanTool(toolName)) {
+                if (!kanbanToolsAdded) {
+                    tools.add(kanbanTools);
+                    kanbanToolsAdded = true;
+                }
             } else if (ToolNameConstants.TODO.equals(toolName)) {
                 tools.add(todoTools);
             } else if (ToolNameConstants.AGENT_MANAGE.equals(toolName)) {
@@ -271,7 +398,52 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(codeSearchTool);
             }
         }
+        if (isGatewayEnabled(sourceKey, agentScope)) {
+            gatewayCandidates.addAll(tools);
+            ToolGatewaySkill gatewaySkill = buildToolGateway(gatewayCandidates);
+            if (gatewaySkill != null) {
+                tools.add(gatewaySkill);
+            }
+        }
         return tools;
+    }
+
+    private boolean isGatewayEnabled(String sourceKey, AgentRuntimeScope agentScope) {
+        if (!AgentRuntimePolicy.isToolAllowed(agentScope, ToolNameConstants.TOOL_GATEWAY)) {
+            return false;
+        }
+        try {
+            return preferenceStore.isToolEnabled(sourceKey, ToolNameConstants.TOOL_GATEWAY, false);
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    private ToolGatewaySkill buildToolGateway(List<Object> candidates) {
+        ToolGatewaySkill gateway =
+                new ToolGatewaySkill()
+                        .dynamicThreshold(0)
+                        .listThreshold(40)
+                        .searchThreshold(100);
+        boolean added = false;
+        for (Object candidate : candidates) {
+            if (candidate == null || candidate instanceof ToolGatewaySkill) {
+                continue;
+            }
+            if (candidate instanceof ToolProvider) {
+                gateway.addTool((ToolProvider) candidate);
+                added = true;
+            } else if (candidate instanceof Skill) {
+                for (FunctionTool tool : ((Skill) candidate).getTools(Prompt.of(""))) {
+                    gateway.addTool(tool);
+                    added = true;
+                }
+            } else if (candidate instanceof FunctionTool) {
+                gateway.addTool((FunctionTool) candidate);
+                added = true;
+            }
+        }
+        return added ? gateway : null;
     }
 
     private boolean isFileTool(String toolName) {
@@ -279,6 +451,16 @@ public class DefaultToolRegistry implements ToolRegistry {
                 || ToolNameConstants.FILE_WRITE.equals(toolName)
                 || ToolNameConstants.FILE_LIST.equals(toolName)
                 || ToolNameConstants.FILE_DELETE.equals(toolName);
+    }
+
+    private boolean isKanbanTool(String toolName) {
+        return ToolNameConstants.KANBAN_SHOW.equals(toolName)
+                || ToolNameConstants.KANBAN_COMPLETE.equals(toolName)
+                || ToolNameConstants.KANBAN_BLOCK.equals(toolName)
+                || ToolNameConstants.KANBAN_HEARTBEAT.equals(toolName)
+                || ToolNameConstants.KANBAN_COMMENT.equals(toolName)
+                || ToolNameConstants.KANBAN_CREATE.equals(toolName)
+                || ToolNameConstants.KANBAN_LINK.equals(toolName);
     }
 
     @Override
@@ -318,6 +500,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 读取工具启用状态。 */
     private boolean isEnabled(String sourceKey, String toolName) {
         try {
+            if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {
+                return preferenceStore.isToolEnabled(sourceKey, toolName, false);
+            }
             return preferenceStore.isToolEnabled(sourceKey, toolName);
         } catch (SQLException e) {
             return false;

@@ -32,6 +32,10 @@ public final class CliModeParser {
                 kind = CliMode.Kind.TUI;
                 continue;
             }
+            if ("--acp".equals(arg) || "acp".equalsIgnoreCase(arg)) {
+                kind = CliMode.Kind.ACP;
+                continue;
+            }
             if ("--session".equals(arg) && i + 1 < args.length) {
                 sessionId = args[++i];
                 continue;

@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +25,7 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 public class DashboardSessionService {
     private final SessionRepository sessionRepository;
     private final CheckpointService checkpointService;
+    private final SessionArtifactService sessionArtifactService;
 
     public DashboardSessionService(SessionRepository sessionRepository) {
         this(sessionRepository, null);
@@ -31,8 +33,17 @@ public class DashboardSessionService {
 
     public DashboardSessionService(
             SessionRepository sessionRepository, CheckpointService checkpointService) {
+        this(sessionRepository, checkpointService, new SessionArtifactService());
+    }
+
+    public DashboardSessionService(
+            SessionRepository sessionRepository,
+            CheckpointService checkpointService,
+            SessionArtifactService sessionArtifactService) {
         this.sessionRepository = sessionRepository;
         this.checkpointService = checkpointService;
+        this.sessionArtifactService =
+                sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
     }
 
     public Map<String, Object> getSessions(int limit, int offset) throws Exception {
@@ -136,6 +147,47 @@ public class DashboardSessionService {
         result.put("branch_name", record.getBranchName());
         result.put("messages", messages);
         return result;
+    }
+
+    public Map<String, Object> recap(String sessionId, int maxExchanges) throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("session_id", sessionId);
+            empty.put("entries", Collections.emptyList());
+            empty.put("text", "当前会话不存在。");
+            return empty;
+        }
+        return sessionArtifactService.recap(record, maxExchanges);
+    }
+
+    public Map<String, Object> trajectory(String sessionId, String userQuery, boolean completed)
+            throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("session_id", sessionId);
+            empty.put("completed", Boolean.valueOf(completed));
+            empty.put("conversations", Collections.emptyList());
+            return empty;
+        }
+        return sessionArtifactService.trajectory(record, userQuery, completed);
+    }
+
+    public Map<String, Object> saveTrajectory(String sessionId, String userQuery, boolean completed)
+            throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("session_id", sessionId);
+            empty.put("saved", Boolean.FALSE);
+            empty.put("error", "当前会话不存在。");
+            return empty;
+        }
+        Map<String, Object> saved =
+                sessionArtifactService.saveTrajectory(record, userQuery, completed);
+        saved.put("saved", Boolean.TRUE);
+        return saved;
     }
 
     public Map<String, Object> searchSessions(String query) throws Exception {

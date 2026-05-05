@@ -60,6 +60,15 @@ public class CronJobRecord {
     /** 限定启用工具集 JSON 数组。 */
     private String enabledToolsetsJson;
 
+    /** 任务固定模型。 */
+    private String model;
+
+    /** 任务固定 provider。 */
+    private String provider;
+
+    /** 任务固定 base URL。 */
+    private String baseUrl;
+
     /** 是否包装 Cron 投递结果。 */
     private boolean wrapResponse = true;
 

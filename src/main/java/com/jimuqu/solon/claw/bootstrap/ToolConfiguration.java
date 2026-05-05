@@ -1,15 +1,15 @@
 package com.jimuqu.solon.claw.bootstrap;
 
-import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.ContextBudgetService;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
@@ -25,8 +25,12 @@ import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator;
 import com.jimuqu.solon.claw.engine.DefaultDelegationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
@@ -40,6 +44,8 @@ import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 
@@ -52,14 +58,36 @@ public class ToolConfiguration {
     }
 
     @Bean
+    public SecurityPolicyService securityPolicyService(AppConfig appConfig) {
+        return new SecurityPolicyService(appConfig);
+    }
+
+    @Bean
+    public TirithSecurityService tirithSecurityService(AppConfig appConfig) {
+        return new TirithSecurityService(appConfig);
+    }
+
+    @Bean
     public DangerousCommandApprovalService dangerousCommandApprovalService(
-            GlobalSettingRepository globalSettingRepository) {
-        return new DangerousCommandApprovalService(globalSettingRepository);
+            GlobalSettingRepository globalSettingRepository,
+            AppConfig appConfig,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService) {
+        return new DangerousCommandApprovalService(
+                globalSettingRepository, appConfig, securityPolicyService, tirithSecurityService);
     }
 
     @Bean
     public AttachmentCacheService attachmentCacheService(AppConfig appConfig) {
         return new AttachmentCacheService(appConfig);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public McpRuntimeService mcpRuntimeService(
+            AppConfig appConfig,
+            SqliteDatabase sqliteDatabase,
+            SecurityPolicyService securityPolicyService) {
+        return new McpRuntimeService(appConfig, sqliteDatabase, null, securityPolicyService);
     }
 
     @Bean
@@ -74,6 +102,7 @@ public class ToolConfiguration {
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
             CronJobService cronJobService,
+            KanbanService kanbanService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -83,13 +112,16 @@ public class ToolConfiguration {
             DelegationService delegationService,
             AttachmentCacheService attachmentCacheService,
             RuntimeSettingsService runtimeSettingsService,
-            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            McpRuntimeService mcpRuntimeService) {
         return new DefaultToolRegistry(
                 appConfig,
                 preferenceStore,
                 sessionRepository,
                 agentProfileService,
                 cronJobService,
+                kanbanService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,
@@ -99,7 +131,9 @@ public class ToolConfiguration {
                 delegationService,
                 attachmentCacheService,
                 runtimeSettingsService,
-                gatewayRuntimeRefreshService);
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                mcpRuntimeService);
     }
 
     @Bean
@@ -195,7 +229,8 @@ public class ToolConfiguration {
             AgentRunSupervisor agentRunSupervisor,
             RuntimeFooterService runtimeFooterService,
             AgentRuntimeService agentRuntimeService,
-            MemoryManager memoryManager) {
+            MemoryManager memoryManager,
+            GoalService goalService) {
         ConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
@@ -210,7 +245,8 @@ public class ToolConfiguration {
                         agentRunSupervisor,
                         runtimeFooterService,
                         agentRuntimeService,
-                        memoryManager);
+                        memoryManager,
+                        goalService);
         holder.set(orchestrator);
         return orchestrator;
     }

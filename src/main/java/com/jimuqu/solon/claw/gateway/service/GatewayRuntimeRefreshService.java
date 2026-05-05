@@ -425,6 +425,8 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react",
                     "solonclaw.trace",
                     "solonclaw.task",
+                    "solonclaw.security",
+                    "solonclaw.approvals",
                     "solonclaw.mcp",
                     "solonclaw.channels",
                     "solonclaw.channels.feishu",
@@ -447,6 +449,8 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.rollback.maxCheckpointsPerSource",
                     "solonclaw.display.toolPreviewLength",
                     "solonclaw.display.progressThrottleMs",
+                    "solonclaw.display.resumeDisplay",
+                    "solonclaw.display.resume_display",
                     "solonclaw.gateway.injectionMaxBodyBytes",
                     "solonclaw.gateway.injectionReplayWindowSeconds",
                     "solonclaw.agent.heartbeat.intervalMinutes",
@@ -465,7 +469,8 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.task.subagentMaxConcurrency",
                     "solonclaw.task.subagentMaxDepth",
                     "solonclaw.task.toolOutputInlineLimit",
-                    "solonclaw.task.mediaCacheTtlHours");
+                    "solonclaw.task.mediaCacheTtlHours",
+                    "solonclaw.security.tirithTimeoutSeconds");
 
     private static final Set<String> DOUBLE_KEYS =
             setOf(
@@ -478,6 +483,7 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "solonclaw.llm.stream",
                     "solonclaw.scheduler.enabled",
+                    "solonclaw.scheduler.wrapResponse",
                     "solonclaw.compression.enabled",
                     "solonclaw.learning.enabled",
                     "solonclaw.skills.curator.enabled",
@@ -486,18 +492,25 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.display.runtimeFooter.enabled",
                     "solonclaw.gateway.allowAllUsers",
                     "solonclaw.react.summarizationEnabled",
+                    "solonclaw.security.tirithEnabled",
+                    "solonclaw.security.tirithFailOpen",
+                    "solonclaw.approvals.mcpReloadConfirm",
+                    "solonclaw.approvals.mcp_reload_confirm",
                     "solonclaw.mcp.enabled");
 
     private static final Set<String> LIST_KEYS =
             setOf(
                     "solonclaw.display.runtimeFooter.fields",
-                    "solonclaw.gateway.allowedUsers");
+                    "solonclaw.gateway.allowedUsers",
+                    "solonclaw.terminal.credentialFiles",
+                    "terminal.credential_files");
 
     private static final Set<String> INT_SUFFIXES =
             setOf(
                     ".sendChunkRetries",
                     ".toolPreviewLength",
-                    ".progressThrottleMs");
+                    ".progressThrottleMs",
+                    ".tirithTimeoutSeconds");
 
     private static final Set<String> DOUBLE_SUFFIXES =
             setOf(".sendChunkDelaySeconds", ".sendChunkRetryDelaySeconds");

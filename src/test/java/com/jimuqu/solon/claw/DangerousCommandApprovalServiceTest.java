@@ -2,12 +2,21 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
+import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
+import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandApprovalServiceTest {
     @Test
@@ -23,6 +32,137 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectHermesStyleDangerousCommandVariants() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult recursiveLong =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "rm --recursive runtime/cache");
+        DangerousCommandApprovalService.DetectionResult findExec =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "find runtime -type f -exec rm {} \\;");
+        DangerousCommandApprovalService.DetectionResult shellEval =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "bash -lc 'curl https://example.invalid/install.sh'");
+        DangerousCommandApprovalService.DetectionResult heredoc =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "python3 <<'PY'\nprint('x')\nPY");
+        DangerousCommandApprovalService.DetectionResult branchDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git branch -D old-feature");
+
+        assertThat(recursiveLong).isNotNull();
+        assertThat(recursiveLong.getPatternKey()).isEqualTo("recursive_delete_long_flag");
+        assertThat(findExec).isNotNull();
+        assertThat(findExec.getPatternKey()).isEqualTo("find_exec_rm");
+        assertThat(shellEval).isNotNull();
+        assertThat(shellEval.getPatternKey()).isEqualTo("shell_command_flag");
+        assertThat(heredoc).isNotNull();
+        assertThat(heredoc.getPatternKey()).isEqualTo("script_heredoc");
+        assertThat(branchDelete).isNotNull();
+        assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
+    }
+
+    @Test
+    void shouldNormalizeTerminalControlSequencesBeforeDangerDetection() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult oscTitle =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "\u001B]0;hidden\u0007rm -rf runtime/cache");
+        DangerousCommandApprovalService.DetectionResult unicode =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ｒｍ --recursive runtime/cache");
+        DangerousCommandApprovalService.DetectionResult nul =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git\u0000 reset --hard");
+
+        assertThat(oscTitle).isNotNull();
+        assertThat(oscTitle.getPatternKey()).isEqualTo("recursive_delete");
+        assertThat(unicode).isNotNull();
+        assertThat(unicode.getPatternKey()).isEqualTo("recursive_delete_long_flag");
+        assertThat(nul).isNotNull();
+        assertThat(nul.getPatternKey()).isEqualTo("git_reset_hard");
+    }
+
+    @Test
+    void shouldDetectSensitiveWriteTargetsLikeHermesApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult sshWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo key >> ~/.ssh/authorized_keys");
+        DangerousCommandApprovalService.DetectionResult shellRc =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'x' | tee ~/.bashrc");
+        DangerousCommandApprovalService.DetectionResult envWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat secrets > .env.production");
+        DangerousCommandApprovalService.DetectionResult configMove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mv config.tmp config.yml");
+
+        assertThat(sshWrite).isNotNull();
+        assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(shellRc).isNotNull();
+        assertThat(shellRc.getPatternKey()).isEqualTo("sensitive_tee");
+        assertThat(envWrite).isNotNull();
+        assertThat(envWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(configMove).isNotNull();
+        assertThat(configMove.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+    }
+
+    @Test
+    void shouldProtectGatewayLifecycleAndSelfTerminationCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult gatewayStop =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "jimuqu-agent gateway restart");
+        DangerousCommandApprovalService.DetectionResult gatewayDetached =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nohup jimuqu-agent gateway run > gateway.log 2>&1 &");
+        DangerousCommandApprovalService.DetectionResult killByName =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pkill -f jimuqu-agent");
+        DangerousCommandApprovalService.DetectionResult killByPgrep =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kill -9 $(pgrep -f jimuqu-agent)");
+
+        assertThat(gatewayStop).isNotNull();
+        assertThat(gatewayStop.getPatternKey()).isEqualTo("gateway_stop_restart");
+        assertThat(gatewayDetached).isNotNull();
+        assertThat(gatewayDetached.getPatternKey()).isEqualTo("gateway_run_detached");
+        assertThat(killByName).isNotNull();
+        assertThat(killByName.getPatternKey()).isEqualTo("kill_agent_process");
+        assertThat(killByPgrep).isNotNull();
+        assertThat(killByPgrep.getPatternKey()).isEqualTo("kill_pgrep_expansion");
+    }
+
+    @Test
+    void shouldWarnForForegroundBackgroundShellPatterns() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        String nohup =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "nohup npm run dev > app.log 2>&1");
+        String amp =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "npm run dev &");
+        String server =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "python -m http.server 8000");
+        String help =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "npm run dev --help");
+
+        assertThat(nohup).contains("nohup");
+        assertThat(amp).contains("&");
+        assertThat(server).contains("长驻服务");
+        assertThat(help).isNull();
+    }
+
+    @Test
     void shouldIgnoreSafeShellCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -30,6 +170,420 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect("execute_shell", "git status");
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    void shouldDetectHardlineCommandSeparatelyFromApprovableDanger() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult result =
+                env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot");
+
+        assertThat(result).isNotNull();
+        assertThat(result.isHardline()).isTrue();
+        assertThat(result.getPatternKey()).isEqualTo("hardline_shutdown");
+        assertThat(result.getDescription()).contains("shutdown");
+    }
+
+    @Test
+    void shouldExposeHermesApprovalModeConfig() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.appConfig.getApprovals().setMode("off");
+        env.appConfig.getApprovals().setCronMode("approve");
+
+        assertThat(env.dangerousCommandApprovalService.approvalMode()).isEqualTo("off");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot"))
+                .isNotNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "rm -rf runtime/cache"))
+                .isNotNull();
+    }
+
+    @Test
+    void shouldTreatWindowsTerminalGuardrailsAsHardline() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult format =
+                env.dangerousCommandApprovalService.detectHardline("execute_shell", "format C:");
+        DangerousCommandApprovalService.DetectionResult profileDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "Remove-Item -Recurse -Force $env:USERPROFILE");
+        DangerousCommandApprovalService.DetectionResult shutdown =
+                env.dangerousCommandApprovalService.detectHardline("execute_shell", "shutdown /r /t 0");
+
+        assertThat(format).isNotNull();
+        assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
+        assertThat(profileDelete).isNotNull();
+        assertThat(profileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
+        assertThat(shutdown).isNotNull();
+        assertThat(shutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+    }
+
+    @Test
+    void shouldMatchHermesHardlineBlocklistExamples() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String[] blocked =
+                new String[] {
+                    "rm -rf /",
+                    "rm -rf /*",
+                    "rm -rf /home",
+                    "rm -rf /home/*",
+                    "rm -rf /etc",
+                    "rm -rf /usr",
+                    "rm -rf /var",
+                    "rm -rf /boot",
+                    "rm -rf /bin",
+                    "rm --recursive --force /",
+                    "rm -fr /",
+                    "sudo rm -rf /",
+                    "rm -rf ~",
+                    "rm -rf ~/",
+                    "rm -rf ~/*",
+                    "rm -rf $HOME",
+                    "mkfs.ext4 /dev/sda1",
+                    "mkfs /dev/sdb",
+                    "mkfs.xfs /dev/nvme0n1",
+                    "dd if=/dev/zero of=/dev/sda bs=1M",
+                    "dd if=/dev/urandom of=/dev/nvme0n1",
+                    "dd if=anything of=/dev/hda",
+                    "echo bad > /dev/sda",
+                    "cat /dev/urandom > /dev/sdb",
+                    ":(){ :|:& };:",
+                    "kill -9 -1",
+                    "kill -1",
+                    "shutdown -h now",
+                    "shutdown -r now",
+                    "sudo shutdown now",
+                    "reboot",
+                    "sudo reboot",
+                    "halt",
+                    "poweroff",
+                    "init 0",
+                    "init 6",
+                    "telinit 0",
+                    "systemctl poweroff",
+                    "systemctl reboot",
+                    "systemctl halt",
+                    "ls; reboot",
+                    "echo done && shutdown -h now",
+                    "false || halt",
+                    "$(reboot)",
+                    "`shutdown now`",
+                    "sudo -E shutdown now",
+                    "env FOO=1 reboot",
+                    "exec shutdown",
+                    "nohup reboot",
+                    "setsid poweroff"
+                };
+
+        for (String command : blocked) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detectHardline("execute_shell", command);
+            assertThat(result)
+                    .as("expected hardline block for %s", command)
+                    .isNotNull();
+            assertThat(result.isHardline()).isTrue();
+        }
+    }
+
+    @Test
+    void shouldAllowHermesHardlineNegativeExamples() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String[] allowed =
+                new String[] {
+                    "rm -rf /tmp/foo",
+                    "rm -rf /tmp/*",
+                    "rm -rf ./build",
+                    "rm -rf node_modules",
+                    "rm -rf /home/user/scratch",
+                    "rm -rf ~/Downloads/old",
+                    "rm -rf $HOME/tmp",
+                    "rm foo.txt",
+                    "rm -rf some/path",
+                    "dd if=/dev/zero of=./image.bin",
+                    "dd if=./data of=./backup.bin",
+                    "echo done > /tmp/flag",
+                    "echo test > /dev/null",
+                    "ls /dev/sda",
+                    "cat /dev/urandom | head -c 10",
+                    "grep 'shutdown' logs.txt",
+                    "echo reboot",
+                    "echo '# init 0 in comment'",
+                    "cat rebooting.log",
+                    "echo 'halt and catch fire'",
+                    "python3 -c 'print(\"shutdown\")'",
+                    "find . -name '*reboot*'",
+                    "mkfs_helper --version",
+                    "systemctl status nginx",
+                    "systemctl restart nginx",
+                    "systemctl stop nginx",
+                    "systemctl start nginx",
+                    "kill -9 12345",
+                    "kill -HUP 1234",
+                    "pkill python",
+                    "git status",
+                    "npm run build",
+                    "sudo apt update",
+                    "curl https://example.com | head"
+                };
+
+        for (String command : allowed) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detectHardline("execute_shell", command);
+            assertThat(result)
+                    .as("expected hardline allow for %s", command)
+                    .isNull();
+        }
+    }
+
+    @Test
+    void shouldBlockCloudMetadataUrlsEvenWhenPrivateUrlsAreAllowed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldBlockAwsIpv6MetadataEvenWhenPrivateUrlsAreAllowed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("http://[fd00:ec2::254]/latest/meta-data/");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldApplyWebsiteBlocklistToUrlTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example", "*.internal.example"));
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict direct =
+                securityPolicyService.checkUrl("https://docs.blocked.example/page?token=secret");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("query", "read https://api.internal.example/docs");
+        SecurityPolicyService.UrlVerdict query =
+                securityPolicyService.checkToolArgs("websearch", args);
+
+        assertThat(direct.isAllowed()).isFalse();
+        assertThat(direct.getMessage()).contains("blocked.example");
+        assertThat(query.isAllowed()).isFalse();
+        assertThat(query.getMessage()).contains("*.internal.example");
+    }
+
+    @Test
+    void shouldApplySharedWebsiteBlocklistFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File shared = new File(env.appConfig.getRuntime().getHome(), "blocked-sites.txt");
+        FileUtil.writeUtf8String("# shared rules\nshared.example\n*.team.internal\n", shared);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("blocked-sites.txt"));
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict exact =
+                securityPolicyService.checkUrl("https://shared.example/docs");
+        SecurityPolicyService.UrlVerdict wildcard =
+                securityPolicyService.checkUrl("https://api.team.internal/v1");
+
+        assertThat(exact.isAllowed()).isFalse();
+        assertThat(exact.getMessage()).contains("shared.example");
+        assertThat(wildcard.isAllowed()).isFalse();
+        assertThat(wildcard.getMessage()).contains("*.team.internal");
+    }
+
+    @Test
+    void shouldBlockCredentialFilePathsForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", ".ssh/id_ed25519");
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_read", args);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("凭据");
+        assertThat(verdict.getPath()).isEqualTo(".ssh/id_ed25519");
+    }
+
+    @Test
+    void shouldBlockPathTraversalForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", "../runtime/config.yml");
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_write", args);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("路径遍历");
+    }
+
+    @Test
+    void shouldInspectNestedToolArgumentsForUnsafePaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+        metadata.put("file_path", ".env.local");
+        args.put("metadata", metadata);
+
+        SecurityPolicyService.FileVerdict nested =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", args);
+
+        Map<String, Object> batch = new LinkedHashMap<String, Object>();
+        batch.put("paths", Arrays.asList("README.md", "~/.ssh/id_ed25519"));
+        SecurityPolicyService.FileVerdict array =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", batch);
+
+        assertThat(nested.isAllowed()).isFalse();
+        assertThat(nested.getPath()).isEqualTo(".env.local");
+        assertThat(array.isAllowed()).isFalse();
+        assertThat(array.getPath()).isEqualTo("~/.ssh/id_ed25519");
+    }
+
+    @Test
+    void shouldInspectHermesPatchPathsForCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("mode", "patch");
+        args.put(
+                "patch",
+                "*** Begin Patch\n"
+                        + "*** Update File: .env.production\n"
+                        + "@@ token @@\n"
+                        + "-OLD\n"
+                        + "+NEW\n"
+                        + "*** End Patch");
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("patch", args);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("敏感");
+        assertThat(verdict.getPath()).isEqualTo(".env.production");
+    }
+
+    @Test
+    void shouldBlockCredentialPathsInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkCommandPaths("cat ~/.aws/credentials");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("凭据");
+        assertThat(verdict.getPath()).isEqualTo("~/.aws/credentials");
+    }
+
+    @Test
+    void shouldBlockBareCredentialFileNamesInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict dotenv =
+                securityPolicyService.checkCommandPaths("cat .env > backup.txt");
+        SecurityPolicyService.FileVerdict netrc =
+                securityPolicyService.checkCommandPaths("Get-Content .netrc");
+        SecurityPolicyService.FileVerdict safe =
+                securityPolicyService.checkCommandPaths("cat config.example.yml > backup.yml");
+
+        assertThat(dotenv.isAllowed()).isFalse();
+        assertThat(dotenv.getMessage()).contains("凭据");
+        assertThat(dotenv.getPath()).isEqualTo(".env");
+        assertThat(netrc.isAllowed()).isFalse();
+        assertThat(netrc.getPath()).isEqualTo(".netrc");
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldBlockWindowsCredentialPathsInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict powershell =
+                securityPolicyService.checkCommandPaths("type $env:USERPROFILE\\.ssh\\id_rsa");
+        SecurityPolicyService.FileVerdict cmd =
+                securityPolicyService.checkCommandPaths("type %APPDATA%\\gh\\hosts.yml");
+
+        assertThat(powershell.isAllowed()).isFalse();
+        assertThat(powershell.getMessage()).contains("凭据");
+        assertThat(cmd.isAllowed()).isFalse();
+        assertThat(cmd.getMessage()).contains("凭据");
+    }
+
+    @Test
+    void shouldBlockUnsafeUrlsInsideShellAndScriptCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+
+        SecurityPolicyService.UrlVerdict metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl http://169.254.169.254/latest/meta-data/?token=secret123");
+        SecurityPolicyService.UrlVerdict python =
+                securityPolicyService.checkCommandUrls(
+                        "requests.get('https://blocked.example/api?token=secret123');");
+
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+        assertThat(metadata.getUrl()).contains("token=secret123");
+        assertThat(
+                        com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
+                                metadata.getUrl()))
+                .doesNotContain("secret123");
+        assertThat(python.isAllowed()).isFalse();
+        assertThat(python.getMessage()).contains("blocked.example");
+    }
+
+    @Test
+    void shouldInspectNestedToolArgumentsForUnsafeUrls() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+        metadata.put(
+                "callback",
+                Arrays.asList("https://blocked.example/hook", "https://example.com/status"));
+        nested.put("metadata", metadata);
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkToolArgs("mcp_remote_tool", nested);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("blocked.example");
     }
 
     @Test
@@ -56,5 +610,171 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalCommand")).isEqualTo("rm -rf runtime/cache");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isEqualTo("/approve always");
+    }
+
+    @Test
+    void shouldAllowWhenTirithScanIsDisabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setTirithEnabled(false);
+        TirithSecurityService.ScanResult result =
+                new TirithSecurityService(env.appConfig).checkCommandSecurity("echo hello");
+
+        assertThat(result.getAction()).isEqualTo("allow");
+        assertThat(result.requiresApproval()).isFalse();
+    }
+
+    @Test
+    void shouldFailOpenOrFailClosedWhenTirithUnavailable() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setTirithPath("__missing_tirith_binary__");
+        env.appConfig.getSecurity().setTirithFailOpen(true);
+        TirithSecurityService service = new TirithSecurityService(env.appConfig);
+
+        TirithSecurityService.ScanResult open = service.checkCommandSecurity("echo hello");
+        env.appConfig.getSecurity().setTirithFailOpen(false);
+        TirithSecurityService.ScanResult closed = service.checkCommandSecurity("echo hello");
+
+        assertThat(open.getAction()).isEqualTo("allow");
+        assertThat(open.getSummary()).contains("tirith unavailable");
+        assertThat(closed.getAction()).isEqualTo("block");
+        assertThat(closed.getSummary()).contains("fail-closed");
+    }
+
+    @Test
+    void shouldCombineTirithWarningWithDangerousCommandApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding(
+                                                "homograph_url",
+                                                "HIGH",
+                                                "Homograph URL",
+                                                "Suspicious unicode URL")),
+                                "homograph URL"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        HITLInterceptor interceptor = service.buildInterceptor();
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        interceptor.onAction(trace, "execute_shell", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+
+        assertThat(trace.getFinalAnswer()).contains("Security scan").contains("recursive delete");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getPatternKeys())
+                .containsExactly("tirith:homograph_url", "recursive_delete");
+    }
+
+    @Test
+    void shouldTreatAlwaysApprovalForTirithAsSessionOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("shortened_url", "MEDIUM", "Short URL", "")),
+                                "shortened URL"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "echo hello");
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        boolean approved = service.approve(trace.session, DangerousCommandApprovalService.ApprovalScope.ALWAYS, "test");
+
+        assertThat(approved).isTrue();
+        assertThat(service.isSessionApproved(trace.session, "tirith:shortened_url")).isTrue();
+        assertThat(service.isAlwaysApproved("tirith:shortened_url")).isFalse();
+    }
+
+    @Test
+    void shouldKeepHardlineBlockedWhenApprovalModeIsOffAndTirithWarns() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("off");
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("terminal_injection", "HIGH", "Terminal injection", "")),
+                                "terminal injection"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        DangerousCommandApprovalService.DetectionResult hardline =
+                service.detectHardline("execute_shell", "sudo reboot");
+
+        assertThat(service.approvalMode()).isEqualTo("off");
+        assertThat(hardline).isNotNull();
+        assertThat(hardline.isHardline()).isTrue();
+        assertThat(hardline.getDescription()).contains("shutdown");
+    }
+
+    private static TirithSecurityService.ScanResult scanResult(
+            String action, List<TirithSecurityService.Finding> findings, String summary)
+            throws Exception {
+        java.lang.reflect.Constructor<TirithSecurityService.ScanResult> constructor =
+                TirithSecurityService.ScanResult.class.getDeclaredConstructor(
+                        String.class, List.class, String.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(action, findings, summary);
+    }
+
+    private static TirithSecurityService.Finding finding(
+            String ruleId, String severity, String title, String description) throws Exception {
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put("rule_id", ruleId);
+        values.put("severity", severity);
+        values.put("title", title);
+        values.put("description", description);
+        return TirithSecurityService.Finding.from(values);
+    }
+
+    private static class FakeTirithSecurityService extends TirithSecurityService {
+        private final TirithSecurityService.ScanResult result;
+
+        private FakeTirithSecurityService(TirithSecurityService.ScanResult result) {
+            super(null);
+            this.result = result;
+        }
+
+        @Override
+        public TirithSecurityService.ScanResult checkCommandSecurityForTool(
+                String toolName, String command) {
+            return result;
+        }
+    }
+
+    private static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
+        private final InMemoryAgentSession session = new InMemoryAgentSession("tirith-test");
+
+        @Override
+        public InMemoryAgentSession getSession() {
+            return session;
+        }
+
+        @Override
+        public org.noear.solon.flow.FlowContext getContext() {
+            return session.getContext();
+        }
     }
 }

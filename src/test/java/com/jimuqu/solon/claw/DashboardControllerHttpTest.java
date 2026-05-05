@@ -9,8 +9,11 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.SocketException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,6 +23,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -29,11 +34,14 @@ import org.noear.solon.Solon;
 public class DashboardControllerHttpTest {
     private static int port;
     private static File runtimeHome;
+    private static String previousHttpKeepAlive;
 
     @BeforeAll
     static void startApp() throws Exception {
         port = findFreePort();
         runtimeHome = Files.createTempDirectory("solon-claw-dashboard-test").toFile();
+        previousHttpKeepAlive = System.getProperty("http.keepAlive");
+        System.setProperty("http.keepAlive", "false");
 
         Solon.start(
                 SolonClawApp.class,
@@ -60,6 +68,11 @@ public class DashboardControllerHttpTest {
                 } catch (IORuntimeException ignored) {
                     // Windows may keep logback's agent.log handle briefly after Solon stops.
                 }
+            }
+            if (previousHttpKeepAlive == null) {
+                System.clearProperty("http.keepAlive");
+            } else {
+                System.setProperty("http.keepAlive", previousHttpKeepAlive);
             }
         }
     }
@@ -238,11 +251,198 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/cron/jobs",
-                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"local\"}",
+                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"local\",\"model\":\"gpt-5-mini\",\"base_url\":\"https://api.cron.example/v1/\"}",
                         token);
         assertThat(createCron.status).isEqualTo(200);
+        assertThat(createCron.body).contains("\"model\":\"gpt-5-mini\"");
+        assertThat(createCron.body).contains("\"provider\":\"openai-direct\"");
+        assertThat(createCron.body).contains("\"base_url\":\"https://api.cron.example/v1\"");
         HttpResult cronJobs = request("GET", "/api/cron/jobs", null, token);
         assertThat(cronJobs.body).contains("Daily summary");
+        assertThat(cronJobs.body).contains("\"model\":\"gpt-5-mini\"");
+
+        HttpResult createMcp =
+                request(
+                        "POST",
+                        "/api/hermes/mcp",
+                        "{\"serverId\":\"local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"}]}",
+                        token);
+        assertThat(createMcp.status).isEqualTo(200);
+
+        HttpResult checkMcp = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
+        assertThat(checkMcp.status).isEqualTo(200);
+        assertThat(checkMcp.body).contains("\"tool_changed_notification\":true");
+        assertThat(checkMcp.body).contains("\"schema_sanitizer\":\"snack4\"");
+
+        HttpResult checkMcpAgain = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
+        assertThat(checkMcpAgain.status).isEqualTo(200);
+        assertThat(checkMcpAgain.body).contains("\"tool_changed_notification\":false");
+
+        HttpResult updateMcp =
+                request(
+                        "POST",
+                        "/api/hermes/mcp",
+                        "{\"serverId\":\"local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
+                        token);
+        assertThat(updateMcp.status).isEqualTo(200);
+
+        HttpResult changedMcp = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
+        assertThat(changedMcp.status).isEqualTo(200);
+        assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
+
+        HttpResult mcpList = request("GET", "/api/hermes/mcp", null, token);
+        assertThat(mcpList.status).isEqualTo(200);
+        assertThat(mcpList.body).contains("Local Docs");
+        assertThat(mcpList.body).contains("\"oauth\"");
+        assertThat(mcpList.body).contains("\"capabilities\"");
+        assertThat(mcpList.body).contains("\"last_tools_hash\"");
+
+        HttpResult updateMcpOAuth =
+                request(
+                        "POST",
+                        "/api/hermes/mcp",
+                        "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://mcp.example/sse\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        token);
+        assertThat(updateMcpOAuth.status).isEqualTo(200);
+
+        HttpResult oauthStatus =
+                request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+        assertThat(oauthStatus.status).isEqualTo(200);
+        assertThat(oauthStatus.body).contains("\"status\":\"authenticated\"");
+        assertThat(oauthStatus.body).contains("\"has_access_token\":true");
+        assertThat(oauthStatus.body).contains("\"has_refresh_token\":true");
+        assertThat(oauthStatus.body).contains("\"has_client_secret\":true");
+        assertThat(oauthStatus.body).doesNotContain("secret-access");
+        assertThat(oauthStatus.body).doesNotContain("secret-refresh");
+
+        HttpResult mcpListWithOAuth = request("GET", "/api/hermes/mcp", null, token);
+        assertThat(mcpListWithOAuth.body).contains("\"has_access_token\":true");
+        assertThat(mcpListWithOAuth.body).doesNotContain("secret-access");
+
+        HttpResult beginOAuth =
+                request(
+                        "POST",
+                        "/api/hermes/mcp/oauth-docs/oauth/begin",
+                        "{\"authorization_endpoint\":\"https://auth.example/oauth/authorize\",\"token_endpoint\":\""
+                                + "https://auth.example/oauth/token"
+                                + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
+                        token);
+        assertThat(beginOAuth.status).isEqualTo(200);
+        assertThat(beginOAuth.body).contains("\"status\":\"pending\"");
+        assertThat(beginOAuth.body).contains("https://auth.example/oauth/authorize");
+        assertThat(beginOAuth.body).contains("code_challenge_method=S256");
+        assertThat(beginOAuth.body).contains("scope=repo%20read%3Auser");
+        assertThat(beginOAuth.body).contains("\"has_code_verifier\":true");
+        assertThat(beginOAuth.body).doesNotContain("\"code_verifier\":\"");
+
+        HttpResult pendingStatus =
+                request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+        assertThat(pendingStatus.body).contains("\"status\":\"pending\"");
+        assertThat(pendingStatus.body).contains("\"has_access_token\":false");
+        assertThat(pendingStatus.body).contains("\"has_code_verifier\":true");
+
+        String pendingState = ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+        assertThat(pendingState).isNotBlank();
+
+        HttpResult stateMismatch =
+                request(
+                        "POST",
+                        "/api/hermes/mcp/oauth-docs/oauth/callback",
+                        "{\"code\":\"bad-code\",\"state\":\"wrong\",\"token_endpoint\":\"http://127.0.0.1:1/token\"}",
+                        token);
+        assertThat(stateMismatch.status).isGreaterThanOrEqualTo(400);
+
+        TokenEndpointStub tokenEndpoint = TokenEndpointStub.start();
+        try {
+            beginOAuth =
+                    request(
+                            "POST",
+                            "/api/hermes/mcp/oauth-docs/oauth/begin",
+                            "{\"authorization_endpoint\":\"https://auth.example/oauth/authorize\",\"token_endpoint\":\""
+                                    + tokenEndpoint.url()
+                                    + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
+                            token);
+            pendingStatus =
+                    request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+            pendingState =
+                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+            HttpResult completeOAuth =
+                    request(
+                            "GET",
+                            "/api/hermes/mcp/oauth-docs/oauth/callback"
+                                    + "?code=auth-code-1&state="
+                                    + URLEncoder.encode(pendingState, "UTF-8"),
+                            null,
+                            null);
+            assertThat(completeOAuth.status).isEqualTo(200);
+            assertThat(completeOAuth.body).contains("\"status\":\"authenticated\"");
+            assertThat(completeOAuth.body).contains("\"has_access_token\":true");
+            assertThat(completeOAuth.body).contains("\"has_refresh_token\":true");
+            assertThat(completeOAuth.body).doesNotContain("token-secret-1");
+            assertThat(completeOAuth.body).doesNotContain("refresh-secret-1");
+            assertThat(completeOAuth.body).doesNotContain("code_verifier");
+            assertThat(tokenEndpoint.lastForm.get("grant_type")).isEqualTo("authorization_code");
+            assertThat(tokenEndpoint.lastForm.get("code")).isEqualTo("auth-code-1");
+            assertThat(tokenEndpoint.lastForm.get("client_id")).isEqualTo("client-1");
+            assertThat(tokenEndpoint.lastForm.get("code_verifier")).isNotBlank();
+
+            HttpResult authenticatedStatus =
+                    request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+            assertThat(authenticatedStatus.body).contains("\"status\":\"authenticated\"");
+            assertThat(authenticatedStatus.body).contains("\"has_access_token\":true");
+            assertThat(authenticatedStatus.body).doesNotContain("token-secret-1");
+
+            HttpResult refreshOAuth =
+                    request(
+                            "POST",
+                            "/api/hermes/mcp/oauth-docs/oauth/refresh",
+                            "{}",
+                            token);
+            assertThat(refreshOAuth.status).isEqualTo(200);
+            assertThat(refreshOAuth.body).contains("\"refreshed\":true");
+            assertThat(refreshOAuth.body).contains("\"reconnect_required\":true");
+            assertThat(refreshOAuth.body).contains("\"has_access_token\":true");
+            assertThat(refreshOAuth.body).doesNotContain("token-secret-2");
+            assertThat(refreshOAuth.body).doesNotContain("refresh-secret-2");
+            assertThat(tokenEndpoint.lastForm.get("grant_type")).isEqualTo("refresh_token");
+            assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo("refresh-secret-1");
+
+            HttpResult handle401 =
+                    request(
+                            "POST",
+                            "/api/hermes/mcp/oauth-docs/oauth/handle-401",
+                            "{}",
+                            token);
+            assertThat(handle401.status).isEqualTo(200);
+            assertThat(handle401.body).contains("\"recovered\":true");
+            assertThat(handle401.body).contains("\"needs_reauth\":false");
+            assertThat(handle401.body).contains("\"reconnect_required\":true");
+            assertThat(handle401.body).doesNotContain("token-secret-3");
+            assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo("refresh-secret-2");
+        } finally {
+            tokenEndpoint.stop();
+        }
+
+        HttpResult clearOAuth =
+                request("POST", "/api/hermes/mcp/oauth-docs/oauth/clear", "{}", token);
+        assertThat(clearOAuth.status).isEqualTo(200);
+        assertThat(clearOAuth.body).contains("\"cleared\":true");
+        assertThat(clearOAuth.body).doesNotContain("secret-refresh");
+
+        HttpResult clearedStatus =
+                request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+        assertThat(clearedStatus.body).contains("\"status\":\"cleared\"");
+        assertThat(clearedStatus.body).contains("\"has_access_token\":false");
+
+        HttpResult handle401AfterClear =
+                request(
+                        "POST",
+                        "/api/hermes/mcp/oauth-docs/oauth/handle-401",
+                        "{}",
+                        token);
+        assertThat(handle401AfterClear.status).isEqualTo(200);
+        assertThat(handle401AfterClear.body).contains("\"needs_reauth\":true");
+        assertThat(handle401AfterClear.body).contains("\"reconnect_required\":false");
 
         HttpResult kanbanBoards = request("GET", "/api/kanban/boards", null, token);
         assertThat(kanbanBoards.status).isEqualTo(200);
@@ -276,6 +476,25 @@ public class DashboardControllerHttpTest {
         assertThat(moveTask.status).isEqualTo(200);
         assertThat(moveTask.body).contains("\"status\":\"ready\"");
 
+        HttpResult claimTask =
+                request(
+                        "PUT",
+                        "/api/kanban/tasks/" + taskId,
+                        "{\"status\":\"running\",\"claim_lock\":\"http-lock\",\"worker_id\":\"http-worker\"}",
+                        token);
+        assertThat(claimTask.status).isEqualTo(200);
+        assertThat(claimTask.body).contains("\"status\":\"running\"");
+
+        HttpResult reassignTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/reassign",
+                        "{\"assignee\":\"next\",\"reclaim_first\":true,\"reason\":\"http test\"}",
+                        token);
+        assertThat(reassignTask.status).isEqualTo(200);
+        assertThat(reassignTask.body).contains("\"assignee\":\"next\"");
+        assertThat(reassignTask.body).contains("reassigned");
+
         HttpResult commentTask =
                 request(
                         "POST",
@@ -288,6 +507,24 @@ public class DashboardControllerHttpTest {
         HttpResult kanbanTasks = request("GET", "/api/kanban/tasks", null, token);
         assertThat(kanbanTasks.status).isEqualTo(200);
         assertThat(kanbanTasks.body).contains("Kanban task");
+
+        HttpResult daemonStatus = request("GET", "/api/kanban/daemon", null, token);
+        assertThat(daemonStatus.status).isEqualTo(200);
+        assertThat(daemonStatus.body).contains("\"running\":false");
+
+        HttpResult startDaemon =
+                request(
+                        "POST",
+                        "/api/kanban/daemon/start",
+                        "{\"interval_seconds\":30,\"max_spawn\":1,\"board\":\"dashboard-board\",\"dry_run\":true}",
+                        token);
+        assertThat(startDaemon.status).isEqualTo(200);
+        assertThat(startDaemon.body).contains("\"running\":true");
+        assertThat(startDaemon.body).contains("\"board\":\"dashboard-board\"");
+
+        HttpResult stopDaemon = request("POST", "/api/kanban/daemon/stop", "{}", token);
+        assertThat(stopDaemon.status).isEqualTo(200);
+        assertThat(stopDaemon.body).contains("\"running\":false");
 
         HttpResult logs = request("GET", "/api/logs?file=agent&lines=20", null, token);
         assertThat(logs.status).isEqualTo(200);
@@ -458,11 +695,29 @@ public class DashboardControllerHttpTest {
     private static HttpResult request(
             String method, String path, String body, String token, Map<String, String> headers)
             throws Exception {
+        int attempts = body == null || path.startsWith("/api/todos") ? 3 : 1;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                return requestOnce(method, path, body, token, headers);
+            } catch (SocketException e) {
+                if (attempt >= attempts || e.getMessage() == null || !e.getMessage().contains("Connection reset")) {
+                    throw e;
+                }
+                Thread.sleep(100L * attempt);
+            }
+        }
+        throw new IllegalStateException("HTTP request failed without response");
+    }
+
+    private static HttpResult requestOnce(
+            String method, String path, String body, String token, Map<String, String> headers)
+            throws Exception {
         HttpURLConnection connection =
                 (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
         connection.setRequestMethod(method);
         connection.setConnectTimeout(3000);
         connection.setReadTimeout(3000);
+        connection.setRequestProperty("Connection", "close");
         if (token != null) {
             connection.setRequestProperty("Authorization", "Bearer " + token);
         }
@@ -629,6 +884,100 @@ public class DashboardControllerHttpTest {
         private HttpResult(int status, String body) {
             this.status = status;
             this.body = body;
+        }
+    }
+
+    private static class TokenEndpointStub {
+        private final HttpServer server;
+        private final int port;
+        private volatile Map<String, String> lastForm = new LinkedHashMap<String, String>();
+        private volatile int refreshCount;
+
+        private TokenEndpointStub(HttpServer server, int port) {
+            this.server = server;
+            this.port = port;
+        }
+
+        private static TokenEndpointStub start() throws Exception {
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            TokenEndpointStub stub = new TokenEndpointStub(server, server.getAddress().getPort());
+            server.createContext("/token", stub::handle);
+            server.start();
+            return stub;
+        }
+
+        private String url() {
+            return "http://127.0.0.1:" + port + "/token";
+        }
+
+        private void stop() {
+            server.stop(0);
+        }
+
+        private void handle(HttpExchange exchange) throws java.io.IOException {
+            byte[] body = readBytes(exchange);
+            lastForm = parseForm(new String(body, StandardCharsets.UTF_8));
+            String grantType = lastForm.get("grant_type");
+            String responseJson;
+            if ("refresh_token".equals(grantType)) {
+                refreshCount++;
+                responseJson =
+                        "{\"access_token\":\"token-secret-"
+                                + (refreshCount + 1)
+                                + "\",\"refresh_token\":\"refresh-secret-"
+                                + (refreshCount + 1)
+                                + "\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"repo read:user\"}";
+            } else {
+                responseJson =
+                        "{\"access_token\":\"token-secret-1\",\"refresh_token\":\"refresh-secret-1\","
+                                + "\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"repo read:user\"}";
+            }
+            byte[] response = responseJson.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+            exchange.sendResponseHeaders(200, response.length);
+            OutputStream outputStream = exchange.getResponseBody();
+            try {
+                outputStream.write(response);
+            } finally {
+                outputStream.close();
+            }
+        }
+
+        private static byte[] readBytes(HttpExchange exchange) throws java.io.IOException {
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            java.io.InputStream inputStream = exchange.getRequestBody();
+            try {
+                byte[] data = new byte[1024];
+                int read;
+                while ((read = inputStream.read(data)) >= 0) {
+                    buffer.write(data, 0, read);
+                }
+                return buffer.toByteArray();
+            } finally {
+                inputStream.close();
+            }
+        }
+
+        private static Map<String, String> parseForm(String form) {
+            Map<String, String> result = new LinkedHashMap<String, String>();
+            if (form == null || form.length() == 0) {
+                return result;
+            }
+            String[] pairs = form.split("&");
+            for (String pair : pairs) {
+                int index = pair.indexOf('=');
+                if (index <= 0) {
+                    continue;
+                }
+                try {
+                    result.put(
+                            URLDecoder.decode(pair.substring(0, index), "UTF-8"),
+                            URLDecoder.decode(pair.substring(index + 1), "UTF-8"));
+                } catch (Exception ignored) {
+                    // Keep the test stub focused on OAuth form capture.
+                }
+            }
+            return result;
         }
     }
 }

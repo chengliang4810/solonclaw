@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
+import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -16,6 +18,7 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MemoryTools;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import java.io.File;
+import java.util.Map;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -139,6 +142,143 @@ public class MemoryAndSkillsTest {
         assertThat(missingSkill).contains("Skill not found");
         assertThat(invalidPath).contains("\"success\":false");
         assertThat(invalidPath).contains("Invalid skill file path");
+    }
+
+    @Test
+    void shouldBlockCredentialPathsInSkillFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("secure-skill", null, skill("secure-skill", "demo"));
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:room:user");
+
+        String writeEnv =
+                tools.skillManage(
+                        "write_file",
+                        "secure-skill",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "references/.env",
+                        "TOKEN=1");
+        String viewEnv = tools.skillView("secure-skill", "references/.env");
+        File envFile =
+                FileUtil.file(
+                        env.appConfig.getRuntime().getSkillsDir(),
+                        "secure-skill",
+                        "references",
+                        ".env");
+        FileUtil.writeUtf8String(
+                "KEY=old",
+                FileUtil.file(
+                        env.appConfig.getRuntime().getSkillsDir(),
+                        "secure-skill",
+                        "scripts",
+                        "id_rsa"));
+        String patchKey =
+                tools.skillManage(
+                        "patch",
+                        "secure-skill",
+                        null,
+                        null,
+                        "old",
+                        "new",
+                        "scripts/id_rsa",
+                        null);
+        String removeKey =
+                tools.skillManage(
+                        "remove_file",
+                        "secure-skill",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "scripts/id_rsa",
+                        null);
+
+        assertThat(writeEnv).contains("\"success\":false").contains("security policy");
+        assertThat(viewEnv).contains("\"success\":false").contains("security policy");
+        assertThat(patchKey).contains("\"success\":false").contains("security policy");
+        assertThat(removeKey).contains("\"success\":false").contains("security policy");
+        assertThat(envFile).doesNotExist();
+        assertThat(
+                        FileUtil.readUtf8String(
+                                FileUtil.file(
+                                        env.appConfig.getRuntime().getSkillsDir(),
+                                        "secure-skill",
+                                        "scripts",
+                                        "id_rsa")))
+                .isEqualTo("KEY=old");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldValidateSkillDeclaredCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        FileUtil.writeUtf8String(
+                "{}",
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "token.json"));
+        env.localSkillService.createSkill(
+                "credential-skill",
+                null,
+                "---\n"
+                        + "name: credential-skill\n"
+                        + "description: credential skill\n"
+                        + "required_credential_files:\n"
+                        + "  - path: credentials/token.json\n"
+                        + "  - name: missing.json\n"
+                        + "  - path: ../../.ssh/id_rsa\n"
+                        + "  - path: /tmp/absolute-token.json\n"
+                        + "---\n"
+                        + "# credential skill\n");
+
+        SkillDescriptor descriptor = env.localSkillService.viewSkill("credential-skill", null).getDescriptor();
+        Map<String, Object> metadata = descriptor.getMetadata();
+        Map<String, Object> credentialFiles =
+                (Map<String, Object>) metadata.get("credential_files");
+        List<Object> mounts = (List<Object>) credentialFiles.get("mounts");
+        List<Object> missing = (List<Object>) credentialFiles.get("missing");
+        List<Object> rejected = (List<Object>) credentialFiles.get("rejected");
+
+        assertThat(mounts.toString()).contains("credentials/token.json");
+        assertThat(mounts.toString()).contains("/root/.jimuqu-agent/credentials/token.json");
+        assertThat(missing).contains("missing.json");
+        assertThat(rejected.toString()).contains("../../.ssh/id_rsa");
+        assertThat(rejected.toString()).contains("path traversal");
+        assertThat(rejected.toString()).contains("/tmp/absolute-token.json");
+        assertThat(rejected.toString()).contains("absolute path");
+    }
+
+    @Test
+    void shouldPlanConfiguredCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        FileUtil.writeUtf8String(
+                "{}",
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json"));
+        env.appConfig
+                .getTerminal()
+                .getCredentialFiles()
+                .add("credentials/oauth.json");
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/missing.json");
+        env.appConfig.getTerminal().getCredentialFiles().add("../outside.json");
+
+        SkillCredentialFileService.CredentialFilePlan plan =
+                new SkillCredentialFileService(env.appConfig).configPlan();
+
+        assertThat(plan.getMounts()).hasSize(1);
+        assertThat(plan.getMounts().get(0).getRelativePath()).isEqualTo("credentials/oauth.json");
+        assertThat(plan.getMounts().get(0).getContainerPath())
+                .isEqualTo("/root/.jimuqu-agent/credentials/oauth.json");
+        assertThat(plan.getMissing()).contains("credentials/missing.json");
+        assertThat(plan.getRejected()).hasSize(1);
+        assertThat(plan.getRejected().get(0).getRelativePath()).isEqualTo("../outside.json");
+        assertThat(plan.getRejected().get(0).getReason()).contains("path traversal");
     }
 
     @Test

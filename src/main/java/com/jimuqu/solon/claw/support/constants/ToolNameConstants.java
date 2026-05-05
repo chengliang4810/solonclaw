@@ -6,6 +6,7 @@ public interface ToolNameConstants {
     String FILE_WRITE = "file_write";
     String FILE_LIST = "file_list";
     String FILE_DELETE = "file_delete";
+    String PATCH = "patch";
     String EXECUTE_SHELL = "execute_shell";
     String EXECUTE_PYTHON = "execute_python";
     String EXECUTE_JS = "execute_js";
@@ -29,10 +30,19 @@ public interface ToolNameConstants {
     String SKILLS_HUB_TAP = "skills_hub_tap";
     String SEND_MESSAGE = "send_message";
     String CRONJOB = "cronjob";
+    String KANBAN_SHOW = "kanban_show";
+    String KANBAN_COMPLETE = "kanban_complete";
+    String KANBAN_BLOCK = "kanban_block";
+    String KANBAN_HEARTBEAT = "kanban_heartbeat";
+    String KANBAN_COMMENT = "kanban_comment";
+    String KANBAN_CREATE = "kanban_create";
+    String KANBAN_LINK = "kanban_link";
     String CONFIG_GET = "config_get";
     String CONFIG_SET = "config_set";
     String CONFIG_SET_SECRET = "config_set_secret";
     String CONFIG_REFRESH = "config_refresh";
+    String TOOL_GATEWAY = "tool_gateway";
+    String MCP = "mcp";
     String CODESEARCH = "codesearch";
     String WEBSEARCH = "websearch";
     String WEBFETCH = "webfetch";

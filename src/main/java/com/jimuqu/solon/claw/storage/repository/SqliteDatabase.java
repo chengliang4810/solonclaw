@@ -129,6 +129,7 @@ public class SqliteDatabase {
                             + "compressed_summary text,"
                             + "system_prompt_snapshot text,"
                             + "agent_snapshot_json text,"
+                            + "goal_state_json text,"
                             + "last_learning_at integer not null default 0,"
                             + "last_compression_at integer not null default 0,"
                             + "last_compression_input_tokens integer not null default 0,"
@@ -186,6 +187,10 @@ public class SqliteDatabase {
             }
             try {
                 statement.execute("alter table sessions add column agent_snapshot_json text");
+            } catch (Exception ignored) {
+            }
+            try {
+                statement.execute("alter table sessions add column goal_state_json text");
             } catch (Exception ignored) {
             }
             try {
@@ -350,6 +355,9 @@ public class SqliteDatabase {
                             + "no_agent integer not null default 0,"
                             + "context_from_json text,"
                             + "enabled_toolsets_json text,"
+                            + "model text,"
+                            + "provider text,"
+                            + "base_url text,"
                             + "wrap_response integer not null default 1,"
                             + "last_status text,"
                             + "last_error text,"
@@ -377,6 +385,9 @@ public class SqliteDatabase {
             addColumn(statement, "cron_jobs", "no_agent integer not null default 0");
             addColumn(statement, "cron_jobs", "context_from_json text");
             addColumn(statement, "cron_jobs", "enabled_toolsets_json text");
+            addColumn(statement, "cron_jobs", "model text");
+            addColumn(statement, "cron_jobs", "provider text");
+            addColumn(statement, "cron_jobs", "base_url text");
             addColumn(statement, "cron_jobs", "wrap_response integer not null default 1");
             addColumn(statement, "cron_jobs", "last_status text");
             addColumn(statement, "cron_jobs", "last_error text");
@@ -388,11 +399,25 @@ public class SqliteDatabase {
                     "create table if not exists cron_runs ("
                             + "run_id text primary key,"
                             + "job_id text not null,"
+                            + "source_key text,"
+                            + "trigger_type text,"
+                            + "attempt integer not null default 0,"
                             + "started_at integer not null,"
                             + "finished_at integer,"
                             + "status text not null,"
-                            + "summary text"
+                            + "summary text,"
+                            + "output text,"
+                            + "error text,"
+                            + "delivery_error text"
                             + ")");
+            addColumn(statement, "cron_runs", "source_key text");
+            addColumn(statement, "cron_runs", "trigger_type text");
+            addColumn(statement, "cron_runs", "attempt integer not null default 0");
+            addColumn(statement, "cron_runs", "output text");
+            addColumn(statement, "cron_runs", "error text");
+            addColumn(statement, "cron_runs", "delivery_error text");
+            statement.execute(
+                    "create index if not exists idx_cron_runs_job_started on cron_runs(job_id, started_at desc)");
             statement.execute(
                     "create table if not exists home_channels ("
                             + "platform text primary key,"
@@ -665,14 +690,25 @@ public class SqliteDatabase {
                             + "command text,"
                             + "args_json text,"
                             + "auth_json text,"
+                            + "oauth_json text,"
+                            + "capabilities_json text,"
                             + "status text not null,"
                             + "tools_json text,"
+                            + "last_tools_hash text,"
                             + "last_error text,"
                             + "enabled integer not null default 1,"
                             + "created_at integer not null,"
                             + "updated_at integer not null,"
-                            + "last_checked_at integer not null default 0"
+                            + "last_checked_at integer not null default 0,"
+                            + "last_tools_changed_at integer not null default 0"
                             + ")");
+            addColumn(statement, "mcp_servers", "oauth_json text");
+            addColumn(statement, "mcp_servers", "capabilities_json text");
+            addColumn(statement, "mcp_servers", "last_tools_hash text");
+            addColumn(
+                    statement,
+                    "mcp_servers",
+                    "last_tools_changed_at integer not null default 0");
             statement.execute(
                     "create table if not exists curator_reports ("
                             + "report_id text primary key,"
@@ -801,13 +837,78 @@ public class SqliteDatabase {
                             + "workspace_path text,"
                             + "created_by text,"
                             + "result text,"
+                            + "idempotency_key text,"
+                            + "claim_lock text,"
+                            + "claim_expires_at integer not null default 0,"
+                            + "worker_id text,"
+                            + "worker_pid integer not null default 0,"
+                            + "last_spawn_error text,"
+                            + "spawn_failures integer not null default 0,"
+                            + "max_runtime_seconds integer not null default 0,"
+                            + "last_heartbeat_at integer not null default 0,"
+                            + "current_run_id text,"
+                            + "workflow_template_id text,"
+                            + "current_step_key text,"
+                            + "skills_json text,"
                             + "created_at integer not null,"
                             + "updated_at integer not null,"
                             + "started_at integer not null default 0,"
                             + "completed_at integer not null default 0"
                             + ")");
+            addColumn(statement, "kanban_tasks", "claim_lock text");
+            addColumn(
+                    statement,
+                    "kanban_tasks",
+                    "claim_expires_at integer not null default 0");
+            addColumn(statement, "kanban_tasks", "worker_id text");
+            addColumn(statement, "kanban_tasks", "idempotency_key text");
+            addColumn(statement, "kanban_tasks", "worker_pid integer not null default 0");
+            addColumn(statement, "kanban_tasks", "last_spawn_error text");
+            addColumn(statement, "kanban_tasks", "spawn_failures integer not null default 0");
+            addColumn(statement, "kanban_tasks", "max_runtime_seconds integer not null default 0");
+            addColumn(statement, "kanban_tasks", "last_heartbeat_at integer not null default 0");
+            addColumn(statement, "kanban_tasks", "current_run_id text");
+            addColumn(statement, "kanban_tasks", "workflow_template_id text");
+            addColumn(statement, "kanban_tasks", "current_step_key text");
+            addColumn(statement, "kanban_tasks", "skills_json text");
             statement.execute(
                     "create index if not exists idx_kanban_tasks_board_status on kanban_tasks(board_slug, status, priority desc, updated_at desc)");
+            statement.execute(
+                    "create index if not exists idx_kanban_tasks_idempotency on kanban_tasks(board_slug, idempotency_key)");
+            statement.execute(
+                    "create table if not exists kanban_task_links ("
+                            + "parent_id text not null,"
+                            + "child_id text not null,"
+                            + "primary key (parent_id, child_id)"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_task_links_child on kanban_task_links(child_id)");
+            statement.execute(
+                    "create index if not exists idx_kanban_task_links_parent on kanban_task_links(parent_id)");
+            statement.execute(
+                    "create table if not exists kanban_runs ("
+                            + "run_id text primary key,"
+                            + "task_id text not null,"
+                            + "profile text,"
+                            + "step_key text,"
+                            + "status text not null,"
+                            + "claim_lock text,"
+                            + "claim_expires_at integer not null default 0,"
+                            + "worker_pid integer not null default 0,"
+                            + "worker_id text,"
+                            + "max_runtime_seconds integer not null default 0,"
+                            + "last_heartbeat_at integer not null default 0,"
+                            + "started_at integer not null,"
+                            + "ended_at integer not null default 0,"
+                            + "outcome text,"
+                            + "summary text,"
+                            + "metadata_json text,"
+                            + "error text"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_runs_task on kanban_runs(task_id, started_at asc)");
+            statement.execute(
+                    "create index if not exists idx_kanban_runs_status on kanban_runs(status)");
             statement.execute(
                     "create table if not exists kanban_comments ("
                             + "comment_id text primary key,"
@@ -818,6 +919,16 @@ public class SqliteDatabase {
                             + ")");
             statement.execute(
                     "create index if not exists idx_kanban_comments_task on kanban_comments(task_id, created_at asc)");
+            statement.execute(
+                    "create table if not exists kanban_events ("
+                            + "event_id text primary key,"
+                            + "task_id text not null,"
+                            + "kind text not null,"
+                            + "payload_json text,"
+                            + "created_at integer not null"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_events_task on kanban_events(task_id, created_at asc)");
             statement.close();
         } finally {
             connection.close();

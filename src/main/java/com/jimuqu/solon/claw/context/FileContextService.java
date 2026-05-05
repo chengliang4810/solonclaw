@@ -64,6 +64,7 @@ public class FileContextService implements ContextService {
         appendPersonality(buffer);
         appendMemoryBlock(buffer, sourceKey);
         appendAgentBlock(buffer, agentScope);
+        appendProjectContextFiles(buffer, agentScope);
 
         try {
             String skillPrompt =
@@ -98,6 +99,28 @@ public class FileContextService implements ContextService {
                 buffer,
                 "Agent Memory",
                 joinNonBlank(agentScope.getMemory(), readIfExists(agentScope.getMemoryFilePath())));
+    }
+
+    private void appendProjectContextFiles(StringBuilder buffer, AgentRuntimeScope agentScope) {
+        if (agentScope == null || !agentScope.isWorkspaceDirOverride()) {
+            return;
+        }
+        String workspaceDir = agentScope.getWorkspaceDir();
+        if (StrUtil.isBlank(workspaceDir)) {
+            return;
+        }
+        appendProjectFile(buffer, workspaceDir, "AGENTS.md", "Project AGENTS.md");
+        appendProjectFile(buffer, workspaceDir, "CLAUDE.md", "Project CLAUDE.md");
+        appendProjectFile(buffer, workspaceDir, ".cursorrules", "Project .cursorrules");
+    }
+
+    private void appendProjectFile(
+            StringBuilder buffer, String workspaceDir, String fileName, String label) {
+        java.io.File file = FileUtil.file(workspaceDir, fileName);
+        if (!file.exists() || !file.isFile()) {
+            return;
+        }
+        appendBlock(buffer, label, readIfExists(file.getAbsolutePath()));
     }
 
     private String readIfExists(String path) {

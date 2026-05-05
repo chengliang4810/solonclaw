@@ -5,14 +5,24 @@ import {
   addKanbanComment,
   createKanbanBoard,
   createKanbanTask,
+  dispatchKanban,
   fetchKanbanBoards,
+  fetchKanbanDaemon,
   fetchKanbanTask,
   fetchKanbanTasks,
   kanbanStatuses,
   moveKanbanTask,
+  reclaimKanbanTask,
+  reassignKanbanTask,
+  retryKanbanTask,
+  startKanbanDaemon,
+  stopKanbanDaemon,
   switchKanbanBoard,
   updateKanbanTask,
   type KanbanBoard,
+  type KanbanDaemonStatus,
+  type KanbanEvent,
+  type KanbanRun,
   type KanbanStatus,
   type KanbanTask,
 } from '@/api/hermes/kanban'
@@ -26,6 +36,13 @@ const showTaskModal = ref(false)
 const showBoardModal = ref(false)
 const selectedTask = ref<KanbanTask | null>(null)
 const commentText = ref('')
+const recoveryReason = ref('')
+const reassignAssignee = ref('')
+const dispatching = ref(false)
+const daemonBusy = ref(false)
+const daemon = ref<KanbanDaemonStatus | null>(null)
+const daemonInterval = ref(60)
+const daemonMaxSpawn = ref(3)
 const taskForm = ref({
   title: '',
   body: '',
@@ -77,6 +94,7 @@ async function loadKanban() {
     boards.value = await fetchKanbanBoards()
     activeBoard.value = boards.value.find(board => board.current)?.slug || boards.value[0]?.slug || ''
     tasks.value = await fetchKanbanTasks(activeBoard.value)
+    daemon.value = await fetchKanbanDaemon()
   } finally {
     loading.value = false
   }
@@ -85,6 +103,7 @@ async function loadKanban() {
 async function reloadTasks() {
   tasks.value = await fetchKanbanTasks(activeBoard.value)
   boards.value = await fetchKanbanBoards()
+  daemon.value = await fetchKanbanDaemon()
 }
 
 async function handleBoardChange(slug: string) {
@@ -117,6 +136,8 @@ async function openTask(task: KanbanTask) {
     tenant: selectedTask.value.tenant || '',
   }
   commentText.value = ''
+  recoveryReason.value = ''
+  reassignAssignee.value = selectedTask.value.assignee || ''
   showTaskModal.value = true
 }
 
@@ -158,6 +179,99 @@ async function saveComment() {
   await reloadTasks()
 }
 
+async function reclaimSelectedTask() {
+  if (!selectedTask.value) return
+  try {
+    selectedTask.value = await reclaimKanbanTask(selectedTask.value.id, recoveryReason.value.trim() || 'dashboard')
+    recoveryReason.value = ''
+    message.success('任务执行权已收回')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '收回执行权失败')
+  }
+}
+
+async function reassignSelectedTask(reclaimFirst = false) {
+  if (!selectedTask.value || !reassignAssignee.value.trim()) {
+    message.error('请输入新的执行人')
+    return
+  }
+  try {
+    selectedTask.value = await reassignKanbanTask(
+      selectedTask.value.id,
+      reassignAssignee.value.trim(),
+      reclaimFirst,
+      recoveryReason.value.trim() || 'dashboard',
+    )
+    recoveryReason.value = ''
+    message.success('任务已重新分配')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '重新分配失败')
+  }
+}
+
+async function retrySelectedTask() {
+  if (!selectedTask.value) return
+  try {
+    selectedTask.value = await retryKanbanTask(selectedTask.value.id, recoveryReason.value.trim() || 'dashboard')
+    recoveryReason.value = ''
+    message.success('任务已重置为就绪')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '重试任务失败')
+  }
+}
+
+async function runDispatcher(dryRun = false) {
+  dispatching.value = true
+  try {
+    const result = await dispatchKanban({
+      board: activeBoard.value,
+      max_spawn: 3,
+      dry_run: dryRun,
+    })
+    const spawned = result.spawned?.length || 0
+    const skipped = result.skipped_unassigned?.length || 0
+    const blocked = result.auto_blocked?.length || 0
+    message.success(`派发完成：启动 ${spawned}，晋级 ${result.promoted}，收回 ${result.reclaimed + result.timed_out}，未分配 ${skipped}，自动阻塞 ${blocked}`)
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '派发失败')
+  } finally {
+    dispatching.value = false
+  }
+}
+
+async function startDaemon() {
+  daemonBusy.value = true
+  try {
+    daemon.value = await startKanbanDaemon({
+      board: activeBoard.value,
+      max_spawn: daemonMaxSpawn.value,
+      interval_seconds: daemonInterval.value,
+      failure_limit: 3,
+    })
+    message.success(daemon.value.already_running ? '后台派发已在运行' : '后台派发已启动')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '启动后台派发失败')
+  } finally {
+    daemonBusy.value = false
+  }
+}
+
+async function stopDaemon() {
+  daemonBusy.value = true
+  try {
+    daemon.value = await stopKanbanDaemon()
+    message.success('后台派发已停止')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '停止后台派发失败')
+  } finally {
+    daemonBusy.value = false
+  }
+}
+
 async function saveBoard() {
   if (!boardForm.value.slug.trim()) {
     message.error('看板标识不能为空')
@@ -173,6 +287,44 @@ async function saveBoard() {
   boardForm.value = { slug: '', name: '', description: '' }
   activeBoard.value = board.slug
   await loadKanban()
+}
+
+function eventPayload(event: KanbanEvent): Record<string, unknown> {
+  if (event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload)) {
+    return event.payload as Record<string, unknown>
+  }
+  return {}
+}
+
+function eventSummary(event: KanbanEvent): string {
+  const payload = eventPayload(event)
+  if (event.kind === 'completion_blocked_hallucination') {
+    return `完成被阻止：${String(payload.failures || payload.created_cards || '')}`
+  }
+  if (event.kind === 'suspected_hallucinated_references') {
+    return `疑似引用了不存在的卡片：${String(payload.suspected_ids || '')}`
+  }
+  if (event.kind === 'reclaimed') {
+    return `已收回执行权：${String(payload.reason || '-')}`
+  }
+  if (event.kind === 'reassigned') {
+    return `已重新分配给 ${String(payload.assignee || '-')}`
+  }
+  if (event.kind === 'completed') {
+    return `完成记录：${String(payload.summary || '')}`
+  }
+  return event.kind
+}
+
+function runSummary(run: KanbanRun): string {
+  const outcome = run.outcome || run.status
+  const worker = run.worker_id || run.profile || '-'
+  const summary = run.summary ? `：${run.summary}` : ''
+  return `${outcome} / ${worker}${summary}`
+}
+
+function hasWarnings(task: KanbanTask): boolean {
+  return Boolean((task.warnings && task.warnings.length > 0) || task.claim_lock || task.current_run_id)
 }
 </script>
 
@@ -192,6 +344,15 @@ async function saveBoard() {
           @update:value="handleBoardChange"
         />
         <NButton size="small" @click="showBoardModal = true">新建看板</NButton>
+        <NButton size="small" :loading="dispatching" @click="runDispatcher(true)">预检派发</NButton>
+        <NButton size="small" :loading="dispatching" @click="runDispatcher(false)">派发执行</NButton>
+        <span class="daemon-status" :class="{ active: daemon?.running }">
+          {{ daemon?.running ? `后台派发中 · ${daemon.tick_count || 0} 次` : '后台派发未启动' }}
+        </span>
+        <NInputNumber v-model:value="daemonInterval" size="small" class="daemon-number" :min="1" :show-button="false" placeholder="间隔秒" />
+        <NInputNumber v-model:value="daemonMaxSpawn" size="small" class="daemon-number" :min="1" :show-button="false" placeholder="并发数" />
+        <NButton v-if="!daemon?.running" size="small" :loading="daemonBusy" @click="startDaemon">启动后台派发</NButton>
+        <NButton v-else size="small" type="warning" :loading="daemonBusy" @click="stopDaemon">停止后台派发</NButton>
         <NButton type="primary" size="small" @click="openCreateTask">新建任务</NButton>
       </div>
     </header>
@@ -207,7 +368,11 @@ async function saveBoard() {
             <article v-for="task in column.tasks" :key="task.id" class="task-card" @click="openTask(task)">
               <div class="task-topline">
                 <span class="task-id">{{ task.id }}</span>
-                <span class="priority">P{{ task.priority || 0 }}</span>
+                <span class="task-flags">
+                  <span v-if="task.status === 'running' && task.claim_lock" class="claim-flag">已锁定</span>
+                  <span v-if="hasWarnings(task)" class="warning-flag">需处理</span>
+                  <span class="priority">P{{ task.priority || 0 }}</span>
+                </span>
               </div>
               <h3>{{ task.title }}</h3>
               <p v-if="task.body">{{ task.body }}</p>
@@ -263,6 +428,47 @@ async function saveBoard() {
           </label>
         </div>
         <div v-if="selectedTask" class="comments">
+          <div
+            v-if="(selectedTask.warnings || []).length || selectedTask.claim_lock || (selectedTask.runs || []).length"
+            class="recovery-panel"
+          >
+            <div class="panel-title">恢复与异常</div>
+            <div v-if="selectedTask.claim_lock" class="claim-detail">
+              <span>运行锁：{{ selectedTask.claim_lock }}</span>
+              <span v-if="selectedTask.worker_id">worker={{ selectedTask.worker_id }}</span>
+            </div>
+            <div v-for="warning in selectedTask.warnings || []" :key="warning.id" class="warning-row">
+              {{ eventSummary(warning) }}
+            </div>
+            <div class="recovery-actions">
+              <NInput v-model:value="recoveryReason" placeholder="恢复原因，例如 worker timeout" />
+              <NButton @click="reclaimSelectedTask">收回执行权</NButton>
+              <NButton @click="retrySelectedTask">重试任务</NButton>
+            </div>
+            <div class="recovery-actions">
+              <NInput v-model:value="reassignAssignee" placeholder="新的执行人" />
+              <NButton @click="reassignSelectedTask(false)">重新分配</NButton>
+              <NButton type="primary" @click="reassignSelectedTask(true)">收回并分配</NButton>
+            </div>
+          </div>
+
+          <div v-if="(selectedTask.runs || []).length" class="runs">
+            <div class="comments-title">运行历史</div>
+            <div v-for="run in selectedTask.runs || []" :key="run.id" class="run-row">
+              <span class="run-status" :class="{ active: !run.ended_at }">{{ run.status }}</span>
+              <span>{{ runSummary(run) }}</span>
+              <span class="run-time">{{ run.started_at || '-' }}</span>
+            </div>
+          </div>
+
+          <div v-if="(selectedTask.events || []).length" class="events">
+            <div class="comments-title">执行流水</div>
+            <div v-for="event in selectedTask.events || []" :key="event.id" class="event-row">
+              <span class="event-kind">{{ event.kind }}</span>
+              <span>{{ eventSummary(event) }}</span>
+            </div>
+          </div>
+
           <div class="comments-title">评论</div>
           <div v-for="comment in selectedTask.comments || []" :key="comment.id" class="comment">
             <strong>{{ comment.author }}</strong>
@@ -327,6 +533,27 @@ async function saveBoard() {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.daemon-status {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  color: $text-muted;
+  font-size: 12px;
+  white-space: nowrap;
+
+  &.active {
+    border-color: #16a34a;
+    color: #15803d;
+  }
+}
+
+.daemon-number {
+  width: 82px;
 }
 
 .board-select {
@@ -426,6 +653,34 @@ async function saveBoard() {
   color: $text-secondary;
 }
 
+.task-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.claim-flag,
+.warning-flag {
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.claim-flag {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.warning-flag {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.16);
+}
+
 .task-actions {
   display: flex;
   flex-wrap: wrap;
@@ -474,10 +729,74 @@ async function saveBoard() {
   padding-top: 12px;
 }
 
+.recovery-panel,
+.runs,
+.events {
+  border-bottom: 1px solid $border-color;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-title,
 .comments-title {
   color: $text-primary;
   font-weight: 600;
   margin-bottom: 8px;
+}
+
+.claim-detail,
+.warning-row,
+.run-row,
+.event-row {
+  color: $text-secondary;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.claim-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.warning-row {
+  color: #b45309;
+  margin-bottom: 6px;
+}
+
+.recovery-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.run-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 150px;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.event-kind,
+.run-status,
+.run-time {
+  color: $text-muted;
+  font-family: $font-code;
+  font-size: 11px;
+}
+
+.run-status.active {
+  color: #1d4ed8;
 }
 
 .comment {
@@ -513,12 +832,23 @@ async function saveBoard() {
     width: 100%;
   }
 
+  .daemon-status,
+  .daemon-number {
+    width: 100%;
+  }
+
   .kanban-board {
     grid-template-columns: repeat(6, 240px);
     height: calc(100 * var(--vh) - 132px);
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recovery-actions,
+  .run-row,
+  .event-row {
     grid-template-columns: 1fr;
   }
 }

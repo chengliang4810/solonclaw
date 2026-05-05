@@ -5,7 +5,8 @@ public class CliMode {
     public enum Kind {
         SERVER,
         CLI,
-        TUI
+        TUI,
+        ACP
     }
 
     private final Kind kind;
@@ -31,6 +32,6 @@ public class CliMode {
     }
 
     public boolean isConsoleMode() {
-        return kind == Kind.CLI || kind == Kind.TUI;
+        return kind == Kind.CLI || kind == Kind.TUI || kind == Kind.ACP;
     }
 }

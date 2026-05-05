@@ -147,7 +147,7 @@ public class AgentMechanismTest {
                         .toString();
 
         assertThat(names).containsExactly("file_read", "skills_list");
-        assertThat(joinedTools).contains("FileReadWriteSkill", "SkillsListTool");
+        assertThat(joinedTools).contains("HermesFileReadWriteSkill", "SkillsListTool");
         assertThat(joinedTools).doesNotContain("ShellSkill", "WebsearchTool", "TodoTools");
     }
 

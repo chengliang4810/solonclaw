@@ -5,9 +5,11 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -34,9 +36,12 @@ public class CronJobService {
     public CronJobRecord create(String sourceKey, Map<String, Object> body) throws Exception {
         String schedule = string(body.get("schedule"), string(body.get("cronExpr"), null));
         String prompt = string(body.get("prompt"), "");
-        List<String> skills = stringList(body.get("skills"));
+        List<String> skills = canonicalSkills(body);
         String script = string(body.get("script"), null);
         boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
+        String model = string(body.get("model"), null);
+        String provider = string(body.get("provider"), null);
+        String baseUrl = string(body.get("base_url"), string(body.get("baseUrl"), null));
         if (StrUtil.isBlank(schedule)) {
             throw new IllegalStateException("schedule is required");
         }
@@ -58,7 +63,7 @@ public class CronJobService {
         record.setCronExpr(schedule);
         record.setPrompt(prompt);
         record.setSourceKey(StrUtil.blankToDefault(sourceKey, DEFAULT_SOURCE));
-        record.setDeliverPlatform(string(body.get("deliver"), "local"));
+        record.setDeliverPlatform(deliverValue(body.get("deliver"), defaultDeliver(body)));
         record.setDeliverChatId(string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
         record.setDeliverThreadId(string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
         record.setOriginJson(json(body.get("origin")));
@@ -70,7 +75,9 @@ public class CronJobService {
         record.setNoAgent(noAgent);
         record.setContextFromJson(json(stringList(body.get("context_from"))));
         record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
-        record.setWrapResponse(bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
+        applyModelPin(record, model, provider, baseUrl);
+        record.setWrapResponse(
+                bool(body.get("wrap_response"), bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
         record.setStatus(STATUS_ACTIVE);
         record.setNextRunAt(CronSupport.nextRunAt(schedule, now));
         record.setLastRunAt(0L);
@@ -99,7 +106,7 @@ public class CronJobService {
             }
         }
         if (body.containsKey("deliver")) {
-            record.setDeliverPlatform(string(body.get("deliver"), "local"));
+            record.setDeliverPlatform(deliverValue(body.get("deliver"), "local"));
         }
         if (body.containsKey("deliver_chat_id") || body.containsKey("deliverChatId")) {
             record.setDeliverChatId(string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
@@ -107,8 +114,8 @@ public class CronJobService {
         if (body.containsKey("deliver_thread_id") || body.containsKey("deliverThreadId")) {
             record.setDeliverThreadId(string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
         }
-        if (body.containsKey("skills")) {
-            record.setSkillsJson(json(stringList(body.get("skills"))));
+        if (body.containsKey("skills") || body.containsKey("skill")) {
+            record.setSkillsJson(json(canonicalSkills(body)));
         }
         if (body.containsKey("repeat")) {
             int repeat = intValue(body.get("repeat"), 0);
@@ -138,6 +145,19 @@ public class CronJobService {
         }
         if (body.containsKey("enabled_toolsets")) {
             record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
+        }
+        if (body.containsKey("model")
+                || body.containsKey("provider")
+                || body.containsKey("base_url")
+                || body.containsKey("baseUrl")) {
+            String model = body.containsKey("model") ? string(body.get("model"), null) : record.getModel();
+            String provider =
+                    body.containsKey("provider") ? string(body.get("provider"), null) : record.getProvider();
+            String baseUrl =
+                    body.containsKey("base_url") || body.containsKey("baseUrl")
+                            ? string(body.get("base_url"), string(body.get("baseUrl"), null))
+                            : record.getBaseUrl();
+            applyModelPin(record, model, provider, baseUrl);
         }
         if (body.containsKey("wrap_response") || body.containsKey("wrapResponse")) {
             record.setWrapResponse(bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
@@ -199,7 +219,7 @@ public class CronJobService {
     public CronJobRecord trigger(String jobId) throws Exception {
         CronJobRecord record = require(jobId);
         record.setStatus(STATUS_ACTIVE);
-        record.setNextRunAt(0L);
+        record.setNextRunAt(System.currentTimeMillis());
         return cronJobRepository.update(record);
     }
 
@@ -207,6 +227,28 @@ public class CronJobService {
         CronJobRecord record = require(jobId);
         cronJobRepository.delete(jobId);
         return record;
+    }
+
+    public List<CronJobRunRecord> history(String jobId, int limit) throws Exception {
+        require(jobId);
+        return cronJobRepository.listRuns(jobId, limit);
+    }
+
+    public Map<String, Object> runToView(CronJobRunRecord record) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("run_id", record.getRunId());
+        result.put("job_id", record.getJobId());
+        result.put("source_key", record.getSourceKey());
+        result.put("trigger", StrUtil.blankToDefault(record.getTriggerType(), "scheduled"));
+        result.put("attempt", Integer.valueOf(record.getAttempt()));
+        result.put("started_at", record.getStartedAt() <= 0 ? null : Long.valueOf(record.getStartedAt()));
+        result.put("finished_at", record.getFinishedAt() <= 0 ? null : Long.valueOf(record.getFinishedAt()));
+        result.put("status", record.getStatus());
+        result.put("output", record.getOutput());
+        result.put("error", record.getError());
+        result.put("delivery_error", record.getDeliveryError());
+        result.put("summary", record.getSummary());
+        return result;
     }
 
     public Map<String, Object> toView(CronJobRecord record) {
@@ -241,6 +283,9 @@ public class CronJobService {
         result.put("no_agent", Boolean.valueOf(record.isNoAgent()));
         result.put("context_from", parseList(record.getContextFromJson()));
         result.put("enabled_toolsets", parseList(record.getEnabledToolsetsJson()));
+        result.put("model", record.getModel());
+        result.put("provider", record.getProvider());
+        result.put("base_url", record.getBaseUrl());
         result.put("wrap_response", Boolean.valueOf(record.isWrapResponse()));
         result.put("last_run_at", record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
         result.put("next_run_at", record.getNextRunAt() <= 0 ? null : Long.valueOf(record.getNextRunAt()));
@@ -295,6 +340,15 @@ public class CronJobService {
         if (!file.isAbsolute() || !file.exists() || !file.isDirectory()) {
             throw new IllegalStateException("workdir must be an existing absolute directory");
         }
+        SecurityPolicyService.FileVerdict verdict =
+                new SecurityPolicyService(appConfig).checkPath(file.getAbsolutePath(), false);
+        if (!verdict.isAllowed()) {
+            throw new IllegalStateException(
+                    "workdir blocked by security policy: "
+                            + verdict.getPath()
+                            + " - "
+                            + verdict.getMessage());
+        }
     }
 
     private void scanPrompt(String prompt) {
@@ -331,6 +385,29 @@ public class CronJobService {
             return null;
         }
         return ONode.serialize(value);
+    }
+
+    private String defaultDeliver(Map<String, Object> body) {
+        return body != null && body.get("origin") != null ? "origin" : "local";
+    }
+
+    private String deliverValue(Object value, String defaultValue) {
+        List<String> targets = stringList(value);
+        return targets.isEmpty() ? defaultValue : join(targets);
+    }
+
+    private String join(List<String> values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (StrUtil.isBlank(value)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(',');
+            }
+            builder.append(value.trim());
+        }
+        return builder.length() == 0 ? null : builder.toString();
     }
 
     private Object parse(String json) {
@@ -381,6 +458,51 @@ public class CronJobService {
         }
         for (String part : text.split(",")) {
             addString(result, part);
+        }
+        return result;
+    }
+
+    private void applyModelPin(CronJobRecord record, String model, String provider, String baseUrl) {
+        String normalizedModel = normalizeBlank(model);
+        String normalizedProvider = normalizeBlank(provider);
+        String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+        if (StrUtil.isNotBlank(normalizedProvider)
+                && !appConfig.getProviders().containsKey(normalizedProvider)) {
+            throw new IllegalStateException("provider not found: " + normalizedProvider);
+        }
+        if (StrUtil.isNotBlank(normalizedModel) && StrUtil.isBlank(normalizedProvider)) {
+            normalizedProvider = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
+        }
+        if (StrUtil.isNotBlank(normalizedModel)
+                && StrUtil.isBlank(normalizedProvider)
+                && appConfig.getProviders().size() == 1) {
+            normalizedProvider = appConfig.getProviders().keySet().iterator().next();
+        }
+        record.setModel(normalizedModel);
+        record.setProvider(normalizedProvider);
+        record.setBaseUrl(normalizedBaseUrl);
+    }
+
+    private String normalizeBaseUrl(String value) {
+        String normalized = normalizeBlank(value);
+        while (StrUtil.isNotBlank(normalized) && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String normalizeBlank(String value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.trim();
+        return text.length() == 0 ? null : text;
+    }
+
+    private List<String> canonicalSkills(Map<String, Object> body) {
+        List<String> result = stringList(body.get("skills"));
+        for (String item : stringList(body.get("skill"))) {
+            addString(result, item);
         }
         return result;
     }

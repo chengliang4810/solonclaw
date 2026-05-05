@@ -3,12 +3,20 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.File;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class CommandEnhancementTest {
@@ -69,9 +77,306 @@ public class CommandEnhancementTest {
         assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
     }
 
+    @Test
+    void shouldSupportBusyPolicyCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/busy");
+        assertThat(status.getContent()).contains("busy_policy=interrupt").contains("source_running=false");
+
+        GatewayReply steer = env.send("admin-chat", "admin-user", "/busy steer");
+        assertThat(steer.getContent()).contains("已切换运行中输入策略为 steer");
+        assertThat(env.appConfig.getTask().getBusyPolicy()).isEqualTo("steer");
+        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                        .get("solonclaw.task.busyPolicy"))
+                .isEqualTo("steer");
+
+        GatewayReply after = env.send("admin-chat", "admin-user", "/busy status");
+        assertThat(after.getContent()).contains("busy_policy=steer").contains("steer：");
+
+        GatewayReply invalid = env.send("admin-chat", "admin-user", "/busy drop");
+        assertThat(invalid.isError()).isTrue();
+        assertThat(invalid.getContent()).contains("/busy [status|queue|steer|interrupt|reject]");
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/busy [status|queue|steer|interrupt|reject]");
+    }
+
+    @Test
+    void shouldShowResumeRecapUnlessDisplayIsMinimal() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.send("admin-chat", "admin-user", "第一轮问题");
+        SessionRecord original =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        original.setTitle("恢复测试");
+        env.sessionRepository.save(original);
+        env.send("admin-chat", "admin-user", "/new");
+
+        GatewayReply full = env.send("admin-chat", "admin-user", "/resume " + original.getSessionId());
+        assertThat(full.getContent())
+                .contains("已恢复会话")
+                .contains("恢复测试")
+                .contains("历史摘要")
+                .contains("第一轮问题")
+                .contains("echo:第一轮问题");
+
+        env.appConfig.getDisplay().setResumeDisplay("minimal");
+        env.send("admin-chat", "admin-user", "/new");
+        GatewayReply minimal =
+                env.send("admin-chat", "admin-user", "/resume " + original.getSessionId());
+        assertThat(minimal.getContent())
+                .contains("已恢复会话")
+                .doesNotContain("历史摘要")
+                .doesNotContain("echo:第一轮问题");
+    }
+
+    @Test
+    void shouldSupportGoalCommandLifecycle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "goal-chat", "goal-user", "/goal 完成一次端到端验证 --max 4");
+
+        GatewayReply set = env.commandService.handle(message, "/goal 完成一次端到端验证 --max 4");
+        assertThat(set.getContent()).contains("Goal set").contains("完成一次端到端验证");
+
+        GatewayReply status = env.commandService.handle(message, "/goal status");
+        assertThat(status.getContent()).contains("active").contains("0/4");
+
+        GatewayReply pause = env.commandService.handle(message, "/goal pause");
+        assertThat(pause.getContent()).contains("Goal paused");
+
+        GatewayReply resume = env.commandService.handle(message, "/goal resume");
+        assertThat(resume.getContent()).contains("Goal resumed").contains("Continuing toward your standing goal");
+
+        GatewayReply clear = env.commandService.handle(message, "/goal clear");
+        assertThat(clear.getContent()).contains("Goal cleared");
+    }
+
+    @Test
+    void shouldSupportHermesCronFlagSyntaxAndSkillEditing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply created =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher --skill maps");
+        assertThat(created.getContent()).contains("已创建定时任务");
+        String jobId = env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user")
+                .get(0)
+                .getJobId();
+        assertThat(cronJobView(env, jobId)).contains("blogwatcher").contains("maps");
+
+        GatewayReply edited =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit "
+                                + jobId
+                                + " --schedule \"every 4h\" --prompt \"New task\" --remove-skill maps --add-skill reports");
+        assertThat(edited.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("every 4h")
+                .contains("New task")
+                .contains("blogwatcher")
+                .contains("reports")
+                .doesNotContain("maps");
+
+        GatewayReply cleared = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-skills");
+        assertThat(cleared.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("skills=[]");
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history]");
+    }
+
+    @Test
+    void shouldMatchHermesCronListAllSemantics() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        env.send("admin-chat", "admin-user", "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher");
+        String jobId = env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user")
+                .get(0)
+                .getJobId();
+        GatewayReply activeList = env.send("admin-chat", "admin-user", "/cron list");
+        assertThat(activeList.getContent())
+                .contains("Scheduled Jobs:")
+                .contains("ID: " + jobId)
+                .contains("State: scheduled")
+                .contains("Skills: blogwatcher")
+                .contains("Prompt: Check server status");
+
+        GatewayReply paused = env.send("admin-chat", "admin-user", "/cron pause " + jobId);
+        assertThat(paused.getContent()).contains("已暂停定时任务");
+
+        GatewayReply defaultList = env.send("admin-chat", "admin-user", "/cron list");
+        assertThat(defaultList.getContent()).contains("当前没有定时任务。").doesNotContain(jobId);
+
+        GatewayReply allList = env.send("admin-chat", "admin-user", "/cron list --all");
+        assertThat(allList.getContent())
+                .contains("ID: " + jobId)
+                .contains("State: paused")
+                .contains("Schedule: every 2h");
+
+        GatewayReply overview = env.send("admin-chat", "admin-user", "/cron");
+        assertThat(overview.getContent())
+                .contains("Cron 定时任务")
+                .contains("/cron list --all")
+                .contains("/cron history <job-id>")
+                .contains("当前没有定时任务。");
+    }
+
+    @Test
+    void shouldShowCronHistoryCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"History check\"");
+        String jobId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .get(0)
+                        .getJobId();
+        com.jimuqu.solon.claw.core.model.CronJobRecord job = env.cronJobRepository.findById(jobId);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+        new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository)
+                .tick();
+
+        GatewayReply history =
+                env.send("admin-chat", "admin-user", "/cron history " + jobId + " --limit 5");
+        assertThat(history.getContent())
+                .contains("Cron 执行历史：" + jobId)
+                .contains("Status: ok")
+                .contains("trigger=scheduled")
+                .contains("Output: echo:History check");
+    }
+
+    @Test
+    void shouldSupportReloadMcpCommandWithConfirmationTextAndToolBaseline() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "local-docs");
+        body.put("name", "Local Docs");
+        body.put("transport", "stdio");
+        body.put("command", "docs-mcp");
+        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        mcpService.save(body);
+
+        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(prompt.getContent())
+                .contains("/approve")
+                .contains("/always")
+                .contains("/cancel")
+                .contains("工具 schema");
+
+        GatewayReply reloaded = env.send("admin-chat", "admin-user", "/reload-mcp now");
+        assertThat(reloaded.getContent())
+                .contains("MCP reload completed")
+                .contains("tools=1")
+                .contains("changed_servers=[]")
+                .contains("unchanged_servers=[local-docs]");
+
+        assertThat(mcpService.check("local-docs").get("tool_changed_notification")).isEqualTo(false);
+
+        Map<String, Object> updated = new LinkedHashMap<String, Object>(body);
+        updated.put(
+                "tools",
+                java.util.Arrays.asList(
+                        Collections.singletonMap("name", "docs_search"),
+                        Collections.singletonMap("name", "docs_fetch")));
+        mcpService.save(updated);
+        assertThat(mcpService.check("local-docs").get("tool_changed_notification")).isEqualTo(true);
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/reload-mcp [now|always]");
+    }
+
+    @Test
+    void shouldResolveReloadMcpWithSlashConfirmFallbacks() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "slash-confirm-docs");
+        body.put("name", "Slash Confirm Docs");
+        body.put("transport", "stdio");
+        body.put("command", "docs-mcp");
+        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        mcpService.save(body);
+
+        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(prompt.getContent()).contains("确认编号");
+
+        GatewayReply cancelled = env.send("admin-chat", "admin-user", "/cancel");
+        assertThat(cancelled.getContent()).contains("已取消 /reload-mcp");
+
+        GatewayReply promptAgain = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(promptAgain.getContent()).contains("/approve");
+
+        GatewayReply approved = env.send("admin-chat", "admin-user", "/approve");
+        assertThat(approved.getContent())
+                .contains("MCP reload completed")
+                .contains("tools=1");
+
+        GatewayReply alwaysPrompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(alwaysPrompt.getContent()).contains("/always");
+
+        GatewayReply always = env.send("admin-chat", "admin-user", "/always");
+        assertThat(always.getContent()).contains("已永久确认 /reload-mcp");
+        assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
+        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                        .get("solonclaw.approvals.mcpReloadConfirm"))
+                .isEqualTo("false");
+
+        GatewayReply direct = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(direct.getContent())
+                .contains("MCP reload completed")
+                .doesNotContain("确认编号");
+    }
+
+    @Test
+    void shouldSkipReloadMcpPromptWhenConfigDisablesConfirm() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "no-confirm-docs");
+        body.put("name", "No Confirm Docs");
+        body.put("transport", "stdio");
+        body.put("command", "docs-mcp");
+        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        mcpService.save(body);
+        env.appConfig.getApprovals().setMcpReloadConfirm(false);
+
+        GatewayReply direct = env.send("admin-chat", "admin-user", "/reload-mcp");
+
+        assertThat(direct.getContent())
+                .contains("MCP reload completed")
+                .contains("tools=1")
+                .doesNotContain("确认编号");
+    }
+
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
         env.send("admin-chat", "admin-user", "hello");
         env.send("admin-chat", "admin-user", "/pairing claim-admin");
+    }
+
+    private String cronJobView(TestEnvironment env, String jobId) throws Exception {
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        return service.toView(env.cronJobRepository.findById(jobId)).toString();
     }
 
     private Process newSleepProcess() throws Exception {

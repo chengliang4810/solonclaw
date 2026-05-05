@@ -71,6 +71,49 @@ solonclaw:
     enabled: true
     # 调度器扫描间隔，单位秒。
     tickSeconds: 60
+    # 是否默认为定时任务投递结果加上任务名等包装信息；对应 Hermes cron.wrap_response。
+    wrapResponse: true
+    # cron 脚本执行超时时间，单位秒；对应 Hermes cron.script_timeout_seconds / HERMES_CRON_SCRIPT_TIMEOUT。
+    scriptTimeoutSeconds: 120
+    # 无人值守 cron 遇到危险命令时的处理方式：deny 表示阻断，approve 表示沿用普通危险命令审批放行策略。
+    # 对齐 Hermes approvals.cron_mode；默认 deny，避免定时任务在无人确认时执行破坏性命令。
+    cronApprovalMode: deny
+    # 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。
+    # 对齐 Hermes cron 平台工具配置回退。cron 运行时始终会额外禁用 cronjob / messaging / clarify，避免无人值守递归调度或主动发消息。
+    enabledToolsets: []
+
+  # 安全策略配置。对齐 Hermes 的 hardline、URL safety、website policy 基线。
+  security:
+    # 是否允许 URL 工具访问内网/私有地址。云元数据地址始终阻断，无法通过本开关放行。
+    allowPrivateUrls: false
+    # URL 工具的网站阻断策略，用于 webfetch/websearch/codesearch 中出现的 URL。
+    websiteBlocklist:
+      # 是否启用域名阻断。
+      enabled: false
+      # 阻断域名列表，支持 example.com 和 *.example.com。
+      domains: []
+      # 共享阻断列表文件；相对路径按 runtime 目录解析。每行一个域名规则，支持注释和空行。
+      sharedFiles: []
+    # 是否启用 Tirith 命令内容安全扫描；对齐 Hermes security.tirith_enabled。
+    tirithEnabled: true
+    # Tirith 可执行文件路径。默认从 PATH 查找 tirith，也可填绝对路径。
+    tirithPath: tirith
+    # Tirith 扫描超时时间，单位秒。
+    tirithTimeoutSeconds: 5
+    # Tirith 不可用、超时或返回未知退出码时是否放行。设为 false 会 fail-closed 阻断。
+    tirithFailOpen: true
+
+  # 审批/确认策略配置。对齐 Hermes approvals.mcp_reload_confirm。
+  approvals:
+    # 危险命令审批模式：on 开启人工审批；off 关闭可审批危险命令提示；smart 预留给辅助模型判定。
+    # hardline 命令、URL 安全策略和凭据文件策略始终阻断，不受 off 影响。
+    mode: on
+    # cron 无人值守遇到危险命令时的处理方式：deny 阻断，approve 允许可审批危险命令直接运行。
+    # 旧配置 solonclaw.scheduler.cronApprovalMode 仍兼容，但建议迁移到本字段。
+    cronMode: deny
+    # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
+    # 设为 false 后，/reload-mcp 将直接执行。
+    mcpReloadConfirm: true
 
   # 上下文压缩配置。
   compression:
@@ -119,6 +162,8 @@ solonclaw:
     toolProgress: all
     # 是否默认展示 reasoning/思考中间态。
     showReasoning: false
+    # 恢复会话时是否展示紧凑历史：full 展示，minimal 只恢复不展示历史。
+    resumeDisplay: full
     # 工具参数预览最大长度。
     toolPreviewLength: 80
     # 中间态消息节流间隔，单位毫秒。
@@ -173,6 +218,24 @@ solonclaw:
     summarizationMaxMessages: 40
     # ReAct 摘要守卫触发的 token 阈值。
     summarizationMaxTokens: 32000
+
+  # 任务运行策略配置。
+  task:
+    # 运行中收到新消息时的处理策略：queue 排队、steer 注入当前 run、interrupt 打断重跑、reject 拒绝。
+    busyPolicy: interrupt
+    # 单个工具输出超过该字节数时写入 runtime/cache/tool-results，只把预览和 result_ref 放回上下文。
+    toolOutputInlineLimit: 4000
+    # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
+    toolOutputTurnBudget: 200000
+
+  # 终端/沙箱执行配置。
+  terminal:
+    # 对齐 Hermes terminal.credential_files。这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
+    # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到容器内 /root/.jimuqu-agent/<path>。
+    credentialFiles: []
+    # 可选 sudo 密码；也可通过环境变量 SUDO_PASSWORD 提供。用于把实际 sudo 命令改写为 sudo -S -p ''。
+    # 留空时不改写 sudo，避免在未配置凭据时改变命令行为。
+    sudoPassword: ""
 
   # Agent 行为配置。
   agent:

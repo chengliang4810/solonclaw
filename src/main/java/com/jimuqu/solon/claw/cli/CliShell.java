@@ -18,7 +18,7 @@ public class CliShell {
     private static final String[] COMMANDS =
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
-                "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
+                "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/stop", "/compress", "/rollback", "/version",
                 "/platforms", "/exit", "/quit"
             };

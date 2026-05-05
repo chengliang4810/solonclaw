@@ -337,7 +337,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runRecord.setAgentSnapshotJson(agentScope.getSnapshotJson());
         runRecord.setStatus("running");
         runRecord.setPhase("queued");
-        runRecord.setBusyPolicy("queue");
+        runRecord.setBusyPolicy(normalizeBusyPolicy(appConfig.getTask().getBusyPolicy()));
         runRecord.setInputPreview(AgentRunContext.safe(userMessage, 1000));
         if (runRecord.getQueuedAt() <= 0) {
             runRecord.setQueuedAt(now);

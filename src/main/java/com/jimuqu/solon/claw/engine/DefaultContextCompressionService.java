@@ -116,7 +116,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             List<ChatMessage> tail =
                     new ArrayList<ChatMessage>(pruned.subList(protectTailStart, pruned.size()));
 
-            if (middle.isEmpty() || shouldSkipMiddleCompression(middle)) {
+            if (middle.isEmpty() || shouldSkipMiddleCompression(middle, pruned, normalized)) {
                 return CompressionOutcome.skipped(session);
             }
 
@@ -412,7 +412,11 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     }
 
     /** 如果中间区间已经只剩占位内容，则无需继续压缩。 */
-    private boolean shouldSkipMiddleCompression(List<ChatMessage> middle) {
+    private boolean shouldSkipMiddleCompression(
+            List<ChatMessage> middle, List<ChatMessage> pruned, List<ChatMessage> original) {
+        if (!isSameMessages(pruned, original)) {
+            return false;
+        }
         for (ChatMessage message : middle) {
             String content = StrUtil.nullToEmpty(message.getContent()).trim();
             if (content.length() == 0) {
@@ -425,6 +429,32 @@ public class DefaultContextCompressionService implements ContextCompressionServi
                 continue;
             }
             return false;
+        }
+        return true;
+    }
+
+    private boolean isSameMessages(List<ChatMessage> left, List<ChatMessage> right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            ChatMessage leftMessage = left.get(i);
+            ChatMessage rightMessage = right.get(i);
+            if (leftMessage == rightMessage) {
+                continue;
+            }
+            if (leftMessage == null || rightMessage == null) {
+                return false;
+            }
+            if (leftMessage.getRole() != rightMessage.getRole()) {
+                return false;
+            }
+            if (!StrUtil.equals(leftMessage.getContent(), rightMessage.getContent())) {
+                return false;
+            }
         }
         return true;
     }

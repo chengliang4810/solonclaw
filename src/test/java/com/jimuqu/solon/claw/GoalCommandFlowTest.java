@@ -1,0 +1,24 @@
+package com.jimuqu.solon.claw;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.support.TestEnvironment;
+import org.junit.jupiter.api.Test;
+
+public class GoalCommandFlowTest {
+    @Test
+    void shouldKickoffGoalThroughCliRuntimeEventPath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime = new CliRuntime(env.commandService, env.conversationOrchestrator);
+
+        GatewayReply reply = runtime.send("goal-session", "/goal 完成 CLI 验证 --max 1", null);
+
+        assertThat(reply.getContent()).contains("echo:完成 CLI 验证");
+        assertThat(reply.getRuntimeMetadata().get("goal_verdict")).isEqualTo("continue");
+        assertThat(env.sessionRepository.getBoundSession("MEMORY:cli:goal-session").getGoalStateJson())
+                .contains("完成 CLI 验证")
+                .contains("\"turns_used\":1");
+    }
+}

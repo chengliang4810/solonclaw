@@ -32,6 +32,14 @@ public class DashboardAuthService {
         return PUBLIC_API_PATHS.contains(path);
     }
 
+    public boolean isPublicApiPath(String path, String method) {
+        return isPublicApiPath(path)
+                || ("GET".equalsIgnoreCase(method)
+                        && path != null
+                        && path.startsWith("/api/hermes/mcp/")
+                        && path.endsWith("/oauth/callback"));
+    }
+
     public String sessionToken() {
         return accessToken();
     }

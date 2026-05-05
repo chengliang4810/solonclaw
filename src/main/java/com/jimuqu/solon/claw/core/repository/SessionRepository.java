@@ -50,4 +50,10 @@ public interface SessionRepository {
 
     /** 清除所有使用指定 Agent 的会话激活状态。 */
     void clearActiveAgentName(String agentName) throws Exception;
+
+    /** 更新 Hermes-style /goal 长目标循环状态。 */
+    void setGoalState(String sessionId, String goalStateJson) throws Exception;
+
+    /** 更新最近一次学习闭环执行时间，不覆盖会话正文或运行态字段。 */
+    void setLastLearningAt(String sessionId, long lastLearningAt) throws Exception;
 }

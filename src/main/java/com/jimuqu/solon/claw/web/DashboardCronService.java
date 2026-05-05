@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import java.text.SimpleDateFormat;
@@ -54,6 +55,17 @@ public class DashboardCronService {
     public Map<String, Object> delete(String id) throws Exception {
         cronJobService.remove(id);
         return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    public List<Map<String, Object>> history(String id, int limit) throws Exception {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (CronJobRunRecord record : cronJobService.history(id, limit)) {
+            Map<String, Object> view = new LinkedHashMap<String, Object>(cronJobService.runToView(record));
+            convertTime(view, "started_at");
+            convertTime(view, "finished_at");
+            result.add(view);
+        }
+        return result;
     }
 
     private Map<String, Object> toDashboardView(CronJobRecord record) {

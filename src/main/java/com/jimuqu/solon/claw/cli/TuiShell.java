@@ -22,7 +22,7 @@ public class TuiShell {
     private static final String[] COMMANDS =
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
-                "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
+                "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/kanban", "/stop", "/compress", "/rollback", "/version", "/exit"
             };
 

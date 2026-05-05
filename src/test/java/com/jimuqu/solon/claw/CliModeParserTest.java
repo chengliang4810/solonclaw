@@ -36,4 +36,12 @@ public class CliModeParserTest {
         assertThat(mode.getSessionId()).isEqualTo("alpha");
         assertThat(mode.getInput()).isEqualTo("hello world");
     }
+
+    @Test
+    void shouldParseAcpModeAsConsoleMode() {
+        CliMode mode = CliModeParser.parse(new String[] {"acp"});
+
+        assertThat(mode.getKind()).isEqualTo(CliMode.Kind.ACP);
+        assertThat(mode.isConsoleMode()).isTrue();
+    }
 }

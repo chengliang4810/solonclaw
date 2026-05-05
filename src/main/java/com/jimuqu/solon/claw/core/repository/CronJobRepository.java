@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.core.repository;
 
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import java.util.List;
 
 /** 定时任务仓储接口。 */
@@ -46,4 +47,10 @@ public interface CronJobRepository {
 
     /** 记录投递错误。 */
     void markDeliveryError(String jobId, String error) throws Exception;
+
+    /** 保存任务执行历史。 */
+    CronJobRunRecord saveRun(CronJobRunRecord run) throws Exception;
+
+    /** 查询任务执行历史。 */
+    List<CronJobRunRecord> listRuns(String jobId, int limit) throws Exception;
 }

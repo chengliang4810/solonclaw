@@ -25,6 +25,7 @@ import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
@@ -42,11 +43,13 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.util.LinkedHashMap;
@@ -141,6 +144,11 @@ public class GatewayConfiguration {
     }
 
     @Bean
+    public GoalService goalService(SessionRepository sessionRepository) {
+        return new GoalService(sessionRepository);
+    }
+
+    @Bean
     public CommandService commandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -163,7 +171,10 @@ public class GatewayConfiguration {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
-            KanbanService kanbanService) {
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -186,7 +197,10 @@ public class GatewayConfiguration {
                 agentRunControlService,
                 agentProfileService,
                 agentRunRepository,
-                kanbanService);
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService);
     }
 
     @Bean

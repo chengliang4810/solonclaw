@@ -17,17 +17,86 @@ public interface KanbanRepository {
     List<KanbanTaskRecord> listTasks(String boardSlug, String status, boolean includeArchived)
             throws Exception;
 
+    List<KanbanTaskRecord> listReadyTasks(String boardSlug) throws Exception;
+
     KanbanTaskRecord findTask(String taskId) throws Exception;
+
+    KanbanTaskRecord findTaskByIdempotencyKey(String boardSlug, String idempotencyKey)
+            throws Exception;
 
     KanbanTaskRecord saveTask(KanbanTaskRecord task) throws Exception;
 
+    void linkTasks(String parentId, String childId) throws Exception;
+
+    List<KanbanTaskRecord> listParents(String taskId) throws Exception;
+
+    List<KanbanTaskRecord> listChildren(String taskId) throws Exception;
+
     boolean updateTaskStatus(String taskId, String status, String result) throws Exception;
 
+    boolean reclaimTask(String taskId, String reason) throws Exception;
+
     boolean assignTask(String taskId, String assignee) throws Exception;
+
+    boolean setWorkspacePath(String taskId, String workspacePath) throws Exception;
+
+    boolean reassignTask(String taskId, String assignee, boolean reclaimFirst, String reason)
+            throws Exception;
+
+    boolean retryTask(String taskId, String reason) throws Exception;
+
+    KanbanTaskRecord claimTask(
+            String taskId, String claimer, long ttlSeconds, String workerId, long workerPid)
+            throws Exception;
+
+    KanbanTaskRecord claimNextReady(
+            String boardSlug, String assignee, String claimer, long ttlSeconds, String workerId, long workerPid)
+            throws Exception;
+
+    boolean heartbeatClaim(String taskId, String claimer, long ttlSeconds) throws Exception;
+
+    int releaseStaleClaims(long now) throws Exception;
+
+    boolean heartbeatWorker(String taskId, String note) throws Exception;
+
+    boolean markSpawnFailure(String taskId, String error) throws Exception;
+
+    boolean clearSpawnFailures(String taskId, long workerPid) throws Exception;
+
+    boolean autoBlockAfterSpawnFailure(String taskId, int failureLimit, String reason)
+            throws Exception;
+
+    int recomputeReady(String boardSlug) throws Exception;
+
+    int reclaimTimedOutWorkers(long now) throws Exception;
 
     void deleteTask(String taskId) throws Exception;
 
     KanbanCommentRecord addComment(KanbanCommentRecord comment) throws Exception;
 
     List<KanbanCommentRecord> listComments(String taskId) throws Exception;
+
+    KanbanEventRecord addEvent(KanbanEventRecord event) throws Exception;
+
+    List<KanbanEventRecord> listEvents(String taskId) throws Exception;
+
+    KanbanRunRecord addRun(KanbanRunRecord run) throws Exception;
+
+    List<KanbanRunRecord> listRuns(String taskId, boolean includeActive) throws Exception;
+
+    KanbanRunRecord latestRun(String taskId) throws Exception;
+
+    KanbanRunRecord activeRun(String taskId) throws Exception;
+
+    boolean closeActiveRun(
+            String taskId,
+            String status,
+            String outcome,
+            String summary,
+            String metadataJson,
+            String error)
+            throws Exception;
+
+    boolean updateLatestRun(String taskId, String summary, String metadataJson, String error)
+            throws Exception;
 }

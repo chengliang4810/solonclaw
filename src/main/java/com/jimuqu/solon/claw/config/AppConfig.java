@@ -84,6 +84,15 @@ public class AppConfig {
     /** 长任务控制配置。 */
     private TaskConfig task = new TaskConfig();
 
+    /** 终端/沙箱执行配置。 */
+    private TerminalConfig terminal = new TerminalConfig();
+
+    /** 安全策略配置。 */
+    private SecurityConfig security = new SecurityConfig();
+
+    /** 审批/确认策略配置。 */
+    private ApprovalsConfig approvals = new ApprovalsConfig();
+
     /** MCP 工具适配配置。 */
     private McpConfig mcp = new McpConfig();
 
@@ -182,6 +191,37 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.scheduler.tickSeconds",
                                         RuntimePathConstants.DEFAULT_SCHEDULER_TICK_SECONDS)));
+        config.getScheduler()
+                .setWrapResponse(
+                        resolveBoolean(
+                                readBoolean(
+                                        props, overrides, "solonclaw.scheduler.wrapResponse", true)));
+        config.getScheduler()
+                .setScriptTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.scheduler.scriptTimeoutSeconds",
+                                                120)),
+                                120));
+        config.getScheduler()
+                .setCronApprovalMode(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.scheduler.cronApprovalMode",
+                                        "deny")));
+        config.getScheduler()
+                .setEnabledToolsets(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.scheduler.enabledToolsets",
+                                        "")));
 
         config.getCompression()
                 .setEnabled(
@@ -303,6 +343,18 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.display.showReasoning",
                                         false)));
+        config.getDisplay()
+                .setResumeDisplay(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.display.resumeDisplay",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.display.resume_display",
+                                                "full"))));
         config.getDisplay()
                 .setToolPreviewLength(
                         resolveInt(
@@ -969,8 +1021,7 @@ public class AppConfig {
                                         32000)));
         config.getTrace()
                 .setRetentionDays(
-                        resolveInt(
-                                readInt(props, overrides, "solonclaw.trace.retentionDays", 14)));
+                        resolveInt(readInt(props, overrides, "solonclaw.trace.retentionDays", 14)));
         config.getTrace()
                 .setMaxAttempts(
                         resolveInt(readInt(props, overrides, "solonclaw.trace.maxAttempts", 2)));
@@ -985,15 +1036,12 @@ public class AppConfig {
         config.getTask()
                 .setBusyPolicy(
                         resolveConfigString(
-                                readString(props, overrides, "solonclaw.task.busyPolicy", "queue")));
+                                readString(
+                                        props, overrides, "solonclaw.task.busyPolicy", "interrupt")));
         config.getTask()
                 .setStaleAfterMinutes(
                         resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.task.staleAfterMinutes",
-                                        60)));
+                                readInt(props, overrides, "solonclaw.task.staleAfterMinutes", 60)));
         config.getTask()
                 .setSubagentMaxConcurrency(
                         resolveInt(
@@ -1005,8 +1053,7 @@ public class AppConfig {
         config.getTask()
                 .setSubagentMaxDepth(
                         resolveInt(
-                                readInt(
-                                        props, overrides, "solonclaw.task.subagentMaxDepth", 1)));
+                                readInt(props, overrides, "solonclaw.task.subagentMaxDepth", 1)));
         config.getTask()
                 .setToolOutputInlineLimit(
                         resolveInt(
@@ -1016,6 +1063,14 @@ public class AppConfig {
                                         "solonclaw.task.toolOutputInlineLimit",
                                         4000)));
         config.getTask()
+                .setToolOutputTurnBudget(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.task.toolOutputTurnBudget",
+                                        200000)));
+        config.getTask()
                 .setMediaCacheTtlHours(
                         resolveInt(
                                 readInt(
@@ -1023,10 +1078,161 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.task.mediaCacheTtlHours",
                                         168)));
+        config.getSecurity()
+                .setAllowPrivateUrls(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.allowPrivateUrls",
+                                        false)));
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.websiteBlocklist.enabled",
+                                        false)));
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.websiteBlocklist.domains",
+                                        "")));
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.websiteBlocklist.sharedFiles",
+                                        "")));
+        config.getSecurity()
+                .setTirithEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.tirithEnabled",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "security.tirith_enabled",
+                                                true))));
+        config.getSecurity()
+                .setTirithPath(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.tirithPath",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "security.tirith_path",
+                                                "tirith"))));
+        config.getSecurity()
+                .setTirithTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.security.tirithTimeoutSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "security.tirith_timeout",
+                                                        5))),
+                                5));
+        config.getSecurity()
+                .setTirithFailOpen(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.security.tirithFailOpen",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "security.tirith_fail_open",
+                                                true))));
+        config.getApprovals()
+                .setMode(
+                        normalizeApprovalMode(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.approvals.mode",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "approvals.mode",
+                                                        "on")))));
+        config.getApprovals()
+                .setCronMode(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.approvals.cronMode",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.approvals.cron_mode",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "approvals.cron_mode",
+                                                        config.getScheduler()
+                                                                .getCronApprovalMode())))));
+        config.getApprovals()
+                .setMcpReloadConfirm(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.approvals.mcpReloadConfirm",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "solonclaw.approvals.mcp_reload_confirm",
+                                                true))));
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(
                                 readBoolean(props, overrides, "solonclaw.mcp.enabled", false)));
+        config.getTerminal()
+                .setCredentialFiles(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.terminal.credentialFiles",
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "terminal.credential_files",
+                                                ""))));
+        config.getTerminal()
+                .setSudoPassword(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.terminal.sudoPassword",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "terminal.sudo_password",
+                                                null))));
 
         config.normalizePaths();
         syncRuntimeConfigExample(config.getRuntime().getHome());
@@ -1079,6 +1285,9 @@ public class AppConfig {
         copyReact(other.getReact());
         copyTrace(other.getTrace());
         copyTask(other.getTask());
+        copyTerminal(other.getTerminal());
+        copySecurity(other.getSecurity());
+        copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
         copyChannel(this.channels.getDingtalk(), other.getChannels().getDingtalk());
@@ -1170,6 +1379,10 @@ public class AppConfig {
     private void copyScheduler(SchedulerConfig other) {
         this.scheduler.setEnabled(other.isEnabled());
         this.scheduler.setTickSeconds(other.getTickSeconds());
+        this.scheduler.setWrapResponse(other.isWrapResponse());
+        this.scheduler.setScriptTimeoutSeconds(other.getScriptTimeoutSeconds());
+        this.scheduler.setCronApprovalMode(other.getCronApprovalMode());
+        this.scheduler.setEnabledToolsets(new ArrayList<String>(other.getEnabledToolsets()));
     }
 
     private void copyCompression(CompressionConfig other) {
@@ -1201,6 +1414,7 @@ public class AppConfig {
     private void copyDisplay(DisplayConfig other) {
         this.display.setToolProgress(other.getToolProgress());
         this.display.setShowReasoning(other.isShowReasoning());
+        this.display.setResumeDisplay(other.getResumeDisplay());
         this.display.setToolPreviewLength(other.getToolPreviewLength());
         this.display.setProgressThrottleMs(other.getProgressThrottleMs());
         this.display.getRuntimeFooter().setEnabled(other.getRuntimeFooter().isEnabled());
@@ -1233,7 +1447,34 @@ public class AppConfig {
         this.task.setSubagentMaxConcurrency(other.getSubagentMaxConcurrency());
         this.task.setSubagentMaxDepth(other.getSubagentMaxDepth());
         this.task.setToolOutputInlineLimit(other.getToolOutputInlineLimit());
+        this.task.setToolOutputTurnBudget(other.getToolOutputTurnBudget());
         this.task.setMediaCacheTtlHours(other.getMediaCacheTtlHours());
+    }
+
+    private void copyTerminal(TerminalConfig other) {
+        this.terminal.setCredentialFiles(new ArrayList<String>(other.getCredentialFiles()));
+        this.terminal.setSudoPassword(other.getSudoPassword());
+    }
+
+    private void copySecurity(SecurityConfig other) {
+        this.security.setAllowPrivateUrls(other.isAllowPrivateUrls());
+        this.security.setTirithEnabled(other.isTirithEnabled());
+        this.security.setTirithPath(other.getTirithPath());
+        this.security.setTirithTimeoutSeconds(other.getTirithTimeoutSeconds());
+        this.security.setTirithFailOpen(other.isTirithFailOpen());
+        this.security.getWebsiteBlocklist().setEnabled(other.getWebsiteBlocklist().isEnabled());
+        this.security
+                .getWebsiteBlocklist()
+                .setDomains(new ArrayList<String>(other.getWebsiteBlocklist().getDomains()));
+        this.security
+                .getWebsiteBlocklist()
+                .setSharedFiles(new ArrayList<String>(other.getWebsiteBlocklist().getSharedFiles()));
+    }
+
+    private void copyApprovals(ApprovalsConfig other) {
+        this.approvals.setMode(other.getMode());
+        this.approvals.setCronMode(other.getCronMode());
+        this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
     }
 
     private void copyMcp(McpConfig other) {
@@ -1429,6 +1670,10 @@ public class AppConfig {
         return fallback;
     }
 
+    private static int positiveInt(int value, int defaultValue) {
+        return value > 0 ? value : defaultValue;
+    }
+
     /** 支持通过配置文件覆盖浮点配置。 */
     private static double resolveDouble(double fallback) {
         return fallback;
@@ -1449,6 +1694,20 @@ public class AppConfig {
             return GatewayBehaviorConstants.UNAUTHORIZED_DM_BEHAVIOR_IGNORE;
         }
         return GatewayBehaviorConstants.UNAUTHORIZED_DM_BEHAVIOR_PAIR;
+    }
+
+    private static String normalizeApprovalMode(String raw) {
+        String value = StrUtil.blankToDefault(raw, "on").trim().toLowerCase();
+        if ("false".equals(value)) {
+            return "off";
+        }
+        if ("true".equals(value)) {
+            return "on";
+        }
+        if ("off".equals(value) || "smart".equals(value)) {
+            return value;
+        }
+        return "on";
     }
 
     /** 统一解析访问策略值。 */
@@ -2181,6 +2440,18 @@ public class AppConfig {
 
         /** 调度轮询周期，单位秒。 */
         private int tickSeconds;
+
+        /** 是否默认包装 cron 投递回复。 */
+        private boolean wrapResponse = true;
+
+        /** cron 脚本执行超时时间，单位秒。 */
+        private int scriptTimeoutSeconds = 120;
+
+        /** 无人值守 cron 遇到危险命令时的策略：deny / approve。 */
+        private String cronApprovalMode = "deny";
+
+        /** 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。 */
+        private List<String> enabledToolsets = new ArrayList<String>();
     }
 
     /** 上下文压缩配置。 */
@@ -2274,6 +2545,9 @@ public class AppConfig {
         /** 是否默认展示 reasoning。 */
         private boolean showReasoning;
 
+        /** 恢复会话时是否展示紧凑历史：full / minimal。 */
+        private String resumeDisplay = "full";
+
         /** 工具参数预览长度。 */
         private int toolPreviewLength = 80;
 
@@ -2358,7 +2632,7 @@ public class AppConfig {
     @NoArgsConstructor
     public static class TaskConfig {
         /** 同一会话 busy 时的默认策略：queue / interrupt / steer / reject。 */
-        private String busyPolicy = "queue";
+        private String busyPolicy = "interrupt";
 
         /** stale run 判定窗口，单位分钟。 */
         private int staleAfterMinutes = 60;
@@ -2372,8 +2646,73 @@ public class AppConfig {
         /** 工具输出超过该长度时应落盘/摘要化。 */
         private int toolOutputInlineLimit = 4000;
 
+        /** 单轮工具输出累计超过该长度时，后续输出会落盘/摘要化。 */
+        private int toolOutputTurnBudget = 200000;
+
         /** 媒体缓存 TTL，单位小时。 */
         private int mediaCacheTtlHours = 168;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class TerminalConfig {
+        /** 对齐 Hermes terminal.credential_files，相对 runtime home 的凭据文件挂载清单。 */
+        private List<String> credentialFiles = new ArrayList<String>();
+
+        /** 对齐 Hermes SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
+        private String sudoPassword;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class SecurityConfig {
+        /** 是否允许 URL 工具访问内网/私有地址；云元数据地址始终阻断。 */
+        private boolean allowPrivateUrls = false;
+
+        /** 是否启用 Tirith 命令内容安全扫描。 */
+        private boolean tirithEnabled = true;
+
+        /** Tirith 可执行文件路径。 */
+        private String tirithPath = "tirith";
+
+        /** Tirith 单次扫描超时时间，单位秒。 */
+        private int tirithTimeoutSeconds = 5;
+
+        /** Tirith 不可用或超时时是否放行。 */
+        private boolean tirithFailOpen = true;
+
+        /** 网站访问阻断策略。 */
+        private WebsiteBlocklistConfig websiteBlocklist = new WebsiteBlocklistConfig();
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class WebsiteBlocklistConfig {
+        /** 是否启用域名阻断策略。 */
+        private boolean enabled = false;
+
+        /** 阻断域名列表，支持 example.com 和 *.example.com。 */
+        private List<String> domains = new ArrayList<String>();
+
+        /** 共享阻断列表文件，支持相对 runtime home 或绝对路径。 */
+        private List<String> sharedFiles = new ArrayList<String>();
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class ApprovalsConfig {
+        /** 危险命令审批模式：on / off / smart。smart 预留给辅助模型判定。 */
+        private String mode = "on";
+
+        /** cron 遇到危险命令时的模式：deny / approve。 */
+        private String cronMode = "deny";
+
+        /** /reload-mcp 是否需要确认；对齐 Hermes approvals.mcp_reload_confirm，默认开启。 */
+        private boolean mcpReloadConfirm = true;
     }
 
     @Getter
