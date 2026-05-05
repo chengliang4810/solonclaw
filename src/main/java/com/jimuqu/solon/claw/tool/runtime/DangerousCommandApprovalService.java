@@ -546,7 +546,14 @@ public class DangerousCommandApprovalService {
         if (session == null) {
             return null;
         }
-        return toPendingApproval(session.getContext().get(CONTEXT_PENDING_APPROVAL));
+        PendingApproval pending =
+                toPendingApproval(session.getContext().get(CONTEXT_PENDING_APPROVAL));
+        if (isPendingExpired(pending)) {
+            session.getContext().remove(CONTEXT_PENDING_APPROVAL);
+            session.updateSnapshot();
+            return null;
+        }
+        return pending;
     }
 
     public PendingApproval getPendingApproval(
@@ -565,7 +572,8 @@ public class DangerousCommandApprovalService {
             if (pending == null && snapshot.get("vars") instanceof Map) {
                 pending = ((Map<?, ?>) snapshot.get("vars")).get(CONTEXT_PENDING_APPROVAL);
             }
-            return toPendingApproval(pending);
+            PendingApproval pendingApproval = toPendingApproval(pending);
+            return isPendingExpired(pendingApproval) ? null : pendingApproval;
         } catch (Exception ignored) {
             return null;
         }
@@ -1116,6 +1124,26 @@ public class DangerousCommandApprovalService {
         return "approve".equals(mode) || "off".equals(mode) ? "approve" : "deny";
     }
 
+    public int approvalTimeoutSeconds() {
+        int value =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? 60
+                        : appConfig.getApprovals().getTimeoutSeconds();
+        return value > 0 ? value : 60;
+    }
+
+    public int approvalGatewayTimeoutSeconds() {
+        int value =
+                appConfig == null || appConfig.getApprovals() == null
+                        ? 300
+                        : appConfig.getApprovals().getGatewayTimeoutSeconds();
+        return value > 0 ? value : Math.max(approvalTimeoutSeconds(), 300);
+    }
+
+    private long approvalGatewayTimeoutMillis() {
+        return approvalGatewayTimeoutSeconds() * 1000L;
+    }
+
     private Map<String, Object> createPendingMap(
             String toolName, DetectionResult detection, String code) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
@@ -1127,7 +1155,19 @@ public class DangerousCommandApprovalService {
         payload.put("commandHash", commandHash(detection.getNormalizedCode()));
         payload.put("approvalKey", combinedApprovalKey(toolName, detection));
         payload.put("createdAt", System.currentTimeMillis());
+        payload.put("expiresAt", System.currentTimeMillis() + approvalGatewayTimeoutMillis());
         return payload;
+    }
+
+    private boolean isPendingExpired(PendingApproval pending) {
+        if (pending == null) {
+            return false;
+        }
+        long expiresAt = pending.getExpiresAt();
+        if (expiresAt <= 0L && pending.getCreatedAt() > 0L) {
+            expiresAt = pending.getCreatedAt() + approvalGatewayTimeoutMillis();
+        }
+        return expiresAt > 0L && System.currentTimeMillis() > expiresAt;
     }
 
     private String buildPendingMessage(String toolName, DetectionResult detection, String code) {
@@ -1307,6 +1347,8 @@ public class DangerousCommandApprovalService {
         String command = stringValue(map.get("command"));
         String commandHash = stringValue(map.get("commandHash"));
         String approvalKey = stringValue(map.get("approvalKey"));
+        long createdAt = longValue(map.get("createdAt"));
+        long expiresAt = longValue(map.get("expiresAt"));
         if (StrUtil.hasBlank(toolName, patternKey)) {
             return null;
         }
@@ -1319,6 +1361,8 @@ public class DangerousCommandApprovalService {
         pending.setCommand(command);
         pending.setCommandHash(commandHash);
         pending.setApprovalKey(approvalKey);
+        pending.setCreatedAt(createdAt);
+        pending.setExpiresAt(expiresAt);
         return pending;
     }
 
@@ -1355,6 +1399,17 @@ public class DangerousCommandApprovalService {
 
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value);
+    }
+
+    private long longValue(Object value) {
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value).trim());
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     private List<String> listValue(Object raw) {
@@ -1549,6 +1604,8 @@ public class DangerousCommandApprovalService {
         private String command;
         private String commandHash;
         private String approvalKey;
+        private long createdAt;
+        private long expiresAt;
 
         public String getToolName() {
             return toolName;
@@ -1607,6 +1664,22 @@ public class DangerousCommandApprovalService {
 
         public void setApprovalKey(String approvalKey) {
             this.approvalKey = approvalKey;
+        }
+
+        public long getCreatedAt() {
+            return createdAt;
+        }
+
+        public void setCreatedAt(long createdAt) {
+            this.createdAt = createdAt;
+        }
+
+        public long getExpiresAt() {
+            return expiresAt;
+        }
+
+        public void setExpiresAt(long expiresAt) {
+            this.expiresAt = expiresAt;
         }
 
         public String approvalKey() {

@@ -193,9 +193,13 @@ public class DangerousCommandApprovalServiceTest {
 
         env.appConfig.getApprovals().setMode("off");
         env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getApprovals().setTimeoutSeconds(45);
+        env.appConfig.getApprovals().setGatewayTimeoutSeconds(120);
 
         assertThat(env.dangerousCommandApprovalService.approvalMode()).isEqualTo("off");
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+        assertThat(env.dangerousCommandApprovalService.approvalTimeoutSeconds()).isEqualTo(45);
+        assertThat(env.dangerousCommandApprovalService.approvalGatewayTimeoutSeconds()).isEqualTo(120);
         assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot"))
                 .isNotNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "rm -rf runtime/cache"))
@@ -617,6 +621,45 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalCommand")).isEqualTo("rm -rf runtime/cache");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isEqualTo("/approve always");
+    }
+
+    @Test
+    void shouldExpirePendingApprovalLikeHermesGatewayTimeout() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setGatewayTimeoutSeconds(1);
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        null);
+        TestTrace trace = new TestTrace();
+        service.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+        assertThat(pending).isNotNull();
+        assertThat(pending.getExpiresAt()).isGreaterThan(pending.getCreatedAt());
+
+        Map<String, Object> expired = new LinkedHashMap<String, Object>();
+        expired.put("toolName", "execute_shell");
+        expired.put("patternKey", "recursive_delete");
+        expired.put("patternKeys", Collections.singletonList("recursive_delete"));
+        expired.put("description", "recursive delete");
+        expired.put("command", "rm -rf runtime/cache");
+        expired.put("commandHash", "hash");
+        expired.put("approvalKey", "execute_shell:recursive_delete:hash");
+        expired.put("createdAt", System.currentTimeMillis() - 10_000L);
+        expired.put("expiresAt", System.currentTimeMillis() - 1_000L);
+        trace.session.getContext().put("_dangerous_command_pending_", expired);
+
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(service.approve(trace.session, DangerousCommandApprovalService.ApprovalScope.ONCE, "test"))
+                .isFalse();
     }
 
     @Test

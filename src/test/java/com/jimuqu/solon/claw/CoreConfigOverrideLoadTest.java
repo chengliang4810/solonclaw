@@ -59,6 +59,8 @@ public class CoreConfigOverrideLoadTest {
                         + "  approvals:\n"
                         + "    mode: off\n"
                         + "    cronMode: approve\n"
+                        + "    timeoutSeconds: 45\n"
+                        + "    gatewayTimeoutSeconds: 120\n"
                         + "    mcpReloadConfirm: false\n"
                         + "  compression:\n"
                         + "    enabled: false\n"
@@ -132,6 +134,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getApprovals().isMcpReloadConfirm()).isFalse();
         assertThat(config.getApprovals().getMode()).isEqualTo("off");
         assertThat(config.getApprovals().getCronMode()).isEqualTo("approve");
+        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(45);
+        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(120);
         assertThat(config.getCompression().isEnabled()).isFalse();
         assertThat(config.getCompression().getThresholdPercent()).isEqualTo(0.75D);
         assertThat(config.getCompression().getSummaryModel()).isEqualTo("gpt-5.4-mini");

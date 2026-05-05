@@ -1191,8 +1191,44 @@ public class AppConfig {
                                                         props,
                                                         overrides,
                                                         "approvals.cron_mode",
-                                                        config.getScheduler()
-                                                                .getCronApprovalMode())))));
+                                                                config.getScheduler()
+                                                                        .getCronApprovalMode())))));
+        config.getApprovals()
+                .setTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.approvals.timeoutSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.approvals.timeout",
+                                                        readInt(
+                                                                props,
+                                                                overrides,
+                                                                "approvals.timeout",
+                                                                60)))),
+                                60));
+        config.getApprovals()
+                .setGatewayTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.approvals.gatewayTimeoutSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.approvals.gateway_timeout",
+                                                        readInt(
+                                                                props,
+                                                                overrides,
+                                                                "approvals.gateway_timeout",
+                                                                300)))),
+                                300));
         config.getApprovals()
                 .setMcpReloadConfirm(
                         resolveBoolean(
@@ -1474,6 +1510,8 @@ public class AppConfig {
     private void copyApprovals(ApprovalsConfig other) {
         this.approvals.setMode(other.getMode());
         this.approvals.setCronMode(other.getCronMode());
+        this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
+        this.approvals.setGatewayTimeoutSeconds(other.getGatewayTimeoutSeconds());
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
     }
 
@@ -2710,6 +2748,12 @@ public class AppConfig {
 
         /** cron 遇到危险命令时的模式：deny / approve。 */
         private String cronMode = "deny";
+
+        /** CLI/直接审批超时秒数；对齐 Hermes approvals.timeout。 */
+        private int timeoutSeconds = 60;
+
+        /** 网关/渠道审批超时秒数；对齐 Hermes approvals.gateway_timeout。 */
+        private int gatewayTimeoutSeconds = 300;
 
         /** /reload-mcp 是否需要确认；对齐 Hermes approvals.mcp_reload_confirm，默认开启。 */
         private boolean mcpReloadConfirm = true;

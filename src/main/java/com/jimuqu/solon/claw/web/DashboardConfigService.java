@@ -358,6 +358,18 @@ public class DashboardConfigService {
                         .options("deny", "approve"));
         addField(
                 new FieldDefinition(
+                        "approvals.timeoutSeconds",
+                        "number",
+                        "security",
+                        "本地审批超时秒数"));
+        addField(
+                new FieldDefinition(
+                        "approvals.gatewayTimeoutSeconds",
+                        "number",
+                        "security",
+                        "渠道审批超时秒数"));
+        addField(
+                new FieldDefinition(
                         "approvals.mcpReloadConfirm",
                         "boolean",
                         "security",

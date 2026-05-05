@@ -86,6 +86,8 @@ public class RuntimeSettingsService {
                     "security.tirithFailOpen",
                     "approvals.mode",
                     "approvals.cronMode",
+                    "approvals.timeoutSeconds",
+                    "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
                     "terminal.credentialFiles",
                     "terminal.sudoPassword");
@@ -424,7 +426,9 @@ public class RuntimeSettingsService {
                 || "llm.contextWindowTokens".equals(key)
                 || "gateway.injectionMaxBodyBytes".equals(key)
                 || "gateway.injectionReplayWindowSeconds".equals(key)
-                || "security.tirithTimeoutSeconds".equals(key)) {
+                || "security.tirithTimeoutSeconds".equals(key)
+                || "approvals.timeoutSeconds".equals(key)
+                || "approvals.gatewayTimeoutSeconds".equals(key)) {
             return Integer.valueOf(value);
         }
         if ("react.summarizationEnabled".equals(key)) {
