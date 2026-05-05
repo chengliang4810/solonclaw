@@ -37,6 +37,7 @@ import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -161,7 +162,8 @@ public class GatewayConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
-            AgentRunRepository agentRunRepository) {
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -183,7 +185,8 @@ public class GatewayConfiguration {
                 dangerousCommandApprovalService,
                 agentRunControlService,
                 agentProfileService,
-                agentRunRepository);
+                agentRunRepository,
+                kanbanService);
     }
 
     @Bean

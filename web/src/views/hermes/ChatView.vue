@@ -9,7 +9,11 @@ const chatStore = useChatStore()
 
 onMounted(async () => {
   appStore.loadModels()
-  chatStore.loadSessions()
+  if (!chatStore.sessionsLoaded) {
+    chatStore.loadSessions()
+  } else if (!chatStore.isRunActive) {
+    chatStore.refreshActiveSession()
+  }
 })
 </script>
 

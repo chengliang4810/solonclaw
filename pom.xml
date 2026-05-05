@@ -25,6 +25,8 @@
         <sqlite.version>3.51.1.0</sqlite.version>
         <junit.version>5.10.2</junit.version>
         <lombok.version>1.18.36</lombok.version>
+        <jline.version>3.27.1</jline.version>
+        <jansi.version>2.4.1</jansi.version>
     </properties>
 
     <dependencies>
@@ -122,6 +124,22 @@
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>2.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jline</groupId>
+            <artifactId>jline</artifactId>
+            <version>${jline.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.fusesource.jansi</groupId>
+                    <artifactId>jansi</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.fusesource.jansi</groupId>
+            <artifactId>jansi</artifactId>
+            <version>${jansi.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

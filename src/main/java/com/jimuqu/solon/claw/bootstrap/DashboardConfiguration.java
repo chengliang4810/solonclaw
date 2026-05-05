@@ -14,6 +14,8 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.kanban.KanbanRepository;
+import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -30,6 +32,7 @@ import com.jimuqu.solon.claw.web.DashboardCronService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import com.jimuqu.solon.claw.web.DashboardKanbanService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
@@ -177,6 +180,16 @@ public class DashboardConfiguration {
     public DashboardCronService dashboardCronService(
             CronJobRepository cronJobRepository, DefaultCronScheduler defaultCronScheduler) {
         return new DashboardCronService(cronJobRepository, defaultCronScheduler);
+    }
+
+    @Bean
+    public KanbanService kanbanService(KanbanRepository kanbanRepository) {
+        return new KanbanService(kanbanRepository);
+    }
+
+    @Bean
+    public DashboardKanbanService dashboardKanbanService(KanbanService kanbanService) {
+        return new DashboardKanbanService(kanbanService);
     }
 
     @Bean

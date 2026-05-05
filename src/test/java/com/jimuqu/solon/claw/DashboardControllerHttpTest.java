@@ -244,6 +244,51 @@ public class DashboardControllerHttpTest {
         HttpResult cronJobs = request("GET", "/api/cron/jobs", null, token);
         assertThat(cronJobs.body).contains("Daily summary");
 
+        HttpResult kanbanBoards = request("GET", "/api/kanban/boards", null, token);
+        assertThat(kanbanBoards.status).isEqualTo(200);
+        assertThat(kanbanBoards.body).contains("default");
+
+        HttpResult createBoard =
+                request(
+                        "POST",
+                        "/api/kanban/boards",
+                        "{\"slug\":\"dashboard-board\",\"name\":\"Dashboard 看板\",\"switch\":true}",
+                        token);
+        assertThat(createBoard.status).isEqualTo(200);
+        assertThat(createBoard.body).contains("dashboard-board");
+
+        HttpResult createTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks",
+                        "{\"title\":\"Kanban task\",\"assignee\":\"local\",\"status\":\"todo\"}",
+                        token);
+        assertThat(createTask.status).isEqualTo(200);
+        String taskId = ONode.ofJson(createTask.body).get("data").get("id").getString();
+        assertThat(taskId).isNotBlank();
+
+        HttpResult moveTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/status",
+                        "{\"status\":\"ready\"}",
+                        token);
+        assertThat(moveTask.status).isEqualTo(200);
+        assertThat(moveTask.body).contains("\"status\":\"ready\"");
+
+        HttpResult commentTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/comments",
+                        "{\"author\":\"tester\",\"body\":\"ready to run\"}",
+                        token);
+        assertThat(commentTask.status).isEqualTo(200);
+        assertThat(commentTask.body).contains("ready to run");
+
+        HttpResult kanbanTasks = request("GET", "/api/kanban/tasks", null, token);
+        assertThat(kanbanTasks.status).isEqualTo(200);
+        assertThat(kanbanTasks.body).contains("Kanban task");
+
         HttpResult logs = request("GET", "/api/logs?file=agent&lines=20", null, token);
         assertThat(logs.status).isEqualTo(200);
         assertThat(logs.body).contains("\"lines\"");

@@ -409,7 +409,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       // 从会话维度缓存中恢复，实现 instant render
       const cachedSessions = loadJson<Session[]>(sessionsCacheKey())
-      if (cachedSessions?.length) {
+      if (sessions.value.length === 0 && cachedSessions?.length) {
         sessions.value = cachedSessions
         const savedId = localStorage.getItem(storageKey())
         if (savedId) {
@@ -447,7 +447,11 @@ export const useChatStore = defineStore('chat', () => {
         ? savedId
         : sessions.value[0]?.id
       if (targetId) {
-        await switchSession(targetId)
+        if (targetId === activeSessionId.value && activeSession.value && streamStates.value.has(targetId)) {
+          setItemBestEffort(storageKey(), targetId)
+        } else {
+          await switchSession(targetId)
+        }
       }
     } catch (err) {
       console.error('Failed to load sessions:', err)

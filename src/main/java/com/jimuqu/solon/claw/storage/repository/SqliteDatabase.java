@@ -742,6 +742,48 @@ public class SqliteDatabase {
             statement.execute("drop table if exists project_todos");
             statement.execute("drop table if exists project_agents");
             statement.execute("drop table if exists projects");
+            statement.execute(
+                    "create table if not exists kanban_boards ("
+                            + "board_id text primary key,"
+                            + "slug text not null unique,"
+                            + "name text not null,"
+                            + "description text,"
+                            + "color text,"
+                            + "current integer not null default 0,"
+                            + "created_at integer not null,"
+                            + "updated_at integer not null"
+                            + ")");
+            statement.execute(
+                    "create table if not exists kanban_tasks ("
+                            + "task_id text primary key,"
+                            + "board_slug text not null,"
+                            + "title text not null,"
+                            + "body text,"
+                            + "assignee text,"
+                            + "status text not null,"
+                            + "priority integer not null default 0,"
+                            + "tenant text,"
+                            + "workspace_kind text,"
+                            + "workspace_path text,"
+                            + "created_by text,"
+                            + "result text,"
+                            + "created_at integer not null,"
+                            + "updated_at integer not null,"
+                            + "started_at integer not null default 0,"
+                            + "completed_at integer not null default 0"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_tasks_board_status on kanban_tasks(board_slug, status, priority desc, updated_at desc)");
+            statement.execute(
+                    "create table if not exists kanban_comments ("
+                            + "comment_id text primary key,"
+                            + "task_id text not null,"
+                            + "author text,"
+                            + "body text not null,"
+                            + "created_at integer not null"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_comments_task on kanban_comments(task_id, created_at asc)");
             statement.close();
         } finally {
             connection.close();

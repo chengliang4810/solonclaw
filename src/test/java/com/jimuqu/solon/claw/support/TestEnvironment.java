@@ -52,6 +52,8 @@ import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.kanban.KanbanRepository;
+import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillGuardService;
@@ -69,6 +71,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
@@ -116,6 +119,9 @@ public class TestEnvironment {
     public final AgentProfileService agentProfileService;
     public final AgentRuntimeService agentRuntimeService;
     public final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
+    public final SqliteDatabase sqliteDatabase;
+    public final CommandService commandService;
+    public final KanbanService kanbanService;
 
     public static TestEnvironment withFakeLlm() throws Exception {
         return create(new FakeLlmGateway());
@@ -168,6 +174,8 @@ public class TestEnvironment {
         SessionRepository sessionRepository = new SqliteSessionRepository(database);
         AgentRunRepository agentRunRepository = new SqliteAgentRunRepository(database);
         CronJobRepository cronJobRepository = new SqliteCronJobRepository(database);
+        KanbanRepository kanbanRepository = new SqliteKanbanRepository(database);
+        KanbanService kanbanService = new KanbanService(kanbanRepository);
         GatewayPolicyRepository gatewayPolicyRepository =
                 new SqliteGatewayPolicyRepository(database);
         ChannelStateRepository channelStateRepository = new SqliteChannelStateRepository(database);
@@ -333,7 +341,9 @@ public class TestEnvironment {
                         appUpdateService,
                         dangerousCommandApprovalService,
                         agentRunSupervisor,
-                        agentProfileService);
+                        agentProfileService,
+                        agentRunRepository,
+                        kanbanService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,
@@ -369,7 +379,10 @@ public class TestEnvironment {
                 agentRunSupervisor,
                 agentProfileService,
                 agentRuntimeService,
-                refreshService);
+                refreshService,
+                database,
+                commandService,
+                kanbanService);
     }
 
     public GatewayMessage message(String chatId, String userId, String text) {

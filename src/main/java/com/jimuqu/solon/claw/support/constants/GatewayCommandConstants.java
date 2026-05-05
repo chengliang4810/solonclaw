@@ -51,6 +51,7 @@ public interface GatewayCommandConstants {
     String COMMAND_TOOLS = "tools";
     String COMMAND_SKILLS = "skills";
     String COMMAND_CRON = "cron";
+    String COMMAND_KANBAN = "kanban";
     String COMMAND_PLATFORMS = "platforms";
     String COMMAND_SETHOME = "sethome";
     String COMMAND_PAIRING = "pairing";
@@ -79,6 +80,7 @@ public interface GatewayCommandConstants {
     String SLASH_TOOLS = COMMAND_PREFIX + COMMAND_TOOLS;
     String SLASH_SKILLS = COMMAND_PREFIX + COMMAND_SKILLS;
     String SLASH_CRON = COMMAND_PREFIX + COMMAND_CRON;
+    String SLASH_KANBAN = COMMAND_PREFIX + COMMAND_KANBAN;
     String SLASH_PLATFORMS = COMMAND_PREFIX + COMMAND_PLATFORMS;
     String SLASH_SETHOME = COMMAND_PREFIX + COMMAND_SETHOME;
     String SLASH_PAIRING = COMMAND_PREFIX + COMMAND_PAIRING;

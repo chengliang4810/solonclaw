@@ -136,6 +136,18 @@ function handleLogout() {
         <span>{{ t("sidebar.jobs") }}</span>
       </button>
 
+      <button class="nav-item" :class="{ active: selectedKey === 'hermes.kanban' }" @click="handleNav('hermes.kanban')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M9 4v16" />
+          <path d="M15 4v16" />
+          <path d="M5.5 8h1" />
+          <path d="M11.5 11h1" />
+          <path d="M17.5 9h1" />
+        </svg>
+        <span>看板</span>
+      </button>
+
       <button class="nav-item" :class="{ active: selectedKey === 'hermes.channels' }" @click="handleNav('hermes.channels')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />

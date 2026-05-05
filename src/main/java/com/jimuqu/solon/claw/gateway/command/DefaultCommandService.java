@@ -29,6 +29,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.ScanResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillBrowseResult;
@@ -103,6 +104,7 @@ public class DefaultCommandService implements CommandService {
     private final AgentRunControlService agentRunControlService;
     private final AgentProfileService agentProfileService;
     private final AgentRunRepository agentRunRepository;
+    private final KanbanService kanbanService;
 
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -171,6 +173,54 @@ public class DefaultCommandService implements CommandService {
             AgentRunControlService agentRunControlService,
             AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -192,6 +242,7 @@ public class DefaultCommandService implements CommandService {
         this.agentRunControlService = agentRunControlService;
         this.agentProfileService = agentProfileService;
         this.agentRunRepository = agentRunRepository;
+        this.kanbanService = kanbanService;
     }
 
     /** 判断当前命令是否由默认命令服务承接。 */
@@ -214,6 +265,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_TOOLS,
                         GatewayCommandConstants.COMMAND_SKILLS,
                         GatewayCommandConstants.COMMAND_CRON,
+                        GatewayCommandConstants.COMMAND_KANBAN,
                         GatewayCommandConstants.COMMAND_PLATFORMS,
                         GatewayCommandConstants.COMMAND_COMPRESS,
                         GatewayCommandConstants.COMMAND_ROLLBACK,
@@ -461,6 +513,13 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_CRON.equals(command)) {
             return handleCron(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_KANBAN.equals(command)) {
+            if (kanbanService == null) {
+                return GatewayReply.error("Kanban service is not available.");
+            }
+            return GatewayReply.ok(kanbanService.handleCommand(args, message.getUserName()));
         }
 
         if (GatewayCommandConstants.COMMAND_COMPRESS.equals(command)) {
@@ -1380,6 +1439,10 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_CRON
                                         + " [list|create|pause|resume|delete|run]",
                                 "管理定时任务"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_KANBAN
+                                        + " [list|create|show|move|assign|comment|boards]",
+                                "管理 Hermes 风格协作看板"),
                         helpLine(GatewayCommandConstants.SLASH_COMPRESS + " [focus]", "压缩当前会话上下文"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_ROLLBACK
