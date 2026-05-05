@@ -7,19 +7,12 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.sys.ShellSkill;
 
 /** Solon AI ShellSkill wrapper with Hermes-style terminal safeguards. */
 public class HermesShellSkill extends ShellSkill {
-    private static final Pattern SUDO_COMMAND_PATTERN =
-            Pattern.compile(
-                    "(^|(?:&&|\\|\\||;|\\n)\\s*|(?:^|\\s)(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s]+\\s+)+)(sudo)(\\s+)(?!-[A-Za-z]*S\\b)(.+)",
-                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-
     private final AppConfig appConfig;
     private final SecurityPolicyService securityPolicyService;
     private final String shellCmd;
@@ -74,22 +67,163 @@ public class HermesShellSkill extends ShellSkill {
         if (password == null) {
             return SudoTransform.unchanged(raw);
         }
-        Matcher matcher = SUDO_COMMAND_PATTERN.matcher(raw);
-        if (!matcher.find()) {
+        SudoRewrite rewrite = rewriteRealSudoInvocations(raw);
+        if (!rewrite.isChanged()) {
             return SudoTransform.unchanged(raw);
         }
-        StringBuffer buffer = new StringBuffer();
-        do {
-            String replacement =
-                    matcher.group(1)
-                            + matcher.group(2)
-                            + " -S -p ''"
-                            + matcher.group(3)
-                            + matcher.group(4);
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
-        } while (matcher.find());
-        matcher.appendTail(buffer);
-        return new SudoTransform(buffer.toString(), password + "\n", true);
+        return new SudoTransform(rewrite.getCommand(), password + "\n", true);
+    }
+
+    private SudoRewrite rewriteRealSudoInvocations(String command) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        int n = command.length();
+        boolean commandStart = true;
+        boolean found = false;
+        while (i < n) {
+            char ch = command.charAt(i);
+            if (Character.isWhitespace(ch)) {
+                out.append(ch);
+                if (ch == '\n') {
+                    commandStart = true;
+                }
+                i++;
+                continue;
+            }
+            if (ch == '#' && commandStart) {
+                int commentEnd = command.indexOf('\n', i);
+                if (commentEnd < 0) {
+                    out.append(command.substring(i));
+                    break;
+                }
+                out.append(command, i, commentEnd);
+                i = commentEnd;
+                continue;
+            }
+            if (startsWithAny(command, i, "&&", "||", ";;")) {
+                out.append(command, i, i + 2);
+                i += 2;
+                commandStart = true;
+                continue;
+            }
+            if (ch == ';' || ch == '|' || ch == '&' || ch == '(') {
+                out.append(ch);
+                i++;
+                commandStart = true;
+                continue;
+            }
+            if (ch == ')') {
+                out.append(ch);
+                i++;
+                commandStart = false;
+                continue;
+            }
+
+            Token token = readShellToken(command, i);
+            if (commandStart && "sudo".equals(token.getValue())) {
+                if (hasSudoStdinFlag(command, token.getEnd())) {
+                    out.append(token.getValue());
+                } else {
+                    out.append("sudo -S -p ''");
+                    found = true;
+                }
+            } else {
+                out.append(token.getValue());
+            }
+
+            if (commandStart && looksLikeEnvAssignment(token.getValue())) {
+                commandStart = true;
+            } else {
+                commandStart = false;
+            }
+            i = token.getEnd();
+        }
+        return new SudoRewrite(out.toString(), found);
+    }
+
+    private Token readShellToken(String command, int start) {
+        int i = start;
+        int n = command.length();
+        while (i < n) {
+            char ch = command.charAt(i);
+            if (Character.isWhitespace(ch) || ch == ';' || ch == '|' || ch == '&' || ch == '(' || ch == ')') {
+                break;
+            }
+            if (ch == '\'') {
+                i++;
+                while (i < n && command.charAt(i) != '\'') {
+                    i++;
+                }
+                if (i < n) {
+                    i++;
+                }
+                continue;
+            }
+            if (ch == '"') {
+                i++;
+                while (i < n) {
+                    char inner = command.charAt(i);
+                    if (inner == '\\' && i + 1 < n) {
+                        i += 2;
+                        continue;
+                    }
+                    if (inner == '"') {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+                continue;
+            }
+            if (ch == '\\' && i + 1 < n) {
+                i += 2;
+                continue;
+            }
+            i++;
+        }
+        return new Token(command.substring(start, i), i);
+    }
+
+    private boolean hasSudoStdinFlag(String command, int index) {
+        int i = index;
+        int n = command.length();
+        while (i < n && Character.isWhitespace(command.charAt(i)) && command.charAt(i) != '\n') {
+            i++;
+        }
+        if (i >= n || command.charAt(i) != '-') {
+            return false;
+        }
+        Token option = readShellToken(command, i);
+        String value = option.getValue();
+        return value.indexOf('S') >= 0;
+    }
+
+    private boolean startsWithAny(String value, int index, String first, String second, String third) {
+        return value.startsWith(first, index)
+                || value.startsWith(second, index)
+                || value.startsWith(third, index);
+    }
+
+    private boolean looksLikeEnvAssignment(String token) {
+        if (StrUtil.isBlank(token) || token.startsWith("=")) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 0) {
+            return false;
+        }
+        String name = token.substring(0, equals);
+        for (int i = 0; i < name.length(); i++) {
+            char ch = name.charAt(i);
+            if (i == 0) {
+                if (!(Character.isLetter(ch) || ch == '_')) {
+                    return false;
+                }
+            } else if (!(Character.isLetterOrDigit(ch) || ch == '_')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String resolveSudoPassword() {
@@ -218,6 +352,42 @@ public class HermesShellSkill extends ShellSkill {
 
         public boolean isChanged() {
             return changed;
+        }
+    }
+
+    private static class SudoRewrite {
+        private final String command;
+        private final boolean changed;
+
+        private SudoRewrite(String command, boolean changed) {
+            this.command = command;
+            this.changed = changed;
+        }
+
+        public String getCommand() {
+            return command;
+        }
+
+        public boolean isChanged() {
+            return changed;
+        }
+    }
+
+    private static class Token {
+        private final String value;
+        private final int end;
+
+        private Token(String value, int end) {
+            this.value = value;
+            this.end = end;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public int getEnd() {
+            return end;
         }
     }
 }

@@ -18,6 +18,9 @@ public class HermesShellSkillTest {
 
         assertThat(skill.transformSudoCommand("grep -n sudo README.md").isChanged()).isFalse();
         assertThat(skill.transformSudoCommand("printf '%s\\n' sudo").isChanged()).isFalse();
+        assertThat(skill.transformSudoCommand("# sudo apt update").isChanged()).isFalse();
+        assertThat(skill.transformSudoCommand("echo sudo && grep sudo README.md").isChanged())
+                .isFalse();
     }
 
     @Test
@@ -47,6 +50,39 @@ public class HermesShellSkillTest {
 
         assertThat(transform.isChanged()).isTrue();
         assertThat(transform.getCommand()).isEqualTo("DEBUG=1 sudo -S -p '' whoami");
+    }
+
+    @Test
+    void shouldRewriteOnlyRealCompoundSudoInvocationsLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("testpass");
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        HermesShellSkill.SudoTransform transform =
+                skill.transformSudoCommand(
+                        "echo sudo && sudo apt update\n# sudo ignored\n( sudo whoami )");
+
+        assertThat(transform.isChanged()).isTrue();
+        assertThat(transform.getCommand())
+                .isEqualTo(
+                        "echo sudo && sudo -S -p '' apt update\n"
+                                + "# sudo ignored\n"
+                                + "( sudo -S -p '' whoami )");
+    }
+
+    @Test
+    void shouldNotRewriteAlreadyStdinEnabledSudo() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("testpass");
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        HermesShellSkill.SudoTransform transform =
+                skill.transformSudoCommand("sudo -S -p '' whoami");
+
+        assertThat(transform.isChanged()).isFalse();
+        assertThat(transform.getCommand()).isEqualTo("sudo -S -p '' whoami");
     }
 
     @Test
