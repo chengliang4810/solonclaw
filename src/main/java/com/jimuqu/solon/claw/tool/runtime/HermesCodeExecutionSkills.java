@@ -73,6 +73,10 @@ public class HermesCodeExecutionSkills {
         if (hardline != null) {
             throw new IllegalArgumentException(blockedHardlineMessage(toolName, hardline));
         }
+        String foregroundGuidance = approvalService.foregroundBackgroundGuidance(toolName, code);
+        if (foregroundGuidance != null) {
+            throw new IllegalArgumentException(foregroundGuidance);
+        }
         DangerousCommandApprovalService.DetectionResult dangerous =
                 approvalService.detect(toolName, code);
         if (dangerous != null) {

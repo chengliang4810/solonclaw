@@ -125,6 +125,18 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldRejectForegroundBackgroundWrappersOnDirectShellExecution() throws Exception {
+        AppConfig config = new AppConfig();
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThatThrownBy(() -> skill.execute("nohup npm run dev > app.log 2>&1", 1000))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("nohup")
+                .hasMessageContaining("受管的后台进程能力");
+    }
+
+    @Test
     void shouldTimeoutSudoRewriteBranchWithoutWaitingForOutputEof() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
