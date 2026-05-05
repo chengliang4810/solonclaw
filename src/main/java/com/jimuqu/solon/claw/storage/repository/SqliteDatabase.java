@@ -340,6 +340,23 @@ public class SqliteDatabase {
                             + "source_key text not null,"
                             + "deliver_platform text,"
                             + "deliver_chat_id text,"
+                            + "deliver_thread_id text,"
+                            + "origin_json text,"
+                            + "skills_json text,"
+                            + "repeat_times integer not null default 0,"
+                            + "repeat_completed integer not null default 0,"
+                            + "script text,"
+                            + "workdir text,"
+                            + "no_agent integer not null default 0,"
+                            + "context_from_json text,"
+                            + "enabled_toolsets_json text,"
+                            + "wrap_response integer not null default 1,"
+                            + "last_status text,"
+                            + "last_error text,"
+                            + "last_delivery_error text,"
+                            + "paused_at integer not null default 0,"
+                            + "paused_reason text,"
+                            + "last_output text,"
                             + "status text not null,"
                             + "next_run_at integer not null,"
                             + "last_run_at integer not null,"
@@ -350,6 +367,23 @@ public class SqliteDatabase {
                     "create index if not exists idx_cron_jobs_source on cron_jobs(source_key)");
             statement.execute(
                     "create index if not exists idx_cron_jobs_next_run on cron_jobs(next_run_at)");
+            addColumn(statement, "cron_jobs", "deliver_thread_id text");
+            addColumn(statement, "cron_jobs", "origin_json text");
+            addColumn(statement, "cron_jobs", "skills_json text");
+            addColumn(statement, "cron_jobs", "repeat_times integer not null default 0");
+            addColumn(statement, "cron_jobs", "repeat_completed integer not null default 0");
+            addColumn(statement, "cron_jobs", "script text");
+            addColumn(statement, "cron_jobs", "workdir text");
+            addColumn(statement, "cron_jobs", "no_agent integer not null default 0");
+            addColumn(statement, "cron_jobs", "context_from_json text");
+            addColumn(statement, "cron_jobs", "enabled_toolsets_json text");
+            addColumn(statement, "cron_jobs", "wrap_response integer not null default 1");
+            addColumn(statement, "cron_jobs", "last_status text");
+            addColumn(statement, "cron_jobs", "last_error text");
+            addColumn(statement, "cron_jobs", "last_delivery_error text");
+            addColumn(statement, "cron_jobs", "paused_at integer not null default 0");
+            addColumn(statement, "cron_jobs", "paused_reason text");
+            addColumn(statement, "cron_jobs", "last_output text");
             statement.execute(
                     "create table if not exists cron_runs ("
                             + "run_id text primary key,"

@@ -56,16 +56,30 @@ export interface UpdateJobRequest {
 
 interface DashboardJob {
   id: string
+  job_id?: string
   name?: string
   prompt: string
+  prompt_preview?: string
+  skills?: string[]
+  skill?: string | null
+  model?: string | null
+  provider?: string | null
+  base_url?: string | null
+  script?: string | null
+  repeat?: string | { times: number | null; completed: number }
   schedule: { kind: string; expr: string; display: string }
   schedule_display: string
   enabled: boolean
   state: string
   deliver?: string
+  origin?: Job['origin']
+  paused_at?: string | null
+  paused_reason?: string | null
   last_run_at?: string | null
   next_run_at?: string | null
+  last_status?: string | null
   last_error?: string | null
+  last_delivery_error?: string | null
 }
 
 function mapJob(job: DashboardJob): Job {
@@ -75,28 +89,28 @@ function mapJob(job: DashboardJob): Job {
     id: job.id,
     name: job.name || '',
     prompt: job.prompt,
-    prompt_preview: job.prompt.slice(0, 120),
-    skills: [],
-    skill: null,
-    model: null,
-    provider: null,
-    base_url: null,
-    script: null,
+    prompt_preview: job.prompt_preview || job.prompt.slice(0, 120),
+    skills: job.skills || [],
+    skill: job.skill || null,
+    model: job.model || null,
+    provider: job.provider || null,
+    base_url: job.base_url || null,
+    script: job.script || null,
     schedule: job.schedule,
     schedule_display: job.schedule_display || job.schedule.display,
-    repeat: 'forever',
+    repeat: job.repeat || 'forever',
     enabled: job.enabled,
     state,
-    paused_at: state === 'paused' ? job.last_run_at || null : null,
-    paused_reason: null,
-    created_at: job.last_run_at || job.next_run_at || new Date().toISOString(),
+    paused_at: job.paused_at || null,
+    paused_reason: job.paused_reason || null,
+    created_at: (job as any).created_at || job.last_run_at || job.next_run_at || new Date().toISOString(),
     next_run_at: job.next_run_at || null,
     last_run_at: job.last_run_at || null,
-    last_status: state,
+    last_status: job.last_status || state,
     last_error: job.last_error || null,
     deliver: job.deliver || 'local',
-    origin: null,
-    last_delivery_error: null,
+    origin: job.origin || null,
+    last_delivery_error: job.last_delivery_error || null,
   }
 }
 
@@ -125,22 +139,28 @@ export async function createJob(data: CreateJobRequest): Promise<Job> {
       prompt: data.prompt || '',
       schedule: data.schedule,
       deliver: data.deliver || 'local',
+      skills: data.skills || [],
+      repeat: data.repeat,
     }),
   })
   return mapJob(job)
 }
 
 export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<Job> {
-  const current = await getJob(jobId)
-  const updated = {
-    name: data.name ?? current.name,
-    prompt: data.prompt ?? current.prompt,
-    schedule: unwrapSchedule(data.schedule) || unwrapSchedule(current.schedule) || '* * * * *',
-    deliver: data.deliver ?? current.deliver,
-  }
-
-  await deleteJob(jobId)
-  return createJob(updated)
+  const job = await request<DashboardJob>(`/api/cron/jobs/${jobId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: data.name,
+      prompt: data.prompt,
+      schedule: unwrapSchedule(data.schedule),
+      deliver: data.deliver,
+      skills: data.skills,
+      skill: data.skill,
+      repeat: data.repeat,
+      enabled: data.enabled,
+    }),
+  })
+  return mapJob(job)
 }
 
 export async function deleteJob(jobId: string): Promise<{ ok: boolean }> {

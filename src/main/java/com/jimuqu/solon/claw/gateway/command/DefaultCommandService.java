@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.ScanResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillBrowseResult;
@@ -49,6 +50,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -65,6 +67,8 @@ public class DefaultCommandService implements CommandService {
 
     /** 定时任务仓储。 */
     private final CronJobRepository cronJobRepository;
+
+    private final CronJobService cronJobService;
 
     /** 对话编排器。 */
     private final ConversationOrchestrator conversationOrchestrator;
@@ -225,6 +229,7 @@ public class DefaultCommandService implements CommandService {
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
         this.cronJobRepository = cronJobRepository;
+        this.cronJobService = new CronJobService(appConfig, cronJobRepository);
         this.conversationOrchestrator = conversationOrchestrator;
         this.contextService = contextService;
         this.contextCompressionService = contextCompressionService;
@@ -858,11 +863,20 @@ public class DefaultCommandService implements CommandService {
         String action =
                 parts.length == 0 || StrUtil.isBlank(parts[0])
                         ? GatewayCommandConstants.ACTION_LIST
-                        : parts[0];
+                        : parts[0].trim().toLowerCase(java.util.Locale.ROOT);
         String tail = parts.length > 1 ? parts[1] : "";
+        if (GatewayCommandConstants.ACTION_ADD.equals(action)) {
+            action = GatewayCommandConstants.ACTION_CREATE;
+        }
+        if ("edit".equals(action)) {
+            action = GatewayCommandConstants.ACTION_UPDATE;
+        }
+        if ("rm".equals(action) || GatewayCommandConstants.ACTION_REMOVE.equals(action)) {
+            action = GatewayCommandConstants.ACTION_DELETE;
+        }
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
-            List<CronJobRecord> jobs = cronJobRepository.listBySource(message.sourceKey());
+            List<CronJobRecord> jobs = cronJobService.listBySource(message.sourceKey(), true);
             StringBuilder buffer = new StringBuilder();
             for (CronJobRecord job : jobs) {
                 if (buffer.length() > 0) {
@@ -872,78 +886,114 @@ public class DefaultCommandService implements CommandService {
                         .append(" ")
                         .append(job.getName())
                         .append(" ")
-                        .append(job.getStatus());
+                        .append(job.getStatus())
+                        .append(" ")
+                        .append(job.getCronExpr());
             }
             return GatewayReply.ok(buffer.length() == 0 ? "当前没有定时任务。" : buffer.toString());
         }
 
         if (GatewayCommandConstants.ACTION_CREATE.equalsIgnoreCase(action)) {
-            String[] fields = tail.split("\\|", 3);
+            String[] fields = tail.split("\\|", -1);
             if (fields.length < 3) {
                 return GatewayReply.error(
                         "用法："
                                 + GatewayCommandConstants.SLASH_CRON
-                                + " create <name>|<cron>|<prompt>");
+                                + " add <name>|<schedule>|<prompt>|[--skill a,b]|[--deliver local]|[--repeat N]|[--script path]|[--no-agent]");
             }
 
-            long now = System.currentTimeMillis();
             String[] sourceParts = SourceKeySupport.split(message.sourceKey());
-            CronJobRecord job = new CronJobRecord();
-            job.setJobId(IdSupport.newId());
-            job.setName(fields[0].trim());
-            job.setCronExpr(fields[1].trim());
-            job.setPrompt(fields[2].trim());
-            job.setSourceKey(message.sourceKey());
-            job.setDeliverPlatform(sourceParts[0]);
-            job.setDeliverChatId(sourceParts[1]);
-            job.setStatus("ACTIVE");
-            job.setNextRunAt(CronSupport.nextRunAt(job.getCronExpr(), now));
-            job.setCreatedAt(now);
-            job.setUpdatedAt(now);
-            cronJobRepository.save(job);
+            Map<String, Object> body = parseCronOptions(fields, 3);
+            body.put("name", fields[0].trim());
+            body.put("schedule", fields[1].trim());
+            body.put("prompt", fields[2].trim());
+            if (!body.containsKey("deliver")) {
+                body.put("deliver", sourceParts[0]);
+            }
+            body.put("deliver_chat_id", sourceParts[1]);
+            body.put("deliver_thread_id", message.getThreadId());
+            CronJobRecord job = cronJobService.create(message.sourceKey(), body);
             return GatewayReply.ok("已创建定时任务：" + job.getJobId());
         }
 
         if (GatewayCommandConstants.ACTION_PAUSE.equalsIgnoreCase(action)) {
-            cronJobRepository.updateStatus(tail, "PAUSED");
+            cronJobService.pause(tail, "paused by slash command");
             return GatewayReply.ok("已暂停定时任务：" + tail);
         }
 
         if (GatewayCommandConstants.ACTION_RESUME.equalsIgnoreCase(action)) {
-            cronJobRepository.updateStatus(tail, "ACTIVE");
+            cronJobService.resume(tail);
             return GatewayReply.ok("已恢复定时任务：" + tail);
         }
 
         if (GatewayCommandConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
-            cronJobRepository.delete(tail);
+            cronJobService.remove(tail);
             return GatewayReply.ok("已删除定时任务：" + tail);
         }
 
-        if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
-            CronJobRecord job = cronJobRepository.findById(tail);
-            if (job == null) {
-                return GatewayReply.error("未找到定时任务：" + tail);
+        if (GatewayCommandConstants.ACTION_UPDATE.equalsIgnoreCase(action)) {
+            String[] fields = tail.split("\\|", -1);
+            if (fields.length < 2) {
+                return GatewayReply.error(
+                        "用法："
+                                + GatewayCommandConstants.SLASH_CRON
+                                + " edit <job-id>|[name]|[schedule]|[prompt]|[--skill a,b]|[--deliver local]");
             }
+            Map<String, Object> body = parseCronOptions(fields, 4);
+            if (fields.length > 1 && StrUtil.isNotBlank(fields[1])) {
+                body.put("name", fields[1].trim());
+            }
+            if (fields.length > 2 && StrUtil.isNotBlank(fields[2])) {
+                body.put("schedule", fields[2].trim());
+            }
+            if (fields.length > 3 && StrUtil.isNotBlank(fields[3])) {
+                body.put("prompt", fields[3].trim());
+            }
+            CronJobRecord job = cronJobService.update(fields[0].trim(), body);
+            return GatewayReply.ok("已更新定时任务：" + job.getJobId());
+        }
 
-            GatewayMessage synthetic =
-                    new GatewayMessage(
-                            message.getPlatform(),
-                            message.getChatId(),
-                            message.getUserId(),
-                            job.getPrompt());
-            synthetic.setChatType(message.getChatType());
-            synthetic.setChatName(message.getChatName());
-            synthetic.setUserName(message.getUserName());
-            GatewayReply reply = conversationOrchestrator.runScheduled(synthetic);
-            deliveryService.deliver(
-                    SourceKeySupport.toDeliveryRequest(job.getSourceKey(), reply.getContent()));
+        if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
+            cronJobService.trigger(tail);
             return GatewayReply.ok("已执行定时任务：" + tail);
         }
 
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list|create|pause|resume|delete|run]");
+                        + " [list|add|edit|pause|resume|remove|run]");
+    }
+
+    private Map<String, Object> parseCronOptions(String[] fields, int start) {
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        for (int i = start; i < fields.length; i++) {
+            String field = fields[i] == null ? "" : fields[i].trim();
+            if (StrUtil.isBlank(field)) {
+                continue;
+            }
+            if (field.startsWith("--skill ")) {
+                body.put("skills", field.substring("--skill ".length()).trim());
+            } else if (field.startsWith("--skills ")) {
+                body.put("skills", field.substring("--skills ".length()).trim());
+            } else if (field.startsWith("--deliver ")) {
+                body.put("deliver", field.substring("--deliver ".length()).trim());
+            } else if (field.startsWith("--repeat ")) {
+                body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
+            } else if (field.startsWith("--script ")) {
+                body.put("script", field.substring("--script ".length()).trim());
+            } else if (field.startsWith("--workdir ")) {
+                body.put("workdir", field.substring("--workdir ".length()).trim());
+            } else if (field.startsWith("--context-from ")) {
+                body.put("context_from", field.substring("--context-from ".length()).trim());
+            } else if (field.startsWith("--toolsets ")) {
+                body.put("enabled_toolsets", field.substring("--toolsets ".length()).trim());
+            } else if ("--no-agent".equals(field)) {
+                body.put("no_agent", Boolean.TRUE);
+            } else if ("--raw".equals(field) || "--no-wrap".equals(field)) {
+                body.put("wrap_response", Boolean.FALSE);
+            }
+        }
+        return body;
     }
 
     /** 处理 pairing 相关命令。 */

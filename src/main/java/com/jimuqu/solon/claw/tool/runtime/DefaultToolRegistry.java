@@ -6,7 +6,6 @@ import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
-import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
@@ -16,6 +15,7 @@ import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
@@ -87,7 +87,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     private final AgentProfileService agentProfileService;
 
     /** 定时任务仓储。 */
-    private final CronJobRepository cronJobRepository;
+    private final CronJobService cronJobService;
 
     /** 渠道投递服务。 */
     private final DeliveryService deliveryService;
@@ -124,7 +124,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
-            CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -139,7 +139,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
         this.agentProfileService = agentProfileService;
-        this.cronJobRepository = cronJobRepository;
+        this.cronJobService = cronJobService;
         this.deliveryService = deliveryService;
         this.memoryService = memoryService;
         this.sessionSearchService = sessionSearchService;
@@ -179,7 +179,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         SkillHubTools skillHubTools = new SkillHubTools(skillHubService);
         MessagingTools messagingTools =
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
-        CronjobTools cronjobTools = new CronjobTools(cronJobRepository, sourceKey);
+        CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);

@@ -1,10 +1,20 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.Calendar;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** 轻量级 cron 计算辅助类，仅覆盖当前项目需要的 5 段 cron 语义。 */
 public final class CronSupport {
+    private static final Pattern INTERVAL_PATTERN =
+            Pattern.compile("^(?:every\\s+)?(\\d+)\\s*(m|min|minute|minutes|h|hour|hours|d|day|days)$");
+
     private CronSupport() {}
 
     /**
@@ -17,6 +27,10 @@ public final class CronSupport {
     public static long nextRunAt(String cronExpr, long fromEpochMillis) {
         if (StrUtil.isBlank(cronExpr)) {
             return fromEpochMillis + 60000L;
+        }
+        Long direct = nextDirectSchedule(cronExpr, fromEpochMillis);
+        if (direct != null) {
+            return direct.longValue();
         }
 
         String[] parts = cronExpr.trim().split("\\s+");
@@ -59,11 +73,61 @@ public final class CronSupport {
         if (StrUtil.isBlank(cronExpr)) {
             throw new IllegalArgumentException("Cron expression is required");
         }
+        if (nextDirectSchedule(cronExpr, System.currentTimeMillis()) != null) {
+            return;
+        }
         String[] parts = cronExpr.trim().split("\\s+");
         if (parts.length != 5) {
             throw new IllegalArgumentException("Cron expression must have 5 fields");
         }
         validate(parts);
+    }
+
+    /** 判断是否是一次性 ISO 时间。 */
+    public static boolean isOneShot(String schedule) {
+        if (StrUtil.isBlank(schedule)) {
+            return false;
+        }
+        String normalized = schedule.trim();
+        try {
+            parseIsoMillis(normalized);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static Long nextDirectSchedule(String schedule, long fromEpochMillis) {
+        String normalized = schedule.trim().toLowerCase(Locale.ROOT);
+        Matcher matcher = INTERVAL_PATTERN.matcher(normalized);
+        if (matcher.matches()) {
+            long amount = Long.parseLong(matcher.group(1));
+            String unit = matcher.group(2);
+            long millis;
+            if (unit.startsWith("h")) {
+                millis = amount * 60L * 60L * 1000L;
+            } else if (unit.startsWith("d")) {
+                millis = amount * 24L * 60L * 60L * 1000L;
+            } else {
+                millis = amount * 60L * 1000L;
+            }
+            return Long.valueOf(fromEpochMillis + Math.max(60000L, millis));
+        }
+        try {
+            long isoMillis = parseIsoMillis(schedule.trim());
+            return Long.valueOf(Math.max(isoMillis, fromEpochMillis + 1000L));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static long parseIsoMillis(String value) {
+        try {
+            return Instant.parse(value).toEpochMilli();
+        } catch (DateTimeParseException ignored) {
+            LocalDateTime dateTime = LocalDateTime.parse(value);
+            return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
     }
 
     private static void validate(String[] parts) {

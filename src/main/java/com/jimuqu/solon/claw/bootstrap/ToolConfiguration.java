@@ -6,7 +6,6 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
-import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -27,6 +26,7 @@ import com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator;
 import com.jimuqu.solon.claw.engine.DefaultDelegationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
@@ -73,7 +73,7 @@ public class ToolConfiguration {
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
             AgentProfileService agentProfileService,
-            CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
             DeliveryService deliveryService,
             MemoryService memoryService,
             SessionSearchService sessionSearchService,
@@ -89,7 +89,7 @@ public class ToolConfiguration {
                 preferenceStore,
                 sessionRepository,
                 agentProfileService,
-                cronJobRepository,
+                cronJobService,
                 deliveryService,
                 memoryService,
                 sessionSearchService,

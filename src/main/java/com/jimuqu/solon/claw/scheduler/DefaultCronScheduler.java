@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public class DefaultCronScheduler {
 
     private final AppConfig appConfig;
     private final CronJobRepository cronJobRepository;
+    private final CronJobService cronJobService;
     private final ConversationOrchestrator conversationOrchestrator;
     private final DeliveryService deliveryService;
     private final GatewayPolicyRepository gatewayPolicyRepository;
@@ -136,13 +138,55 @@ public class DefaultCronScheduler {
 
     private void execute(CronJobRecord job, long now) throws Exception {
         long nextRunAt = CronSupport.nextRunAt(job.getCronExpr(), now);
-        cronJobRepository.markRun(job.getJobId(), now, nextRunAt);
-        String[] parts = SourceKeySupport.split(job.getSourceKey());
-        GatewayMessage synthetic =
-                new GatewayMessage(
-                        PlatformType.fromName(parts[0]), parts[1], parts[2], job.getPrompt());
-        GatewayReply reply = conversationOrchestrator.runScheduled(synthetic);
-        deliver(job, reply);
+        int completed = job.getRepeatCompleted() + 1;
+        boolean done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
+        String nextStatus = done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
+        String output = "";
+        String error = null;
+        String runStatus = "ok";
+        try {
+            GatewayReply reply;
+            if (job.isNoAgent()) {
+                output = runScript(job);
+                reply = GatewayReply.ok(output);
+            } else {
+                String prompt = buildPrompt(job);
+                if (StrUtil.isNotBlank(job.getScript())) {
+                    String scriptOutput = runScript(job);
+                    prompt = prompt + "\n\n脚本输出：\n" + scriptOutput;
+                }
+                String[] parts = SourceKeySupport.split(job.getSourceKey());
+                GatewayMessage synthetic =
+                        new GatewayMessage(
+                                PlatformType.fromName(parts[0]), parts[1], parts[2], prompt);
+                reply = conversationOrchestrator.runScheduled(synthetic);
+                output = reply == null ? "" : reply.getContent();
+            }
+            cronJobRepository.markRunResult(
+                    job.getJobId(),
+                    now,
+                    nextRunAt,
+                    runStatus,
+                    null,
+                    AgentRunPreview.safe(output),
+                    completed,
+                    nextStatus);
+            deliver(job, reply);
+        } catch (Exception e) {
+            runStatus = "error";
+            error = e.getMessage();
+            cronJobRepository.markRunResult(
+                    job.getJobId(),
+                    now,
+                    nextRunAt,
+                    runStatus,
+                    error,
+                    AgentRunPreview.safe(output),
+                    completed,
+                    done ? "COMPLETED" : "ACTIVE");
+            deliverError(job, error);
+            throw e;
+        }
     }
 
     private void deliver(CronJobRecord job, GatewayReply reply) throws Exception {
@@ -181,8 +225,100 @@ public class DefaultCronScheduler {
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(platform);
         request.setChatId(chatId);
-        request.setText(reply.getContent());
-        deliveryService.deliver(request);
+        request.setText(formatDelivery(job, reply.getContent()));
+        try {
+            deliveryService.deliver(request);
+        } catch (Exception e) {
+            cronJobRepository.markDeliveryError(job.getJobId(), e.getMessage());
+            throw e;
+        }
+    }
+
+    private String buildPrompt(CronJobRecord job) throws Exception {
+        StringBuilder prompt = new StringBuilder(StrUtil.nullToEmpty(job.getPrompt()));
+        Map<String, Object> view = cronJobService.toView(job);
+        List<String> skills =
+                view.containsKey("skills") ? (List<String>) view.get("skills") : new ArrayList<String>();
+        if (!skills.isEmpty()) {
+            prompt.insert(0, "请先加载并遵循这些技能：" + skills + "\n\n");
+        }
+        Object contextFrom = view.get("context_from");
+        if (contextFrom instanceof Iterable) {
+            for (Object ref : (Iterable<?>) contextFrom) {
+                CronJobRecord upstream = cronJobRepository.findById(String.valueOf(ref));
+                if (upstream != null && StrUtil.isNotBlank(upstream.getLastOutput())) {
+                    prompt.append("\n\n上游任务 ")
+                            .append(upstream.getJobId())
+                            .append(" 最近输出：\n")
+                            .append(upstream.getLastOutput());
+                }
+            }
+        }
+        return prompt.toString();
+    }
+
+    private String runScript(CronJobRecord job) throws Exception {
+        File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts");
+        File script = FileUtil.file(scriptsDir, job.getScript());
+        if (!FileUtil.isSub(scriptsDir, script) || !script.exists() || !script.isFile()) {
+            throw new IllegalStateException("Cron script not found under runtime/scripts: " + job.getScript());
+        }
+        String name = script.getName().toLowerCase();
+        List<String> command = new ArrayList<String>();
+        if (name.endsWith(".sh") || name.endsWith(".bash")) {
+            command.add("bash");
+        } else {
+            command.add(defaultPythonCommand());
+        }
+        command.add(script.getAbsolutePath());
+        ProcessBuilder builder = new ProcessBuilder(command);
+        if (StrUtil.isNotBlank(job.getWorkdir())) {
+            builder.directory(new File(job.getWorkdir()));
+        }
+        builder.redirectErrorStream(true);
+        Process process = builder.start();
+        byte[] data = readAll(process.getInputStream());
+        boolean finished = process.waitFor(120, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            throw new IllegalStateException("Cron script timed out");
+        }
+        String output = new String(data, StandardCharsets.UTF_8).trim();
+        if (process.exitValue() != 0) {
+            throw new IllegalStateException("Cron script exited " + process.exitValue() + ": " + output);
+        }
+        return output;
+    }
+
+    private void deliverError(CronJobRecord job, String error) {
+        if (!job.isNoAgent()) {
+            return;
+        }
+        try {
+            deliver(job, GatewayReply.error("定时任务执行失败：" + StrUtil.blankToDefault(error, "unknown error")));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private byte[] readAll(java.io.InputStream inputStream) throws Exception {
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = inputStream.read(buffer)) >= 0) {
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    private String defaultPythonCommand() {
+        return System.getProperty("os.name", "").toLowerCase().contains("win") ? "python" : "python3";
+    }
+
+    private String formatDelivery(CronJobRecord job, String content) {
+        if (!job.isWrapResponse()) {
+            return content;
+        }
+        return "定时任务：" + StrUtil.blankToDefault(job.getName(), job.getJobId()) + "\n\n" + content;
     }
 
     private Map<String, List<CronJobRecord>> groupBySource(List<CronJobRecord> jobs) {
@@ -197,5 +333,14 @@ public class DefaultCronScheduler {
             sourceJobs.add(job);
         }
         return grouped;
+    }
+
+    private static class AgentRunPreview {
+        private static String safe(String value) {
+            if (value == null) {
+                return null;
+            }
+            return value.length() <= 4000 ? value : value.substring(0, 4000) + "...";
+        }
     }
 }

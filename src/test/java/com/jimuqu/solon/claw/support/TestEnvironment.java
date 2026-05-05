@@ -64,6 +64,7 @@ import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelStateRepository;
@@ -269,13 +270,14 @@ public class TestEnvironment {
                         skillHubHttpClient,
                         gitHubAuth,
                         gitHubSkillSource);
+        CronJobService cronJobService = new CronJobService(config, cronJobRepository);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
                         preferenceStore,
                         sessionRepository,
                         agentProfileService,
-                        cronJobRepository,
+                        cronJobService,
                         deliveryService,
                         memoryService,
                         sessionSearchService,

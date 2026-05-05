@@ -31,6 +31,15 @@ public class DashboardCronController {
                                 ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
     }
 
+    @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.PUT)
+    public Map<String, Object> update(String id, Context context) throws Exception {
+        return DashboardResponse.ok(
+                cronService.update(
+                        id,
+                        ONode.deserialize(
+                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
+    }
+
     @Mapping(value = "/api/cron/jobs/{id}/pause", method = MethodType.POST)
     public Map<String, Object> pause(String id) throws Exception {
         return DashboardResponse.ok(cronService.pause(id));

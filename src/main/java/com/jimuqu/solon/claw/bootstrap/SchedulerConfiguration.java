@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
@@ -18,10 +19,16 @@ import org.noear.solon.annotation.Configuration;
 /** scheduler bean configuration. */
 @Configuration
 public class SchedulerConfiguration {
+    @Bean
+    public CronJobService cronJobService(AppConfig appConfig, CronJobRepository cronJobRepository) {
+        return new CronJobService(appConfig, cronJobRepository);
+    }
+
     @Bean(destroyMethod = "shutdown")
     public DefaultCronScheduler defaultCronScheduler(
             AppConfig appConfig,
             CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
             ConversationOrchestrator conversationOrchestrator,
             DeliveryService deliveryService,
             GatewayPolicyRepository gatewayPolicyRepository) {
@@ -29,6 +36,7 @@ public class SchedulerConfiguration {
                 new DefaultCronScheduler(
                         appConfig,
                         cronJobRepository,
+                        cronJobService,
                         conversationOrchestrator,
                         deliveryService,
                         gatewayPolicyRepository);

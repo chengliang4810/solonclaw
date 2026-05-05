@@ -2,96 +2,145 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
-import com.jimuqu.solon.claw.core.repository.CronJobRepository;
-import com.jimuqu.solon.claw.support.CronSupport;
-import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** CronjobTools 实现。 */
+/** Hermes-style cronjob tool. */
 @RequiredArgsConstructor
 public class CronjobTools {
-    private final CronJobRepository cronJobRepository;
+    private final CronJobService cronJobService;
     private final String sourceKey;
 
     @ToolMapping(
             name = "cronjob",
-            description = "Manage cron jobs. action can be create, list, pause, resume, or delete.")
+            description =
+                    "Manage scheduled cron jobs. action can be create, list, update, pause, resume, remove, or run.")
     public String cronjob(
-            @Param(name = "action", description = "create、list、pause、resume、delete") String action,
-            @Param(name = "name", description = "任务名或任务 ID", required = false) String name,
-            @Param(name = "cronExpr", description = "cron 表达式", required = false) String cronExpr,
-            @Param(name = "prompt", description = "任务提示词", required = false) String prompt)
+            @Param(name = "action", description = "create、list、update、pause、resume、remove、run") String action,
+            @Param(name = "job_id", description = "任务 ID", required = false) String jobId,
+            @Param(name = "name", description = "任务名", required = false) String name,
+            @Param(name = "schedule", description = "cron、every 2h、30m 或 ISO 时间", required = false) String schedule,
+            @Param(name = "prompt", description = "任务提示词", required = false) String prompt,
+            @Param(name = "deliver", description = "local、origin 或平台名", required = false) String deliver,
+            @Param(name = "skills", description = "逗号分隔技能列表", required = false) String skills,
+            @Param(name = "repeat", description = "重复次数；0 表示无限", required = false) Integer repeat,
+            @Param(name = "script", description = "runtime/scripts 下的相对脚本路径", required = false) String script,
+            @Param(name = "workdir", description = "绝对工作目录", required = false) String workdir,
+            @Param(name = "no_agent", description = "是否跳过 Agent 直接投递脚本输出", required = false) Boolean noAgent,
+            @Param(name = "context_from", description = "逗号分隔上游 job id", required = false) String contextFrom,
+            @Param(name = "enabled_toolsets", description = "逗号分隔工具集", required = false) String enabledToolsets)
             throws Exception {
-        if ("list".equalsIgnoreCase(action)) {
-            List<CronJobRecord> jobs = cronJobRepository.listBySource(sourceKey);
-            StringBuilder buffer = new StringBuilder();
-            for (CronJobRecord job : jobs) {
-                if (buffer.length() > 0) {
-                    buffer.append('\n');
-                }
-                buffer.append(job.getJobId())
-                        .append(" ")
-                        .append(job.getName())
-                        .append(" ")
-                        .append(job.getStatus());
-            }
-            String preview = buffer.length() == 0 ? "No cron jobs" : buffer.toString();
+        String normalized = action == null ? "list" : action.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("delete".equals(normalized) || "rm".equals(normalized)) {
+            normalized = "remove";
+        }
+        if ("run_now".equals(normalized) || "trigger".equals(normalized)) {
+            normalized = "run";
+        }
+
+        if ("list".equals(normalized)) {
+            List<CronJobRecord> jobs = cronJobService.listBySource(sourceKey, true);
             return ToolResultEnvelope.ok("Listed cron jobs")
-                    .data("jobs", jobs)
+                    .data("jobs", views(jobs))
                     .data("count", Integer.valueOf(jobs.size()))
-                    .preview(preview)
+                    .preview(preview(jobs))
                     .toJson();
         }
 
-        if ("create".equalsIgnoreCase(action)) {
-            long now = System.currentTimeMillis();
-            CronJobRecord record = new CronJobRecord();
-            record.setJobId(IdSupport.newId());
-            record.setName(name);
-            record.setCronExpr(cronExpr);
-            record.setPrompt(prompt);
-            record.setSourceKey(sourceKey);
-            record.setStatus("ACTIVE");
-            record.setCreatedAt(now);
-            record.setUpdatedAt(now);
-            record.setNextRunAt(CronSupport.nextRunAt(cronExpr, now));
-            cronJobRepository.save(record);
-            return ToolResultEnvelope.ok("Created cron job: " + record.getJobId())
-                    .data("jobId", record.getJobId())
-                    .data("name", record.getName())
-                    .data("cronExpr", record.getCronExpr())
-                    .data("nextRunAt", Long.valueOf(record.getNextRunAt()))
-                    .preview(record.getJobId() + " " + record.getName() + " ACTIVE")
+        if ("create".equals(normalized)) {
+            CronJobRecord job = cronJobService.create(sourceKey, body(name, schedule, prompt, deliver, skills, repeat, script, workdir, noAgent, contextFrom, enabledToolsets));
+            return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
+                    .data("job_id", job.getJobId())
+                    .data("job", cronJobService.toView(job))
+                    .preview(job.getJobId() + " " + job.getName() + " ACTIVE")
                     .toJson();
         }
 
-        if ("pause".equalsIgnoreCase(action)) {
-            cronJobRepository.updateStatus(name, "PAUSED");
-            return ToolResultEnvelope.ok("Paused cron job: " + name)
-                    .data("jobId", name)
-                    .data("status", "PAUSED")
-                    .toJson();
+        if (jobId == null || jobId.trim().length() == 0) {
+            return ToolResultEnvelope.error("job_id is required for action: " + normalized).toJson();
         }
 
-        if ("resume".equalsIgnoreCase(action)) {
-            cronJobRepository.updateStatus(name, "ACTIVE");
-            return ToolResultEnvelope.ok("Resumed cron job: " + name)
-                    .data("jobId", name)
-                    .data("status", "ACTIVE")
-                    .toJson();
+        CronJobRecord job;
+        if ("update".equals(normalized)) {
+            job = cronJobService.update(jobId, body(name, schedule, prompt, deliver, skills, repeat, script, workdir, noAgent, contextFrom, enabledToolsets));
+        } else if ("pause".equals(normalized)) {
+            job = cronJobService.pause(jobId, "paused by cronjob tool");
+        } else if ("resume".equals(normalized)) {
+            job = cronJobService.resume(jobId);
+        } else if ("remove".equals(normalized)) {
+            job = cronJobService.remove(jobId);
+        } else if ("run".equals(normalized)) {
+            job = cronJobService.trigger(jobId);
+        } else {
+            return ToolResultEnvelope.error("Unsupported cronjob action: " + action).toJson();
         }
+        return ToolResultEnvelope.ok("Cron job action completed: " + normalized)
+                .data("job", cronJobService.toView(job))
+                .preview(job.getJobId() + " " + job.getName() + " " + job.getStatus())
+                .toJson();
+    }
 
-        if ("delete".equalsIgnoreCase(action)) {
-            cronJobRepository.delete(name);
-            return ToolResultEnvelope.ok("Deleted cron job: " + name)
-                    .data("jobId", name)
-                    .data("status", "DELETED")
-                    .toJson();
+    private Map<String, Object> body(
+            String name,
+            String schedule,
+            String prompt,
+            String deliver,
+            String skills,
+            Integer repeat,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            String contextFrom,
+            String enabledToolsets) {
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        put(body, "name", name);
+        put(body, "schedule", schedule);
+        put(body, "prompt", prompt);
+        put(body, "deliver", deliver);
+        put(body, "skills", skills);
+        if (repeat != null) {
+            body.put("repeat", repeat);
         }
+        put(body, "script", script);
+        put(body, "workdir", workdir);
+        if (noAgent != null) {
+            body.put("no_agent", noAgent);
+        }
+        put(body, "context_from", contextFrom);
+        put(body, "enabled_toolsets", enabledToolsets);
+        return body;
+    }
 
-        return ToolResultEnvelope.error("Unsupported cronjob action").toJson();
+    private void put(Map<String, Object> body, String key, String value) {
+        if (value != null) {
+            body.put(key, value);
+        }
+    }
+
+    private List<Map<String, Object>> views(List<CronJobRecord> jobs) {
+        List<Map<String, Object>> result = new java.util.ArrayList<Map<String, Object>>();
+        for (CronJobRecord job : jobs) {
+            result.add(cronJobService.toView(job));
+        }
+        return result;
+    }
+
+    private String preview(List<CronJobRecord> jobs) {
+        if (jobs.isEmpty()) {
+            return "No cron jobs";
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (CronJobRecord job : jobs) {
+            if (buffer.length() > 0) {
+                buffer.append('\n');
+            }
+            buffer.append(job.getJobId()).append(' ').append(job.getName()).append(' ').append(job.getStatus());
+        }
+        return buffer.toString();
     }
 }

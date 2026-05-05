@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -178,8 +179,8 @@ public class DashboardConfiguration {
 
     @Bean
     public DashboardCronService dashboardCronService(
-            CronJobRepository cronJobRepository, DefaultCronScheduler defaultCronScheduler) {
-        return new DashboardCronService(cronJobRepository, defaultCronScheduler);
+            CronJobService cronJobService, DefaultCronScheduler defaultCronScheduler) {
+        return new DashboardCronService(cronJobService, defaultCronScheduler);
     }
 
     @Bean
