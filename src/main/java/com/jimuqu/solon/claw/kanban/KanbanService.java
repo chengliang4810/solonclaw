@@ -253,6 +253,45 @@ public class KanbanService {
         return task(taskId);
     }
 
+    public List<Map<String, Object>> runs(String taskId) throws Exception {
+        requireTask(taskId);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (KanbanRunRecord run : repository.listRuns(taskId, true)) {
+            result.add(runView(run));
+        }
+        return result;
+    }
+
+    public List<Map<String, Object>> events(String taskId) throws Exception {
+        requireTask(taskId);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (KanbanEventRecord event : repository.listEvents(taskId)) {
+            result.add(eventView(event));
+        }
+        return result;
+    }
+
+    public Map<String, Object> context(String taskId) throws Exception {
+        Map<String, Object> detail = task(taskId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("task_id", taskId);
+        result.put("worker_context", detail.get("worker_context"));
+        result.put("task", detail);
+        return result;
+    }
+
+    public List<Map<String, Object>> diagnostics(String taskId) throws Exception {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        if (StrUtil.isNotBlank(taskId)) {
+            addDiagnostics(result, repository.findTask(taskId));
+            return result;
+        }
+        for (KanbanTaskRecord task : repository.listTasks(null, null, true)) {
+            addDiagnostics(result, task);
+        }
+        return result;
+    }
+
     public Map<String, Object> claim(String taskId, Map<String, Object> body) throws Exception {
         String claimer = StrUtil.blankToDefault(text(body, "claimer"), defaultClaimer());
         long ttl = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
@@ -444,6 +483,19 @@ public class KanbanService {
             retry(requireArg(tokens[0], "/kanban retry <task-id> [reason]"),
                     tokens.length > 1 ? tokens[1] : null);
             return "已重试任务：" + tokens[0];
+        }
+        if ("runs".equals(action) || "history".equals(action)) {
+            return formatRuns(requireArg(rest, "/kanban runs <task-id>"));
+        }
+        if ("events".equals(action) || "tail".equals(action)) {
+            return formatEvents(requireArg(rest, "/kanban events <task-id>"));
+        }
+        if ("context".equals(action)) {
+            Map<String, Object> ctx = context(requireArg(rest, "/kanban context <task-id>"));
+            return String.valueOf(ctx.get("worker_context"));
+        }
+        if ("diagnostics".equals(action) || "diag".equals(action)) {
+            return formatDiagnostics(diagnostics(rest));
         }
         if ("claim".equals(action)) {
             String[] tokens = rest.split("\\s+", 2);
@@ -697,6 +749,74 @@ public class KanbanService {
         return buffer.toString();
     }
 
+    private String formatRuns(String taskId) throws Exception {
+        List<Map<String, Object>> runs = runs(taskId);
+        if (runs.isEmpty()) {
+            return "任务 " + taskId + " 暂无执行历史。";
+        }
+        StringBuilder buffer = new StringBuilder("运行历史：").append(taskId);
+        for (Map<String, Object> run : runs) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(run.get("run_id"))
+                    .append("  ")
+                    .append(StrUtil.blankToDefault(String.valueOf(run.get("status")), "-"))
+                    .append("  outcome=")
+                    .append(StrUtil.blankToDefault(String.valueOf(run.get("outcome")), "-"))
+                    .append("  worker=")
+                    .append(StrUtil.blankToDefault(String.valueOf(run.get("worker_id")), "-"));
+            if (StrUtil.isNotBlank(String.valueOf(run.get("summary")))) {
+                buffer.append("\n  summary: ").append(run.get("summary"));
+            }
+            if (StrUtil.isNotBlank(String.valueOf(run.get("error")))) {
+                buffer.append("\n  error: ").append(run.get("error"));
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String formatEvents(String taskId) throws Exception {
+        List<Map<String, Object>> events = events(taskId);
+        if (events.isEmpty()) {
+            return "任务 " + taskId + " 暂无执行流水。";
+        }
+        StringBuilder buffer = new StringBuilder("执行流水：").append(taskId);
+        for (Map<String, Object> event : events) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(StrUtil.blankToDefault(String.valueOf(event.get("created_at")), "-"))
+                    .append("  ")
+                    .append(event.get("kind"));
+            Object payload = event.get("payload");
+            if (payload != null) {
+                buffer.append("  ").append(ONode.serialize(payload));
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String formatDiagnostics(List<Map<String, Object>> diagnostics) {
+        if (diagnostics == null || diagnostics.isEmpty()) {
+            return "当前没有 Kanban 诊断项。";
+        }
+        StringBuilder buffer = new StringBuilder("Kanban 诊断：");
+        for (Map<String, Object> diagnostic : diagnostics) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(diagnostic.get("task_id"))
+                    .append("  [")
+                    .append(diagnostic.get("severity"))
+                    .append("] ")
+                    .append(diagnostic.get("kind"))
+                    .append(": ")
+                    .append(diagnostic.get("title"));
+            if (StrUtil.isNotBlank(String.valueOf(diagnostic.get("suggestion")))) {
+                buffer.append("\n  建议：").append(diagnostic.get("suggestion"));
+            }
+        }
+        return buffer.toString();
+    }
+
     private String kanbanHelp() {
         return String.join(
                 "\n",
@@ -709,6 +829,10 @@ public class KanbanService {
                         "/kanban reclaim <task-id> [reason] - 收回运行中的任务",
                         "/kanban reassign <task-id> <assignee> [--reclaim] - 重新分配任务",
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",
+                        "/kanban runs <task-id> - 查看任务执行历史",
+                        "/kanban events <task-id> - 查看任务执行流水",
+                        "/kanban context <task-id> - 输出 worker 上下文",
+                        "/kanban diagnostics [task-id] - 查看任务诊断与恢复提示",
                         "/kanban claim <task-id> [ttl_seconds] - 认领 ready 任务并开始运行",
                         "/kanban next [assignee] - 认领下一个 ready 任务",
                         "/kanban heartbeat <task-id> [note] - 刷新认领和 worker 心跳",
@@ -757,6 +881,90 @@ public class KanbanService {
             return ((Collection<?>) value).size();
         }
         return value == null ? 0 : 1;
+    }
+
+    private KanbanTaskRecord requireTask(String taskId) throws Exception {
+        KanbanTaskRecord task = repository.findTask(taskId);
+        if (task == null) {
+            throw new IllegalArgumentException("Kanban task not found: " + taskId);
+        }
+        return task;
+    }
+
+    private void addDiagnostics(List<Map<String, Object>> result, KanbanTaskRecord task)
+            throws Exception {
+        if (task == null) {
+            return;
+        }
+        if ("running".equals(task.getStatus())
+                && task.getClaimExpiresAt() > 0
+                && task.getClaimExpiresAt() < System.currentTimeMillis()) {
+            result.add(
+                    diagnostic(
+                            task,
+                            "error",
+                            "stale_claim",
+                            "运行任务的认领已过期",
+                            "执行 /kanban reclaim " + task.getTaskId() + " 或等待 dispatcher 自动收回。"));
+        }
+        if (task.getMaxRuntimeSeconds() > 0
+                && task.getStartedAt() > 0
+                && "running".equals(task.getStatus())
+                && (System.currentTimeMillis() - task.getStartedAt())
+                        > task.getMaxRuntimeSeconds() * 1000L) {
+            result.add(
+                    diagnostic(
+                            task,
+                            "error",
+                            "runtime_exceeded",
+                            "运行任务超过 max_runtime_seconds",
+                            "执行 /kanban reclaim-timeouts，或检查 worker 是否卡住。"));
+        }
+        if (task.getSpawnFailures() > 0) {
+            result.add(
+                    diagnostic(
+                            task,
+                            task.getSpawnFailures() >= 3 ? "critical" : "warning",
+                            "spawn_failed",
+                            "worker 启动失败 " + task.getSpawnFailures() + " 次",
+                            StrUtil.blankToDefault(
+                                    task.getLastSpawnError(),
+                                    "检查 assignee、运行环境、技能和启动命令。")));
+        }
+        for (KanbanEventRecord event : repository.listEvents(task.getTaskId())) {
+            String kind = event.getKind();
+            if ("completion_blocked_hallucination".equals(kind)) {
+                result.add(
+                        diagnostic(
+                                task,
+                                "error",
+                                kind,
+                                "完成回报包含未验证的 created_cards",
+                                "重新完成任务时只填写 kanban_create 返回的真实任务 id。"));
+            } else if ("suspected_hallucinated_references".equals(kind)) {
+                result.add(
+                        diagnostic(
+                                task,
+                                "warning",
+                                kind,
+                                "完成文本疑似引用不存在的任务 id",
+                                "核对 summary/result 中的任务 id，必要时补建任务或修正说明。"));
+            }
+        }
+    }
+
+    private Map<String, Object> diagnostic(
+            KanbanTaskRecord task, String severity, String kind, String title, String suggestion) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("task_id", task.getTaskId());
+        item.put("title", title);
+        item.put("task_title", task.getTitle());
+        item.put("status", task.getStatus());
+        item.put("assignee", task.getAssignee());
+        item.put("severity", severity);
+        item.put("kind", kind);
+        item.put("suggestion", suggestion);
+        return item;
     }
 
     private Map<String, Object> claimTtlBody(String[] tokens, Map<String, Object> body) {

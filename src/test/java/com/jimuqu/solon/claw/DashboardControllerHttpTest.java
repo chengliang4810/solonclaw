@@ -495,6 +495,25 @@ public class DashboardControllerHttpTest {
         assertThat(reassignTask.body).contains("\"assignee\":\"next\"");
         assertThat(reassignTask.body).contains("reassigned");
 
+        HttpResult kanbanRuns =
+                request("GET", "/api/kanban/tasks/" + taskId + "/runs", null, token);
+        assertThat(kanbanRuns.status).isEqualTo(200);
+        assertThat(kanbanRuns.body).contains("http-worker").contains("reclaimed");
+
+        HttpResult kanbanEvents =
+                request("GET", "/api/kanban/tasks/" + taskId + "/events", null, token);
+        assertThat(kanbanEvents.status).isEqualTo(200);
+        assertThat(kanbanEvents.body).contains("reassigned");
+
+        HttpResult kanbanContext =
+                request("GET", "/api/kanban/tasks/" + taskId + "/context", null, token);
+        assertThat(kanbanContext.status).isEqualTo(200);
+        assertThat(kanbanContext.body).contains("worker_context").contains("Prior attempts");
+
+        HttpResult kanbanDiagnostics =
+                request("GET", "/api/kanban/diagnostics?task=" + taskId, null, token);
+        assertThat(kanbanDiagnostics.status).isEqualTo(200);
+
         HttpResult commentTask =
                 request(
                         "POST",

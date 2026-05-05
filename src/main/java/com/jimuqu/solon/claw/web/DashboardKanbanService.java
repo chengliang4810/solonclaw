@@ -75,6 +75,22 @@ public class DashboardKanbanService {
                 body == null || body.get("reason") == null ? null : String.valueOf(body.get("reason")));
     }
 
+    public List<Map<String, Object>> runs(String taskId) throws Exception {
+        return kanbanService.runs(taskId);
+    }
+
+    public List<Map<String, Object>> events(String taskId) throws Exception {
+        return kanbanService.events(taskId);
+    }
+
+    public Map<String, Object> context(String taskId) throws Exception {
+        return kanbanService.context(taskId);
+    }
+
+    public List<Map<String, Object>> diagnostics(String taskId) throws Exception {
+        return kanbanService.diagnostics(taskId);
+    }
+
     public Map<String, Object> claim(String taskId, Map<String, Object> body) throws Exception {
         return kanbanService.claim(taskId, body);
     }

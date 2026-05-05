@@ -81,6 +81,26 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.retry(taskId, body(context)));
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/runs", method = MethodType.GET)
+    public List<Map<String, Object>> runs(String taskId) throws Exception {
+        return kanbanService.runs(taskId);
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/events", method = MethodType.GET)
+    public List<Map<String, Object>> events(String taskId) throws Exception {
+        return kanbanService.events(taskId);
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/context", method = MethodType.GET)
+    public Map<String, Object> workerContext(String taskId) throws Exception {
+        return DashboardResponse.ok(kanbanService.context(taskId));
+    }
+
+    @Mapping(value = "/api/kanban/diagnostics", method = MethodType.GET)
+    public List<Map<String, Object>> diagnostics(Context context) throws Exception {
+        return kanbanService.diagnostics(context.param("task"));
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/claim", method = MethodType.POST)
     public Map<String, Object> claim(String taskId, Context context) throws Exception {
         return DashboardResponse.ok(kanbanService.claim(taskId, body(context)));

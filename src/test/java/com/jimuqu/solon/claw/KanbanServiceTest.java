@@ -184,6 +184,21 @@ public class KanbanServiceTest {
                 .contains("reclaimed")
                 .contains("worker timeout");
         assertThat(String.valueOf(reclaimed.get("runs"))).contains("completed").contains("reclaimed");
+
+        assertThat(String.valueOf(service.runs(taskId))).contains("completed").contains("reclaimed");
+        assertThat(String.valueOf(service.events(taskId))).contains("retry").contains("reclaimed");
+        assertThat(String.valueOf(service.context(taskId).get("worker_context")))
+                .contains("Prior attempts")
+                .contains("worker timeout");
+        assertThat(service.handleCommand("runs " + taskId, "tester"))
+                .contains("运行历史")
+                .contains("reclaimed");
+        assertThat(service.handleCommand("events " + taskId, "tester"))
+                .contains("执行流水")
+                .contains("retry");
+        assertThat(service.handleCommand("context " + taskId, "tester"))
+                .contains("Task " + taskId)
+                .contains("Prior attempts");
     }
 
     @Test
@@ -314,6 +329,12 @@ public class KanbanServiceTest {
         assertThat(detail.get("last_spawn_error")).isEqualTo("spawn command failed");
         assertThat(String.valueOf(detail.get("active_run"))).contains("spawn command failed");
         assertThat(String.valueOf(detail.get("events"))).contains("spawn_failed");
+        assertThat(String.valueOf(service.diagnostics(taskId)))
+                .contains("spawn_failed")
+                .contains("spawn command failed");
+        assertThat(service.handleCommand("diagnostics " + taskId, "tester"))
+                .contains("Kanban 诊断")
+                .contains("spawn_failed");
     }
 
     private KanbanService service() throws Exception {
