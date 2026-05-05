@@ -713,17 +713,21 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_APPROVE.equals(command)) {
-            if (hasPendingSlashConfirm(message)) {
-                return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_ONCE);
+            if (hasPendingDangerousApproval(message)) {
+                return handleDangerousApprove(message, args);
             }
-            return handleDangerousApprove(message, args);
+            return hasPendingSlashConfirm(message)
+                    ? handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_ONCE)
+                    : handleDangerousApprove(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_DENY.equals(command)) {
-            if (hasPendingSlashConfirm(message)) {
-                return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
+            if (hasPendingDangerousApproval(message)) {
+                return handleDangerousDeny(message, args);
             }
-            return handleDangerousDeny(message, args);
+            return hasPendingSlashConfirm(message)
+                    ? handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL)
+                    : handleDangerousDeny(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_ALWAYS.equals(command)) {
@@ -1163,9 +1167,31 @@ public class DefaultCommandService implements CommandService {
         return message != null && slashConfirmService.getPending(message.sourceKey()) != null;
     }
 
+    private boolean hasPendingDangerousApproval(GatewayMessage message) {
+        if (message == null) {
+            return false;
+        }
+        try {
+            SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
+            if (session == null) {
+                return false;
+            }
+            return !dangerousCommandApprovalService
+                    .listPendingApprovals(new SqliteAgentSession(session, sessionRepository))
+                    .isEmpty();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private String normalizeSlashConfirmChoice(String raw) {
         String value = StrUtil.nullToEmpty(raw).trim().toLowerCase();
-        if (StrUtil.isBlank(value) || "once".equals(value) || "now".equals(value)) {
+        if (StrUtil.isBlank(value)
+                || "once".equals(value)
+                || "now".equals(value)
+                || "yes".equals(value)
+                || "ok".equals(value)
+                || "confirm".equals(value)) {
             return SlashConfirmService.CHOICE_ONCE;
         }
         if ("always".equals(value) || "永久".equals(value)) {

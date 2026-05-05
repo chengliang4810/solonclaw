@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
@@ -326,10 +327,20 @@ public class CommandEnhancementTest {
         GatewayReply promptAgain = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(promptAgain.getContent()).contains("/approve");
 
-        GatewayReply approved = env.send("admin-chat", "admin-user", "/approve");
-        assertThat(approved.getContent())
+        GatewayReply approvedWithAlias = env.send("admin-chat", "admin-user", "/approve yes");
+        assertThat(approvedWithAlias.getContent())
                 .contains("MCP reload completed")
                 .contains("tools=1");
+
+        GatewayReply okPrompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(okPrompt.getContent()).contains("确认编号");
+        GatewayReply approvedWithOk = env.send("admin-chat", "admin-user", "/approve ok");
+        assertThat(approvedWithOk.getContent()).contains("MCP reload completed");
+
+        GatewayReply confirmPrompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(confirmPrompt.getContent()).contains("确认编号");
+        GatewayReply approvedWithConfirm = env.send("admin-chat", "admin-user", "/approve confirm");
+        assertThat(approvedWithConfirm.getContent()).contains("MCP reload completed");
 
         GatewayReply alwaysPrompt = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(alwaysPrompt.getContent()).contains("/always");
@@ -345,6 +356,77 @@ public class CommandEnhancementTest {
         assertThat(direct.getContent())
                 .contains("MCP reload completed")
                 .doesNotContain("确认编号");
+    }
+
+    @Test
+    void shouldSupersedePendingReloadMcpSlashConfirm() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "slash-confirm-supersede");
+        body.put("name", "Slash Confirm Supersede");
+        body.put("transport", "stdio");
+        body.put("command", "docs-mcp");
+        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        mcpService.save(body);
+
+        GatewayReply first = env.send("admin-chat", "admin-user", "/reload-mcp");
+        GatewayReply second = env.send("admin-chat", "admin-user", "/reload-mcp");
+
+        assertThat(first.getContent()).contains("确认编号");
+        assertThat(second.getContent()).contains("确认编号");
+        assertThat(second.getContent()).isNotEqualTo(first.getContent());
+
+        GatewayReply cancelled = env.send("admin-chat", "admin-user", "/cancel");
+        assertThat(cancelled.getContent()).contains("已取消 /reload-mcp");
+
+        GatewayReply stale = env.send("admin-chat", "admin-user", "/cancel");
+        assertThat(stale.getContent()).contains("当前没有待确认的 slash 命令");
+    }
+
+    @Test
+    void shouldPrioritizeDangerousApprovalOverSlashConfirmFallback() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "slash-confirm-priority");
+        body.put("name", "Slash Confirm Priority");
+        body.put("transport", "stdio");
+        body.put("command", "docs-mcp");
+        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        mcpService.save(body);
+
+        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(prompt.getContent()).contains("确认编号");
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply approved = env.send("admin-chat", "admin-user", "/approve session");
+        SessionRecord updated =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "git_reset_hard"))
+                .isTrue();
+
+        GatewayReply stillPendingSlashConfirm = env.send("admin-chat", "admin-user", "/cancel");
+        assertThat(stillPendingSlashConfirm.getContent()).contains("已取消 /reload-mcp");
     }
 
     @Test
