@@ -105,7 +105,7 @@ solonclaw:
 
   # 审批/确认策略配置。对齐 Hermes approvals.mcp_reload_confirm。
   approvals:
-    # 危险命令审批模式：on 开启人工审批；off 关闭可审批危险命令提示；smart 预留给辅助模型判定。
+    # 危险命令审批模式：on 开启人工审批；off 关闭可审批危险命令提示；smart 先由辅助模型判定低风险命令，无法确认时回到人工审批。
     # hardline 命令、URL 安全策略和凭据文件策略始终阻断，不受 off 影响。
     mode: on
     # cron 无人值守遇到危险命令时的处理方式：deny 阻断，approve 允许可审批危险命令直接运行。

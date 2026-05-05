@@ -18,6 +18,8 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
@@ -27,6 +29,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -106,6 +109,10 @@ public class SolonAiLlmGateway implements LlmGateway {
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.llmProviderService =
                 llmProviderService == null ? new LlmProviderService(appConfig) : llmProviderService;
+        if (this.dangerousCommandApprovalService != null) {
+            this.dangerousCommandApprovalService.setSmartApprovalJudge(
+                    new SolonAiSmartApprovalJudge());
+        }
     }
 
     @Override
@@ -1175,6 +1182,69 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         return null;
+    }
+
+    private class SolonAiSmartApprovalJudge implements SmartApprovalJudge {
+        @Override
+        public SmartApprovalDecision judge(String toolName, String command, String description) {
+            try {
+                AppConfig.LlmConfig resolved = buildCandidateConfigs(null).get(0);
+                validate(resolved);
+                ChatModel chatModel = buildChatModel(resolved);
+                String prompt =
+                        "You are the smart approval judge for a local AI agent. "
+                                + "Decide whether this flagged command is low risk enough to run without asking the user. "
+                                + "Reply with only compact JSON: {\"decision\":\"approve\"|\"escalate\",\"reason\":\"...\"}. "
+                                + "Approve only read-only, diagnostic, or clearly reversible low-risk actions. "
+                                + "Escalate destructive, credential, network install, privilege, persistence, service, or ambiguous actions.\n\n"
+                                + "tool: "
+                                + StrUtil.nullToEmpty(toolName)
+                                + "\nreason: "
+                                + StrUtil.nullToEmpty(description)
+                                + "\ncommand:\n"
+                                + StrUtil.nullToEmpty(command);
+                ChatResponse response =
+                        chatModel
+                                .prompt(
+                                        ChatMessage.ofSystem(
+                                                "You are a strict command risk classifier."),
+                                        ChatMessage.ofUser(prompt))
+                                .call();
+                return parseSmartApprovalResponse(response == null ? null : response.getContent());
+            } catch (Exception e) {
+                log.warn("Smart approval judge failed, escalating to manual approval: {}", e.getMessage());
+                return SmartApprovalDecision.escalate("smart approval failed");
+            }
+        }
+    }
+
+    private SmartApprovalDecision parseSmartApprovalResponse(String raw) {
+        String text = StrUtil.nullToEmpty(raw).trim();
+        if (text.startsWith("```")) {
+            text = text.replaceFirst("(?is)^```(?:json)?\\s*", "");
+            text = text.replaceFirst("(?is)\\s*```$", "").trim();
+        }
+        try {
+            Object parsed = ONode.deserialize(text, Object.class);
+            if (parsed instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) parsed;
+                String decision =
+                        StrUtil.nullToEmpty(String.valueOf(map.get("decision")))
+                                .trim()
+                                .toLowerCase(Locale.ROOT);
+                String reason = StrUtil.nullToEmpty(String.valueOf(map.get("reason")));
+                if ("approve".equals(decision)) {
+                    return SmartApprovalDecision.approve(reason);
+                }
+                return SmartApprovalDecision.escalate(reason);
+            }
+        } catch (Exception ignored) {
+        }
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (lower.contains("\"approve\"") || lower.startsWith("approve")) {
+            return SmartApprovalDecision.approve(text);
+        }
+        return SmartApprovalDecision.escalate(text);
     }
 
     /** 将 ReAct 生命周期事件桥接到网关反馈 sink。 */

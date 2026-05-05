@@ -469,6 +469,7 @@ public class DangerousCommandApprovalService {
     private final AppConfig appConfig;
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
+    private SmartApprovalJudge smartApprovalJudge;
 
     public DangerousCommandApprovalService(GlobalSettingRepository globalSettingRepository) {
         this(globalSettingRepository, null, null, null);
@@ -496,6 +497,10 @@ public class DangerousCommandApprovalService {
         this.appConfig = appConfig;
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
+    }
+
+    public void setSmartApprovalJudge(SmartApprovalJudge smartApprovalJudge) {
+        this.smartApprovalJudge = smartApprovalJudge;
     }
 
     public HITLInterceptor buildInterceptor() {
@@ -842,7 +847,8 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        if ("off".equals(approvalMode())) {
+        String approvalMode = approvalMode();
+        if ("off".equals(approvalMode)) {
             persistTraceSnapshot(trace);
             return null;
         }
@@ -867,10 +873,42 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
+        SmartApprovalDecision smartDecision =
+                "smart".equals(approvalMode)
+                        ? smartApprove(toolName, code, detection, trace.getContext())
+                        : null;
+        if (smartDecision != null && smartDecision.isApproved()) {
+            if (pending != null && approvalKey.equals(pending.approvalKey())) {
+                trace.getContext().remove(CONTEXT_PENDING_APPROVAL);
+            }
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         trace.getContext()
                 .put(CONTEXT_PENDING_APPROVAL, createPendingMap(toolName, detection, code));
         persistTraceSnapshot(trace);
         return buildPendingMessage(toolName, detection, code);
+    }
+
+    private SmartApprovalDecision smartApprove(
+            String toolName, String code, DetectionResult detection, FlowContext context) {
+        if (smartApprovalJudge == null || detection == null || containsTirith(detection)) {
+            return null;
+        }
+        try {
+            SmartApprovalDecision decision =
+                    smartApprovalJudge.judge(toolName, code, detection.getDescription());
+            if (decision == null || !decision.isApproved()) {
+                return decision;
+            }
+            for (String patternKey : detection.effectivePatternKeys()) {
+                addSessionApproval(context, approvalPattern(toolName, patternKey));
+            }
+            return decision;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private DetectionResult detectCombined(String toolName, String code) {
@@ -1414,6 +1452,18 @@ public class DangerousCommandApprovalService {
 
     private boolean isTirithPattern(String patternKey) {
         return StrUtil.nullToEmpty(patternKey).startsWith("tirith:");
+    }
+
+    private boolean containsTirith(DetectionResult detection) {
+        if (detection == null) {
+            return false;
+        }
+        for (String patternKey : detection.effectivePatternKeys()) {
+            if (isTirithPattern(patternKey)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ApprovalKeyParts parseApprovalKey(String approvalKey) {

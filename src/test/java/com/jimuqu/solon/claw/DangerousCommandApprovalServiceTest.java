@@ -7,6 +7,8 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.io.File;
 import java.util.Arrays;
@@ -706,6 +708,101 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(approved).isTrue();
         assertThat(service.isSessionApproved(trace.session, "tirith:shortened_url")).isTrue();
         assertThat(service.isAlwaysApproved("tirith:shortened_url")).isFalse();
+    }
+
+    @Test
+    void shouldAutoApproveLowRiskDangerousCommandInSmartMode() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        null);
+        service.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.approve("low risk cleanup");
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+        assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isTrue();
+        assertThat(service.isAlwaysApproved("recursive_delete")).isFalse();
+    }
+
+    @Test
+    void shouldEscalateSmartApprovalWhenJudgeDoesNotApprove() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        null);
+        service.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.escalate("needs user");
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(service.getPendingApproval(trace.session)).isNotNull();
+        assertThat(trace.getFinalAnswer()).contains("危险命令需要审批");
+        assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isFalse();
+    }
+
+    @Test
+    void shouldNotSmartApproveTirithFindings() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("terminal_injection", "HIGH", "Terminal injection", "")),
+                                "terminal injection"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        service.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.approve("low risk");
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "echo hello");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(service.getPendingApproval(trace.session)).isNotNull();
+        assertThat(trace.getFinalAnswer()).contains("Security scan");
+        assertThat(service.isSessionApproved(trace.session, "tirith:terminal_injection")).isFalse();
     }
 
     @Test

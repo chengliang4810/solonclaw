@@ -2705,7 +2705,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ApprovalsConfig {
-        /** 危险命令审批模式：on / off / smart。smart 预留给辅助模型判定。 */
+        /** 危险命令审批模式：on / off / smart。smart 会先由辅助模型判定低风险命令。 */
         private String mode = "on";
 
         /** cron 遇到危险命令时的模式：deny / approve。 */
