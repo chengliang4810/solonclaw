@@ -1195,6 +1195,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         : request.getChannelExtras();
         String command = stringValue(extras.get("approvalCommand"));
         String description = stringValue(extras.get("approvalDescription"));
+        String approvalId = stringValue(extras.get("approvalId"));
         String preview = command;
         if (preview.length() > 3000) {
             preview = preview.substring(0, 3000) + "...";
@@ -1205,24 +1206,28 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 cardButton(
                         "✅ Allow Once",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                        approvalId,
                         "once",
                         "primary"));
         actions.add(
                 cardButton(
                         "✅ Session",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                        approvalId,
                         "session",
                         "default"));
         actions.add(
                 cardButton(
                         "✅ Always",
                         DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                        approvalId,
                         "always",
                         "default"));
         actions.add(
                 cardButton(
                         "❌ Deny",
                         DangerousCommandApprovalService.CARD_ACTION_DENY,
+                        approvalId,
                         "deny",
                         "danger"));
 
@@ -1262,7 +1267,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
     }
 
-    private Object cardButton(String label, String action, String scope, String type) {
+    private Object cardButton(
+            String label, String action, String approvalId, String scope, String type) {
         return new ONode()
                 .set("tag", "button")
                 .getOrNew("text")
@@ -1273,6 +1279,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 .getOrNew("value")
                 .set(DangerousCommandApprovalService.CARD_ACTION_KEY, action)
                 .set(DangerousCommandApprovalService.CARD_SCOPE_KEY, scope)
+                .set(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, approvalId)
                 .parent()
                 .toData();
     }

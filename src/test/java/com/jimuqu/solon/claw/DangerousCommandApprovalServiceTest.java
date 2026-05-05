@@ -606,6 +606,7 @@ public class DangerousCommandApprovalServiceTest {
         pending.setPatternKey("recursive_delete");
         pending.setDescription("recursive delete");
         pending.setCommand("rm -rf runtime/cache");
+        pending.setApprovalId("approval-123");
 
         Map<String, Object> extras =
                 env.dangerousCommandApprovalService.buildDeliveryExtras(
@@ -615,12 +616,20 @@ public class DangerousCommandApprovalServiceTest {
                 DangerousCommandApprovalService.CARD_ACTION_KEY,
                 DangerousCommandApprovalService.CARD_ACTION_APPROVE);
         payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "always");
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123");
 
+        assertThat(extras.get("approvalId")).isEqualTo("approval-123");
         assertThat(extras.get("mode"))
                 .isEqualTo(DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
         assertThat(extras.get("approvalCommand")).isEqualTo("rm -rf runtime/cache");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
-                .isEqualTo("/approve always");
+                .isEqualTo("/approve approval-123 always");
+
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                DangerousCommandApprovalService.CARD_ACTION_DENY);
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
+                .isEqualTo("/deny approval-123");
     }
 
     @Test

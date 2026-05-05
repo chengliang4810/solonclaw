@@ -33,6 +33,7 @@ public class DangerousCommandApprovalService {
     public static final String DELIVERY_MODE_APPROVAL_CARD = "dangerous_command_approval_card";
     public static final String CARD_ACTION_KEY = "solonclaw_action";
     public static final String CARD_SCOPE_KEY = "scope";
+    public static final String CARD_APPROVAL_ID_KEY = "approvalId";
     public static final String CARD_ACTION_APPROVE = "dangerous_approve";
     public static final String CARD_ACTION_DENY = "dangerous_deny";
 
@@ -737,6 +738,7 @@ public class DangerousCommandApprovalService {
 
         Map<String, Object> extras = new LinkedHashMap<String, Object>();
         extras.put("mode", DELIVERY_MODE_APPROVAL_CARD);
+        extras.put("approvalId", pending.getApprovalId());
         extras.put("approvalCommand", pending.getCommand());
         extras.put("approvalDescription", pending.getDescription());
         extras.put("approvalToolName", pending.getToolName());
@@ -812,21 +814,23 @@ public class DangerousCommandApprovalService {
         }
 
         String action = stringValueStatic(map.get(CARD_ACTION_KEY)).toLowerCase(Locale.ROOT);
+        String approvalId = stringValueStatic(map.get(CARD_APPROVAL_ID_KEY));
         if (CARD_ACTION_DENY.equals(action)) {
-            return "/deny";
+            return StrUtil.isBlank(approvalId) ? "/deny" : "/deny " + approvalId;
         }
         if (!CARD_ACTION_APPROVE.equals(action)) {
             return null;
         }
 
         String scope = stringValueStatic(map.get(CARD_SCOPE_KEY)).toLowerCase(Locale.ROOT);
+        String selector = StrUtil.isBlank(approvalId) ? "" : approvalId + " ";
         if ("always".equals(scope)) {
-            return "/approve always";
+            return "/approve " + selector + "always";
         }
         if ("session".equals(scope)) {
-            return "/approve session";
+            return "/approve " + selector + "session";
         }
-        return "/approve";
+        return StrUtil.isBlank(approvalId) ? "/approve" : "/approve " + approvalId;
     }
 
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
