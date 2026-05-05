@@ -542,6 +542,53 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockWritesOutsideConfiguredHermesSafeRoot() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> rootArgs = new LinkedHashMap<String, Object>();
+        rootArgs.put("fileName", "D:/workspace/safe-root");
+        Map<String, Object> insideArgs = new LinkedHashMap<String, Object>();
+        insideArgs.put("fileName", "D:/workspace/safe-root/src/main.java");
+        Map<String, Object> outsideArgs = new LinkedHashMap<String, Object>();
+        outsideArgs.put("fileName", "D:/workspace/other/file.txt");
+        Map<String, Object> prefixArgs = new LinkedHashMap<String, Object>();
+        prefixArgs.put("fileName", "D:/workspace/safe-root-other/file.txt");
+
+        SecurityPolicyService.FileVerdict root =
+                securityPolicyService.checkFileToolArgs("file_write", rootArgs);
+        SecurityPolicyService.FileVerdict inside =
+                securityPolicyService.checkFileToolArgs("file_write", insideArgs);
+        SecurityPolicyService.FileVerdict outside =
+                securityPolicyService.checkFileToolArgs("file_write", outsideArgs);
+        SecurityPolicyService.FileVerdict prefix =
+                securityPolicyService.checkFileToolArgs("file_write", prefixArgs);
+
+        assertThat(root.isAllowed()).isTrue();
+        assertThat(inside.isAllowed()).isTrue();
+        assertThat(outside.isAllowed()).isFalse();
+        assertThat(outside.getMessage()).contains("安全写入根");
+        assertThat(prefix.isAllowed()).isFalse();
+    }
+
+    @Test
+    void shouldApplyConfiguredSafeRootToShellCommandPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict inside =
+                securityPolicyService.checkCommandPaths(
+                        "Set-Content D:/workspace/safe-root/output.txt ok");
+        SecurityPolicyService.FileVerdict outside =
+                securityPolicyService.checkCommandPaths("echo bad > D:/workspace/other/output.txt");
+
+        assertThat(inside.isAllowed()).isTrue();
+        assertThat(outside.isAllowed()).isFalse();
+        assertThat(outside.getPath()).isEqualTo("D:/workspace/other/output.txt");
+    }
+
+    @Test
     void shouldBlockPathTraversalForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

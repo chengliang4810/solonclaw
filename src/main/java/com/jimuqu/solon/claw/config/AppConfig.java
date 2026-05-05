@@ -1270,6 +1270,18 @@ public class AppConfig {
                                                 "terminal.sudo_password",
                                                 null))));
         config.getTerminal()
+                .setWriteSafeRoot(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.terminal.writeSafeRoot",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "terminal.write_safe_root",
+                                                null))));
+        config.getTerminal()
                 .setMaxForegroundTimeoutSeconds(
                         positiveInt(
                                 resolveInt(
@@ -1504,6 +1516,7 @@ public class AppConfig {
     private void copyTerminal(TerminalConfig other) {
         this.terminal.setCredentialFiles(new ArrayList<String>(other.getCredentialFiles()));
         this.terminal.setSudoPassword(other.getSudoPassword());
+        this.terminal.setWriteSafeRoot(other.getWriteSafeRoot());
         this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
     }
 
@@ -2715,6 +2728,9 @@ public class AppConfig {
 
         /** 对齐 Hermes SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
         private String sudoPassword;
+
+        /** 对齐 Hermes HERMES_WRITE_SAFE_ROOT / terminal.write_safe_root；为空表示不限制工作区写入根。 */
+        private String writeSafeRoot;
 
         /** 对齐 Hermes TERMINAL_MAX_FOREGROUND_TIMEOUT；单位秒。 */
         private int maxForegroundTimeoutSeconds = 600;

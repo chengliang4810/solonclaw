@@ -91,6 +91,7 @@ public class RuntimeSettingsService {
                     "approvals.mcpReloadConfirm",
                     "terminal.credentialFiles",
                     "terminal.sudoPassword",
+                    "terminal.writeSafeRoot",
                     "terminal.maxForegroundTimeoutSeconds");
 
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =

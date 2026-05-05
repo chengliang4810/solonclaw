@@ -46,6 +46,7 @@ public class CoreConfigOverrideLoadTest {
                         + "    credentialFiles:\n"
                         + "      - credentials/oauth.json\n"
                         + "    sudoPassword: runtime-pass\n"
+                        + "    writeSafeRoot: D:/workspace/runtime\n"
                         + "  mcp:\n"
                         + "    enabled: true\n"
                         + "  security:\n"
@@ -124,6 +125,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTerminal().getCredentialFiles())
                 .containsExactly("credentials/oauth.json");
         assertThat(config.getTerminal().getSudoPassword()).isEqualTo("runtime-pass");
+        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/runtime");
         assertThat(config.getMcp().isEnabled()).isTrue();
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
@@ -196,5 +198,22 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTerminal().getSudoPassword()).isEqualTo("hermes-pass");
+    }
+
+    @Test
+    void shouldLoadHermesTerminalWriteSafeRootAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-write-root").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "terminal:\n"
+                        + "  write_safe_root: D:/workspace/hermes-safe\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/hermes-safe");
     }
 }

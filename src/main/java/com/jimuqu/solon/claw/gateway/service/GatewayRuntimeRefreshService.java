@@ -503,7 +503,9 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.display.runtimeFooter.fields",
                     "solonclaw.gateway.allowedUsers",
                     "solonclaw.terminal.credentialFiles",
-                    "terminal.credential_files");
+                    "terminal.credential_files",
+                    "solonclaw.terminal.writeSafeRoot",
+                    "terminal.write_safe_root");
 
     private static final Set<String> INT_SUFFIXES =
             setOf(

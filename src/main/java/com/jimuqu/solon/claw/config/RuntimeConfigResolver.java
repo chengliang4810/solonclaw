@@ -467,6 +467,8 @@ public class RuntimeConfigResolver {
                 "terminal.credential_files",
                 "solonclaw.terminal.sudoPassword",
                 "terminal.sudo_password",
+                "solonclaw.terminal.writeSafeRoot",
+                "terminal.write_safe_root",
                 "solonclaw.terminal.maxForegroundTimeoutSeconds",
                 "terminal.max_foreground_timeout",
                 "solonclaw.mcp.enabled",

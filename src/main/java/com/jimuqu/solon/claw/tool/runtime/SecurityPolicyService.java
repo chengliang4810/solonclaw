@@ -75,7 +75,7 @@ public class SecurityPolicyService {
                     "/etc/systemd/");
     private static final Pattern SHELL_PATH_PATTERN =
             Pattern.compile(
-                    "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:\\\\[^\\s'\"`|;&<>]+)",
+                    "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
@@ -249,6 +249,9 @@ public class SecurityPolicyService {
         }
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
+        }
+        if (writeLike && isOutsideSafeWriteRoot(normalized)) {
+            return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
         }
         return FileVerdict.allow();
     }
@@ -522,7 +525,7 @@ public class SecurityPolicyService {
         if (WRITE_DENIED_HOME_FILE_NAMES.contains(lastPathPart(path))) {
             return startsWithHomeLikePrefix(normalized) || startsWithUserHome(normalized);
         }
-        return isOutsideSafeWriteRoot(normalized);
+        return false;
     }
 
     private boolean startsWithHomeLikePrefix(String normalized) {
@@ -546,7 +549,13 @@ public class SecurityPolicyService {
     }
 
     private boolean isOutsideSafeWriteRoot(String normalized) {
-        String safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+        String safeRoot = "";
+        if (appConfig != null && appConfig.getTerminal() != null) {
+            safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
+        }
+        if (StrUtil.isBlank(safeRoot)) {
+            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+        }
         if (StrUtil.isBlank(safeRoot)) {
             safeRoot = StrUtil.nullToEmpty(System.getenv("HERMES_WRITE_SAFE_ROOT")).trim();
         }

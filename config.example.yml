@@ -240,6 +240,9 @@ solonclaw:
     # 可选 sudo 密码；也可通过环境变量 SUDO_PASSWORD 提供。用于把实际 sudo 命令改写为 sudo -S -p ''。
     # 留空时不改写 sudo，避免在未配置凭据时改变命令行为。
     sudoPassword: ""
+    # 对齐 Hermes HERMES_WRITE_SAFE_ROOT / terminal.write_safe_root。
+    # 留空表示不限制普通工作区写入；填写后 file_write/patch/shell 写入只能落在该目录内。
+    writeSafeRoot: ""
 
   # Agent 行为配置。
   agent:
