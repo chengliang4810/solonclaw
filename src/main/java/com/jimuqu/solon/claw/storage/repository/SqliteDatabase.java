@@ -929,6 +929,21 @@ public class SqliteDatabase {
                             + ")");
             statement.execute(
                     "create index if not exists idx_kanban_events_task on kanban_events(task_id, created_at asc)");
+            statement.execute(
+                    "create table if not exists kanban_notify_subscriptions ("
+                            + "subscription_id text primary key,"
+                            + "task_id text not null,"
+                            + "platform text not null,"
+                            + "chat_id text not null,"
+                            + "thread_id text,"
+                            + "user_id text,"
+                            + "last_event_id text,"
+                            + "created_at integer not null,"
+                            + "updated_at integer not null,"
+                            + "unique(task_id, platform, chat_id, thread_id)"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_kanban_notify_task on kanban_notify_subscriptions(task_id, updated_at desc)");
             statement.close();
         } finally {
             connection.close();

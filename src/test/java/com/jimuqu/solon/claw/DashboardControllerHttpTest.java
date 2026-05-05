@@ -514,6 +514,56 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/kanban/diagnostics?task=" + taskId, null, token);
         assertThat(kanbanDiagnostics.status).isEqualTo(200);
 
+        HttpResult kanbanStats = request("GET", "/api/kanban/stats", null, token);
+        assertThat(kanbanStats.status).isEqualTo(200);
+        assertThat(kanbanStats.body).contains("by_status").contains("next");
+
+        HttpResult kanbanWatch =
+                request("GET", "/api/kanban/watch?kinds=reassigned&limit=20", null, token);
+        assertThat(kanbanWatch.status).isEqualTo(200);
+        assertThat(kanbanWatch.body).contains("reassigned");
+
+        HttpResult notifySubscribe =
+                request(
+                        "POST",
+                        "/api/kanban/notify-subscriptions",
+                        "{\"task_id\":\""
+                                + taskId
+                                + "\",\"platform\":\"feishu\",\"chat_id\":\"chat-http\",\"thread_id\":\"thread-http\"}",
+                        token);
+        assertThat(notifySubscribe.status).isEqualTo(200);
+        assertThat(notifySubscribe.body).contains("chat-http");
+
+        HttpResult notifyList =
+                request("GET", "/api/kanban/notify-subscriptions?task=" + taskId, null, token);
+        assertThat(notifyList.status).isEqualTo(200);
+        assertThat(notifyList.body).contains("thread-http");
+
+        HttpResult notifyRemove =
+                request(
+                        "POST",
+                        "/api/kanban/notify-subscriptions/remove",
+                        "{\"task_id\":\""
+                                + taskId
+                                + "\",\"platform\":\"feishu\",\"chat_id\":\"chat-http\",\"thread_id\":\"thread-http\"}",
+                        token);
+        assertThat(notifyRemove.status).isEqualTo(200);
+        assertThat(notifyRemove.body).contains("\"removed\":true");
+
+        HttpResult kanbanLog =
+                request("GET", "/api/kanban/tasks/" + taskId + "/log?tail=80", null, token);
+        assertThat(kanbanLog.status).isEqualTo(200);
+        assertThat(kanbanLog.body).contains("\"exists\":false").contains(taskId);
+
+        HttpResult kanbanGc =
+                request(
+                        "POST",
+                        "/api/kanban/gc",
+                        "{\"event_retention_days\":30,\"log_retention_days\":30}",
+                        token);
+        assertThat(kanbanGc.status).isEqualTo(200);
+        assertThat(kanbanGc.body).contains("removed_events").contains("removed_logs");
+
         HttpResult commentTask =
                 request(
                         "POST",

@@ -91,6 +91,35 @@ public class DashboardKanbanService {
         return kanbanService.diagnostics(taskId);
     }
 
+    public Map<String, Object> stats() throws Exception {
+        return kanbanService.stats();
+    }
+
+    public List<Map<String, Object>> watch(String assignee, String tenant, String kinds, int limit)
+            throws Exception {
+        return kanbanService.watch(assignee, tenant, kinds, limit);
+    }
+
+    public Map<String, Object> notifySubscribe(Map<String, Object> body) throws Exception {
+        return kanbanService.notifySubscribe(body);
+    }
+
+    public List<Map<String, Object>> notifyList(String taskId) throws Exception {
+        return kanbanService.notifyList(taskId);
+    }
+
+    public Map<String, Object> notifyUnsubscribe(Map<String, Object> body) throws Exception {
+        return kanbanService.notifyUnsubscribe(body);
+    }
+
+    public Map<String, Object> log(String taskId, int tailBytes) throws Exception {
+        return kanbanService.log(taskId, tailBytes);
+    }
+
+    public Map<String, Object> gc(Map<String, Object> body) throws Exception {
+        return kanbanService.gc(body);
+    }
+
     public Map<String, Object> claim(String taskId, Map<String, Object> body) throws Exception {
         return kanbanService.claim(taskId, body);
     }

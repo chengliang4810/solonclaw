@@ -101,6 +101,45 @@ public class DashboardKanbanController {
         return kanbanService.diagnostics(context.param("task"));
     }
 
+    @Mapping(value = "/api/kanban/stats", method = MethodType.GET)
+    public Map<String, Object> stats() throws Exception {
+        return DashboardResponse.ok(kanbanService.stats());
+    }
+
+    @Mapping(value = "/api/kanban/watch", method = MethodType.GET)
+    public List<Map<String, Object>> watch(Context context) throws Exception {
+        return kanbanService.watch(
+                context.param("assignee"),
+                context.param("tenant"),
+                context.param("kinds"),
+                intParam(context.param("limit"), 200));
+    }
+
+    @Mapping(value = "/api/kanban/notify-subscriptions", method = MethodType.POST)
+    public Map<String, Object> notifySubscribe(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.notifySubscribe(body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/notify-subscriptions", method = MethodType.GET)
+    public List<Map<String, Object>> notifyList(Context context) throws Exception {
+        return kanbanService.notifyList(context.param("task"));
+    }
+
+    @Mapping(value = "/api/kanban/notify-subscriptions/remove", method = MethodType.POST)
+    public Map<String, Object> notifyUnsubscribe(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.notifyUnsubscribe(body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/log", method = MethodType.GET)
+    public Map<String, Object> log(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.log(taskId, intParam(context.param("tail"), 0)));
+    }
+
+    @Mapping(value = "/api/kanban/gc", method = MethodType.POST)
+    public Map<String, Object> gc(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.gc(body(context)));
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/claim", method = MethodType.POST)
     public Map<String, Object> claim(String taskId, Context context) throws Exception {
         return DashboardResponse.ok(kanbanService.claim(taskId, body(context)));
@@ -173,5 +212,13 @@ public class DashboardKanbanController {
             return new LinkedHashMap<String, Object>();
         }
         return ONode.deserialize(ONode.ofJson(body).toJson(), LinkedHashMap.class);
+    }
+
+    private int intParam(String value, int defaultValue) {
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 }

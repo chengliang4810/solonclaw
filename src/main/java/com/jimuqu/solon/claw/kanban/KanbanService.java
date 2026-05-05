@@ -1,6 +1,9 @@
 package com.jimuqu.solon.claw.kanban;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,10 +29,16 @@ public class KanbanService {
     private static final long DEFAULT_CLAIM_TTL_SECONDS = 900L;
 
     private final KanbanRepository repository;
+    private final AppConfig appConfig;
     private KanbanDispatcherService dispatcherService;
 
     public KanbanService(KanbanRepository repository) {
+        this(repository, null);
+    }
+
+    public KanbanService(KanbanRepository repository, AppConfig appConfig) {
         this.repository = repository;
+        this.appConfig = appConfig;
     }
 
     public void setDispatcherService(KanbanDispatcherService dispatcherService) {
@@ -292,6 +301,142 @@ public class KanbanService {
         return result;
     }
 
+    public Map<String, Object> stats() throws Exception {
+        List<KanbanTaskRecord> tasks = repository.listTasks(null, null, true);
+        Map<String, Integer> byStatus = new LinkedHashMap<String, Integer>();
+        for (String status : STATUSES) {
+            byStatus.put(status, Integer.valueOf(0));
+        }
+        Map<String, Map<String, Integer>> byAssignee =
+                new LinkedHashMap<String, Map<String, Integer>>();
+        long oldestReady = 0;
+        long now = System.currentTimeMillis();
+        for (KanbanTaskRecord task : tasks) {
+            String status = task.getStatus();
+            Integer statusCount = byStatus.get(status);
+            byStatus.put(status, Integer.valueOf(statusCount == null ? 1 : statusCount.intValue() + 1));
+            String assignee = StrUtil.blankToDefault(task.getAssignee(), "-");
+            Map<String, Integer> counts = byAssignee.get(assignee);
+            if (counts == null) {
+                counts = new LinkedHashMap<String, Integer>();
+                byAssignee.put(assignee, counts);
+            }
+            Integer assigneeCount = counts.get(status);
+            counts.put(status, Integer.valueOf(assigneeCount == null ? 1 : assigneeCount.intValue() + 1));
+            if ("ready".equals(status) && task.getUpdatedAt() > 0) {
+                oldestReady = oldestReady == 0 ? task.getUpdatedAt() : Math.min(oldestReady, task.getUpdatedAt());
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("by_status", byStatus);
+        result.put("by_assignee", byAssignee);
+        result.put(
+                "oldest_ready_age_seconds",
+                oldestReady <= 0 ? null : Long.valueOf(Math.max(0, (now - oldestReady) / 1000L)));
+        result.put("total", Integer.valueOf(tasks.size()));
+        return result;
+    }
+
+    public List<Map<String, Object>> watch(String assignee, String tenant, String kinds, int limit)
+            throws Exception {
+        List<String> kindFilter = splitCsv(kinds);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (KanbanEventRecord event : repository.listRecentEvents(limit <= 0 ? 200 : limit)) {
+            if (!kindFilter.isEmpty() && !kindFilter.contains(event.getKind())) {
+                continue;
+            }
+            KanbanTaskRecord task = repository.findTask(event.getTaskId());
+            if (task == null) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(assignee) && !StrUtil.equals(assignee, task.getAssignee())) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(tenant) && !StrUtil.equals(tenant, task.getTenant())) {
+                continue;
+            }
+            Map<String, Object> item = eventView(event);
+            item.put("assignee", task.getAssignee());
+            item.put("tenant", task.getTenant());
+            item.put("title", task.getTitle());
+            result.add(item);
+        }
+        return result;
+    }
+
+    public Map<String, Object> notifySubscribe(Map<String, Object> body) throws Exception {
+        String taskId = text(body, "task_id");
+        requireTask(taskId);
+        KanbanNotifySubscriptionRecord subscription = new KanbanNotifySubscriptionRecord();
+        subscription.setTaskId(taskId);
+        subscription.setPlatform(requireText(body, "platform"));
+        subscription.setChatId(requireText(body, "chat_id"));
+        subscription.setThreadId(StrUtil.nullToEmpty(text(body, "thread_id")));
+        subscription.setUserId(text(body, "user_id"));
+        subscription.setLastEventId(text(body, "last_event_id"));
+        return notifySubscriptionView(repository.saveNotifySubscription(subscription));
+    }
+
+    public List<Map<String, Object>> notifyList(String taskId) throws Exception {
+        if (StrUtil.isNotBlank(taskId)) {
+            requireTask(taskId);
+        }
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (KanbanNotifySubscriptionRecord subscription : repository.listNotifySubscriptions(taskId)) {
+            result.add(notifySubscriptionView(subscription));
+        }
+        return result;
+    }
+
+    public Map<String, Object> notifyUnsubscribe(Map<String, Object> body) throws Exception {
+        String taskId = requireText(body, "task_id");
+        boolean removed =
+                repository.removeNotifySubscription(
+                        taskId,
+                        requireText(body, "platform"),
+                        requireText(body, "chat_id"),
+                        StrUtil.nullToEmpty(text(body, "thread_id")));
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("removed", Boolean.valueOf(removed));
+        result.put("task_id", taskId);
+        return result;
+    }
+
+    public Map<String, Object> gc(Map<String, Object> body) throws Exception {
+        int eventDays = intValue(body, "event_retention_days", 30);
+        int logDays = intValue(body, "log_retention_days", 30);
+        long now = System.currentTimeMillis();
+        int removedEvents =
+                repository.deleteEventsOlderThan(now - Math.max(1, eventDays) * 24L * 3600L * 1000L);
+        int removedLogs = gcWorkerLogs(now - Math.max(1, logDays) * 24L * 3600L * 1000L);
+        int removedWorkspaces = gcArchivedScratchWorkspaces();
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("removed_events", Integer.valueOf(removedEvents));
+        result.put("removed_logs", Integer.valueOf(removedLogs));
+        result.put("removed_workspaces", Integer.valueOf(removedWorkspaces));
+        return result;
+    }
+
+    public Map<String, Object> log(String taskId, int tailBytes) throws Exception {
+        requireTask(taskId);
+        File logFile = workerLogFile(taskId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("task_id", taskId);
+        result.put("path", logFile.getAbsolutePath());
+        if (!logFile.exists() || !logFile.isFile()) {
+            result.put("exists", Boolean.FALSE);
+            result.put("content", null);
+            return result;
+        }
+        byte[] bytes = FileUtil.readBytes(logFile);
+        int start = tailBytes > 0 && bytes.length > tailBytes ? bytes.length - tailBytes : 0;
+        result.put("exists", Boolean.TRUE);
+        result.put("tail_bytes", Integer.valueOf(tailBytes));
+        result.put("size", Long.valueOf(logFile.length()));
+        result.put("content", new String(bytes, start, bytes.length - start, java.nio.charset.StandardCharsets.UTF_8));
+        return result;
+    }
+
     public Map<String, Object> claim(String taskId, Map<String, Object> body) throws Exception {
         String claimer = StrUtil.blankToDefault(text(body, "claimer"), defaultClaimer());
         long ttl = longValue(body, "ttl_seconds", DEFAULT_CLAIM_TTL_SECONDS);
@@ -407,6 +552,10 @@ public class KanbanService {
         comment.setAuthor(StrUtil.blankToDefault(author, "user"));
         comment.setBody(body);
         repository.addComment(comment);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("author", comment.getAuthor());
+        payload.put("body", summaryPreview(comment.getBody()));
+        addEvent(taskId, "comment", payload);
         return task(taskId);
     }
 
@@ -496,6 +645,32 @@ public class KanbanService {
         }
         if ("diagnostics".equals(action) || "diag".equals(action)) {
             return formatDiagnostics(diagnostics(rest));
+        }
+        if ("stats".equals(action)) {
+            return formatStats(stats());
+        }
+        if ("watch".equals(action)) {
+            return formatEventViews(watch(null, null, rest, 50), "最近 Kanban 事件");
+        }
+        if ("notify-subscribe".equals(action)) {
+            Map<String, Object> body = notifyBody(rest, true);
+            return "已订阅任务通知：" + notifySubscribe(body).get("id");
+        }
+        if ("notify-list".equals(action)) {
+            return formatNotifySubscriptions(notifyList(StrUtil.blankToDefault(rest, null)));
+        }
+        if ("notify-unsubscribe".equals(action)) {
+            Map<String, Object> result = notifyUnsubscribe(notifyBody(rest, false));
+            return Boolean.TRUE.equals(result.get("removed")) ? "已取消任务通知：" + result.get("task_id") : "没有匹配的任务通知订阅。";
+        }
+        if ("log".equals(action)) {
+            String[] tokens = rest.split("\\s+", 3);
+            String taskId = requireArg(tokens[0], "/kanban log <task-id> [tail_bytes]");
+            int tailBytes = tokens.length > 1 ? parseInt(tokens[1], 0) : 0;
+            return formatLog(log(taskId, tailBytes));
+        }
+        if ("gc".equals(action)) {
+            return formatGc(gc(parseGcOptions(rest)));
         }
         if ("claim".equals(action)) {
             String[] tokens = rest.split("\\s+", 2);
@@ -780,19 +955,76 @@ public class KanbanService {
         if (events.isEmpty()) {
             return "任务 " + taskId + " 暂无执行流水。";
         }
-        StringBuilder buffer = new StringBuilder("执行流水：").append(taskId);
+        return formatEventViews(events, "执行流水：" + taskId);
+    }
+
+    private String formatEventViews(List<Map<String, Object>> events, String title) {
+        if (events.isEmpty()) {
+            return title + "：暂无事件。";
+        }
+        StringBuilder buffer = new StringBuilder(title);
         for (Map<String, Object> event : events) {
             buffer.append('\n')
                     .append("- ")
                     .append(StrUtil.blankToDefault(String.valueOf(event.get("created_at")), "-"))
                     .append("  ")
+                    .append(event.get("task_id"))
+                    .append("  ")
                     .append(event.get("kind"));
+            if (event.get("assignee") != null) {
+                buffer.append("  @").append(StrUtil.blankToDefault(String.valueOf(event.get("assignee")), "-"));
+            }
             Object payload = event.get("payload");
             if (payload != null) {
                 buffer.append("  ").append(ONode.serialize(payload));
             }
         }
         return buffer.toString();
+    }
+
+    private String formatStats(Map<String, Object> stats) {
+        StringBuilder buffer = new StringBuilder("Kanban 统计：");
+        buffer.append("\n按状态：").append(stats.get("by_status"));
+        buffer.append("\n按执行人：").append(stats.get("by_assignee"));
+        buffer.append("\nready 最长等待秒数：")
+                .append(stats.get("oldest_ready_age_seconds") == null ? "-" : stats.get("oldest_ready_age_seconds"));
+        return buffer.toString();
+    }
+
+    private String formatNotifySubscriptions(List<Map<String, Object>> subscriptions) {
+        if (subscriptions.isEmpty()) {
+            return "当前没有 Kanban 通知订阅。";
+        }
+        StringBuilder buffer = new StringBuilder("Kanban 通知订阅：");
+        for (Map<String, Object> subscription : subscriptions) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(subscription.get("task_id"))
+                    .append("  ")
+                    .append(subscription.get("platform"))
+                    .append(":")
+                    .append(subscription.get("chat_id"));
+            if (StrUtil.isNotBlank(String.valueOf(subscription.get("thread_id")))) {
+                buffer.append(":").append(subscription.get("thread_id"));
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String formatLog(Map<String, Object> log) {
+        if (!Boolean.TRUE.equals(log.get("exists"))) {
+            return "任务 " + log.get("task_id") + " 暂无 worker 日志：" + log.get("path");
+        }
+        return StrUtil.blankToDefault(String.valueOf(log.get("content")), "");
+    }
+
+    private String formatGc(Map<String, Object> result) {
+        return "Kanban GC 完成：workspace="
+                + result.get("removed_workspaces")
+                + ", events="
+                + result.get("removed_events")
+                + ", logs="
+                + result.get("removed_logs");
     }
 
     private String formatDiagnostics(List<Map<String, Object>> diagnostics) {
@@ -833,6 +1065,13 @@ public class KanbanService {
                         "/kanban events <task-id> - 查看任务执行流水",
                         "/kanban context <task-id> - 输出 worker 上下文",
                         "/kanban diagnostics [task-id] - 查看任务诊断与恢复提示",
+                        "/kanban stats - 查看状态、执行人和 ready 老化统计",
+                        "/kanban watch [kind1,kind2] - 查看最近 Kanban 事件",
+                        "/kanban notify-subscribe <task-id> <platform> <chat-id> [thread-id] - 订阅任务终态通知",
+                        "/kanban notify-list [task-id] - 查看通知订阅",
+                        "/kanban notify-unsubscribe <task-id> <platform> <chat-id> [thread-id] - 取消通知订阅",
+                        "/kanban log <task-id> [tail_bytes] - 查看 worker 日志",
+                        "/kanban gc [event_days] [log_days] - 清理旧事件、旧日志和归档 scratch 工作区",
                         "/kanban claim <task-id> [ttl_seconds] - 认领 ready 任务并开始运行",
                         "/kanban next [assignee] - 认领下一个 ready 任务",
                         "/kanban heartbeat <task-id> [note] - 刷新认领和 worker 心跳",
@@ -965,6 +1204,154 @@ public class KanbanService {
         item.put("kind", kind);
         item.put("suggestion", suggestion);
         return item;
+    }
+
+    private Map<String, Object> notifySubscriptionView(KanbanNotifySubscriptionRecord subscription) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("id", subscription.getSubscriptionId());
+        item.put("task_id", subscription.getTaskId());
+        item.put("platform", subscription.getPlatform());
+        item.put("chat_id", subscription.getChatId());
+        item.put("thread_id", subscription.getThreadId());
+        item.put("user_id", subscription.getUserId());
+        item.put("last_event_id", subscription.getLastEventId());
+        item.put("created_at", iso(subscription.getCreatedAt()));
+        item.put("updated_at", iso(subscription.getUpdatedAt()));
+        return item;
+    }
+
+    private Map<String, Object> notifyBody(String rest, boolean subscribe) {
+        String[] tokens = StrUtil.nullToEmpty(rest).trim().split("\\s+");
+        if (tokens.length < 3) {
+            throw new IllegalArgumentException(
+                    subscribe
+                            ? "用法：/kanban notify-subscribe <task-id> <platform> <chat-id> [thread-id]"
+                            : "用法：/kanban notify-unsubscribe <task-id> <platform> <chat-id> [thread-id]");
+        }
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("task_id", tokens[0]);
+        body.put("platform", tokens[1]);
+        body.put("chat_id", tokens[2]);
+        if (tokens.length > 3) {
+            body.put("thread_id", tokens[3]);
+        }
+        return body;
+    }
+
+    private Map<String, Object> parseGcOptions(String rest) {
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        String[] tokens = StrUtil.nullToEmpty(rest).trim().split("\\s+");
+        if (tokens.length > 0 && StrUtil.isNotBlank(tokens[0])) {
+            body.put("event_retention_days", tokens[0]);
+        }
+        if (tokens.length > 1 && StrUtil.isNotBlank(tokens[1])) {
+            body.put("log_retention_days", tokens[1]);
+        }
+        return body;
+    }
+
+    private String requireText(Map<String, Object> body, String key) {
+        String value = text(body, key);
+        if (StrUtil.isBlank(value)) {
+            throw new IllegalArgumentException(key + " is required");
+        }
+        return value;
+    }
+
+    private int parseInt(String value, int defaultValue) {
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private List<String> splitCsv(String value) {
+        List<String> result = new ArrayList<String>();
+        if (StrUtil.isBlank(value)) {
+            return result;
+        }
+        String[] tokens = value.split(",");
+        for (String token : tokens) {
+            String normalized = token.trim();
+            if (StrUtil.isNotBlank(normalized) && !result.contains(normalized)) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private int gcWorkerLogs(long cutoffMillis) {
+        File dir = workerLogDir();
+        if (!dir.exists() || !dir.isDirectory()) {
+            return 0;
+        }
+        int removed = 0;
+        for (File file : FileUtil.loopFiles(dir)) {
+            if (file.isFile() && file.lastModified() < cutoffMillis) {
+                FileUtil.del(file);
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    private int gcArchivedScratchWorkspaces() throws Exception {
+        File root = scratchWorkspaceRoot().getCanonicalFile();
+        int removed = 0;
+        for (KanbanTaskRecord task : repository.listTasks(null, "archived", true)) {
+            if (!"scratch".equals(task.getWorkspaceKind())) {
+                continue;
+            }
+            File path =
+                    StrUtil.isBlank(task.getWorkspacePath())
+                            ? FileUtil.file(root, task.getTaskId())
+                            : FileUtil.file(task.getWorkspacePath());
+            File canonical;
+            try {
+                canonical = path.getCanonicalFile();
+            } catch (Exception e) {
+                continue;
+            }
+            if (!isUnderRoot(canonical, root) || !canonical.exists() || !canonical.isDirectory()) {
+                continue;
+            }
+            FileUtil.del(canonical);
+            removed++;
+        }
+        return removed;
+    }
+
+    private File workerLogFile(String taskId) {
+        return FileUtil.file(workerLogDir(), taskId + ".log");
+    }
+
+    private File workerLogDir() {
+        return FileUtil.file(runtimeLogsDir(), "kanban");
+    }
+
+    private File scratchWorkspaceRoot() {
+        return FileUtil.file(runtimeHome(), "kanban", "workspaces");
+    }
+
+    private File runtimeLogsDir() {
+        if (appConfig != null && appConfig.getRuntime() != null && StrUtil.isNotBlank(appConfig.getRuntime().getLogsDir())) {
+            return FileUtil.file(appConfig.getRuntime().getLogsDir());
+        }
+        return FileUtil.file(runtimeHome(), "logs");
+    }
+
+    private File runtimeHome() {
+        if (appConfig != null && appConfig.getRuntime() != null && StrUtil.isNotBlank(appConfig.getRuntime().getHome())) {
+            return FileUtil.file(appConfig.getRuntime().getHome());
+        }
+        return FileUtil.file("runtime");
+    }
+
+    private boolean isUnderRoot(File candidate, File root) {
+        String candidatePath = candidate.getPath();
+        String rootPath = root.getPath();
+        return !candidatePath.equals(rootPath) && candidatePath.startsWith(rootPath + File.separator);
     }
 
     private Map<String, Object> claimTtlBody(String[] tokens, Map<String, Object> body) {

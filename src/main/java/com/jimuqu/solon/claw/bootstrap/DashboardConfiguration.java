@@ -199,8 +199,8 @@ public class DashboardConfiguration {
     }
 
     @Bean
-    public KanbanService kanbanService(KanbanRepository kanbanRepository) {
-        return new KanbanService(kanbanRepository);
+    public KanbanService kanbanService(KanbanRepository kanbanRepository, AppConfig appConfig) {
+        return new KanbanService(kanbanRepository, appConfig);
     }
 
     @Bean

@@ -80,6 +80,19 @@ public interface KanbanRepository {
 
     List<KanbanEventRecord> listEvents(String taskId) throws Exception;
 
+    List<KanbanEventRecord> listRecentEvents(int limit) throws Exception;
+
+    int deleteEventsOlderThan(long cutoffMillis) throws Exception;
+
+    KanbanNotifySubscriptionRecord saveNotifySubscription(KanbanNotifySubscriptionRecord subscription)
+            throws Exception;
+
+    List<KanbanNotifySubscriptionRecord> listNotifySubscriptions(String taskId)
+            throws Exception;
+
+    boolean removeNotifySubscription(String taskId, String platform, String chatId, String threadId)
+            throws Exception;
+
     KanbanRunRecord addRun(KanbanRunRecord run) throws Exception;
 
     List<KanbanRunRecord> listRuns(String taskId, boolean includeActive) throws Exception;

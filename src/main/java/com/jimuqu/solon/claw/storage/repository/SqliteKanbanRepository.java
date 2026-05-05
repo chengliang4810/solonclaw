@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.kanban.KanbanBoardRecord;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanEventRecord;
+import com.jimuqu.solon.claw.kanban.KanbanNotifySubscriptionRecord;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
 import com.jimuqu.solon.claw.kanban.KanbanTaskRecord;
@@ -926,6 +927,11 @@ public class SqliteKanbanRepository implements KanbanRepository {
             runs.setString(1, taskId);
             runs.executeUpdate();
             runs.close();
+            PreparedStatement subscriptions =
+                    connection.prepareStatement("delete from kanban_notify_subscriptions where task_id = ?");
+            subscriptions.setString(1, taskId);
+            subscriptions.executeUpdate();
+            subscriptions.close();
             PreparedStatement links =
                     connection.prepareStatement(
                             "delete from kanban_task_links where parent_id = ? or child_id = ?");
@@ -1209,6 +1215,150 @@ public class SqliteKanbanRepository implements KanbanRepository {
         return events;
     }
 
+    @Override
+    public List<KanbanEventRecord> listRecentEvents(int limit) throws Exception {
+        int bounded = Math.max(1, Math.min(limit <= 0 ? 200 : limit, 500));
+        List<KanbanEventRecord> events = new ArrayList<KanbanEventRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from kanban_events order by created_at desc limit ?");
+            statement.setInt(1, bounded);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    events.add(0, mapEvent(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return events;
+    }
+
+    @Override
+    public int deleteEventsOlderThan(long cutoffMillis) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement("delete from kanban_events where created_at < ?");
+            statement.setLong(1, cutoffMillis);
+            int deleted = statement.executeUpdate();
+            statement.close();
+            return deleted;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public KanbanNotifySubscriptionRecord saveNotifySubscription(
+            KanbanNotifySubscriptionRecord subscription) throws Exception {
+        if (subscription == null
+                || StrUtil.hasBlank(subscription.getTaskId(), subscription.getPlatform(), subscription.getChatId())) {
+            throw new IllegalArgumentException("task_id, platform and chat_id are required");
+        }
+        if (findTask(subscription.getTaskId()) == null) {
+            throw new IllegalArgumentException("Kanban task not found: " + subscription.getTaskId());
+        }
+        long now = System.currentTimeMillis();
+        if (StrUtil.isBlank(subscription.getSubscriptionId())) {
+            subscription.setSubscriptionId("ksub_" + IdSupport.newId());
+        }
+        if (subscription.getCreatedAt() <= 0) {
+            subscription.setCreatedAt(now);
+        }
+        subscription.setUpdatedAt(now);
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert or replace into kanban_notify_subscriptions (subscription_id, task_id, platform, chat_id, thread_id, user_id, last_event_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, coalesce((select created_at from kanban_notify_subscriptions where task_id = ? and platform = ? and chat_id = ? and coalesce(thread_id, '') = coalesce(?, '')), ?), ?)");
+            statement.setString(1, subscription.getSubscriptionId());
+            statement.setString(2, subscription.getTaskId());
+            statement.setString(3, subscription.getPlatform());
+            statement.setString(4, subscription.getChatId());
+            statement.setString(5, subscription.getThreadId());
+            statement.setString(6, subscription.getUserId());
+            statement.setString(7, subscription.getLastEventId());
+            statement.setString(8, subscription.getTaskId());
+            statement.setString(9, subscription.getPlatform());
+            statement.setString(10, subscription.getChatId());
+            statement.setString(11, subscription.getThreadId());
+            statement.setLong(12, subscription.getCreatedAt());
+            statement.setLong(13, subscription.getUpdatedAt());
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+        List<KanbanNotifySubscriptionRecord> records = listNotifySubscriptions(subscription.getTaskId());
+        for (KanbanNotifySubscriptionRecord record : records) {
+            if (StrUtil.equals(record.getPlatform(), subscription.getPlatform())
+                    && StrUtil.equals(record.getChatId(), subscription.getChatId())
+                    && StrUtil.equals(StrUtil.nullToEmpty(record.getThreadId()), StrUtil.nullToEmpty(subscription.getThreadId()))) {
+                return record;
+            }
+        }
+        return subscription;
+    }
+
+    @Override
+    public List<KanbanNotifySubscriptionRecord> listNotifySubscriptions(String taskId)
+            throws Exception {
+        List<KanbanNotifySubscriptionRecord> subscriptions =
+                new ArrayList<KanbanNotifySubscriptionRecord>();
+        StringBuilder sql =
+                new StringBuilder("select * from kanban_notify_subscriptions");
+        if (StrUtil.isNotBlank(taskId)) {
+            sql.append(" where task_id = ?");
+        }
+        sql.append(" order by updated_at desc");
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement = connection.prepareStatement(sql.toString());
+            if (StrUtil.isNotBlank(taskId)) {
+                statement.setString(1, taskId);
+            }
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    subscriptions.add(mapNotifySubscription(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return subscriptions;
+    }
+
+    @Override
+    public boolean removeNotifySubscription(String taskId, String platform, String chatId, String threadId)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "delete from kanban_notify_subscriptions where task_id = ? and platform = ? and chat_id = ? and coalesce(thread_id, '') = coalesce(?, '')");
+            statement.setString(1, taskId);
+            statement.setString(2, platform);
+            statement.setString(3, chatId);
+            statement.setString(4, threadId);
+            int deleted = statement.executeUpdate();
+            statement.close();
+            return deleted > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
     private List<KanbanTaskRecord> listLinkedTasks(String sql, String taskId) throws Exception {
         List<KanbanTaskRecord> tasks = new ArrayList<KanbanTaskRecord>();
         Connection connection = database.openConnection();
@@ -1370,6 +1520,21 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setSummary(resultSet.getString("summary"));
         record.setMetadataJson(resultSet.getString("metadata_json"));
         record.setError(resultSet.getString("error"));
+        return record;
+    }
+
+    private KanbanNotifySubscriptionRecord mapNotifySubscription(ResultSet resultSet)
+            throws Exception {
+        KanbanNotifySubscriptionRecord record = new KanbanNotifySubscriptionRecord();
+        record.setSubscriptionId(resultSet.getString("subscription_id"));
+        record.setTaskId(resultSet.getString("task_id"));
+        record.setPlatform(resultSet.getString("platform"));
+        record.setChatId(resultSet.getString("chat_id"));
+        record.setThreadId(resultSet.getString("thread_id"));
+        record.setUserId(resultSet.getString("user_id"));
+        record.setLastEventId(resultSet.getString("last_event_id"));
+        record.setCreatedAt(resultSet.getLong("created_at"));
+        record.setUpdatedAt(resultSet.getLong("updated_at"));
         return record;
     }
 

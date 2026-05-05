@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import cn.hutool.core.io.FileUtil;
+import java.io.File;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -335,6 +337,56 @@ public class KanbanServiceTest {
         assertThat(service.handleCommand("diagnostics " + taskId, "tester"))
                 .contains("Kanban 诊断")
                 .contains("spawn_failed");
+    }
+
+    @Test
+    void shouldExposeHermesStyleStatsWatchNotifyLogAndGc() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        String taskId = createTask(service, "协作通知任务", "alice", "planner");
+        service.status(taskId, "ready", null);
+        service.comment(taskId, "planner", "开始订阅");
+
+        assertThat(String.valueOf(service.stats()))
+                .contains("by_status")
+                .contains("alice")
+                .contains("ready");
+        assertThat(service.handleCommand("stats", "tester")).contains("Kanban 统计");
+        assertThat(String.valueOf(service.watch("alice", null, "comment", 20)))
+                .contains("comment")
+                .contains(taskId);
+        assertThat(service.handleCommand("watch comment", "tester")).contains("最近 Kanban 事件");
+
+        Map<String, Object> subscription = new LinkedHashMap<String, Object>();
+        subscription.put("task_id", taskId);
+        subscription.put("platform", "feishu");
+        subscription.put("chat_id", "chat-1");
+        subscription.put("thread_id", "thread-1");
+        subscription.put("user_id", "user-1");
+        assertThat(String.valueOf(service.notifySubscribe(subscription)))
+                .contains("feishu")
+                .contains("chat-1");
+        assertThat(String.valueOf(service.notifyList(taskId))).contains("thread-1");
+        assertThat(service.handleCommand(
+                        "notify-subscribe " + taskId + " dingtalk chat-2 thread-2", "tester"))
+                .contains("已订阅任务通知");
+        assertThat(service.handleCommand("notify-list " + taskId, "tester")).contains("dingtalk");
+        assertThat(service.handleCommand(
+                        "notify-unsubscribe " + taskId + " dingtalk chat-2 thread-2", "tester"))
+                .contains("已取消任务通知");
+
+        File logFile = FileUtil.file(env.appConfig.getRuntime().getLogsDir(), "kanban", taskId + ".log");
+        FileUtil.mkParentDirs(logFile);
+        FileUtil.writeUtf8String("line-one\nline-two\n", logFile);
+        assertThat(String.valueOf(service.log(taskId, 9))).contains("line-two");
+        assertThat(service.handleCommand("log " + taskId + " 9", "tester")).contains("line-two");
+
+        Map<String, Object> gc = new LinkedHashMap<String, Object>();
+        gc.put("event_retention_days", 1);
+        gc.put("log_retention_days", 1);
+        assertThat(String.valueOf(service.gc(gc))).contains("removed_events").contains("removed_logs");
+        assertThat(service.handleCommand("gc 1 1", "tester")).contains("Kanban GC 完成");
     }
 
     private KanbanService service() throws Exception {
