@@ -655,11 +655,54 @@ public class DangerousCommandApprovalServiceTest {
         expired.put("approvalKey", "execute_shell:recursive_delete:hash");
         expired.put("createdAt", System.currentTimeMillis() - 10_000L);
         expired.put("expiresAt", System.currentTimeMillis() - 1_000L);
+        trace.session.getContext().remove("_dangerous_command_pending_queue_");
         trace.session.getContext().put("_dangerous_command_pending_", expired);
 
         assertThat(service.getPendingApproval(trace.session)).isNull();
         assertThat(service.approve(trace.session, DangerousCommandApprovalService.ApprovalScope.ONCE, "test"))
                 .isFalse();
+    }
+
+    @Test
+    void shouldKeepMultiplePendingApprovalsLikeHermesGatewayQueue() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        List<DangerousCommandApprovalService.PendingApproval> pending =
+                env.dangerousCommandApprovalService.listPendingApprovals(trace.session);
+
+        assertThat(pending).hasSize(2);
+        assertThat(pending.get(0).getPatternKey()).isEqualTo("recursive_delete");
+        assertThat(pending.get(1).getPatternKey()).isEqualTo("git_reset_hard");
+        assertThat(pending.get(0).getApprovalId()).isNotBlank();
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                "#2",
+                                DangerousCommandApprovalService.ApprovalScope.SESSION,
+                                "test"))
+                .isTrue();
+
+        List<DangerousCommandApprovalService.PendingApproval> afterApprove =
+                env.dangerousCommandApprovalService.listPendingApprovals(trace.session);
+        assertThat(afterApprove).hasSize(1);
+        assertThat(afterApprove.get(0).getPatternKey()).isEqualTo("recursive_delete");
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "git_reset_hard"))
+                .isTrue();
     }
 
     @Test

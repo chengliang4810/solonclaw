@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
+import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,8 @@ public class DangerousCommandApprovalService {
     public static final String CARD_ACTION_DENY = "dangerous_deny";
 
     private static final String CONTEXT_PENDING_APPROVAL = "_dangerous_command_pending_";
+    private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
+            "_dangerous_command_pending_queue_";
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
 
     private static final String SENSITIVE_WRITE_TARGET =
@@ -543,45 +546,53 @@ public class DangerousCommandApprovalService {
     }
 
     public PendingApproval getPendingApproval(AgentSession session) {
+        List<PendingApproval> pendingApprovals = listPendingApprovals(session);
+        return pendingApprovals.isEmpty() ? null : pendingApprovals.get(0);
+    }
+
+    public List<PendingApproval> listPendingApprovals(AgentSession session) {
         if (session == null) {
-            return null;
+            return new ArrayList<PendingApproval>();
         }
-        PendingApproval pending =
-                toPendingApproval(session.getContext().get(CONTEXT_PENDING_APPROVAL));
-        if (isPendingExpired(pending)) {
-            session.getContext().remove(CONTEXT_PENDING_APPROVAL);
-            session.updateSnapshot();
-            return null;
+        List<PendingApproval> pending = pendingQueueFrom(session.getContext());
+        if (prunePendingApprovals(session, pending)) {
+            pending = pendingQueueFrom(session.getContext());
         }
         return pending;
     }
 
     public PendingApproval getPendingApproval(
             com.jimuqu.solon.claw.core.model.SessionRecord sessionRecord) {
+        List<PendingApproval> pendingApprovals = listPendingApprovals(sessionRecord);
+        return pendingApprovals.isEmpty() ? null : pendingApprovals.get(0);
+    }
+
+    public List<PendingApproval> listPendingApprovals(
+            com.jimuqu.solon.claw.core.model.SessionRecord sessionRecord) {
         if (sessionRecord == null || StrUtil.isBlank(sessionRecord.getAgentSnapshotJson())) {
-            return null;
+            return new ArrayList<PendingApproval>();
         }
 
         try {
             Object parsed = ONode.deserialize(sessionRecord.getAgentSnapshotJson(), Object.class);
             if (!(parsed instanceof Map)) {
-                return null;
+                return new ArrayList<PendingApproval>();
             }
             Map<?, ?> snapshot = (Map<?, ?>) parsed;
-            Object pending = snapshot.get(CONTEXT_PENDING_APPROVAL);
-            if (pending == null && snapshot.get("vars") instanceof Map) {
-                pending = ((Map<?, ?>) snapshot.get("vars")).get(CONTEXT_PENDING_APPROVAL);
-            }
-            PendingApproval pendingApproval = toPendingApproval(pending);
-            return isPendingExpired(pendingApproval) ? null : pendingApproval;
+            return filterActivePendingApprovals(pendingQueueFrom(snapshot));
         } catch (Exception ignored) {
-            return null;
+            return new ArrayList<PendingApproval>();
         }
     }
 
     public boolean approve(AgentSession session, ApprovalScope scope, String approver)
             throws Exception {
-        PendingApproval pending = getPendingApproval(session);
+        return approve(session, null, scope, approver);
+    }
+
+    public boolean approve(AgentSession session, String selector, ApprovalScope scope, String approver)
+            throws Exception {
+        PendingApproval pending = findPendingApproval(session, selector);
         if (pending == null) {
             return false;
         }
@@ -608,7 +619,7 @@ public class DangerousCommandApprovalService {
         }
 
         HITL.approve(session, pending.getToolName(), comment);
-        session.getContext().remove(CONTEXT_PENDING_APPROVAL);
+        removePendingApproval(session, pending);
         session.updateSnapshot();
         return true;
     }
@@ -628,13 +639,16 @@ public class DangerousCommandApprovalService {
         detection.setPatternKeys(Collections.singletonList(patternKey));
         detection.setDescription(description);
         detection.setNormalizedCode(normalize(command));
-        session.getContext()
-                .put(CONTEXT_PENDING_APPROVAL, createPendingMap(toolName, detection, command));
+        storePendingMap(session, createPendingMap(toolName, detection, command));
         session.updateSnapshot();
     }
 
     public boolean reject(AgentSession session, String approver) {
-        PendingApproval pending = getPendingApproval(session);
+        return reject(session, null, approver);
+    }
+
+    public boolean reject(AgentSession session, String selector, String approver) {
+        PendingApproval pending = findPendingApproval(session, selector);
         if (pending == null) {
             return false;
         }
@@ -645,7 +659,7 @@ public class DangerousCommandApprovalService {
         }
 
         HITL.reject(session, pending.getToolName(), comment);
-        session.getContext().remove(CONTEXT_PENDING_APPROVAL);
+        removePendingApproval(session, pending);
         session.updateSnapshot();
         return true;
     }
@@ -779,6 +793,7 @@ public class DangerousCommandApprovalService {
         }
         session.getContext().remove(CONTEXT_SESSION_APPROVALS);
         session.getContext().remove(CONTEXT_PENDING_APPROVAL);
+        session.getContext().remove(CONTEXT_PENDING_APPROVAL_QUEUE);
         session.updateSnapshot();
     }
 
@@ -865,7 +880,7 @@ public class DangerousCommandApprovalService {
         PendingApproval pending = getPendingApproval(trace.getSession());
         if (trace.getContext().getAs(HITL.DECISION_PREFIX + toolName) != null) {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
-                trace.getContext().remove(CONTEXT_PENDING_APPROVAL);
+                removePendingApproval(trace.getSession(), pending);
                 persistTraceSnapshot(trace);
                 return null;
             }
@@ -875,7 +890,7 @@ public class DangerousCommandApprovalService {
 
         if (isApproved(trace.getContext(), approvalKey)) {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
-                trace.getContext().remove(CONTEXT_PENDING_APPROVAL);
+                removePendingApproval(trace.getSession(), pending);
             }
             persistTraceSnapshot(trace);
             return null;
@@ -887,14 +902,13 @@ public class DangerousCommandApprovalService {
                         : null;
         if (smartDecision != null && smartDecision.isApproved()) {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
-                trace.getContext().remove(CONTEXT_PENDING_APPROVAL);
+                removePendingApproval(trace.getSession(), pending);
             }
             persistTraceSnapshot(trace);
             return null;
         }
 
-        trace.getContext()
-                .put(CONTEXT_PENDING_APPROVAL, createPendingMap(toolName, detection, code));
+        storePendingMap(trace.getSession(), createPendingMap(toolName, detection, code));
         persistTraceSnapshot(trace);
         return buildPendingMessage(toolName, detection, code);
     }
@@ -1147,6 +1161,7 @@ public class DangerousCommandApprovalService {
     private Map<String, Object> createPendingMap(
             String toolName, DetectionResult detection, String code) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("approvalId", IdSupport.newId());
         payload.put("toolName", toolName);
         payload.put("patternKey", detection.getPatternKey());
         payload.put("patternKeys", new ArrayList<String>(detection.effectivePatternKeys()));
@@ -1156,6 +1171,210 @@ public class DangerousCommandApprovalService {
         payload.put("approvalKey", combinedApprovalKey(toolName, detection));
         payload.put("createdAt", System.currentTimeMillis());
         payload.put("expiresAt", System.currentTimeMillis() + approvalGatewayTimeoutMillis());
+        return payload;
+    }
+
+    private void storePendingMap(AgentSession session, Map<String, Object> pendingMap) {
+        if (session == null || pendingMap == null) {
+            return;
+        }
+        List<Map<String, Object>> queue = pendingMapQueueFrom(session.getContext());
+        String approvalKey = stringValue(pendingMap.get("approvalKey"));
+        boolean replaced = false;
+        for (int i = 0; i < queue.size(); i++) {
+            PendingApproval item = toPendingApproval(queue.get(i));
+            if (item != null && approvalKey.equals(item.approvalKey())) {
+                queue.set(i, pendingMap);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            queue.add(pendingMap);
+        }
+        session.getContext().put(CONTEXT_PENDING_APPROVAL_QUEUE, queue);
+        session.getContext().put(CONTEXT_PENDING_APPROVAL, queue.isEmpty() ? null : queue.get(0));
+    }
+
+    private boolean prunePendingApprovals(AgentSession session, List<PendingApproval> pending) {
+        if (session == null) {
+            return false;
+        }
+        List<PendingApproval> active = filterActivePendingApprovals(pending);
+        if (active.size() == pending.size()) {
+            return false;
+        }
+        writePendingApprovals(session, active);
+        session.updateSnapshot();
+        return true;
+    }
+
+    private List<PendingApproval> filterActivePendingApprovals(List<PendingApproval> pending) {
+        List<PendingApproval> active = new ArrayList<PendingApproval>();
+        for (PendingApproval item : pending) {
+            if (item != null && !isPendingExpired(item)) {
+                active.add(item);
+            }
+        }
+        return active;
+    }
+
+    private void removePendingApproval(AgentSession session, PendingApproval target) {
+        if (session == null || target == null) {
+            return;
+        }
+        List<PendingApproval> retained = new ArrayList<PendingApproval>();
+        for (PendingApproval item : pendingQueueFrom(session.getContext())) {
+            if (!samePendingApproval(item, target)) {
+                retained.add(item);
+            }
+        }
+        writePendingApprovals(session, retained);
+    }
+
+    private void writePendingApprovals(AgentSession session, List<PendingApproval> pending) {
+        List<Map<String, Object>> queue = new ArrayList<Map<String, Object>>();
+        for (PendingApproval item : pending) {
+            if (item != null && !isPendingExpired(item)) {
+                queue.add(pendingMap(item));
+            }
+        }
+        if (queue.isEmpty()) {
+            session.getContext().remove(CONTEXT_PENDING_APPROVAL_QUEUE);
+            session.getContext().remove(CONTEXT_PENDING_APPROVAL);
+            return;
+        }
+        session.getContext().put(CONTEXT_PENDING_APPROVAL_QUEUE, queue);
+        session.getContext().put(CONTEXT_PENDING_APPROVAL, queue.get(0));
+    }
+
+    private PendingApproval findPendingApproval(AgentSession session, String selector) {
+        List<PendingApproval> pending = listPendingApprovals(session);
+        if (pending.isEmpty()) {
+            return null;
+        }
+        if (StrUtil.isBlank(selector)) {
+            return pending.get(0);
+        }
+        String normalized = selector.trim();
+        if (normalized.startsWith("#")) {
+            normalized = normalized.substring(1);
+        }
+        try {
+            int index = Integer.parseInt(normalized);
+            if (index >= 1 && index <= pending.size()) {
+                return pending.get(index - 1);
+            }
+        } catch (Exception ignored) {
+            // fall through to id/key matching
+        }
+        for (PendingApproval item : pending) {
+            if (selectorMatches(item, selector)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private boolean selectorMatches(PendingApproval item, String selector) {
+        if (item == null || StrUtil.isBlank(selector)) {
+            return false;
+        }
+        String value = selector.trim();
+        return value.equals(item.getApprovalId())
+                || value.equals(item.approvalKey())
+                || (item.getApprovalId() != null && item.getApprovalId().startsWith(value))
+                || (item.approvalKey() != null && item.approvalKey().startsWith(value));
+    }
+
+    private boolean samePendingApproval(PendingApproval left, PendingApproval right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        if (StrUtil.isNotBlank(left.getApprovalId()) && StrUtil.isNotBlank(right.getApprovalId())) {
+            return left.getApprovalId().equals(right.getApprovalId());
+        }
+        return left.approvalKey().equals(right.approvalKey());
+    }
+
+    private List<PendingApproval> pendingQueueFrom(Object context) {
+        List<PendingApproval> pending = new ArrayList<PendingApproval>();
+        if (context == null) {
+            return pending;
+        }
+        Object queue = contextValue(context, CONTEXT_PENDING_APPROVAL_QUEUE);
+        Object vars = contextValue(context, "vars");
+        if (queue == null && vars instanceof Map) {
+            queue = ((Map<?, ?>) vars).get(CONTEXT_PENDING_APPROVAL_QUEUE);
+        }
+        pending.addAll(toPendingApprovalList(queue));
+        if (pending.isEmpty()) {
+            Object legacy = contextValue(context, CONTEXT_PENDING_APPROVAL);
+            if (legacy == null && vars instanceof Map) {
+                legacy = ((Map<?, ?>) vars).get(CONTEXT_PENDING_APPROVAL);
+            }
+            PendingApproval legacyPending = toPendingApproval(legacy);
+            if (legacyPending != null) {
+                pending.add(legacyPending);
+            }
+        }
+        return pending;
+    }
+
+    private Object contextValue(Object context, String key) {
+        if (context instanceof FlowContext) {
+            return ((FlowContext) context).get(key);
+        }
+        if (context instanceof Map) {
+            return ((Map<?, ?>) context).get(key);
+        }
+        return null;
+    }
+
+    private List<Map<String, Object>> pendingMapQueueFrom(Object context) {
+        List<Map<String, Object>> values = new ArrayList<Map<String, Object>>();
+        for (PendingApproval item : filterActivePendingApprovals(pendingQueueFrom(context))) {
+            values.add(pendingMap(item));
+        }
+        return values;
+    }
+
+    private List<PendingApproval> toPendingApprovalList(Object raw) {
+        List<PendingApproval> values = new ArrayList<PendingApproval>();
+        if (raw == null) {
+            return values;
+        }
+        Object parsed = raw;
+        if (!(raw instanceof Collection)) {
+            try {
+                parsed = ONode.deserialize(String.valueOf(raw), Object.class);
+            } catch (Exception ignored) {
+                parsed = null;
+            }
+        }
+        if (parsed instanceof Collection) {
+            for (Object item : (Collection<?>) parsed) {
+                PendingApproval pending = toPendingApproval(item);
+                if (pending != null) {
+                    values.add(pending);
+                }
+            }
+        }
+        return values;
+    }
+
+    private Map<String, Object> pendingMap(PendingApproval pending) {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("approvalId", pending.getApprovalId());
+        payload.put("toolName", pending.getToolName());
+        payload.put("patternKey", pending.getPatternKey());
+        payload.put("patternKeys", new ArrayList<String>(pending.effectivePatternKeys()));
+        payload.put("description", pending.getDescription());
+        payload.put("command", StrUtil.nullToEmpty(pending.getCommand()));
+        payload.put("commandHash", pending.getCommandHash());
+        payload.put("approvalKey", pending.approvalKey());
+        payload.put("createdAt", pending.getCreatedAt());
+        payload.put("expiresAt", pending.getExpiresAt());
         return payload;
     }
 
@@ -1347,6 +1566,7 @@ public class DangerousCommandApprovalService {
         String command = stringValue(map.get("command"));
         String commandHash = stringValue(map.get("commandHash"));
         String approvalKey = stringValue(map.get("approvalKey"));
+        String approvalId = stringValue(map.get("approvalId"));
         long createdAt = longValue(map.get("createdAt"));
         long expiresAt = longValue(map.get("expiresAt"));
         if (StrUtil.hasBlank(toolName, patternKey)) {
@@ -1354,6 +1574,7 @@ public class DangerousCommandApprovalService {
         }
 
         PendingApproval pending = new PendingApproval();
+        pending.setApprovalId(approvalId);
         pending.setToolName(toolName);
         pending.setPatternKey(patternKey);
         pending.setPatternKeys(listValue(map.get("patternKeys")));
@@ -1597,6 +1818,7 @@ public class DangerousCommandApprovalService {
     }
 
     public static class PendingApproval {
+        private String approvalId;
         private String toolName;
         private String patternKey;
         private List<String> patternKeys = new ArrayList<String>();
@@ -1606,6 +1828,14 @@ public class DangerousCommandApprovalService {
         private String approvalKey;
         private long createdAt;
         private long expiresAt;
+
+        public String getApprovalId() {
+            return approvalId;
+        }
+
+        public void setApprovalId(String approvalId) {
+            this.approvalId = approvalId;
+        }
 
         public String getToolName() {
             return toolName;

@@ -723,7 +723,7 @@ public class DefaultCommandService implements CommandService {
             if (hasPendingSlashConfirm(message)) {
                 return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
             }
-            return handleDangerousDeny(message);
+            return handleDangerousDeny(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_ALWAYS.equals(command)) {
@@ -1946,26 +1946,44 @@ public class DefaultCommandService implements CommandService {
             return clearApprovals(agentSession, normalizedArgs);
         }
 
+        ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(args);
         DangerousCommandApprovalService.PendingApproval pending =
-                dangerousCommandApprovalService.getPendingApproval(agentSession);
+                selectPendingApproval(agentSession, approvalArgs.getSelector());
         if (pending == null) {
             return GatewayReply.error("当前没有待审批的危险命令。若刚刚收到审批提示，请重试原始请求；也可以使用 /approve list 查看审批状态。");
         }
 
-        DangerousCommandApprovalService.ApprovalScope scope = parseApprovalScope(args);
-        if (!dangerousCommandApprovalService.approve(agentSession, scope, message.getUserName())) {
+        if (!dangerousCommandApprovalService.approve(
+                agentSession,
+                approvalArgs.getSelector(),
+                approvalArgs.getScope(),
+                message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
         }
         return conversationOrchestrator.resumePending(message.sourceKey());
     }
 
     private String formatApprovalList(SqliteAgentSession agentSession) {
-        DangerousCommandApprovalService.PendingApproval pending =
-                dangerousCommandApprovalService.getPendingApproval(agentSession);
+        java.util.List<DangerousCommandApprovalService.PendingApproval> pendingApprovals =
+                dangerousCommandApprovalService.listPendingApprovals(agentSession);
         StringBuilder buffer = new StringBuilder();
         buffer.append("pending=")
-                .append(pending == null ? "none" : pending.approvalKey())
+                .append(pendingApprovals.isEmpty() ? "none" : String.valueOf(pendingApprovals.size()))
                 .append('\n');
+        for (int i = 0; i < pendingApprovals.size(); i++) {
+            DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
+            buffer.append('#')
+                    .append(i + 1)
+                    .append(' ')
+                    .append(StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()))
+                    .append(" tool=")
+                    .append(pending.getToolName())
+                    .append(" reason=")
+                    .append(pending.getDescription())
+                    .append(" key=")
+                    .append(pending.approvalKey())
+                    .append('\n');
+        }
         buffer.append("session_approvals=")
                 .append(dangerousCommandApprovalService.listSessionApprovals(agentSession))
                 .append('\n');
@@ -1994,23 +2012,102 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error("用法：/approve clear session|always|all");
     }
 
-    private GatewayReply handleDangerousDeny(GatewayMessage message) throws Exception {
+    private DangerousCommandApprovalService.PendingApproval selectPendingApproval(
+            SqliteAgentSession agentSession, String selector) {
+        java.util.List<DangerousCommandApprovalService.PendingApproval> pendingApprovals =
+                dangerousCommandApprovalService.listPendingApprovals(agentSession);
+        if (pendingApprovals.isEmpty()) {
+            return null;
+        }
+        if (StrUtil.isBlank(selector)) {
+            return pendingApprovals.get(0);
+        }
+        String value = selector.trim();
+        if (value.startsWith("#")) {
+            value = value.substring(1);
+        }
+        try {
+            int index = Integer.parseInt(value);
+            if (index >= 1 && index <= pendingApprovals.size()) {
+                return pendingApprovals.get(index - 1);
+            }
+        } catch (Exception ignored) {
+            // continue with id/key matching
+        }
+        for (DangerousCommandApprovalService.PendingApproval item : pendingApprovals) {
+            if (value.equals(item.getApprovalId())
+                    || value.equals(item.approvalKey())
+                    || (item.getApprovalId() != null && item.getApprovalId().startsWith(value))
+                    || (item.approvalKey() != null && item.approvalKey().startsWith(value))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private ApprovalCommandArgs parseApprovalCommandArgs(String args) {
+        String[] parts = StrUtil.nullToEmpty(args).trim().split("\\s+");
+        ApprovalCommandArgs parsed = new ApprovalCommandArgs();
+        parsed.setScope(DangerousCommandApprovalService.ApprovalScope.ONCE);
+        if (parts.length == 1 && parts[0].length() == 0) {
+            return parsed;
+        }
+        for (String part : parts) {
+            if (StrUtil.isBlank(part)) {
+                continue;
+            }
+            DangerousCommandApprovalService.ApprovalScope scope = parseApprovalScope(part);
+            if (scope != DangerousCommandApprovalService.ApprovalScope.ONCE
+                    || "once".equalsIgnoreCase(part)
+                    || "session".equalsIgnoreCase(part)
+                    || "always".equalsIgnoreCase(part)) {
+                parsed.setScope(scope);
+            } else if (StrUtil.isBlank(parsed.getSelector())) {
+                parsed.setSelector(part);
+            }
+        }
+        return parsed;
+    }
+
+    private GatewayReply handleDangerousDeny(GatewayMessage message, String args) throws Exception {
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session == null) {
             return GatewayReply.error("当前没有待审批的危险命令。");
         }
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        String selector = firstToken(args);
         DangerousCommandApprovalService.PendingApproval pending =
-                dangerousCommandApprovalService.getPendingApproval(agentSession);
+                selectPendingApproval(agentSession, selector);
         if (pending == null) {
             return GatewayReply.error("当前没有待审批的危险命令。");
         }
 
-        if (!dangerousCommandApprovalService.reject(agentSession, message.getUserName())) {
+        if (!dangerousCommandApprovalService.reject(agentSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
         return conversationOrchestrator.resumePending(message.sourceKey());
+    }
+
+    private static class ApprovalCommandArgs {
+        private String selector;
+        private DangerousCommandApprovalService.ApprovalScope scope;
+
+        public String getSelector() {
+            return selector;
+        }
+
+        public void setSelector(String selector) {
+            this.selector = selector;
+        }
+
+        public DangerousCommandApprovalService.ApprovalScope getScope() {
+            return scope;
+        }
+
+        public void setScope(DangerousCommandApprovalService.ApprovalScope scope) {
+            this.scope = scope;
+        }
     }
 
     private GatewayReply handleReasoning(GatewayMessage message, String args) throws Exception {
@@ -2462,9 +2559,11 @@ public class DefaultCommandService implements CommandService {
                                         + " [claim-admin|pending|approve|revoke|approved]",
                                 "管理渠道配对与管理员授权"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_APPROVE + " [session|always]",
-                                "批准当前危险命令"),
-                        helpLine(GatewayCommandConstants.SLASH_DENY, "拒绝当前危险命令"),
+                                GatewayCommandConstants.SLASH_APPROVE + " [#序号|审批ID] [session|always]",
+                                "批准待审批危险命令"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID]",
+                                "拒绝待审批危险命令"),
                         helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"),
                         helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息")));
     }
