@@ -67,6 +67,9 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
+    private static final Pattern URLISH_PATTERN =
+            Pattern.compile(
+                    "(?i)(https?://[^\\s)>'\"]+|(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}(?::\\d+)?/[^\\s)>'\"]*)");
 
     private final AppConfig appConfig;
 
@@ -86,6 +89,23 @@ public class SecurityPolicyService {
         }
 
         String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
+        if (scheme.length() == 0) {
+            String schemelessHost = extractSchemelessHost(raw);
+            if (StrUtil.isBlank(schemelessHost)) {
+                return UrlVerdict.allow();
+            }
+            WebsiteRule websiteRule = checkWebsitePolicy(raw, schemelessHost);
+            if (websiteRule != null) {
+                return UrlVerdict.block(
+                        raw,
+                        "Blocked by website policy: '"
+                                + schemelessHost
+                                + "' matched rule '"
+                                + websiteRule.rule
+                                + "'");
+            }
+            return UrlVerdict.allow();
+        }
         if (!"http".equals(scheme) && !"https".equals(scheme)) {
             return UrlVerdict.block(raw, "仅允许 http/https URL");
         }
@@ -271,8 +291,7 @@ public class SecurityPolicyService {
             return;
         }
         String text = String.valueOf(raw);
-        java.util.regex.Matcher matcher =
-                java.util.regex.Pattern.compile("https?://[^\\s)>'\"]+").matcher(text);
+        java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             urls.add(matcher.group());
         }
@@ -585,7 +604,7 @@ public class SecurityPolicyService {
     private boolean matchHost(String host, String rule) {
         if (rule.startsWith("*.")) {
             String suffix = rule.substring(2);
-            return host.equals(suffix) || host.endsWith("." + suffix);
+            return host.endsWith("." + suffix);
         }
         return host.equals(rule) || host.endsWith("." + rule);
     }
@@ -605,6 +624,34 @@ public class SecurityPolicyService {
         }
         value = normalizeHost(value);
         return value.startsWith("www.") ? value.substring(4) : value;
+    }
+
+    private String extractSchemelessHost(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        if (value.contains("://")) {
+            return "";
+        }
+        int slash = value.indexOf('/');
+        if (slash >= 0) {
+            value = value.substring(0, slash);
+        }
+        int question = value.indexOf('?');
+        if (question >= 0) {
+            value = value.substring(0, question);
+        }
+        int hash = value.indexOf('#');
+        if (hash >= 0) {
+            value = value.substring(0, hash);
+        }
+        int at = value.lastIndexOf('@');
+        if (at >= 0) {
+            value = value.substring(at + 1);
+        }
+        int colon = value.lastIndexOf(':');
+        if (colon > 0 && value.indexOf(':') == colon) {
+            value = value.substring(0, colon);
+        }
+        return normalizeHost(value.startsWith("www.") ? value.substring(4) : value);
     }
 
     private URI parseUri(String url) {

@@ -435,11 +435,22 @@ public class DangerousCommandApprovalServiceTest {
         args.put("query", "read https://api.internal.example/docs");
         SecurityPolicyService.UrlVerdict query =
                 securityPolicyService.checkToolArgs("websearch", args);
+        Map<String, Object> schemelessArgs = new LinkedHashMap<String, Object>();
+        schemelessArgs.put("query", "read www.blocked.example/docs");
+        SecurityPolicyService.UrlVerdict schemeless =
+                securityPolicyService.checkToolArgs("websearch", schemelessArgs);
+        Map<String, Object> wildcardBareArgs = new LinkedHashMap<String, Object>();
+        wildcardBareArgs.put("query", "read internal.example/docs");
+        SecurityPolicyService.UrlVerdict wildcardBare =
+                securityPolicyService.checkToolArgs("websearch", wildcardBareArgs);
 
         assertThat(direct.isAllowed()).isFalse();
         assertThat(direct.getMessage()).contains("blocked.example");
         assertThat(query.isAllowed()).isFalse();
         assertThat(query.getMessage()).contains("*.internal.example");
+        assertThat(schemeless.isAllowed()).isFalse();
+        assertThat(schemeless.getMessage()).contains("blocked.example");
+        assertThat(wildcardBare.isAllowed()).isTrue();
     }
 
     @Test
