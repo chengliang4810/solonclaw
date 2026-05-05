@@ -492,6 +492,56 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockHermesWriteDeniedSystemPathsForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        assertWriteDenied(securityPolicyService, "/etc/shadow");
+        assertWriteDenied(securityPolicyService, "/etc/passwd");
+        assertWriteDenied(securityPolicyService, "/etc/sudoers");
+        assertWriteDenied(securityPolicyService, "/etc/sudoers.d/custom");
+        assertWriteDenied(securityPolicyService, "/etc/systemd/system/evil.service");
+    }
+
+    @Test
+    void shouldBlockHermesWriteDeniedHomeFilesForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        assertWriteDenied(securityPolicyService, "~/.bashrc");
+        assertWriteDenied(securityPolicyService, "~/.zshrc");
+        assertWriteDenied(securityPolicyService, "~/.profile");
+        assertWriteDenied(securityPolicyService, "~/.bash_profile");
+        assertWriteDenied(securityPolicyService, "~/.zprofile");
+        assertWriteDenied(securityPolicyService, "$HOME/.npmrc");
+        assertWriteDenied(securityPolicyService, "$HOME/.pypirc");
+        assertWriteDenied(securityPolicyService, "$HOME/.pgpass");
+    }
+
+    @Test
+    void shouldAllowOrdinaryProjectWritesDespiteWriteDenyList() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> projectArgs = new LinkedHashMap<String, Object>();
+        projectArgs.put("fileName", "src/main.py");
+        Map<String, Object> configArgs = new LinkedHashMap<String, Object>();
+        configArgs.put("fileName", ".jimuqu/config.yml");
+        Map<String, Object> projectProfileArgs = new LinkedHashMap<String, Object>();
+        projectProfileArgs.put("fileName", "fixtures/.bashrc");
+
+        SecurityPolicyService.FileVerdict project =
+                securityPolicyService.checkFileToolArgs("file_write", projectArgs);
+        SecurityPolicyService.FileVerdict config =
+                securityPolicyService.checkFileToolArgs("file_write", configArgs);
+        SecurityPolicyService.FileVerdict projectProfile =
+                securityPolicyService.checkFileToolArgs("file_write", projectProfileArgs);
+
+        assertThat(project.isAllowed()).isTrue();
+        assertThat(config.isAllowed()).isTrue();
+        assertThat(projectProfile.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockPathTraversalForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -598,6 +648,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(powershell.getMessage()).contains("凭据");
         assertThat(cmd.isAllowed()).isFalse();
         assertThat(cmd.getMessage()).contains("凭据");
+    }
+
+    @Test
+    void shouldBlockHermesWriteDeniedPathsInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict shadow =
+                securityPolicyService.checkCommandPaths("echo bad > /etc/shadow");
+        SecurityPolicyService.FileVerdict profile =
+                securityPolicyService.checkCommandPaths("Set-Content ~/.bashrc bad");
+        SecurityPolicyService.FileVerdict systemd =
+                securityPolicyService.checkCommandPaths("cat service > /etc/systemd/system/evil.service");
+
+        assertThat(shadow.isAllowed()).isFalse();
+        assertThat(shadow.getMessage()).contains("系统文件");
+        assertThat(profile.isAllowed()).isFalse();
+        assertThat(systemd.isAllowed()).isFalse();
     }
 
     @Test
@@ -1005,6 +1073,15 @@ public class DangerousCommandApprovalServiceTest {
         values.put("title", title);
         values.put("description", description);
         return TirithSecurityService.Finding.from(values);
+    }
+
+    private static void assertWriteDenied(SecurityPolicyService securityPolicyService, String path) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", path);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_write", args);
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getPath()).isEqualTo(path);
     }
 
     private static class FakeTirithSecurityService extends TirithSecurityService {

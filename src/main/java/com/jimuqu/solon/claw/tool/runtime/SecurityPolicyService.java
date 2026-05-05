@@ -57,6 +57,22 @@ public class SecurityPolicyService {
                     "id_rsa",
                     "id_ed25519",
                     "known_hosts");
+    private static final List<String> WRITE_DENIED_EXACT_PATHS =
+            Arrays.asList(
+                    "/etc/sudoers",
+                    "/etc/passwd",
+                    "/etc/shadow");
+    private static final List<String> WRITE_DENIED_HOME_FILE_NAMES =
+            Arrays.asList(
+                    ".bashrc",
+                    ".zshrc",
+                    ".profile",
+                    ".bash_profile",
+                    ".zprofile");
+    private static final List<String> WRITE_DENIED_PREFIXES =
+            Arrays.asList(
+                    "/etc/sudoers.d/",
+                    "/etc/systemd/");
     private static final Pattern SHELL_PATH_PATTERN =
             Pattern.compile(
                     "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:\\\\[^\\s'\"`|;&<>]+)",
@@ -230,6 +246,9 @@ public class SecurityPolicyService {
                     writeLike
                             ? "写入敏感系统/凭据文件被阻断"
                             : "读取敏感系统/凭据文件被阻断");
+        }
+        if (writeLike && matchesWriteDeniedPath(normalized)) {
+            return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
         return FileVerdict.allow();
     }
@@ -485,6 +504,63 @@ public class SecurityPolicyService {
             return true;
         }
         return fileName.startsWith(".env.") && !".env.example".equals(fileName);
+    }
+
+    private boolean matchesWriteDeniedPath(String normalized) {
+        String path = stripKnownPrefix(normalized);
+        for (String exact : WRITE_DENIED_EXACT_PATHS) {
+            if (path.equals(exact.substring(1)) || normalized.equals(exact)) {
+                return true;
+            }
+        }
+        for (String prefix : WRITE_DENIED_PREFIXES) {
+            if (normalized.startsWith(prefix)
+                    || path.startsWith(prefix.substring(1))) {
+                return true;
+            }
+        }
+        if (WRITE_DENIED_HOME_FILE_NAMES.contains(lastPathPart(path))) {
+            return startsWithHomeLikePrefix(normalized) || startsWithUserHome(normalized);
+        }
+        return isOutsideSafeWriteRoot(normalized);
+    }
+
+    private boolean startsWithHomeLikePrefix(String normalized) {
+        return normalized.startsWith("~/")
+                || normalized.startsWith("$home/")
+                || normalized.startsWith("$env:userprofile/")
+                || normalized.startsWith("%userprofile%/")
+                || normalized.startsWith("%homepath%/");
+    }
+
+    private boolean startsWithUserHome(String normalized) {
+        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
+        if (StrUtil.isBlank(home)) {
+            return false;
+        }
+        String normalizedHome = normalizePathText(home);
+        if (normalizedHome.endsWith("/") && normalizedHome.length() > 1) {
+            normalizedHome = normalizedHome.substring(0, normalizedHome.length() - 1);
+        }
+        return normalized.startsWith(normalizedHome + "/");
+    }
+
+    private boolean isOutsideSafeWriteRoot(String normalized) {
+        String safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
+        if (StrUtil.isBlank(safeRoot)) {
+            safeRoot = StrUtil.nullToEmpty(System.getenv("HERMES_WRITE_SAFE_ROOT")).trim();
+        }
+        if (StrUtil.isBlank(safeRoot)) {
+            return false;
+        }
+        String root = normalizePathText(safeRoot);
+        if (root.endsWith("/") && root.length() > 1) {
+            root = root.substring(0, root.length() - 1);
+        }
+        if (StrUtil.isBlank(root)) {
+            return false;
+        }
+        return !(normalized.equals(root) || normalized.startsWith(root + "/"));
     }
 
     private String stripKnownPrefix(String normalized) {
