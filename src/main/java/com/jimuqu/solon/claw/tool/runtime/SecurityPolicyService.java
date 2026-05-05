@@ -644,31 +644,104 @@ public class SecurityPolicyService {
         if (ip == null) {
             return false;
         }
-        return ip.startsWith("10.")
-                || ip.startsWith("127.")
-                || ip.startsWith("192.168.")
-                || ip.startsWith("172.16.")
-                || ip.startsWith("172.17.")
-                || ip.startsWith("172.18.")
-                || ip.startsWith("172.19.")
-                || ip.startsWith("172.20.")
-                || ip.startsWith("172.21.")
-                || ip.startsWith("172.22.")
-                || ip.startsWith("172.23.")
-                || ip.startsWith("172.24.")
-                || ip.startsWith("172.25.")
-                || ip.startsWith("172.26.")
-                || ip.startsWith("172.27.")
-                || ip.startsWith("172.28.")
-                || ip.startsWith("172.29.")
-                || ip.startsWith("172.30.")
-                || ip.startsWith("172.31.")
-                || ip.startsWith("100.64.")
-                || ip.startsWith("198.18.")
-                || ip.startsWith("198.19.")
-                || ip.equals("::1")
-                || ip.toLowerCase(Locale.ROOT).startsWith("fc")
-                || ip.toLowerCase(Locale.ROOT).startsWith("fd");
+        byte[] rawAddress = address.getAddress();
+        if (rawAddress.length == 16
+                && rawAddress[10] == (byte) 0xff
+                && rawAddress[11] == (byte) 0xff) {
+            int a = rawAddress[12] & 0xff;
+            int b = rawAddress[13] & 0xff;
+            int c = rawAddress[14] & 0xff;
+            int d = rawAddress[15] & 0xff;
+            if (isBlockedIpv4(a, b, c, d)) {
+                return true;
+            }
+        }
+        if (isBlockedIpv4Text(ip)) {
+            return true;
+        }
+        return isBlockedIpv6Address(rawAddress);
+    }
+
+    private boolean isBlockedIpv4Text(String ip) {
+        String value = StrUtil.nullToEmpty(ip);
+        int percent = value.indexOf('%');
+        if (percent >= 0) {
+            value = value.substring(0, percent);
+        }
+        String[] parts = value.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+        int[] octets = new int[4];
+        for (int i = 0; i < parts.length; i++) {
+            try {
+                if (parts[i].length() == 0) {
+                    return false;
+                }
+                octets[i] = Integer.parseInt(parts[i]);
+            } catch (NumberFormatException e) {
+                return false;
+            }
+            if (octets[i] < 0 || octets[i] > 255) {
+                return false;
+            }
+        }
+        return isBlockedIpv4(octets[0], octets[1], octets[2], octets[3]);
+    }
+
+    private boolean isBlockedIpv4(int a, int b, int c, int d) {
+        if (a == 0 || a == 10 || a == 127 || a >= 224) {
+            return true;
+        }
+        if (a == 100 && b >= 64 && b <= 127) {
+            return true;
+        }
+        if (a == 172 && b >= 16 && b <= 31) {
+            return true;
+        }
+        if (a == 192 && b == 168) {
+            return true;
+        }
+        if (a == 198 && (b == 18 || b == 19)) {
+            return true;
+        }
+        return (a == 192 && b == 0 && (c == 0 || c == 2))
+                || (a == 198 && b == 51 && c == 100)
+                || (a == 203 && b == 0 && c == 113);
+    }
+
+    private boolean isBlockedIpv6Address(byte[] rawAddress) {
+        if (rawAddress == null || rawAddress.length != 16) {
+            return false;
+        }
+        int first = unsignedShort(rawAddress, 0);
+        int second = unsignedShort(rawAddress, 2);
+        if (first == 0 || first == 1 || first == 0x2002 || first >= 0xff00) {
+            return true;
+        }
+        if (first >= 0xfc00 && first <= 0xfdff) {
+            return true;
+        }
+        if (first == 0x2001 && second < 0x0200) {
+            return true;
+        }
+        if (first == 0x2001 && second == 0x0db8) {
+            return true;
+        }
+        return first == 0x0064 && second == 0xff9b && isZeroSuffix(rawAddress, 4, 8);
+    }
+
+    private int unsignedShort(byte[] bytes, int offset) {
+        return ((bytes[offset] & 0xff) << 8) | (bytes[offset + 1] & 0xff);
+    }
+
+    private boolean isZeroSuffix(byte[] bytes, int offset, int length) {
+        for (int i = offset; i < offset + length; i++) {
+            if (bytes[i] != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean contains(String[] values, String value) {

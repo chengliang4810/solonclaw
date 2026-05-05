@@ -9,6 +9,8 @@ public final class SecretRedactor {
     private static final Pattern KEY_VALUE =
             Pattern.compile(
                     "(?i)(api[_-]?key|token|secret|password|authorization|client[_-]?secret)(\\s*[:=]\\s*)([^\\s,;\"'}]+)");
+    private static final Pattern URL_USERINFO =
+            Pattern.compile("(?i)(https?://)([^/?#\\s@]+)@");
     private static final int DEFAULT_MAX_LENGTH = 8000;
 
     private SecretRedactor() {}
@@ -44,6 +46,7 @@ public final class SecretRedactor {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        return value.replaceAll("(?i)([?&](?:token|key|secret|password)=)[^&]+", "$1***");
+        String result = URL_USERINFO.matcher(value).replaceAll("$1***@");
+        return result.replaceAll("(?i)([?&](?:token|key|secret|password)=)[^&]+", "$1***");
     }
 }

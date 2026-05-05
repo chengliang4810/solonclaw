@@ -375,6 +375,51 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockHermesStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "http://127.0.0.1/status",
+                        "http://localhost/status",
+                        "http://0.0.0.0/status",
+                        "http://224.0.0.1/status",
+                        "http://100.127.255.254/status",
+                        "http://198.18.0.1/status",
+                        "http://192.0.2.10/status",
+                        "http://203.0.113.10/status",
+                        "http://[::1]/status",
+                        "http://[2001:db8::1]/status",
+                        "http://[2001:1ff::1]/status",
+                        "http://[2002::1]/status",
+                        "http://[64:ff9b::1]/status",
+                        "http://[::ffff:127.0.0.1]/status");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("阻断");
+        }
+    }
+
+    @Test
+    void shouldAllowPrivateUrlsWhenConfiguredExceptMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict privateUrl =
+                securityPolicyService.checkUrl("http://127.0.0.1/status");
+        SecurityPolicyService.UrlVerdict metadata =
+                securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
+
+        assertThat(privateUrl.isAllowed()).isTrue();
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldApplyWebsiteBlocklistToUrlTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
@@ -568,6 +613,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
                                 metadata.getUrl()))
+                .doesNotContain("secret123");
+        assertThat(
+                        com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
+                                "https://user:pass@example.com/path?token=secret123"))
+                .doesNotContain("user:pass")
                 .doesNotContain("secret123");
         assertThat(python.isAllowed()).isFalse();
         assertThat(python.getMessage()).contains("blocked.example");
