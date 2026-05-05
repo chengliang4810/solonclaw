@@ -44,7 +44,7 @@ public class HermesShellSkill extends ShellSkill {
             String extension,
             AppConfig appConfig,
             SecurityPolicyService securityPolicyService) {
-        super(workDir);
+        super(checkedWorkDir(workDir));
         this.appConfig = appConfig;
         this.securityPolicyService = securityPolicyService;
         this.shellCmd = shellCmd;
@@ -182,6 +182,15 @@ public class HermesShellSkill extends ShellSkill {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private static String checkedWorkDir(String workDir) {
+        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "Blocked: " + verdict.getMessage() + ". Use a simple filesystem path without shell metacharacters.");
+        }
+        return workDir;
     }
 
     public static class SudoTransform {

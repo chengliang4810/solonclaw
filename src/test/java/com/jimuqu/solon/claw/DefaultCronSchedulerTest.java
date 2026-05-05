@@ -1085,6 +1085,21 @@ public class DefaultCronSchedulerTest {
                 .hasMessageContaining("workdir blocked by security policy")
                 .hasMessageContaining(".ssh");
 
+        Map<String, Object> metacharCreate = new LinkedHashMap<String, Object>();
+        metacharCreate.put("name", "metachar-workdir");
+        metacharCreate.put("schedule", "30m");
+        metacharCreate.put("prompt", "inspect");
+        metacharCreate.put("workdir", projectDir.getAbsolutePath() + "; rm -rf runtime");
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.create("MEMORY:cron:user", metacharCreate);
+                            }
+                        })
+                .hasMessageContaining("workdir blocked by security policy")
+                .hasMessageContaining("disallowed character");
+
         Map<String, Object> safeCreate = new LinkedHashMap<String, Object>();
         safeCreate.put("name", "safe-workdir");
         safeCreate.put("schedule", "30m");

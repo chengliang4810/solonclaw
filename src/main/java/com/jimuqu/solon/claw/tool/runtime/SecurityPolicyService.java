@@ -65,6 +65,8 @@ public class SecurityPolicyService {
             Pattern.compile(
                     "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials)|(?:\\.netrc)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_.-])",
                     Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORKDIR_SAFE_PATTERN =
+            Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
 
     private final AppConfig appConfig;
 
@@ -210,6 +212,22 @@ public class SecurityPolicyService {
                             : "读取敏感系统/凭据文件被阻断");
         }
         return FileVerdict.allow();
+    }
+
+    public static FileVerdict checkWorkdirText(String rawWorkdir) {
+        String workdir = StrUtil.nullToEmpty(rawWorkdir).trim();
+        if (workdir.length() == 0 || WORKDIR_SAFE_PATTERN.matcher(workdir).matches()) {
+            return FileVerdict.allow();
+        }
+        for (int i = 0; i < workdir.length(); i++) {
+            String ch = String.valueOf(workdir.charAt(i));
+            if (!WORKDIR_SAFE_PATTERN.matcher(ch).matches()) {
+                return FileVerdict.block(
+                        workdir,
+                        "workdir contains disallowed character '" + printableCharacter(ch) + "'");
+            }
+        }
+        return FileVerdict.block(workdir, "workdir contains disallowed characters");
     }
 
     private List<String> extractUrls(String toolName, java.util.Map<String, Object> args) {
@@ -407,6 +425,19 @@ public class SecurityPolicyService {
             value = value.replace("//", "/");
         }
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    private static String printableCharacter(String ch) {
+        if ("\n".equals(ch)) {
+            return "\\n";
+        }
+        if ("\r".equals(ch)) {
+            return "\\r";
+        }
+        if ("\t".equals(ch)) {
+            return "\\t";
+        }
+        return ch;
     }
 
     private boolean containsTraversal(String normalized) {

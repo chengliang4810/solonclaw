@@ -336,6 +336,15 @@ public class CronJobService {
         if (StrUtil.isBlank(workdir)) {
             return;
         }
+        SecurityPolicyService.FileVerdict textVerdict =
+                SecurityPolicyService.checkWorkdirText(workdir);
+        if (!textVerdict.isAllowed()) {
+            throw new IllegalStateException(
+                    "workdir blocked by security policy: "
+                            + textVerdict.getPath()
+                            + " - "
+                            + textVerdict.getMessage());
+        }
         File file = FileUtil.file(workdir);
         if (!file.isAbsolute() || !file.exists() || !file.isDirectory()) {
             throw new IllegalStateException("workdir must be an existing absolute directory");

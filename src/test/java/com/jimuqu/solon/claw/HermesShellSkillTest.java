@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
@@ -57,5 +58,19 @@ public class HermesShellSkillTest {
         HermesShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
 
         assertThat(transform.isChanged()).isFalse();
+    }
+
+    @Test
+    void shouldRejectWorkdirWithShellMetacharactersLikeHermesTerminalGuardrail() {
+        AppConfig config = new AppConfig();
+
+        assertThatThrownBy(
+                        () ->
+                                new HermesShellSkill(
+                                        "C:\\workspace; rm -rf runtime",
+                                        config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Blocked")
+                .hasMessageContaining("disallowed character");
     }
 }
