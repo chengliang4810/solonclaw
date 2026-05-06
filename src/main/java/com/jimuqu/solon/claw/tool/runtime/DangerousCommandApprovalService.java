@@ -412,7 +412,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "hardline_delete_home",
                                     "recursive delete of home directory",
-                                    pattern("\\brm\\s+(-[^\\s]*\\s+)*(~|\\$HOME)(/?|/\\*)?(\\s|$)"),
+                                    pattern(
+                                            "\\brm\\s+(-[^\\s]*\\s+)*(~|\\$HOME|\\$\\{HOME\\}|\\$env:HOME|\\$env:USERPROFILE|%USERPROFILE%|%HOMEPATH%)(/?|/\\*)?(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_mkfs",
