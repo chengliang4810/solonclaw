@@ -748,6 +748,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNormalizeUrlControlSequencesBeforeSecurityChecks() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("query", "read \u001B]0;hidden\u0007http://169.254.169.254/latest/meta-data/");
+
+        SecurityPolicyService.UrlVerdict nul =
+                securityPolicyService.checkUrl(
+                        "http://169.254.169.\u0000254/latest/meta-data/?token=secret123");
+        SecurityPolicyService.UrlVerdict osc =
+                securityPolicyService.checkToolArgs("websearch", args);
+        SecurityPolicyService.UrlVerdict fullwidth =
+                securityPolicyService.checkCommandUrls(
+                        "curl ｈｔｔｐ://１６９.２５４.１６９.２５４/latest/meta-data/");
+
+        assertThat(nul.isAllowed()).isFalse();
+        assertThat(nul.getMessage()).contains("元数据");
+        assertThat(nul.getUrl()).doesNotContain("\u0000");
+        assertThat(osc.isAllowed()).isFalse();
+        assertThat(osc.getMessage()).contains("元数据");
+        assertThat(fullwidth.isAllowed()).isFalse();
+        assertThat(fullwidth.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldBlockCloudMetadataHostnamesEvenWhenPrivateUrlsAreAllowed() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);

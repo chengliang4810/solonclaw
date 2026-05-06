@@ -1113,7 +1113,10 @@ public class SecurityPolicyService {
     }
 
     private String normalizeUrlText(String raw) {
-        return Normalizer.normalize(StrUtil.nullToEmpty(raw), Normalizer.Form.NFKC).trim();
+        String value = StrUtil.nullToEmpty(raw).replace("\u0000", "");
+        value = TerminalAnsiSanitizer.stripAnsi(value);
+        value = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        return value.trim();
     }
 
     private String normalizeHost(String host) {
