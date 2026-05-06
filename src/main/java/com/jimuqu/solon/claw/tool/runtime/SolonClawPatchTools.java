@@ -280,6 +280,12 @@ public class SolonClawPatchTools {
                 if (!applied.success) {
                     errors.add(operation.filePath + ": " + applied.error);
                 }
+                if (StrUtil.isNotBlank(operation.newPath)) {
+                    Path destination = resolvePath(operation.newPath);
+                    if (Files.exists(destination)) {
+                        errors.add(operation.newPath + ": destination already exists - move would overwrite");
+                    }
+                }
             } else if ("delete".equals(operation.type)) {
                 Path target = resolvePath(operation.filePath);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
@@ -295,7 +301,10 @@ public class SolonClawPatchTools {
                     errors.add(operation.newPath + ": destination already exists - move would overwrite");
                 }
             } else if ("add".equals(operation.type)) {
-                resolvePath(operation.filePath);
+                Path target = resolvePath(operation.filePath);
+                if (Files.exists(target)) {
+                    errors.add(operation.filePath + ": file already exists - add would overwrite");
+                }
             }
         }
         return errors;

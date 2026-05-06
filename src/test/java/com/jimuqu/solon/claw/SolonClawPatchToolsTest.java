@@ -214,6 +214,63 @@ public class SolonClawPatchToolsTest {
         assertThat(Files.exists(dir.resolve(".env.local"))).isFalse();
     }
 
+    @Test
+    void shouldRejectAddFileWhenTargetExistsWithoutOverwriting() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("existing.txt");
+        Files.write(file, "original\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Add File: existing.txt\n"
+                        + "+replacement\n"
+                        + "*** End Patch";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("Patch validation failed")
+                .contains("existing.txt")
+                .contains("already exists")
+                .contains("add would overwrite");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("original\n");
+    }
+
+    @Test
+    void shouldRejectUpdateMoveToExistingTargetWithoutPartialWrites() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path source = dir.resolve("source.txt");
+        Path destination = dir.resolve("destination.txt");
+        Files.write(source, "alpha\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(destination, "destination\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: source.txt\n"
+                        + "*** Move to: destination.txt\n"
+                        + "@@ alpha @@\n"
+                        + "-alpha\n"
+                        + "+updated\n"
+                        + "*** End Patch";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("Patch validation failed")
+                .contains("destination.txt")
+                .contains("destination already exists")
+                .contains("move would overwrite");
+        assertThat(new String(Files.readAllBytes(source), StandardCharsets.UTF_8))
+                .isEqualTo("alpha\n");
+        assertThat(new String(Files.readAllBytes(destination), StandardCharsets.UTF_8))
+                .isEqualTo("destination\n");
+    }
+
     private Map<?, ?> parse(String json) {
         return ONode.deserialize(json, java.util.LinkedHashMap.class);
     }
