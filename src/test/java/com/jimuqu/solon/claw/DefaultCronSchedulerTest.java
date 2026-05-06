@@ -908,7 +908,35 @@ public class DefaultCronSchedulerTest {
                                                 null,
                                                 null))
                                 .toData();
-        assertThat(defaultList.get("count")).isEqualTo(Integer.valueOf(0));
+        assertThat(defaultList.get("count")).isEqualTo(Integer.valueOf(1));
+        List<?> defaultJobs = (List<?>) defaultList.get("jobs");
+        assertThat(((Map<?, ?>) defaultJobs.get(0)).get("state")).isEqualTo("paused");
+
+        Map<?, ?> filteredList =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "list",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Boolean.FALSE,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(filteredList.get("count")).isEqualTo(Integer.valueOf(0));
 
         Map<?, ?> allList =
                 (Map<?, ?>)

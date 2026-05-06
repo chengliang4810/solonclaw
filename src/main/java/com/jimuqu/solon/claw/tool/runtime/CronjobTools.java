@@ -61,7 +61,7 @@ public class CronjobTools {
 
         if ("list".equals(normalized)) {
             List<CronJobRecord> jobs =
-                    cronJobService.listBySource(sourceKey, includeDisabled != null && includeDisabled.booleanValue());
+                    cronJobService.listBySource(sourceKey, includeDisabled == null || includeDisabled.booleanValue());
             return ToolResultEnvelope.ok("Listed cron jobs")
                     .data("jobs", views(jobs))
                     .data("count", Integer.valueOf(jobs.size()))
