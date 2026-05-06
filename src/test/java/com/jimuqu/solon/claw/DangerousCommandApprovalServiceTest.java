@@ -587,6 +587,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockHermesDevicePathsThatCanHangFileReads() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> zeroArgs = new LinkedHashMap<String, Object>();
+        zeroArgs.put("fileName", "/dev/zero");
+        Map<String, Object> procFdArgs = new LinkedHashMap<String, Object>();
+        procFdArgs.put("path", "/proc/self/fd/0");
+        Map<String, Object> projectArgs = new LinkedHashMap<String, Object>();
+        projectArgs.put("fileName", "docs/dev/zero.txt");
+
+        SecurityPolicyService.FileVerdict zero =
+                securityPolicyService.checkFileToolArgs("file_read", zeroArgs);
+        SecurityPolicyService.FileVerdict procFd =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", procFdArgs);
+        SecurityPolicyService.FileVerdict project =
+                securityPolicyService.checkFileToolArgs("file_read", projectArgs);
+
+        assertThat(zero.isAllowed()).isFalse();
+        assertThat(zero.getMessage()).contains("设备文件");
+        assertThat(zero.getPath()).isEqualTo("/dev/zero");
+        assertThat(procFd.isAllowed()).isFalse();
+        assertThat(procFd.getPath()).isEqualTo("/proc/self/fd/0");
+        assertThat(project.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockHermesWriteDeniedSystemPathsForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

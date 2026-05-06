@@ -74,6 +74,20 @@ public class SecurityPolicyService {
             Arrays.asList(
                     "/etc/sudoers.d/",
                     "/etc/systemd/");
+    private static final List<String> BLOCKED_DEVICE_PATHS =
+            Arrays.asList(
+                    "/dev/zero",
+                    "/dev/random",
+                    "/dev/urandom",
+                    "/dev/full",
+                    "/dev/stdin",
+                    "/dev/tty",
+                    "/dev/console",
+                    "/dev/stdout",
+                    "/dev/stderr",
+                    "/dev/fd/0",
+                    "/dev/fd/1",
+                    "/dev/fd/2");
     private static final Pattern SHELL_PATH_PATTERN =
             Pattern.compile(
                     "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
@@ -84,6 +98,8 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
+    private static final Pattern PROC_STDIO_FD_PATTERN =
+            Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?i)(https?://[^\\s)>'\"]+|(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}(?::\\d+)?/[^\\s)>'\"]*)");
@@ -245,6 +261,9 @@ public class SecurityPolicyService {
         }
         if (containsTraversal(normalized)) {
             return FileVerdict.block(path, "路径遍历被阻断");
+        }
+        if (matchesBlockedDevicePath(normalized)) {
+            return FileVerdict.block(path, "读取设备文件可能导致无限输出或阻塞，已阻断");
         }
         if (matchesCredentialPath(normalized)) {
             return FileVerdict.block(
@@ -495,6 +514,13 @@ public class SecurityPolicyService {
                 || normalized.contains("%2e%2e")
                 || normalized.contains("..%2f")
                 || normalized.contains("..%5c");
+    }
+
+    private boolean matchesBlockedDevicePath(String normalized) {
+        if (BLOCKED_DEVICE_PATHS.contains(normalized)) {
+            return true;
+        }
+        return PROC_STDIO_FD_PATTERN.matcher(normalized).matches();
     }
 
     private boolean matchesCredentialPath(String normalized) {
