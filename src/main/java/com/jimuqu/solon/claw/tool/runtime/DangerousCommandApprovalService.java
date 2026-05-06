@@ -312,7 +312,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "git_branch_force_delete",
                                     "git branch force delete",
-                                    pattern("\\bgit\\s+branch\\s+-[dD]\\b"),
+                                    caseSensitivePattern("\\bgit\\s+branch\\s+-D\\b"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
@@ -1985,6 +1985,10 @@ public class DangerousCommandApprovalService {
 
     private static Pattern pattern(String regex) {
         return Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    }
+
+    private static Pattern caseSensitivePattern(String regex) {
+        return Pattern.compile(regex, Pattern.DOTALL);
     }
 
     public enum ApprovalScope {

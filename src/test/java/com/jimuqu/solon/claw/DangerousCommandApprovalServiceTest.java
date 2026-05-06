@@ -67,8 +67,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(heredoc.getPatternKey()).isEqualTo("script_heredoc");
         assertThat(branchDelete).isNotNull();
         assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
-        assertThat(safeBranchDelete).isNotNull();
-        assertThat(safeBranchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
+        assertThat(safeBranchDelete).isNull();
     }
 
     @Test
