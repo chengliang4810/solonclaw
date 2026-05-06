@@ -190,6 +190,18 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldUseHermesDefaultToolOutputMaxBytes() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-default").toFile();
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
+    }
+
+    @Test
     void shouldLoadHermesTerminalCredentialFilesAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-config").toFile();
         File configFile = new File(runtimeHome, "config.yml");

@@ -228,7 +228,7 @@ solonclaw:
     # 运行中收到新消息时的处理策略：queue 排队、steer 注入当前 run、interrupt 打断重跑、reject 拒绝。
     busyPolicy: interrupt
     # 单个工具输出超过该字节数时写入 runtime/cache/tool-results，只把预览和 result_ref 放回上下文。
-    toolOutputInlineLimit: 4000
+    toolOutputInlineLimit: 50000
     # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
     toolOutputTurnBudget: 200000
     # 对齐 Hermes tool_output.max_lines，供文件读取/分页输出限制使用。
@@ -238,7 +238,7 @@ solonclaw:
 
   # Hermes 兼容工具输出限制别名。max_bytes 会映射到 task.toolOutputInlineLimit。
   tool_output:
-    max_bytes: 4000
+    max_bytes: 50000
     max_lines: 2000
     max_line_length: 2000
 

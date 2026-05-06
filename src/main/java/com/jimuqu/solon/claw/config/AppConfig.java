@@ -1065,7 +1065,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "tool_output.max_bytes",
-                                                4000))));
+                                                50000))));
         config.getTask()
                 .setToolOutputTurnBudget(
                         resolveInt(
@@ -2788,7 +2788,7 @@ public class AppConfig {
         private int subagentMaxDepth = 1;
 
         /** 工具输出超过该长度时应落盘/摘要化。 */
-        private int toolOutputInlineLimit = 4000;
+        private int toolOutputInlineLimit = 50000;
 
         /** 单轮工具输出累计超过该长度时，后续输出会落盘/摘要化。 */
         private int toolOutputTurnBudget = 200000;
