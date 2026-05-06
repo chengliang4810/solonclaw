@@ -784,6 +784,39 @@ public class ToolRegistryExposureTest {
                 .contains("     4|delta");
     }
 
+    @Test
+    void shouldDeduplicateUnchangedRepeatedFileReadsLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("repeat.txt"),
+                Arrays.asList("alpha", "bravo", "charlie"),
+                StandardCharsets.UTF_8);
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode first = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
+        ONode second = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
+        ONode third = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
+
+        assertThat(first.get("success").getBoolean()).isTrue();
+        assertThat(first.get("content").getString()).contains("alpha").contains("bravo");
+        assertThat(second.get("success").getBoolean()).isTrue();
+        assertThat(second.get("dedup").getBoolean()).isTrue();
+        assertThat(second.get("content_returned").getBoolean()).isFalse();
+        assertThat(second.get("content").getString()).isNull();
+        assertThat(third.get("success").getBoolean()).isFalse();
+        assertThat(third.get("error").getString()).contains("BLOCKED").contains("重复");
+
+        fileSkill.write("repeat.txt", "delta\n");
+        ONode changed = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
+
+        assertThat(changed.get("success").getBoolean()).isTrue();
+        assertThat(changed.get("content").getString()).contains("delta");
+    }
+
     private String javaSleepCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return "ping -n 30 127.0.0.1 > nul";

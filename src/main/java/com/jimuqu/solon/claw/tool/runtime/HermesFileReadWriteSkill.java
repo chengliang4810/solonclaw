@@ -23,12 +23,17 @@ import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     private static final int DEFAULT_READ_OFFSET = 1;
     private static final int DEFAULT_READ_LIMIT = 500;
+    private static final String READ_DEDUP_STATUS_MESSAGE =
+            "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 file_read 结果继续任务。";
 
     private final Path rootPath;
     private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
     private final int maxLines;
     private final int maxLineLength;
+    private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
+    private ReadKey lastReadKey;
+    private int consecutiveReadCount;
 
     public HermesFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
         this(workDir, securityPolicyService, 2000, 2000);
@@ -52,7 +57,9 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
         assertSafe(ToolNameConstants.FILE_WRITE, fileName);
         assertContained(fileName);
-        return super.write(fileName, content);
+        String result = super.write(fileName, content);
+        clearReadDedup(fileName);
+        return result;
     }
 
     public String read(@Param("fileName") String fileName) {
@@ -94,7 +101,9 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     public String delete(@Param("fileName") String fileName) {
         assertSafe(ToolNameConstants.FILE_DELETE, fileName);
         assertContained(fileName);
-        return super.delete(fileName);
+        String result = super.delete(fileName);
+        clearReadDedup(fileName);
+        return result;
     }
 
     private void assertSafe(String toolName, String path) {
@@ -146,6 +155,11 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
                     .data("path", fileName)
                     .toJson();
         }
+        ReadKey readKey = new ReadKey(target.toAbsolutePath().normalize().toString(), safeOffset, safeLimit);
+        String duplicate = duplicateReadResult(fileName, readKey, targetFile);
+        if (duplicate != null) {
+            return duplicate;
+        }
 
         List<String> selected = new ArrayList<String>();
         int totalLines = 0;
@@ -160,6 +174,13 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
             }
             boolean truncated = totalLines > endLine;
             String content = SecretRedactor.redact(joinLines(selected));
+            ReadStatus readStatus = recordRead(fileName, readKey, targetFile);
+            if (readStatus.blocked) {
+                return ToolResultEnvelope.error(readStatus.message)
+                        .data("path", fileName)
+                        .data("already_read", Integer.valueOf(readStatus.count))
+                        .toJson();
+            }
             ToolResultEnvelope envelope =
                     ToolResultEnvelope.ok("文件读取完成：" + fileName)
                             .data("path", fileName)
@@ -182,6 +203,9 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
                                 + " of "
                                 + totalLines
                                 + " lines)");
+            }
+            if (StrUtil.isNotBlank(readStatus.message)) {
+                envelope.data("warning", readStatus.message);
             }
             return envelope.toJson();
         } catch (Exception e) {
@@ -253,6 +277,157 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
             return path.toRealPath();
         } catch (Exception e) {
             return path.toAbsolutePath().normalize();
+        }
+    }
+
+    private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
+        long modifiedAt = targetFile.lastModified();
+        synchronized (readDedup) {
+            ReadTracker tracker = readDedup.get(key);
+            if (tracker == null || tracker.modifiedAt != modifiedAt) {
+                return null;
+            }
+            tracker.dedupHits++;
+            if (tracker.dedupHits >= 2) {
+                return ToolResultEnvelope.error(
+                                "BLOCKED: 已连续多次读取同一文件区域且文件未变化。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
+                        .data("path", fileName)
+                        .data("already_read", Integer.valueOf(tracker.dedupHits + 1))
+                        .toJson();
+            }
+            return ToolResultEnvelope.ok(READ_DEDUP_STATUS_MESSAGE)
+                    .data("path", fileName)
+                    .data("dedup", Boolean.TRUE)
+                    .data("content_returned", Boolean.FALSE)
+                    .data("offset", Integer.valueOf(key.offset))
+                    .data("limit", Integer.valueOf(key.limit))
+                    .toJson();
+        }
+    }
+
+    private ReadStatus recordRead(String fileName, ReadKey key, File targetFile) {
+        synchronized (readDedup) {
+            ReadTracker tracker = readDedup.get(key);
+            if (tracker == null) {
+                tracker = new ReadTracker();
+                readDedup.put(key, tracker);
+            }
+            tracker.modifiedAt = targetFile.lastModified();
+            tracker.dedupHits = 0;
+            if (key.equals(lastReadKey)) {
+                consecutiveReadCount++;
+            } else {
+                lastReadKey = key;
+                consecutiveReadCount = 1;
+            }
+            capReadDedup();
+            if (consecutiveReadCount >= 4) {
+                return ReadStatus.block(
+                        "BLOCKED: 已连续 "
+                                + consecutiveReadCount
+                                + " 次读取同一文件区域且文件未变化："
+                                + fileName,
+                        consecutiveReadCount);
+            }
+            if (consecutiveReadCount >= 3) {
+                return ReadStatus.warn(
+                        "你已经连续 "
+                                + consecutiveReadCount
+                                + " 次读取同一文件区域。内容未变化，请使用已有信息继续任务。",
+                        consecutiveReadCount);
+            }
+            return ReadStatus.ok(consecutiveReadCount);
+        }
+    }
+
+    private void clearReadDedup(String fileName) {
+        if (StrUtil.isBlank(fileName)) {
+            return;
+        }
+        try {
+            Path target = resolvePath(fileName).toAbsolutePath().normalize();
+            String targetPath = target.toString();
+            synchronized (readDedup) {
+                List<ReadKey> removed = new ArrayList<ReadKey>();
+                for (ReadKey key : readDedup.keySet()) {
+                    if (key.path.equals(targetPath)) {
+                        removed.add(key);
+                    }
+                }
+                for (ReadKey key : removed) {
+                    readDedup.remove(key);
+                }
+                if (lastReadKey != null && lastReadKey.path.equals(targetPath)) {
+                    lastReadKey = null;
+                    consecutiveReadCount = 0;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void capReadDedup() {
+        while (readDedup.size() > 500) {
+            ReadKey first = readDedup.keySet().iterator().next();
+            readDedup.remove(first);
+        }
+    }
+
+    private static final class ReadTracker {
+        private long modifiedAt;
+        private int dedupHits;
+    }
+
+    private static final class ReadStatus {
+        private final boolean blocked;
+        private final String message;
+        private final int count;
+
+        private ReadStatus(boolean blocked, String message, int count) {
+            this.blocked = blocked;
+            this.message = message;
+            this.count = count;
+        }
+
+        private static ReadStatus ok(int count) {
+            return new ReadStatus(false, null, count);
+        }
+
+        private static ReadStatus warn(String message, int count) {
+            return new ReadStatus(false, message, count);
+        }
+
+        private static ReadStatus block(String message, int count) {
+            return new ReadStatus(true, message, count);
+        }
+    }
+
+    private static final class ReadKey {
+        private final String path;
+        private final int offset;
+        private final int limit;
+
+        private ReadKey(String path, int offset, int limit) {
+            this.path = path;
+            this.offset = offset;
+            this.limit = limit;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof ReadKey)) {
+                return false;
+            }
+            ReadKey other = (ReadKey) o;
+            return offset == other.offset && limit == other.limit && path.equals(other.path);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = path.hashCode();
+            result = 31 * result + offset;
+            result = 31 * result + limit;
+            return result;
         }
     }
 }
