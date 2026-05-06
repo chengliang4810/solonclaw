@@ -52,15 +52,45 @@ public class SlashConfirmService {
     }
 
     public synchronized PendingConfirm resolve(String sourceKey) {
-        PendingConfirm confirm = pendingBySource.remove(StrUtil.nullToEmpty(sourceKey));
-        if (confirm == null || isExpired(confirm)) {
+        return resolve(sourceKey, null, false);
+    }
+
+    public synchronized PendingConfirm resolve(String sourceKey, String confirmId) {
+        return resolve(sourceKey, confirmId, true);
+    }
+
+    private PendingConfirm resolve(String sourceKey, String confirmId, boolean requireConfirmId) {
+        String key = StrUtil.nullToEmpty(sourceKey);
+        PendingConfirm confirm = pendingBySource.get(key);
+        if (confirm == null) {
             return null;
         }
+        if (isExpired(confirm)) {
+            pendingBySource.remove(key);
+            return null;
+        }
+        if (requireConfirmId
+                && !StrUtil.equals(
+                        StrUtil.nullToEmpty(confirm.getConfirmId()),
+                        StrUtil.nullToEmpty(confirmId))) {
+            return null;
+        }
+        pendingBySource.remove(key);
         return confirm.copy();
     }
 
     public synchronized boolean clear(String sourceKey) {
         return pendingBySource.remove(StrUtil.nullToEmpty(sourceKey)) != null;
+    }
+
+    public synchronized boolean clearIfStale(String sourceKey, long timeoutMs) {
+        String key = StrUtil.nullToEmpty(sourceKey);
+        PendingConfirm confirm = pendingBySource.get(key);
+        if (confirm == null || !isExpired(confirm, timeoutMs)) {
+            return false;
+        }
+        pendingBySource.remove(key);
+        return true;
     }
 
     public boolean isAlwaysConfirmed(String command) {
@@ -74,7 +104,11 @@ public class SlashConfirmService {
     }
 
     private boolean isExpired(PendingConfirm confirm) {
-        return System.currentTimeMillis() - confirm.getCreatedAt() > DEFAULT_TIMEOUT_MS;
+        return isExpired(confirm, DEFAULT_TIMEOUT_MS);
+    }
+
+    private boolean isExpired(PendingConfirm confirm, long timeoutMs) {
+        return System.currentTimeMillis() - confirm.getCreatedAt() > Math.max(0L, timeoutMs);
     }
 
     private Set<String> loadAlwaysCommands() {
