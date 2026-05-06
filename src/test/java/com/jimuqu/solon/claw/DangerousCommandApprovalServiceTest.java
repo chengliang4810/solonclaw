@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
@@ -2585,6 +2586,44 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockHardlineThroughInterceptorWhenCompatibilityYoloModeIsEnabled()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new YoloDangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        "1");
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "sudo reboot");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
+    void shouldBlockHardlineThroughInterceptorWhenSessionYoloIsEnabled()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "sudo reboot");
+
+        boolean enabled = env.dangerousCommandApprovalService.enableSessionYolo(trace.session);
+        env.dangerousCommandApprovalService.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(enabled).isTrue();
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldNotSmartApproveTirithFindings() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("smart");
@@ -2644,6 +2683,23 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(hardline).isNotNull();
         assertThat(hardline.isHardline()).isTrue();
         assertThat(hardline.getDescription()).contains("shutdown");
+    }
+
+    @Test
+    void shouldBlockHardlineThroughInterceptorWhenApprovalModeIsOff()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("off");
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "sudo reboot");
+
+        env.dangerousCommandApprovalService.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(env.dangerousCommandApprovalService.approvalMode()).isEqualTo("off");
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
     }
 
     private static TirithSecurityService.ScanResult scanResult(
@@ -2750,6 +2806,7 @@ public class DangerousCommandApprovalServiceTest {
 
     private static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
         private final InMemoryAgentSession session = new InMemoryAgentSession("tirith-test");
+        private String route;
 
         @Override
         public InMemoryAgentSession getSession() {
@@ -2759,6 +2816,16 @@ public class DangerousCommandApprovalServiceTest {
         @Override
         public org.noear.solon.flow.FlowContext getContext() {
             return session.getContext();
+        }
+
+        @Override
+        public void setRoute(String route) {
+            this.route = route;
+        }
+
+        @Override
+        public String getRoute() {
+            return route;
         }
     }
 }
