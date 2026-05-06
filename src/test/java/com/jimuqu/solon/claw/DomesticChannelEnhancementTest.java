@@ -153,6 +153,34 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRejectHermesStyleWeakCredentialAliasesCaseInsensitively() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getFeishu().setEnabled(true);
+        config.getChannels().getFeishu().setAppId("app");
+        config.getChannels().getFeishu().setAppSecret("  Your-API-Key  ");
+        FeishuChannelAdapter feishu =
+                new FeishuChannelAdapter(
+                        config.getChannels().getFeishu(), new AttachmentCacheService(config));
+
+        assertWeakCredentialRejected(
+                feishu,
+                "feishu_weak_credentials",
+                "solonclaw.channels.feishu.appSecret");
+
+        config.getChannels().getWecom().setEnabled(true);
+        config.getChannels().getWecom().setBotId("real_bot");
+        config.getChannels().getWecom().setSecret("NONE");
+        WeComChannelAdapter wecom =
+                new WeComChannelAdapter(
+                        config.getChannels().getWecom(), new AttachmentCacheService(config));
+
+        assertWeakCredentialRejected(
+                wecom,
+                "wecom_weak_credentials",
+                "solonclaw.channels.wecom.secret");
+    }
+
+    @Test
     void shouldTreatEmptyCredentialsAsMissingNotWeakCredentialPlaceholders() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);

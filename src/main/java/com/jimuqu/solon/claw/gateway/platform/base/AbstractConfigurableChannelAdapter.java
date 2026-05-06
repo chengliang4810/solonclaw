@@ -22,7 +22,18 @@ import org.slf4j.LoggerFactory;
 public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapter {
     private static final Set<String> WEAK_CREDENTIAL_PLACEHOLDERS =
             new LinkedHashSet<String>(
-                    Arrays.asList("***", "changeme", "placeholder", "your_api_key"));
+                    Arrays.asList(
+                            "*",
+                            "**",
+                            "***",
+                            "changeme",
+                            "your_api_key",
+                            "your-api-key",
+                            "placeholder",
+                            "example",
+                            "dummy",
+                            "null",
+                            "none"));
 
     /** 渠道日志器。 */
     protected final Logger log = LoggerFactory.getLogger(getClass());
