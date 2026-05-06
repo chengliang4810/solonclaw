@@ -38,6 +38,13 @@ public class ToolResultEnvelope {
         return this;
     }
 
+    public ToolResultEnvelope dataIfNotNull(String key, Object value) {
+        if (value != null) {
+            data.put(key, value);
+        }
+        return this;
+    }
+
     public ToolResultEnvelope metadata(String key, Object value) {
         metadata.put(key, value);
         return this;

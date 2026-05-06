@@ -500,6 +500,10 @@ public class ProcessRegistry {
             map.put("exited", Boolean.valueOf(exited));
             map.put("running", Boolean.valueOf(!exited));
             map.put("exit_code", exitCode);
+            String exitCodeMeaning = TerminalExitCodeSemantics.interpret(command, exitCode);
+            if (exitCodeMeaning != null) {
+                map.put("exit_code_meaning", exitCodeMeaning);
+            }
             map.put("output", getOutput());
             map.put("output_preview", outputPreview(200));
             map.put("truncated", Boolean.valueOf(truncated));

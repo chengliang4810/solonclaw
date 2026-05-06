@@ -149,6 +149,50 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldAttachHermesExitCodeMeaningToManagedProcessResults() throws Exception {
+        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "test -f /definitely-not-a-jimuqu-file",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(5),
+                                null,
+                                null));
+        assertThat(waited.get("exit_code").getInt()).isEqualTo(1);
+        assertThat(waited.get("exit_code_meaning").getString())
+                .isEqualTo("Condition evaluated to false (expected, not an error)");
+
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+        assertThat(String.valueOf(listed.get("processes")))
+                .contains("exit_code_meaning")
+                .contains("Condition evaluated to false");
+    }
+
+    @Test
     void shouldReturnCleanErrorsForInvalidTerminalCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         HermesShellSkill shell =

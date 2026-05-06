@@ -127,6 +127,7 @@ public class ProcessTools {
                 .data("output_preview", stripAnsi(managed.outputPreview(1000)))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
+                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
                 .toJson();
@@ -196,6 +197,7 @@ public class ProcessTools {
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("running", Boolean.valueOf(!managed.isExited()))
                 .data("exit_code", managed.getExitCode())
+                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("output", output)
                 .preview(output)
@@ -228,6 +230,7 @@ public class ProcessTools {
                 .data("running", Boolean.valueOf(false))
                 .data("pid", managed.getPid())
                 .data("exit_code", managed.getExitCode())
+                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
                 .data("output", output)
                 .preview(output)
                 .truncated(managed.isTruncated())
@@ -247,6 +250,7 @@ public class ProcessTools {
                 .data("stopped", Boolean.valueOf(stopResult.isStopped()))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
+                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("output", output)
                 .data("output_preview", output)
@@ -296,6 +300,7 @@ public class ProcessTools {
                 .data("status", "already_exited")
                 .data("error", "Process has already finished")
                 .data("exit_code", managed.getExitCode())
+                .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
                 .data("exited", Boolean.valueOf(true))
                 .data("running", Boolean.valueOf(false))
                 .toJson();
@@ -372,6 +377,10 @@ public class ProcessTools {
 
     private String stripAnsi(String text) {
         return ANSI_CONTROL_SEQUENCE.matcher(StrUtil.nullToEmpty(text)).replaceAll("");
+    }
+
+    private String exitCodeMeaning(ProcessRegistry.ManagedProcess managed) {
+        return TerminalExitCodeSemantics.interpret(managed.getCommand(), managed.getExitCode());
     }
 
     private String joinLines(List<String> lines) {

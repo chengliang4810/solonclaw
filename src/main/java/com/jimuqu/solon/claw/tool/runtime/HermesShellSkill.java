@@ -192,6 +192,10 @@ public class HermesShellSkill extends ShellSkill {
         return ProcessRegistry.rewriteCompoundBackground(command);
     }
 
+    public String interpretExitCode(String command, Integer exitCode) {
+        return TerminalExitCodeSemantics.interpret(command, exitCode);
+    }
+
     public SudoTransform transformSudoCommand(String command) {
         String raw = StrUtil.nullToEmpty(command);
         String password = resolveSudoPassword();

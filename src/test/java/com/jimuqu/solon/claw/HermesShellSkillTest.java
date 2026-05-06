@@ -139,6 +139,31 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldInterpretHermesTerminalExitCodeSemantics() throws Exception {
+        AppConfig config = new AppConfig();
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(skill.interpretExitCode("grep 'pattern' file.txt", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("rg 'foo' .", Integer.valueOf(2))).isNull();
+        assertThat(skill.interpretExitCode("cat file; diff a b", Integer.valueOf(1)))
+                .isEqualTo("Files differ (expected, not an error)");
+        assertThat(skill.interpretExitCode("false || /usr/bin/grep foo bar", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("LANG=C test -f /nonexistent", Integer.valueOf(1)))
+                .isEqualTo("Condition evaluated to false (expected, not an error)");
+        assertThat(skill.interpretExitCode("[ -f /nonexistent ]", Integer.valueOf(1)))
+                .isEqualTo("Condition evaluated to false (expected, not an error)");
+        assertThat(skill.interpretExitCode("curl https://example.com", Integer.valueOf(28)))
+                .isEqualTo("Operation timed out");
+        assertThat(skill.interpretExitCode("python3 script.py", Integer.valueOf(1))).isNull();
+        assertThat(skill.interpretExitCode("", Integer.valueOf(1))).isNull();
+        assertThat(skill.interpretExitCode("FOO=bar", Integer.valueOf(1))).isNull();
+        assertThat(skill.interpretExitCode("grep 'pattern' file.txt", Integer.valueOf(0))).isNull();
+    }
+
+    @Test
     void shouldStartHermesTerminalBackgroundProcessInRegistry() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
