@@ -32,7 +32,8 @@ public class ProcessRegistry {
     }
 
     public ManagedProcess start(String command, File workDir) throws Exception {
-        List<String> shellCommand = shellCommand(command);
+        String executableCommand = isWindows() ? command : rewriteCompoundBackground(command);
+        List<String> shellCommand = shellCommand(executableCommand);
         ProcessBuilder builder = new ProcessBuilder(shellCommand);
         if (workDir != null) {
             builder.directory(workDir);
@@ -43,7 +44,7 @@ public class ProcessRegistry {
         ManagedProcess managed =
                 new ManagedProcess(
                         id,
-                        command,
+                        executableCommand,
                         workDir == null ? null : workDir.getAbsolutePath(),
                         process,
                         System.currentTimeMillis(),
@@ -153,6 +154,176 @@ public class ProcessRegistry {
             parts.add(command);
         }
         return parts;
+    }
+
+    static String rewriteCompoundBackground(String command) {
+        if (command == null || command.length() == 0) {
+            return command;
+        }
+        int n = command.length();
+        int i = 0;
+        int parenDepth = 0;
+        int braceDepth = 0;
+        int lastChainOpEnd = -1;
+        List<int[]> rewrites = new ArrayList<int[]>();
+        while (i < n) {
+            char ch = command.charAt(i);
+            if (ch == '\n' && parenDepth == 0 && braceDepth == 0) {
+                lastChainOpEnd = -1;
+                i++;
+                continue;
+            }
+            if (Character.isWhitespace(ch)) {
+                i++;
+                continue;
+            }
+            if (ch == '#') {
+                int nl = command.indexOf('\n', i);
+                if (nl < 0) {
+                    break;
+                }
+                i = nl;
+                continue;
+            }
+            if (ch == '\\' && i + 1 < n) {
+                i += 2;
+                continue;
+            }
+            if (ch == '\'' || ch == '"') {
+                i = Math.max(readShellTokenEnd(command, i), i + 1);
+                continue;
+            }
+            if (ch == '(') {
+                parenDepth++;
+                i++;
+                continue;
+            }
+            if (ch == ')') {
+                parenDepth = Math.max(0, parenDepth - 1);
+                i++;
+                continue;
+            }
+            if (ch == '{' && i + 1 < n && Character.isWhitespace(command.charAt(i + 1))) {
+                braceDepth++;
+                i++;
+                continue;
+            }
+            if (ch == '}' && braceDepth > 0) {
+                braceDepth--;
+                lastChainOpEnd = -1;
+                i++;
+                continue;
+            }
+            if (parenDepth > 0 || braceDepth > 0) {
+                i++;
+                continue;
+            }
+            if (startsWith(command, i, "&&") || startsWith(command, i, "||")) {
+                lastChainOpEnd = i + 2;
+                i += 2;
+                continue;
+            }
+            if (ch == ';') {
+                lastChainOpEnd = -1;
+                i++;
+                continue;
+            }
+            if (ch == '|') {
+                lastChainOpEnd = -1;
+                i++;
+                continue;
+            }
+            if (ch == '&') {
+                if (i + 1 < n && command.charAt(i + 1) == '>') {
+                    i += 2;
+                    continue;
+                }
+                int j = i - 1;
+                while (j >= 0 && Character.isWhitespace(command.charAt(j))) {
+                    j--;
+                }
+                if (j >= 0 && (command.charAt(j) == '<' || command.charAt(j) == '>')) {
+                    i++;
+                    continue;
+                }
+                if (lastChainOpEnd >= 0) {
+                    rewrites.add(new int[] {lastChainOpEnd, i});
+                }
+                lastChainOpEnd = -1;
+                i++;
+                continue;
+            }
+            i = Math.max(readShellTokenEnd(command, i), i + 1);
+        }
+        if (rewrites.isEmpty()) {
+            return command;
+        }
+        String result = command;
+        for (int r = rewrites.size() - 1; r >= 0; r--) {
+            int chainEnd = rewrites.get(r)[0];
+            int ampPos = rewrites.get(r)[1];
+            int insertPos = chainEnd;
+            while (insertPos < ampPos && Character.isWhitespace(result.charAt(insertPos))) {
+                insertPos++;
+            }
+            result =
+                    result.substring(0, insertPos)
+                            + "{ "
+                            + result.substring(insertPos, ampPos)
+                            + "& }"
+                            + result.substring(ampPos + 1);
+        }
+        return result;
+    }
+
+    private static int readShellTokenEnd(String command, int start) {
+        int i = start;
+        int n = command.length();
+        char quote = 0;
+        while (i < n) {
+            char ch = command.charAt(i);
+            if (quote != 0) {
+                if (ch == '\\' && quote == '"' && i + 1 < n) {
+                    i += 2;
+                    continue;
+                }
+                if (ch == quote) {
+                    i++;
+                    quote = 0;
+                    continue;
+                }
+                i++;
+                continue;
+            }
+            if (ch == '\'' || ch == '"') {
+                quote = ch;
+                i++;
+                continue;
+            }
+            if (ch == '\\' && i + 1 < n) {
+                i += 2;
+                continue;
+            }
+            if (Character.isWhitespace(ch)
+                    || ch == ';'
+                    || ch == '&'
+                    || ch == '|'
+                    || ch == '('
+                    || ch == ')'
+                    || ch == '{'
+                    || ch == '}'
+                    || ch == '#') {
+                break;
+            }
+            i++;
+        }
+        return i;
+    }
+
+    private static boolean startsWith(String value, int offset, String prefix) {
+        return offset >= 0
+                && offset + prefix.length() <= value.length()
+                && value.substring(offset, offset + prefix.length()).equals(prefix);
     }
 
     private static boolean isWindows() {
