@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -130,6 +131,70 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldIsolateDangerousApprovalBetweenAcpSessions() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String sessionAId = extractSessionId(newAcpSession(server, 20));
+        String sessionBId = extractSessionId(newAcpSession(server, 21));
+        SessionRecord sessionA = env.sessionRepository.findById(sessionAId);
+        SessionRecord sessionB = env.sessionRepository.findById(sessionBId);
+        SqliteAgentSession agentSessionA =
+                new SqliteAgentSession(sessionA, env.sessionRepository);
+        SqliteAgentSession agentSessionB =
+                new SqliteAgentSession(sessionB, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSessionA,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        String bApproval =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                                + sessionBId
+                                + "\",\"prompt\":[{\"type\":\"text\",\"text\":\"/approve session\"}]}}");
+
+        assertThat(bApproval).contains("\"id\":22").contains("待审批的危险命令");
+        assertThat(bApproval).doesNotContain("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(agentSessionA))
+                .isNotNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                agentSessionB, "recursive_delete"))
+                .isFalse();
+
+        String aApproval =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                                + sessionAId
+                                + "\",\"prompt\":[{\"type\":\"text\",\"text\":\"/approve session\"}]}}");
+        SessionRecord updatedA = env.sessionRepository.findById(sessionAId);
+        SessionRecord updatedB = env.sessionRepository.findById(sessionBId);
+        SqliteAgentSession updatedAgentSessionA =
+                new SqliteAgentSession(updatedA, env.sessionRepository);
+        SqliteAgentSession updatedAgentSessionB =
+                new SqliteAgentSession(updatedB, env.sessionRepository);
+
+        assertThat(aApproval).contains("\"id\":23").contains("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSessionA))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSessionA, "recursive_delete"))
+                .isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSessionB, "recursive_delete"))
+                .isFalse();
+    }
+
+    @Test
     void shouldKeepRequestIdOnDispatchError() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =
@@ -205,6 +270,13 @@ public class AcpStdioServerTest {
                 server.handle(
                         "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"session/list\",\"params\":{}}");
         assertThat(listed).contains("\"id\":9").contains(record.getSessionId());
+    }
+
+    private String newAcpSession(AcpStdioServer server, int id) {
+        return server.handle(
+                "{\"jsonrpc\":\"2.0\",\"id\":"
+                        + id
+                        + ",\"method\":\"session/new\",\"params\":{\"cwd\":\"D:/projects/jimuqu-agent\"}}");
     }
 
     private String extractSessionId(String json) {
