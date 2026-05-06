@@ -9,12 +9,19 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Param;
@@ -46,6 +53,10 @@ public class HermesCodeExecutionSkills {
         private final String pythonCommand;
         private final SecurityPolicyService securityPolicyService;
         private final AppConfig appConfig;
+        private final HermesFileStateTracker fileStateTracker;
+        private final HermesFileReadWriteSkill fileSkill;
+        private final HermesPatchTools patchTools;
+        private final HermesShellSkill shellSkill;
 
         public SafeExecuteCodeTool(
                 String workDir,
@@ -56,6 +67,21 @@ public class HermesCodeExecutionSkills {
             this.pythonCommand = StrUtil.blankToDefault(pythonCommand, defaultPythonCommand());
             this.securityPolicyService = securityPolicyService;
             this.appConfig = appConfig;
+            this.fileStateTracker = new HermesFileStateTracker();
+            this.fileSkill =
+                    new HermesFileReadWriteSkill(
+                            this.workDir,
+                            securityPolicyService,
+                            maxFileReadLines(appConfig),
+                            maxFileReadLineLength(appConfig),
+                            fileStateTracker);
+            this.patchTools = new HermesPatchTools(this.workDir, securityPolicyService, fileStateTracker);
+            this.shellSkill =
+                    new HermesShellSkill(
+                            this.workDir,
+                            appConfig,
+                            securityPolicyService,
+                            new ProcessRegistry());
         }
 
         @ToolMapping(
@@ -76,15 +102,20 @@ public class HermesCodeExecutionSkills {
                         Integer timeoutSeconds) {
             long started = System.nanoTime();
             int timeout = normalizeTimeout(timeoutSeconds);
-            int toolCallsMade = 0;
+            AtomicInteger toolCallsMade = new AtomicInteger(0);
             try {
                 if (StrUtil.isBlank(code)) {
-                    return executeCodeError("Python code must be a non-empty string.", toolCallsMade, started);
+                    return executeCodeError(
+                            "Python code must be a non-empty string.",
+                            toolCallsMade.get(),
+                            started);
                 }
-                assertSafe(ToolNameConstants.EXECUTE_PYTHON, code, securityPolicyService);
+                assertSafeExecuteCodeScript(code, securityPolicyService);
 
                 Path staging = Files.createTempDirectory(new File(workDir).toPath(), "execute_code_");
                 try {
+                    Path rpcDir = staging.resolve("rpc");
+                    Files.createDirectories(rpcDir);
                     writeHermesToolsStub(staging.resolve("hermes_tools.py"));
                     Path script = staging.resolve("script.py");
                     Files.write(script, StrUtil.nullToEmpty(code).getBytes(StandardCharsets.UTF_8));
@@ -93,8 +124,13 @@ public class HermesCodeExecutionSkills {
                     builder.directory(new File(workDir));
                     builder.redirectErrorStream(false);
                     configureSandboxEnvironment(builder.environment(), staging);
+                    builder.environment().put("JIMUQU_RPC_DIR", rpcDir.toString());
                     Process process = builder.start();
                     process.getOutputStream().close();
+                    AtomicBoolean rpcAccepting = new AtomicBoolean(true);
+                    CompletableFuture<Void> rpcFuture =
+                            CompletableFuture.runAsync(
+                                    () -> runRpcLoop(rpcDir, toolCallsMade, rpcAccepting));
                     CompletableFuture<String> stdout =
                             CompletableFuture.supplyAsync(
                                     () -> readProcessText(process.getInputStream(), maxStdoutChars()));
@@ -108,10 +144,17 @@ public class HermesCodeExecutionSkills {
                         process.destroyForcibly();
                         status = "timeout";
                     }
+                    rpcAccepting.set(false);
+                    try {
+                        rpcFuture.get(3, TimeUnit.SECONDS);
+                    } catch (Exception ignored) {
+                    }
                     String stdoutText = cleanOutput(stdout.get(3, TimeUnit.SECONDS), maxStdoutChars());
                     String stderrText = cleanOutput(stderr.get(3, TimeUnit.SECONDS), MAX_STDERR_CHARS);
                     int exitCode = finished ? process.exitValue() : -1;
-                    Map<String, Object> result = baseExecuteCodeResult(status, stdoutText, toolCallsMade, started);
+                    Map<String, Object> result =
+                            baseExecuteCodeResult(
+                                    status, stdoutText, toolCallsMade.get(), started);
                     if ("timeout".equals(status)) {
                         String timeoutMessage = "Script timed out after " + timeout + "s and was killed.";
                         result.put("error", timeoutMessage);
@@ -137,7 +180,7 @@ public class HermesCodeExecutionSkills {
             } catch (Exception e) {
                 return executeCodeError(
                         e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
-                        toolCallsMade,
+                        toolCallsMade.get(),
                         started);
             }
         }
@@ -253,7 +296,10 @@ public class HermesCodeExecutionSkills {
 
         private void writeHermesToolsStub(Path target) throws Exception {
             String source =
-                    "import json, shlex, time\n"
+                    "import json, os, shlex, time\n"
+                            + "\n"
+                            + "_seq = 0\n"
+                            + "_rpc_dir = os.environ.get('JIMUQU_RPC_DIR')\n"
                             + "\n"
                             + "def json_parse(text):\n"
                             + "    return json.loads(text, strict=False)\n"
@@ -272,17 +318,404 @@ public class HermesCodeExecutionSkills {
                             + "                time.sleep(delay * (2 ** attempt))\n"
                             + "    raise last_err\n"
                             + "\n"
+                            + "def _call(tool_name, args):\n"
+                            + "    global _seq\n"
+                            + "    if not _rpc_dir:\n"
+                            + "        raise RuntimeError('JIMUQU_RPC_DIR is not configured')\n"
+                            + "    _seq += 1\n"
+                            + "    seq = '%06d' % _seq\n"
+                            + "    req = os.path.join(_rpc_dir, 'req_' + seq + '.json')\n"
+                            + "    res = os.path.join(_rpc_dir, 'res_' + seq + '.json')\n"
+                            + "    tmp = req + '.tmp'\n"
+                            + "    with open(tmp, 'w', encoding='utf-8') as f:\n"
+                            + "        json.dump({'seq': _seq, 'tool': tool_name, 'args': args}, f, ensure_ascii=False)\n"
+                            + "    os.replace(tmp, req)\n"
+                            + "    deadline = time.time() + 300\n"
+                            + "    while time.time() < deadline:\n"
+                            + "        if os.path.exists(res):\n"
+                            + "            with open(res, 'r', encoding='utf-8') as f:\n"
+                            + "                raw = f.read()\n"
+                            + "            try:\n"
+                            + "                os.remove(res)\n"
+                            + "            except OSError:\n"
+                            + "                pass\n"
+                            + "            return json.loads(raw, strict=False)\n"
+                            + "        time.sleep(0.05)\n"
+                            + "    raise TimeoutError('Timed out waiting for ' + tool_name + ' response')\n"
+                            + "\n"
                             + "def _unavailable(name):\n"
                             + "    raise RuntimeError(name + ' is not available in jimuqu-agent execute_code yet. Use normal tool calls instead.')\n"
                             + "\n"
                             + "def web_search(*args, **kwargs): return _unavailable('web_search')\n"
                             + "def web_extract(*args, **kwargs): return _unavailable('web_extract')\n"
-                            + "def read_file(*args, **kwargs): return _unavailable('read_file')\n"
-                            + "def write_file(*args, **kwargs): return _unavailable('write_file')\n"
-                            + "def search_files(*args, **kwargs): return _unavailable('search_files')\n"
-                            + "def patch(*args, **kwargs): return _unavailable('patch')\n"
-                            + "def terminal(*args, **kwargs): return _unavailable('terminal')\n";
+                            + "def read_file(path, offset=1, limit=500): return _call('read_file', {'path': path, 'offset': offset, 'limit': limit})\n"
+                            + "def write_file(path, content): return _call('write_file', {'path': path, 'content': content})\n"
+                            + "def search_files(pattern, target='content', path='.', file_glob=None, limit=50, offset=0, output_mode='content', context=0): return _call('search_files', {'pattern': pattern, 'target': target, 'path': path, 'file_glob': file_glob, 'limit': limit, 'offset': offset, 'output_mode': output_mode, 'context': context})\n"
+                            + "def patch(path=None, old_string=None, new_string=None, replace_all=False, mode='replace', patch=None): return _call('patch', {'path': path, 'old_string': old_string, 'new_string': new_string, 'replace_all': replace_all, 'mode': mode, 'patch': patch})\n"
+                            + "def terminal(command, timeout=None, workdir=None, **kwargs): return _call('terminal', {'command': command, 'timeout': timeout, 'workdir': workdir})\n";
             Files.write(target, source.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private void runRpcLoop(
+                Path rpcDir, AtomicInteger toolCallsMade, AtomicBoolean accepting) {
+            while (accepting.get() || hasPendingRequests(rpcDir)) {
+                try {
+                    List<Path> requests = listRequestFiles(rpcDir);
+                    if (requests.isEmpty()) {
+                        Thread.sleep(50L);
+                        continue;
+                    }
+                    for (Path request : requests) {
+                        handleRpcRequest(rpcDir, request, toolCallsMade);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception ignored) {
+                    try {
+                        Thread.sleep(50L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+        }
+
+        private void handleRpcRequest(Path rpcDir, Path request, AtomicInteger toolCallsMade) {
+            String response;
+            int seq = 0;
+            try {
+                Map<String, Object> payload =
+                        castMap(
+                                ONode.deserialize(
+                                        new String(Files.readAllBytes(request), StandardCharsets.UTF_8),
+                                        Object.class));
+                seq = getInt(payload, "seq", extractSeq(request));
+                String toolName = getString(payload, "tool", "");
+                Map<String, Object> args = castMap(payload.get("args"));
+                if (toolCallsMade.get() >= 50) {
+                    response =
+                            ONode.serialize(
+                                    errorMap(
+                                            "Tool call limit reached (50). No more tool calls allowed in this execution."));
+                } else {
+                    response = dispatchRpcTool(toolName, args);
+                    toolCallsMade.incrementAndGet();
+                }
+            } catch (Exception e) {
+                response = ONode.serialize(errorMap(e.getMessage()));
+                seq = extractSeq(request);
+            }
+            try {
+                Path result = rpcDir.resolve(String.format(Locale.ROOT, "res_%06d.json", seq));
+                Path temp = rpcDir.resolve(result.getFileName().toString() + ".tmp");
+                Files.write(temp, response.getBytes(StandardCharsets.UTF_8));
+                Files.move(temp, result, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                Files.deleteIfExists(request);
+            } catch (Exception ignored) {
+            }
+        }
+
+        private String dispatchRpcTool(String toolName, Map<String, Object> args) {
+            try {
+                if ("read_file".equals(toolName)) {
+                    return normalizeToolResult(
+                            fileSkill.read(
+                                    getString(args, "path", null),
+                                    Integer.valueOf(getInt(args, "offset", 1)),
+                                    Integer.valueOf(getInt(args, "limit", 500))));
+                }
+                if ("write_file".equals(toolName)) {
+                    return normalizeToolResult(
+                            fileSkill.write(
+                                    getString(args, "path", null),
+                                    getString(args, "content", "")));
+                }
+                if ("patch".equals(toolName)) {
+                    return normalizeToolResult(
+                            patchTools.patch(
+                                    getString(args, "mode", "replace"),
+                                    getString(args, "path", null),
+                                    getString(args, "old_string", null),
+                                    getString(args, "new_string", null),
+                                    Boolean.valueOf(getBoolean(args, "replace_all", false)),
+                                    getString(args, "patch", null)));
+                }
+                if ("terminal".equals(toolName)) {
+                    return normalizeToolResult(
+                            shellSkill.terminal(
+                                    getString(args, "command", null),
+                                    Boolean.FALSE,
+                                    Integer.valueOf(getInt(args, "timeout", 180)),
+                                    getString(args, "workdir", null),
+                                    Boolean.FALSE));
+                }
+                if ("search_files".equals(toolName)) {
+                    return ONode.serialize(searchFiles(args));
+                }
+                return ONode.serialize(
+                        errorMap(
+                                "Tool '"
+                                        + toolName
+                                        + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, write_file"));
+            } catch (Exception e) {
+                return ONode.serialize(errorMap(e.getMessage()));
+            }
+        }
+
+        private String normalizeToolResult(String result) {
+            String value = StrUtil.nullToEmpty(result);
+            try {
+                Object parsed = ONode.deserialize(value, Object.class);
+                if (parsed instanceof Map) {
+                    Map<String, Object> map = castMap(parsed);
+                    ensureStatusField(map);
+                    return ONode.serialize(map);
+                }
+                if (parsed instanceof List) {
+                    return ONode.serialize(parsed);
+                }
+            } catch (Exception ignored) {
+            }
+            Map<String, Object> wrapped = new LinkedHashMap<String, Object>();
+            wrapped.put("output", value);
+            wrapped.put("result", value);
+            wrapped.put("status", "success");
+            wrapped.put("success", Boolean.TRUE);
+            return ONode.serialize(wrapped);
+        }
+
+        private Map<String, Object> searchFiles(Map<String, Object> args) throws Exception {
+            String pattern = getString(args, "pattern", "");
+            String target = getString(args, "target", "content");
+            String relativePath = StrUtil.blankToDefault(getString(args, "path", "."), ".");
+            String fileGlob = getString(args, "file_glob", null);
+            int limit = Math.max(1, Math.min(getInt(args, "limit", 50), 200));
+            int offset = Math.max(0, getInt(args, "offset", 0));
+            if (StrUtil.isBlank(pattern)) {
+                return errorMap("pattern is required");
+            }
+            assertSearchPathSafe(relativePath);
+            Path base = resolveContainedPath(relativePath);
+            if (!Files.exists(base)) {
+                return errorMap("path does not exist: " + relativePath);
+            }
+            List<Map<String, Object>> matches = new ArrayList<Map<String, Object>>();
+            List<Path> files = listFiles(base);
+            PathMatcher matcher =
+                    StrUtil.isBlank(fileGlob)
+                            ? null
+                            : Paths.get(workDir).getFileSystem().getPathMatcher("glob:" + fileGlob);
+            int skipped = 0;
+            for (Path file : files) {
+                Path rel = Paths.get(workDir).toAbsolutePath().normalize().relativize(file);
+                String relText = rel.toString().replace('\\', '/');
+                if (isExecuteCodeStagingPath(relText)) {
+                    continue;
+                }
+                if (matcher != null && !matcher.matches(rel)) {
+                    continue;
+                }
+                if ("files".equalsIgnoreCase(target)) {
+                    if (!relText.toLowerCase(Locale.ROOT).contains(pattern.toLowerCase(Locale.ROOT))) {
+                        continue;
+                    }
+                    if (skipped++ < offset) {
+                        continue;
+                    }
+                    matches.add(matchMap(relText, null, null));
+                } else {
+                    String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                    int index = content.toLowerCase(Locale.ROOT).indexOf(pattern.toLowerCase(Locale.ROOT));
+                    if (index < 0) {
+                        continue;
+                    }
+                    if (skipped++ < offset) {
+                        continue;
+                    }
+                    matches.add(matchMap(relText, Integer.valueOf(lineNumber(content, index)), previewLine(content, index)));
+                }
+                if (matches.size() >= limit) {
+                    break;
+                }
+            }
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("matches", matches);
+            result.put("count", Integer.valueOf(matches.size()));
+            result.put("offset", Integer.valueOf(offset));
+            result.put("limit", Integer.valueOf(limit));
+            return result;
+        }
+
+        private void assertSearchPathSafe(String path) {
+            if (securityPolicyService == null) {
+                return;
+            }
+            Map<String, Object> fileArgs = new LinkedHashMap<String, Object>();
+            fileArgs.put("dirName", path);
+            fileArgs.put("fileName", path);
+            SecurityPolicyService.FileVerdict verdict =
+                    securityPolicyService.checkFileToolArgs(ToolNameConstants.FILE_LIST, fileArgs);
+            if (!verdict.isAllowed()) {
+                throw new IllegalArgumentException(blockedFileMessage(ToolNameConstants.FILE_LIST, verdict));
+            }
+        }
+
+        private Path resolveContainedPath(String path) throws Exception {
+            Path root = Paths.get(workDir).toAbsolutePath().normalize();
+            Path resolved = root.resolve(StrUtil.blankToDefault(path, ".")).normalize();
+            Path realRoot = root.toRealPath();
+            Path real =
+                    Files.exists(resolved)
+                            ? resolved.toRealPath()
+                            : resolved.toAbsolutePath().normalize();
+            if (!real.startsWith(realRoot)) {
+                throw new IllegalArgumentException("path escapes workspace: " + path);
+            }
+            return resolved;
+        }
+
+        private List<Path> listFiles(Path base) throws Exception {
+            if (Files.isRegularFile(base)) {
+                return Collections.singletonList(base);
+            }
+            final List<Path> files = new ArrayList<Path>();
+            Files.walk(base)
+                    .filter(Files::isRegularFile)
+                    .limit(10000)
+                    .forEach(files::add);
+            return files;
+        }
+
+        private Map<String, Object> matchMap(String path, Integer line, String preview) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("path", path);
+            if (line != null) {
+                item.put("line", line);
+            }
+            if (preview != null) {
+                item.put("preview", SecretRedactor.redact(preview, 1000));
+            }
+            return item;
+        }
+
+        private int lineNumber(String content, int index) {
+            int line = 1;
+            for (int i = 0; i < index && i < content.length(); i++) {
+                if (content.charAt(i) == '\n') {
+                    line++;
+                }
+            }
+            return line;
+        }
+
+        private String previewLine(String content, int index) {
+            int start = content.lastIndexOf('\n', Math.max(0, index));
+            int end = content.indexOf('\n', index);
+            if (start < 0) {
+                start = 0;
+            } else {
+                start++;
+            }
+            if (end < 0) {
+                end = content.length();
+            }
+            return content.substring(start, Math.min(end, start + 500)).trim();
+        }
+
+        private boolean hasPendingRequests(Path rpcDir) {
+            return !listRequestFiles(rpcDir).isEmpty();
+        }
+
+        private boolean isExecuteCodeStagingPath(String relativePath) {
+            String path = StrUtil.nullToEmpty(relativePath).replace('\\', '/');
+            return path.startsWith("execute_code_") || path.contains("/execute_code_");
+        }
+
+        private void ensureStatusField(Map<String, Object> map) {
+            if (map == null || map.containsKey("status")) {
+                return;
+            }
+            Object success = map.get("success");
+            if (Boolean.TRUE.equals(success)) {
+                map.put("status", "success");
+                return;
+            }
+            if (Boolean.FALSE.equals(success)) {
+                map.put("status", "error");
+                return;
+            }
+            Object error = map.get("error");
+            if (error != null && StrUtil.isNotBlank(String.valueOf(error))) {
+                map.put("status", "error");
+                map.put("success", Boolean.FALSE);
+            }
+        }
+
+        private List<Path> listRequestFiles(Path rpcDir) {
+            try {
+                List<Path> files = new ArrayList<Path>();
+                Files.newDirectoryStream(rpcDir, "req_*.json")
+                        .forEach(files::add);
+                Collections.sort(files);
+                return files;
+            } catch (Exception e) {
+                return Collections.emptyList();
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> castMap(Object value) {
+            if (value instanceof Map) {
+                return (Map<String, Object>) value;
+            }
+            return new LinkedHashMap<String, Object>();
+        }
+
+        private int extractSeq(Path request) {
+            String name = request.getFileName().toString();
+            try {
+                return Integer.parseInt(name.replace("req_", "").replace(".json", ""));
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
+        private Map<String, Object> errorMap(String error) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("error", StrUtil.blankToDefault(error, "Tool execution failed"));
+            result.put("status", "error");
+            result.put("success", Boolean.FALSE);
+            return result;
+        }
+
+        private String getString(Map<String, Object> map, String key, String defaultValue) {
+            Object value = map == null ? null : map.get(key);
+            return value == null ? defaultValue : String.valueOf(value);
+        }
+
+        private int getInt(Map<String, Object> map, String key, int defaultValue) {
+            Object value = map == null ? null : map.get(key);
+            if (value instanceof Number) {
+                return ((Number) value).intValue();
+            }
+            try {
+                return Integer.parseInt(String.valueOf(value));
+            } catch (Exception e) {
+                return defaultValue;
+            }
+        }
+
+        private boolean getBoolean(Map<String, Object> map, String key, boolean defaultValue) {
+            Object value = map == null ? null : map.get(key);
+            if (value instanceof Boolean) {
+                return ((Boolean) value).booleanValue();
+            }
+            if (value == null) {
+                return defaultValue;
+            }
+            return Boolean.parseBoolean(String.valueOf(value));
         }
 
         private void deleteQuietly(Path path) {
@@ -300,6 +733,18 @@ public class HermesCodeExecutionSkills {
                 Files.deleteIfExists(path);
             } catch (Exception ignored) {
             }
+        }
+
+        private static int maxFileReadLines(AppConfig appConfig) {
+            return appConfig == null || appConfig.getTask() == null
+                    ? 2000
+                    : appConfig.getTask().getToolOutputMaxLines();
+        }
+
+        private static int maxFileReadLineLength(AppConfig appConfig) {
+            return appConfig == null || appConfig.getTask() == null
+                    ? 2000
+                    : appConfig.getTask().getToolOutputMaxLineLength();
         }
     }
 
@@ -372,6 +817,38 @@ public class HermesCodeExecutionSkills {
                 approvalService.detect(toolName, code);
         if (dangerous != null) {
             throw new IllegalArgumentException(blockedDangerousMessage(toolName, dangerous));
+        }
+    }
+
+    static void assertSafeExecuteCodeScript(
+            String code, SecurityPolicyService securityPolicyService) {
+        if (securityPolicyService != null) {
+            SecurityPolicyService.UrlVerdict urlVerdict =
+                    securityPolicyService.checkCommandUrls(code);
+            if (!urlVerdict.isAllowed()) {
+                throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
+            }
+        }
+
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(null, securityPolicyService);
+        DangerousCommandApprovalService.DetectionResult hardline =
+                approvalService.detectHardline(ToolNameConstants.EXECUTE_PYTHON, code);
+        if (hardline != null) {
+            throw new IllegalArgumentException(
+                    blockedHardlineMessage(ToolNameConstants.EXECUTE_CODE, hardline));
+        }
+        String foregroundGuidance =
+                approvalService.foregroundBackgroundGuidance(
+                        ToolNameConstants.EXECUTE_PYTHON, code);
+        if (foregroundGuidance != null) {
+            throw new IllegalArgumentException(foregroundGuidance);
+        }
+        DangerousCommandApprovalService.DetectionResult dangerous =
+                approvalService.detect(ToolNameConstants.EXECUTE_PYTHON, code);
+        if (dangerous != null) {
+            throw new IllegalArgumentException(
+                    blockedDangerousMessage(ToolNameConstants.EXECUTE_CODE, dangerous));
         }
     }
 

@@ -736,6 +736,70 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldAllowExecuteCodeToCallHermesFileAndTerminalToolsThroughRpc() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(workspace.resolve("rpc-source.txt"), Arrays.asList("alpha", "needle"), StandardCharsets.UTF_8);
+        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        String terminalCommand =
+                System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")
+                        ? "echo rpc-terminal"
+                        : "printf 'rpc-terminal\\n'";
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from hermes_tools import read_file, write_file, patch, search_files, terminal\n"
+                                        + "print(read_file('rpc-source.txt')['content'].splitlines()[0])\n"
+                                        + "print(search_files('needle', path='.', limit=5)['matches'][0]['path'])\n"
+                                        + "print(write_file('rpc-output.txt', 'before\\n')['output'])\n"
+                                        + "print(patch(path='rpc-output.txt', old_string='before', new_string='after')['status'])\n"
+                                        + "print(read_file('rpc-output.txt')['content'])\n"
+                                        + "print(terminal(\"" + terminalCommand.replace("\\", "\\\\").replace("\"", "\\\"") + "\")['output'].strip())\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(6);
+        assertThat(result.get("output").getString())
+                .contains("alpha")
+                .contains("rpc-source.txt")
+                .contains("success")
+                .contains("after")
+                .contains("rpc-terminal");
+        assertThat(new String(Files.readAllBytes(workspace.resolve("rpc-output.txt")), StandardCharsets.UTF_8))
+                .contains("after");
+    }
+
+    @Test
+    void shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from hermes_tools import read_file\n"
+                                        + "print(read_file('.env')['error'])\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(1);
+        assertThat(result.get("output").getString()).contains("文件安全策略").contains(".env");
+    }
+
+    @Test
     void shouldGuardFileToolsBeforeDelegatingToSolonAiSkill() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
