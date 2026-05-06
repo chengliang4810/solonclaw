@@ -163,7 +163,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "write_block_device",
                                     "write to block device",
-                                    pattern(">\\s*/dev/sd"),
+                                    pattern(">\\s*[\"']?/dev/sd"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "shell_command_flag",
@@ -445,12 +445,12 @@ public class DangerousCommandApprovalService {
                                     "hardline_dd_device",
                                     "dd to raw block device",
                                     pattern(
-                                            "\\bdd\\b[^\\n]*\\bof=/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
+                                            "\\bdd\\b[^\\n]*\\bof=[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_redirect_device",
                                     "redirect to raw block device",
-                                    pattern(">\\s*/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
+                                    pattern(">\\s*[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_shutdown",
