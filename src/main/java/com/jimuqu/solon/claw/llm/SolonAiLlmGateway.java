@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
@@ -87,6 +88,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final LlmProviderService llmProviderService;
     private final ToolResultTransformService toolResultTransformService;
     private final ToolCallLoopGuardrailService toolCallLoopGuardrailService;
+    private final SecurityPolicyService securityPolicyService;
     private volatile PdfSkill pdfSkill;
 
     public SolonAiLlmGateway(AppConfig appConfig) {
@@ -139,6 +141,24 @@ public class SolonAiLlmGateway implements LlmGateway {
             LlmProviderService llmProviderService,
             ToolResultTransformService toolResultTransformService,
             ToolCallLoopGuardrailService toolCallLoopGuardrailService) {
+        this(
+                appConfig,
+                sessionRepository,
+                dangerousCommandApprovalService,
+                llmProviderService,
+                toolResultTransformService,
+                toolCallLoopGuardrailService,
+                null);
+    }
+
+    public SolonAiLlmGateway(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            LlmProviderService llmProviderService,
+            ToolResultTransformService toolResultTransformService,
+            ToolCallLoopGuardrailService toolCallLoopGuardrailService,
+            SecurityPolicyService securityPolicyService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
@@ -152,6 +172,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                 toolCallLoopGuardrailService == null
                         ? new ToolCallLoopGuardrailService(appConfig)
                         : toolCallLoopGuardrailService;
+        this.securityPolicyService =
+                securityPolicyService == null
+                        ? new SecurityPolicyService(appConfig)
+                        : securityPolicyService;
         if (this.dangerousCommandApprovalService != null) {
             this.dangerousCommandApprovalService.setSmartApprovalJudge(
                     new SolonAiSmartApprovalJudge());
@@ -776,6 +800,13 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         if (StrUtil.isBlank(resolved.getApiUrl())) {
             throw new IllegalStateException("LLM apiUrl 不能为空。");
+        }
+        SecurityPolicyService.UrlVerdict apiUrlVerdict =
+                LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                        ? securityPolicyService.checkUrlAllowingPrivate(resolved.getApiUrl())
+                        : securityPolicyService.checkUrl(resolved.getApiUrl());
+        if (!apiUrlVerdict.isAllowed()) {
+            throw new IllegalStateException("LLM apiUrl 被安全策略阻断：" + apiUrlVerdict.getMessage());
         }
         if (StrUtil.isBlank(resolved.getModel())) {
             throw new IllegalStateException("LLM model 不能为空。");

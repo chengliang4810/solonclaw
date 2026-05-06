@@ -206,14 +206,16 @@ public class ToolConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             LlmProviderService llmProviderService,
             ToolResultTransformService toolResultTransformService,
-            ToolCallLoopGuardrailService toolCallLoopGuardrailService) {
+            ToolCallLoopGuardrailService toolCallLoopGuardrailService,
+            SecurityPolicyService securityPolicyService) {
         return new SolonAiLlmGateway(
                 appConfig,
                 sessionRepository,
                 dangerousCommandApprovalService,
                 llmProviderService,
                 toolResultTransformService,
-                toolCallLoopGuardrailService);
+                toolCallLoopGuardrailService,
+                securityPolicyService);
     }
 
     @Bean

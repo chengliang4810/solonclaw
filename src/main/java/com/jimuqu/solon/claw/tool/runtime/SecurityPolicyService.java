@@ -139,6 +139,14 @@ public class SecurityPolicyService {
     }
 
     public UrlVerdict checkUrl(String url) {
+        return checkUrl(url, null);
+    }
+
+    public UrlVerdict checkUrlAllowingPrivate(String url) {
+        return checkUrl(url, Boolean.TRUE);
+    }
+
+    private UrlVerdict checkUrl(String url, Boolean allowPrivateOverride) {
         String raw = normalizeUrlText(url);
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
@@ -152,7 +160,7 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(schemelessHost)) {
                 return UrlVerdict.allow();
             }
-            return checkSchemelessHostAccess(raw, schemelessHost);
+            return checkSchemelessHostAccess(raw, schemelessHost, allowPrivateOverride);
         }
 
         URI uri = parseUri(raw);
@@ -173,10 +181,11 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "URL 缺少主机名");
         }
 
-        return checkHostAccess(raw, scheme, host);
+        return checkHostAccess(raw, scheme, host, allowPrivateOverride);
     }
 
-    private UrlVerdict checkSchemelessHostAccess(String raw, String host) {
+    private UrlVerdict checkSchemelessHostAccess(
+            String raw, String host, Boolean allowPrivateOverride) {
         for (String blocked : ALWAYS_BLOCKED_HOSTS) {
             if (blocked.equals(host)) {
                 return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
@@ -193,12 +202,13 @@ public class SecurityPolicyService {
                             + "'");
         }
         if (isLocalOrAddressLiteral(host)) {
-            return checkHostAccess(raw, "", host);
+            return checkHostAccess(raw, "", host, allowPrivateOverride);
         }
         return UrlVerdict.allow();
     }
 
-    private UrlVerdict checkHostAccess(String raw, String scheme, String host) {
+    private UrlVerdict checkHostAccess(
+            String raw, String scheme, String host, Boolean allowPrivateOverride) {
         for (String blocked : ALWAYS_BLOCKED_HOSTS) {
             if (blocked.equals(host)) {
                 return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
@@ -217,9 +227,11 @@ public class SecurityPolicyService {
         }
 
         boolean allowPrivate =
-                appConfig != null
-                        && appConfig.getSecurity() != null
-                        && appConfig.getSecurity().isAllowPrivateUrls();
+                allowPrivateOverride == null
+                        ? appConfig != null
+                                && appConfig.getSecurity() != null
+                                && appConfig.getSecurity().isAllowPrivateUrls()
+                        : allowPrivateOverride.booleanValue();
         boolean trustedPrivateHost = "https".equals(scheme) && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
         int[] hostIpv4 = parseObfuscatedIpv4(host);
         if (hostIpv4 != null) {

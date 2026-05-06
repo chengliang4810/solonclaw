@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,69 @@ public class SolonAiLlmGatewayConfigTest {
         assertThatThrownBy(() -> gateway.chat(session, "system", "hello", Collections.emptyList()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("占位符密钥");
+    }
+
+    @Test
+    void shouldRejectMetadataApiUrlForRemoteProvider() {
+        AppConfig config = remoteProviderConfig("http://169.254.169.254/latest/meta-data");
+
+        assertThatThrownBy(() -> validateLlmConfig(config))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
+                .hasMessageContaining("云元数据");
+    }
+
+    @Test
+    void shouldRejectPrivateApiUrlForRemoteProviderByDefault() {
+        AppConfig config = remoteProviderConfig("http://127.0.0.1:8080/v1/chat/completions");
+
+        assertThatThrownBy(() -> validateLlmConfig(config))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
+                .hasMessageContaining("内网/私有地址");
+    }
+
+    @Test
+    void shouldAllowPrivateApiUrlForRemoteProviderWhenConfigured() throws Exception {
+        AppConfig config = remoteProviderConfig("http://127.0.0.1:8080/v1/chat/completions");
+        config.getSecurity().setAllowPrivateUrls(true);
+
+        validateLlmConfig(config);
+    }
+
+    @Test
+    void shouldRejectUserInfoInProviderApiUrl() {
+        AppConfig config = remoteProviderConfig("https://user:pass@example.com/v1/chat/completions");
+
+        assertThatThrownBy(() -> validateLlmConfig(config))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
+                .hasMessageContaining("userinfo");
+    }
+
+    @Test
+    void shouldAllowLocalOllamaApiUrl() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("ollama");
+        config.getLlm().setDialect("ollama");
+        config.getLlm().setApiUrl("http://localhost:11434/api/chat");
+        config.getLlm().setModel("llama3");
+
+        validateLlmConfig(config);
+    }
+
+    @Test
+    void shouldRejectMetadataApiUrlForOllamaProvider() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("ollama");
+        config.getLlm().setDialect("ollama");
+        config.getLlm().setApiUrl("http://169.254.169.254/latest/meta-data");
+        config.getLlm().setModel("llama3");
+
+        assertThatThrownBy(() -> validateLlmConfig(config))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
+                .hasMessageContaining("云元数据");
     }
 
     @Test
@@ -131,5 +195,34 @@ public class SolonAiLlmGatewayConfigTest {
         assertThat(chatModel.getDialect()).isInstanceOf(RawResponseLoggingChatDialect.class);
         assertThat(((RawResponseLoggingChatDialect) chatModel.getDialect()).getDialectName())
                 .isEqualTo(provider);
+    }
+
+    private AppConfig remoteProviderConfig(String apiUrl) {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai");
+        config.getLlm().setDialect("openai");
+        config.getLlm().setApiUrl(apiUrl);
+        config.getLlm().setApiKey("sk-test-valid-key");
+        config.getLlm().setModel("gpt-5.4");
+        return config;
+    }
+
+    private void validateLlmConfig(AppConfig config) throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        Method validate =
+                SolonAiLlmGateway.class.getDeclaredMethod("validate", AppConfig.LlmConfig.class);
+        validate.setAccessible(true);
+        try {
+            validate.invoke(gateway, config.getLlm());
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new IllegalStateException(cause);
+        }
     }
 }
