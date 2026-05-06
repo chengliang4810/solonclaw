@@ -2048,6 +2048,9 @@ public class DefaultCommandService implements CommandService {
         if (normalizedArgs.startsWith("clear")) {
             return clearApprovals(agentSession, normalizedArgs);
         }
+        if (isApproveAllCommand(normalizedArgs)) {
+            return approveAllDangerousCommands(message, agentSession, args);
+        }
 
         ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(args);
         DangerousCommandApprovalService.PendingApproval pending =
@@ -2062,6 +2065,30 @@ public class DefaultCommandService implements CommandService {
                 approvalArgs.getScope(),
                 message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
+        }
+        return conversationOrchestrator.resumePending(message.sourceKey());
+    }
+
+    private boolean isApproveAllCommand(String normalizedArgs) {
+        if (StrUtil.isBlank(normalizedArgs)) {
+            return false;
+        }
+        String first = firstToken(normalizedArgs);
+        return "all".equals(first);
+    }
+
+    private GatewayReply approveAllDangerousCommands(
+            GatewayMessage message, SqliteAgentSession agentSession, String args) throws Exception {
+        ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(args);
+        DangerousCommandApprovalService.ApprovalScope scope =
+                approvalArgs.getScope() == null
+                        ? DangerousCommandApprovalService.ApprovalScope.ONCE
+                        : approvalArgs.getScope();
+        int approved =
+                dangerousCommandApprovalService.approveAll(
+                        agentSession, scope, message.getUserName());
+        if (approved <= 0) {
+            return GatewayReply.error("当前没有待审批的危险命令。若刚刚收到审批提示，请重试原始请求；也可以使用 /approve list 查看审批状态。");
         }
         return conversationOrchestrator.resumePending(message.sourceKey());
     }
@@ -2728,7 +2755,8 @@ public class DefaultCommandService implements CommandService {
                                         + " [claim-admin|pending|approve|revoke|approved]",
                                 "管理渠道配对与管理员授权"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_APPROVE + " [#序号|审批ID] [session|always]",
+                                GatewayCommandConstants.SLASH_APPROVE
+                                        + " [#序号|审批ID|all] [session|always]",
                                 "批准待审批危险命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID]",

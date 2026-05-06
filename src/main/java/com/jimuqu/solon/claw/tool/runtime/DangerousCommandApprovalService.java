@@ -620,12 +620,13 @@ public class DangerousCommandApprovalService {
             return false;
         }
 
-        if (scope == ApprovalScope.SESSION) {
+        ApprovalScope effectiveScope = scope == null ? ApprovalScope.ONCE : scope;
+        if (effectiveScope == ApprovalScope.SESSION) {
             for (String patternKey : pending.effectivePatternKeys()) {
                 addSessionApproval(
                         session.getContext(), approvalPattern(pending.getToolName(), patternKey));
             }
-        } else if (scope == ApprovalScope.ALWAYS) {
+        } else if (effectiveScope == ApprovalScope.ALWAYS) {
             for (String patternKey : pending.effectivePatternKeys()) {
                 String approvalPattern = approvalPattern(pending.getToolName(), patternKey);
                 if (isTirithPattern(patternKey)) {
@@ -636,7 +637,7 @@ public class DangerousCommandApprovalService {
             }
         }
 
-        String comment = scope.comment();
+        String comment = effectiveScope.comment();
         if (StrUtil.isNotBlank(approver)) {
             comment = comment + " 审批人：" + approver.trim();
         }
@@ -644,8 +645,23 @@ public class DangerousCommandApprovalService {
         HITL.approve(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
         session.updateSnapshot();
-        notifyApprovalResponse(session, pending, scope == null ? "once" : scope.name().toLowerCase(Locale.ROOT), approver);
+        notifyApprovalResponse(session, pending, effectiveScope.name().toLowerCase(Locale.ROOT), approver);
         return true;
+    }
+
+    public int approveAll(AgentSession session, ApprovalScope scope, String approver)
+            throws Exception {
+        ApprovalScope effectiveScope = scope == null ? ApprovalScope.ONCE : scope;
+        List<PendingApproval> pendingApprovals = listPendingApprovals(session);
+        int approved = 0;
+        for (PendingApproval pending : pendingApprovals) {
+            String selector =
+                    StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
+            if (approve(session, selector, effectiveScope, approver)) {
+                approved++;
+            }
+        }
+        return approved;
     }
 
     public void storePendingApproval(

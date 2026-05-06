@@ -126,6 +126,46 @@ public class DangerousCommandApprovalCommandTest {
     }
 
     @Test
+    void shouldApproveAllPendingDangerousCommandsAndResumeOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-all", "user-all", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-all", "user-all", "/pairing claim-admin"));
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-all:user-all");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply approved = env.send("room-all", "user-all", "/approve all session");
+        SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-all:user-all");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(updatedAgentSession))
+                .isEmpty();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "git_reset_hard"))
+                .isTrue();
+    }
+
+    @Test
     void shouldSkipNewRunWhenDangerousApprovalIsPending() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-4", "user-4", "hello"));
