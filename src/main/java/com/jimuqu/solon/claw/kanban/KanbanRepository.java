@@ -124,4 +124,7 @@ public interface KanbanRepository {
 
     boolean updateLatestRun(String taskId, String summary, String metadataJson, String error)
             throws Exception;
+
+    boolean editCompletedTaskResult(String taskId, String result, String summary, String metadataJson)
+            throws Exception;
 }

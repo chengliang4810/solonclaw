@@ -334,6 +334,17 @@ public class KanbanService {
         return task(id);
     }
 
+    public Map<String, Object> edit(String taskId, String result, String summary, String metadataJson)
+            throws Exception {
+        String id = requireArg(taskId, "kanban_edit task_id");
+        String output = requireArg(result, "kanban_edit --result");
+        String metadata = validateMetadataObject(metadataJson);
+        if (!repository.editCompletedTaskResult(id, output, summary, metadata)) {
+            throw new IllegalArgumentException("Kanban task is not done or not found: " + id);
+        }
+        return task(id);
+    }
+
     public List<Map<String, Object>> runs(String taskId) throws Exception {
         requireTask(taskId);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -722,6 +733,9 @@ public class KanbanService {
         if ("unblock".equals(action)) {
             return unblockCommand(rest);
         }
+        if ("edit".equals(action)) {
+            return editCommand(rest);
+        }
         if ("runs".equals(action) || "history".equals(action)) {
             return formatRuns(requireArg(rest, "/kanban runs <task-id>"));
         }
@@ -883,6 +897,19 @@ public class KanbanService {
         return "已解除阻塞任务：" + String.join(", ", unblocked);
     }
 
+    private String editCommand(String rest) throws Exception {
+        String raw = requireArg(rest, "/kanban edit <task-id> --result <text> [--summary <text>] [--metadata <json>]");
+        String[] parts = raw.split("\\s+", 2);
+        String taskId = parts[0];
+        Map<String, String> options = parseLongOptions(parts.length > 1 ? parts[1] : "");
+        String result = options.get("result");
+        if (StrUtil.isBlank(result)) {
+            return "用法：/kanban edit <task-id> --result <text> [--summary <text>] [--metadata <json>]";
+        }
+        edit(taskId, result, options.get("summary"), options.get("metadata"));
+        return "已编辑任务结果：" + taskId;
+    }
+
     private String bulkStatusCommand(String rest, String status, String label, String usage)
             throws Exception {
         String raw = requireArg(rest, usage);
@@ -910,6 +937,43 @@ public class KanbanService {
                     "Kanban task cannot be updated to " + status + ": " + String.join(", ", failed));
         }
         return label + "：" + String.join(", ", updated);
+    }
+
+    private Map<String, String> parseLongOptions(String rest) {
+        Map<String, String> result = new LinkedHashMap<String, String>();
+        String raw = StrUtil.nullToEmpty(rest).trim();
+        int index = 0;
+        while (index < raw.length()) {
+            int marker = raw.indexOf("--", index);
+            if (marker < 0) {
+                break;
+            }
+            int keyStart = marker + 2;
+            int keyEnd = keyStart;
+            while (keyEnd < raw.length()) {
+                char ch = raw.charAt(keyEnd);
+                if (Character.isWhitespace(ch)) {
+                    break;
+                }
+                keyEnd++;
+            }
+            if (keyEnd <= keyStart) {
+                index = keyStart;
+                continue;
+            }
+            String key = raw.substring(keyStart, keyEnd).trim();
+            int valueStart = keyEnd;
+            while (valueStart < raw.length() && Character.isWhitespace(raw.charAt(valueStart))) {
+                valueStart++;
+            }
+            int next = raw.indexOf(" --", valueStart);
+            String value = next < 0 ? raw.substring(valueStart).trim() : raw.substring(valueStart, next).trim();
+            if (StrUtil.isNotBlank(key)) {
+                result.put(key, stripWrappingQuotes(value));
+            }
+            index = next < 0 ? raw.length() : next + 1;
+        }
+        return result;
     }
 
     private String handleDaemonCommand(String rest) {
@@ -1276,6 +1340,7 @@ public class KanbanService {
                         "/kanban reassign <task-id> <assignee> [--reclaim] - 重新分配任务",
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",
                         "/kanban unblock <task-id> [task-id...] - 将 blocked 任务恢复为 ready",
+                        "/kanban edit <task-id> --result <text> [--summary <text>] [--metadata <json>] - 修正已完成任务的结果",
                         "/kanban link <parent-id> <child-id> - 添加任务依赖",
                         "/kanban unlink <parent-id> <child-id> - 移除任务依赖",
                         "/kanban runs <task-id> - 查看任务执行历史",
@@ -1981,6 +2046,29 @@ public class KanbanService {
         } catch (Exception e) {
             return json;
         }
+    }
+
+    private String validateMetadataObject(String json) {
+        if (StrUtil.isBlank(json)) {
+            return null;
+        }
+        Object parsed = ONode.deserialize(json, Object.class);
+        if (!(parsed instanceof Map<?, ?>)) {
+            throw new IllegalArgumentException("kanban edit --metadata must be a JSON object");
+        }
+        return ONode.serialize(parsed);
+    }
+
+    private String stripWrappingQuotes(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (text.length() >= 2) {
+            char first = text.charAt(0);
+            char last = text.charAt(text.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                return text.substring(1, text.length() - 1);
+            }
+        }
+        return text;
     }
 
     private String summaryPreview(String value) {

@@ -299,6 +299,39 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldEditCompletedTaskRecoveryFields() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "需要修正结果", "alice", "alice");
+        String openId = createTask(service, "未完成任务", "alice", "alice");
+
+        service.status(taskId, "done", "初版结果", "初版摘要", null);
+        Map<String, Object> edited =
+                service.edit(taskId, "修正后的结果", "修正后的摘要", "{\"tests_run\":2}");
+
+        assertThat(edited.get("status")).isEqualTo("done");
+        assertThat(edited.get("result")).isEqualTo("修正后的结果");
+        assertThat(String.valueOf(edited.get("latest_run")))
+                .contains("修正后的摘要")
+                .contains("tests_run=2");
+        assertThat(String.valueOf(edited.get("events")))
+                .contains("edited")
+                .contains("result_len")
+                .contains("metadata");
+
+        assertThat(service.handleCommand(
+                        "edit " + taskId + " --result 命令修正结果 --summary 命令修正摘要 --metadata {\"ok\":true}",
+                        "tester"))
+                .contains("已编辑任务结果")
+                .contains(taskId);
+        assertThat(String.valueOf(service.task(taskId).get("latest_run"))).contains("ok=true");
+
+        assertThatThrownBy(() -> service.edit(openId, "不能修正", null, null))
+                .hasMessageContaining("not done");
+        assertThatThrownBy(() -> service.edit(taskId, "bad metadata", null, "[1,2]"))
+                .hasMessageContaining("JSON object");
+    }
+
+    @Test
     void shouldExposePipelineLinksIdempotencyAndWorkerContext() throws Exception {
         KanbanService service = service();
         String parentId = createTask(service, "父任务", "lead", "lead");

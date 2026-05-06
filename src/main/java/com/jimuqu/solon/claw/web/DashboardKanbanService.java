@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import java.util.List;
 import java.util.Map;
+import org.noear.snack4.ONode;
 
 /** Dashboard Kanban application service. */
 public class DashboardKanbanService {
@@ -99,6 +100,15 @@ public class DashboardKanbanService {
 
     public Map<String, Object> unblock(String taskId) throws Exception {
         return kanbanService.unblock(taskId);
+    }
+
+    public Map<String, Object> edit(String taskId, Map<String, Object> body) throws Exception {
+        Object metadata = body == null ? null : body.get("metadata");
+        return kanbanService.edit(
+                taskId,
+                body == null || body.get("result") == null ? null : String.valueOf(body.get("result")),
+                body == null || body.get("summary") == null ? null : String.valueOf(body.get("summary")),
+                metadata == null ? null : ONode.serialize(metadata));
     }
 
     public List<Map<String, Object>> runs(String taskId) throws Exception {

@@ -1366,6 +1366,78 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public boolean editCompletedTaskResult(String taskId, String result, String summary, String metadataJson)
+            throws Exception {
+        String handoffSummary = summary == null ? result : summary;
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            KanbanTaskRecord task = findTask(taskId);
+            if (task == null || !"done".equals(task.getStatus())) {
+                return false;
+            }
+            PreparedStatement updateTask =
+                    connection.prepareStatement(
+                            "update kanban_tasks set result = ?, updated_at = ? where task_id = ? and status = 'done'");
+            updateTask.setString(1, result);
+            updateTask.setLong(2, now);
+            updateTask.setString(3, taskId);
+            int updated = updateTask.executeUpdate();
+            updateTask.close();
+            if (updated != 1) {
+                return false;
+            }
+            String runId = latestCompletedRunId(taskId, connection);
+            if (StrUtil.isBlank(runId)) {
+                KanbanRunRecord run = new KanbanRunRecord();
+                run.setRunId("run_" + IdSupport.newId());
+                run.setTaskId(taskId);
+                run.setProfile(task.getAssignee());
+                run.setStepKey(task.getCurrentStepKey());
+                run.setStatus("done");
+                run.setOutcome("completed");
+                run.setSummary(handoffSummary);
+                run.setMetadataJson(metadataJson);
+                run.setStartedAt(now);
+                run.setEndedAt(now);
+                insertRun(run, connection);
+                runId = run.getRunId();
+            } else {
+                PreparedStatement updateRun =
+                        metadataJson == null
+                                ? connection.prepareStatement(
+                                        "update kanban_runs set summary = ? where run_id = ?")
+                                : connection.prepareStatement(
+                                        "update kanban_runs set summary = ?, metadata_json = ? where run_id = ?");
+                updateRun.setString(1, handoffSummary);
+                if (metadataJson == null) {
+                    updateRun.setString(2, runId);
+                } else {
+                    updateRun.setString(2, metadataJson);
+                    updateRun.setString(3, runId);
+                }
+                updateRun.executeUpdate();
+                updateRun.close();
+            }
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            List<String> fields = new ArrayList<String>();
+            fields.add("result");
+            fields.add("summary");
+            if (metadataJson != null) {
+                fields.add("metadata");
+            }
+            payload.put("fields", fields);
+            payload.put("result_len", Integer.valueOf(StrUtil.nullToEmpty(result).length()));
+            payload.put("summary", summaryPreview(handoffSummary));
+            payload.put("run_id", runId);
+            addEvent(connection, taskId, "edited", payload);
+            return true;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public List<KanbanEventRecord> listEvents(String taskId) throws Exception {
         List<KanbanEventRecord> events = new ArrayList<KanbanEventRecord>();
         Connection connection = database.openConnection();
@@ -1911,6 +1983,20 @@ public class SqliteKanbanRepository implements KanbanRepository {
         return updated > 0;
     }
 
+    private String latestCompletedRunId(String taskId, Connection connection) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select run_id from kanban_runs where task_id = ? and outcome = 'completed' order by case when ended_at > 0 then ended_at else started_at end desc, run_id desc limit 1");
+        statement.setString(1, taskId);
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next() ? resultSet.getString("run_id") : null;
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
     private void insertRun(KanbanRunRecord run, Connection connection) throws Exception {
         PreparedStatement statement =
                 connection.prepareStatement(
@@ -1934,6 +2020,14 @@ public class SqliteKanbanRepository implements KanbanRepository {
         statement.setString(17, run.getError());
         statement.executeUpdate();
         statement.close();
+    }
+
+    private String summaryPreview(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (text.length() <= 400) {
+            return StrUtil.blankToDefault(text, null);
+        }
+        return text.substring(0, 400);
     }
 
     private void addEvent(

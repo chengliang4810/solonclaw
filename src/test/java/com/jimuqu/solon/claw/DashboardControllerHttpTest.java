@@ -408,6 +408,9 @@ public class DashboardControllerHttpTest {
             assertThat(refreshOAuth.body).doesNotContain("refresh-secret-2");
             assertThat(tokenEndpoint.lastForm.get("grant_type")).isEqualTo("refresh_token");
             assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo("refresh-secret-1");
+            String refreshedToken = tokenEndpoint.lastIssuedRefreshToken();
+            assertThat(refreshedToken).isNotBlank();
+            assertThat(refreshedToken).isNotEqualTo("refresh-secret-1");
 
             HttpResult handle401 =
                     request(
@@ -420,7 +423,7 @@ public class DashboardControllerHttpTest {
             assertThat(handle401.body).contains("\"needs_reauth\":false");
             assertThat(handle401.body).contains("\"reconnect_required\":true");
             assertThat(handle401.body).doesNotContain("token-secret-3");
-            assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo("refresh-secret-2");
+            assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo(refreshedToken);
         } finally {
             tokenEndpoint.stop();
         }
@@ -557,10 +560,32 @@ public class DashboardControllerHttpTest {
                 .contains("unblocked")
                 .contains("dashboard unblock wait");
 
+        HttpResult kanbanCompleteForEdit =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/status",
+                        "{\"status\":\"done\",\"result\":\"dashboard edit seed\",\"summary\":\"dashboard seed summary\"}",
+                        token);
+        assertThat(kanbanCompleteForEdit.status).isEqualTo(200);
+        assertThat(kanbanCompleteForEdit.body).contains("\"status\":\"done\"");
+
+        HttpResult kanbanEdit =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/edit",
+                        "{\"result\":\"dashboard edited result\",\"summary\":\"dashboard edited summary\",\"metadata\":{\"tests_run\":3}}",
+                        token);
+        assertThat(kanbanEdit.status).isEqualTo(200);
+        assertThat(kanbanEdit.body)
+                .contains("dashboard edited result")
+                .contains("dashboard edited summary")
+                .contains("tests_run")
+                .contains("edited");
+
         HttpResult kanbanEvents =
                 request("GET", "/api/kanban/tasks/" + taskId + "/events", null, token);
         assertThat(kanbanEvents.status).isEqualTo(200);
-        assertThat(kanbanEvents.body).contains("reassigned").contains("unblocked");
+        assertThat(kanbanEvents.body).contains("reassigned").contains("unblocked").contains("edited");
 
         HttpResult kanbanContext =
                 request("GET", "/api/kanban/tasks/" + taskId + "/context", null, token);
@@ -1032,6 +1057,7 @@ public class DashboardControllerHttpTest {
         private final int port;
         private volatile Map<String, String> lastForm = new LinkedHashMap<String, String>();
         private volatile int refreshCount;
+        private volatile String issuedRefreshToken;
 
         private TokenEndpointStub(HttpServer server, int port) {
             this.server = server;
@@ -1061,13 +1087,15 @@ public class DashboardControllerHttpTest {
             String responseJson;
             if ("refresh_token".equals(grantType)) {
                 refreshCount++;
+                issuedRefreshToken = "refresh-secret-" + (refreshCount + 1);
                 responseJson =
                         "{\"access_token\":\"token-secret-"
                                 + (refreshCount + 1)
-                                + "\",\"refresh_token\":\"refresh-secret-"
-                                + (refreshCount + 1)
+                                + "\",\"refresh_token\":\""
+                                + issuedRefreshToken
                                 + "\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"repo read:user\"}";
             } else {
+                issuedRefreshToken = "refresh-secret-1";
                 responseJson =
                         "{\"access_token\":\"token-secret-1\",\"refresh_token\":\"refresh-secret-1\","
                                 + "\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"repo read:user\"}";
@@ -1081,6 +1109,10 @@ public class DashboardControllerHttpTest {
             } finally {
                 outputStream.close();
             }
+        }
+
+        private String lastIssuedRefreshToken() {
+            return issuedRefreshToken;
         }
 
         private static byte[] readBytes(HttpExchange exchange) throws java.io.IOException {
