@@ -1211,16 +1211,18 @@ public class AppConfig {
                                 readInt(props, overrides, "solonclaw.task.subagentMaxDepth", 1)));
         config.getTask()
                 .setToolOutputInlineLimit(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.task.toolOutputInlineLimit",
+                        positiveInt(
+                                resolveInt(
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "tool_output.max_bytes",
-                                                50000))));
+                                                "solonclaw.task.toolOutputInlineLimit",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_output.max_bytes",
+                                                        50000))),
+                                50000));
         config.getTask()
                 .setToolOutputTurnBudget(
                         resolveInt(
@@ -1231,28 +1233,32 @@ public class AppConfig {
                                         200000)));
         config.getTask()
                 .setToolOutputMaxLines(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.task.toolOutputMaxLines",
+                        positiveInt(
+                                resolveInt(
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "tool_output.max_lines",
-                                                2000))));
+                                                "solonclaw.task.toolOutputMaxLines",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_output.max_lines",
+                                                        2000))),
+                                2000));
         config.getTask()
                 .setToolOutputMaxLineLength(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.task.toolOutputMaxLineLength",
+                        positiveInt(
+                                resolveInt(
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "tool_output.max_line_length",
-                                                2000))));
+                                                "solonclaw.task.toolOutputMaxLineLength",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_output.max_line_length",
+                                                        2000))),
+                                2000));
         config.getTask()
                 .setMediaCacheTtlHours(
                         resolveInt(

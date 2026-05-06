@@ -206,6 +206,66 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
+        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
+        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
+    }
+
+    @Test
+    void shouldCoerceHermesToolOutputStringIntegers() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-string").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "tool_output:\n"
+                        + "  max_bytes: \"75000\"\n"
+                        + "  max_lines: \"222\"\n"
+                        + "  max_line_length: \"333\"\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(75000);
+        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(222);
+        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(333);
+    }
+
+    @Test
+    void shouldFallbackForInvalidHermesToolOutputValues() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-invalid").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "tool_output:\n"
+                        + "  max_bytes: -1\n"
+                        + "  max_lines: 0\n"
+                        + "  max_line_length: not-a-number\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
+        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
+        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
+    }
+
+    @Test
+    void shouldFallbackWhenHermesToolOutputSectionIsNotMap() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-section").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String("tool_output: nonsense\n", configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
+        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
+        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
     }
 
     @Test
