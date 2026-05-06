@@ -803,10 +803,10 @@ public class KanbanService {
             return editCommand(rest);
         }
         if ("assignees".equals(action)) {
-            return formatAssignees(assignees(StrUtil.blankToDefault(rest, null)));
+            return assigneesCommand(rest);
         }
         if ("runs".equals(action) || "history".equals(action)) {
-            return formatRuns(requireArg(rest, "/kanban runs <task-id>"));
+            return runsCommand(rest);
         }
         if ("events".equals(action) || "tail".equals(action)) {
             return formatEvents(requireArg(rest, "/kanban events <task-id>"));
@@ -819,7 +819,7 @@ public class KanbanService {
             return formatDiagnostics(diagnostics(rest));
         }
         if ("stats".equals(action)) {
-            return formatStats(stats());
+            return statsCommand(rest);
         }
         if ("watch".equals(action)) {
             return formatEventViews(watch(null, null, rest, 50), "最近 Kanban 事件");
@@ -829,7 +829,7 @@ public class KanbanService {
             return "已订阅任务通知：" + notifySubscribe(body).get("id");
         }
         if ("notify-list".equals(action)) {
-            return formatNotifySubscriptions(notifyList(StrUtil.blankToDefault(rest, null)));
+            return notifyListCommand(rest);
         }
         if ("notify-unsubscribe".equals(action)) {
             Map<String, Object> result = notifyUnsubscribe(notifyBody(rest, false));
@@ -996,6 +996,46 @@ public class KanbanService {
             return ONode.serialize(detail);
         }
         return formatTaskDetail(detail);
+    }
+
+    private String runsCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        String taskId = parsed.positionalText();
+        if (StrUtil.isBlank(taskId)) {
+            return "用法：/kanban runs <task-id> [--json]";
+        }
+        List<Map<String, Object>> list = runs(taskId);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(list);
+        }
+        return formatRuns(taskId, list);
+    }
+
+    private String statsCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        Map<String, Object> result = stats();
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(result);
+        }
+        return formatStats(result);
+    }
+
+    private String notifyListCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<Map<String, Object>> list = notifyList(StrUtil.blankToDefault(parsed.positionalText(), null));
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(list);
+        }
+        return formatNotifySubscriptions(list);
+    }
+
+    private String assigneesCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<Map<String, Object>> list = assignees(StrUtil.blankToDefault(parsed.positionalText(), null));
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(list);
+        }
+        return formatAssignees(list);
     }
 
     private String normalizeAssigneeOption(String assignee) {
@@ -1491,7 +1531,10 @@ public class KanbanService {
     }
 
     private String formatRuns(String taskId) throws Exception {
-        List<Map<String, Object>> runs = runs(taskId);
+        return formatRuns(taskId, runs(taskId));
+    }
+
+    private String formatRuns(String taskId, List<Map<String, Object>> runs) {
         if (runs.isEmpty()) {
             return "任务 " + taskId + " 暂无执行历史。";
         }

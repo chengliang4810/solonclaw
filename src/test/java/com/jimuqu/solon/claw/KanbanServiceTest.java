@@ -291,6 +291,9 @@ public class KanbanServiceTest {
         assertThat(service.handleCommand("runs " + taskId, "tester"))
                 .contains("运行历史")
                 .contains("reclaimed");
+        assertThat(service.handleCommand("runs " + taskId + " --json", "tester"))
+                .contains("\"outcome\":\"completed\"")
+                .contains("\"outcome\":\"reclaimed\"");
         assertThat(service.handleCommand("events " + taskId, "tester"))
                 .contains("执行流水")
                 .contains("retry");
@@ -424,6 +427,10 @@ public class KanbanServiceTest {
                 .contains("bob")
                 .contains("configured=no")
                 .contains("ready=1");
+        assertThat(service.handleCommand("assignees --json", "tester"))
+                .contains("\"name\":\"alice\"")
+                .contains("\"on_disk\":true")
+                .contains("\"name\":\"bob\"");
 
         assertThat(String.valueOf(service.assignees()))
                 .contains("name=alice")
@@ -620,6 +627,9 @@ public class KanbanServiceTest {
                 .contains("alice")
                 .contains("ready");
         assertThat(service.handleCommand("stats", "tester")).contains("Kanban 统计");
+        assertThat(service.handleCommand("stats --json", "tester"))
+                .contains("\"by_status\"")
+                .contains("\"by_assignee\"");
         assertThat(String.valueOf(service.watch("alice", null, "comment", 20)))
                 .contains("comment")
                 .contains(taskId);
@@ -639,6 +649,9 @@ public class KanbanServiceTest {
                         "notify-subscribe " + taskId + " dingtalk chat-2 thread-2", "tester"))
                 .contains("已订阅任务通知");
         assertThat(service.handleCommand("notify-list " + taskId, "tester")).contains("dingtalk");
+        assertThat(service.handleCommand("notify-list " + taskId + " --json", "tester"))
+                .contains("\"platform\":\"dingtalk\"")
+                .contains("\"task_id\":\"" + taskId + "\"");
         assertThat(service.handleCommand(
                         "notify-unsubscribe " + taskId + " dingtalk chat-2 thread-2", "tester"))
                 .contains("已取消任务通知");
