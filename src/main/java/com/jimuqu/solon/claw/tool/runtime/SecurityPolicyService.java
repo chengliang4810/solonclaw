@@ -10,6 +10,7 @@ import java.net.IDN;
 import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
 import java.net.URI;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.Normalizer;
@@ -220,6 +221,16 @@ public class SecurityPolicyService {
                         && appConfig.getSecurity() != null
                         && appConfig.getSecurity().isAllowPrivateUrls();
         boolean trustedPrivateHost = "https".equals(scheme) && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
+        int[] hostIpv4 = parseObfuscatedIpv4(host);
+        if (hostIpv4 != null) {
+            String ip = formatIpv4(hostIpv4);
+            if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+                return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
+            }
+            if (!allowPrivate && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+                return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
+            }
+        }
 
         try {
             InetAddress[] addresses = resolveHost(host);
@@ -1027,7 +1038,8 @@ public class SecurityPolicyService {
         if (value.indexOf(':') >= 0) {
             return true;
         }
-        return Pattern.compile("^\\d{1,3}(?:\\.\\d{1,3}){3}$").matcher(value).matches();
+        return parseObfuscatedIpv4(value) != null
+                || Pattern.compile("^\\d{1,3}(?:\\.\\d{1,3}){3}$").matcher(value).matches();
     }
 
     private boolean isAlwaysBlockedIp(String ip) {
@@ -1106,6 +1118,10 @@ public class SecurityPolicyService {
         if (percent >= 0) {
             value = value.substring(0, percent);
         }
+        int[] obfuscated = parseObfuscatedIpv4(value);
+        if (obfuscated != null) {
+            return isBlockedIpv4(obfuscated[0], obfuscated[1], obfuscated[2], obfuscated[3]);
+        }
         String[] parts = value.split("\\.");
         if (parts.length != 4) {
             return false;
@@ -1177,6 +1193,86 @@ public class SecurityPolicyService {
             return true;
         }
         return first == 0x0064 && second == 0xff9b && isZeroSuffix(rawAddress, 4, 8);
+    }
+
+    private int[] parseObfuscatedIpv4(String host) {
+        String value = StrUtil.nullToEmpty(host).toLowerCase(Locale.ROOT).trim();
+        if (value.length() == 0 || value.indexOf(':') >= 0) {
+            return null;
+        }
+        if (value.startsWith("0x") && value.indexOf('.') < 0) {
+            return parseIpv4Number(value.substring(2), 16);
+        }
+        if (Pattern.compile("^\\d+$").matcher(value).matches()) {
+            return parseIpv4Number(value, 10);
+        }
+        String[] parts = value.split("\\.");
+        if (parts.length != 4) {
+            return null;
+        }
+        int[] octets = new int[4];
+        boolean nonDecimal = false;
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            int radix = 10;
+            if (part.startsWith("0x") && part.length() > 2) {
+                radix = 16;
+                part = part.substring(2);
+                nonDecimal = true;
+            } else if (part.length() > 1 && part.charAt(0) == '0') {
+                radix = 8;
+                nonDecimal = true;
+            }
+            if (!isNumberInRadix(part, radix)) {
+                return null;
+            }
+            try {
+                octets[i] = Integer.parseInt(part, radix);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            if (octets[i] < 0 || octets[i] > 255) {
+                return null;
+            }
+        }
+        return nonDecimal ? octets : null;
+    }
+
+    private int[] parseIpv4Number(String raw, int radix) {
+        if (!isNumberInRadix(raw, radix)) {
+            return null;
+        }
+        try {
+            BigInteger value = new BigInteger(raw, radix);
+            if (value.signum() < 0 || value.bitLength() > 32) {
+                return null;
+            }
+            long packed = value.longValue();
+            return new int[] {
+                (int) ((packed >> 24) & 0xff),
+                (int) ((packed >> 16) & 0xff),
+                (int) ((packed >> 8) & 0xff),
+                (int) (packed & 0xff)
+            };
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private boolean isNumberInRadix(String value, int radix) {
+        if (StrUtil.isBlank(value)) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.digit(value.charAt(i), radix) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String formatIpv4(int[] octets) {
+        return octets[0] + "." + octets[1] + "." + octets[2] + "." + octets[3];
     }
 
     private int unsignedShort(byte[] bytes, int offset) {

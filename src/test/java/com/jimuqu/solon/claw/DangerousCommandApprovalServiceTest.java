@@ -507,6 +507,46 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "http://0xA9FEA9FE/latest/meta-data/",
+                        "http://0251.0376.0251.0376/latest/meta-data/",
+                        "http://2852039166/latest/meta-data/",
+                        "http://0x7f000001/status",
+                        "http://0177.0.0.1/status",
+                        "http://2130706433/status");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("阻断");
+        }
+    }
+
+    @Test
+    void shouldStillBlockObfuscatedMetadataWhenPrivateUrlsAreAllowed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "http://0xA9FEA9FE/latest/meta-data/",
+                        "http://0251.0376.0251.0376/latest/meta-data/",
+                        "http://2852039166/latest/meta-data/");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("元数据");
+        }
+    }
+
+    @Test
     void shouldFailClosedForEmptyUrlsLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
