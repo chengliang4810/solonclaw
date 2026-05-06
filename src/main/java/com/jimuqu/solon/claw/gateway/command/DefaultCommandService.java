@@ -2002,10 +2002,14 @@ public class DefaultCommandService implements CommandService {
                 body.put("skills", field.substring("--skill ".length()).trim());
             } else if (field.startsWith("--add-skill ")) {
                 body.put("skills", field.substring("--add-skill ".length()).trim());
+            } else if (field.startsWith("--add-skills ")) {
+                body.put("skills", field.substring("--add-skills ".length()).trim());
             } else if ("--clear-skills".equals(field)) {
                 body.put("skills", new ArrayList<String>());
             } else if (field.startsWith("--skills ")) {
                 body.put("skills", field.substring("--skills ".length()).trim());
+            } else if (field.startsWith("-s ")) {
+                body.put("skills", field.substring("-s ".length()).trim());
             } else if (field.startsWith("--deliver ")) {
                 body.put("deliver", field.substring("--deliver ".length()).trim());
             } else if (field.startsWith("--repeat ")) {
@@ -2112,13 +2116,13 @@ public class DefaultCommandService implements CommandService {
                 options.limit = Integer.valueOf(tokens.get(++i));
             } else if ("--reason".equals(token) && i + 1 < tokens.size()) {
                 options.reason = tokens.get(++i);
-            } else if ("--skill".equals(token) && i + 1 < tokens.size()) {
+            } else if (("--skill".equals(token) || "-s".equals(token)) && i + 1 < tokens.size()) {
                 options.skills.add(tokens.get(++i));
             } else if ("--skills".equals(token) && i + 1 < tokens.size()) {
                 options.skills.add(tokens.get(++i));
-            } else if ("--add-skill".equals(token) && i + 1 < tokens.size()) {
+            } else if (("--add-skill".equals(token) || "--add-skills".equals(token)) && i + 1 < tokens.size()) {
                 options.addSkills.add(tokens.get(++i));
-            } else if ("--remove-skill".equals(token) && i + 1 < tokens.size()) {
+            } else if (("--remove-skill".equals(token) || "--remove-skills".equals(token)) && i + 1 < tokens.size()) {
                 options.removeSkills.add(tokens.get(++i));
             } else if ("--clear-skills".equals(token)) {
                 options.clearSkills = true;

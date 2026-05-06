@@ -277,6 +277,29 @@ public class CommandEnhancementTest {
                 .contains("reports")
                 .doesNotContain("maps");
 
+        GatewayReply pluralSkillAliases =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit "
+                                + jobId
+                                + " --add-skills alerts,ops --remove-skills reports");
+        assertThat(pluralSkillAliases.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("blogwatcher")
+                .contains("alerts")
+                .contains("ops")
+                .doesNotContain("reports");
+
+        GatewayReply shortSkillAlias =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " -s analyst");
+        assertThat(shortSkillAlias.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("analyst")
+                .doesNotContain("blogwatcher")
+                .doesNotContain("alerts")
+                .doesNotContain("ops");
+
         GatewayReply cleared = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-skills");
         assertThat(cleared.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("skills=[]");
