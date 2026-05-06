@@ -24,12 +24,40 @@ public class DashboardCronController {
         return cronService.listJobs();
     }
 
+    @Mapping(value = "/api/jobs", method = MethodType.GET)
+    public Map<String, Object> apiJobs(Context context) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        return apiJobsResponse(cronService.listJobs(includeDisabled));
+    }
+
     @Mapping(value = "/api/cron/jobs", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
         return DashboardResponse.ok(
                 cronService.create(
-                        ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
+                        body(context)));
+    }
+
+    @Mapping(value = "/api/jobs", method = MethodType.POST)
+    public Map<String, Object> apiCreate(Context context) throws Exception {
+        try {
+            return apiJobResponse(cronService.apiCreate(body(context)));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        }
+    }
+
+    @Mapping(value = "/api/jobs/{id}", method = MethodType.GET)
+    public Map<String, Object> apiGet(String id, Context context) throws Exception {
+        try {
+            return apiJobResponse(cronService.get(id));
+        } catch (IllegalStateException e) {
+            context.status(404);
+            return apiError(e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.PUT)
@@ -37,8 +65,24 @@ public class DashboardCronController {
         return DashboardResponse.ok(
                 cronService.update(
                         id,
-                        ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
+                        body(context)));
+    }
+
+    @Mapping(value = "/api/jobs/{id}", method = MethodType.PATCH)
+    public Map<String, Object> apiPatch(String id, Context context) throws Exception {
+        try {
+            return apiJobResponse(cronService.apiPatch(id, body(context)));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        } catch (IllegalStateException e) {
+            if (isNotFound(e)) {
+                context.status(404);
+            } else {
+                context.status(400);
+            }
+            return apiError(e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/pause", method = MethodType.POST)
@@ -46,14 +90,44 @@ public class DashboardCronController {
         return DashboardResponse.ok(cronService.pause(id));
     }
 
+    @Mapping(value = "/api/jobs/{id}/pause", method = MethodType.POST)
+    public Map<String, Object> apiPause(String id, Context context) throws Exception {
+        try {
+            return apiJobResponse(cronService.pause(id));
+        } catch (IllegalStateException e) {
+            context.status(404);
+            return apiError(e.getMessage());
+        }
+    }
+
     @Mapping(value = "/api/cron/jobs/{id}/resume", method = MethodType.POST)
     public Map<String, Object> resume(String id) throws Exception {
         return DashboardResponse.ok(cronService.resume(id));
     }
 
+    @Mapping(value = "/api/jobs/{id}/resume", method = MethodType.POST)
+    public Map<String, Object> apiResume(String id, Context context) throws Exception {
+        try {
+            return apiJobResponse(cronService.resume(id));
+        } catch (IllegalStateException e) {
+            context.status(404);
+            return apiError(e.getMessage());
+        }
+    }
+
     @Mapping(value = "/api/cron/jobs/{id}/trigger", method = MethodType.POST)
     public Map<String, Object> trigger(String id) throws Exception {
         return DashboardResponse.ok(cronService.trigger(id));
+    }
+
+    @Mapping(value = "/api/jobs/{id}/run", method = MethodType.POST)
+    public Map<String, Object> apiRun(String id, Context context) throws Exception {
+        try {
+            return apiJobResponse(cronService.apiRun(id));
+        } catch (IllegalStateException e) {
+            context.status(404);
+            return apiError(e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/runs", method = MethodType.GET)
@@ -70,5 +144,50 @@ public class DashboardCronController {
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.DELETE)
     public Map<String, Object> delete(String id) throws Exception {
         return DashboardResponse.ok(cronService.delete(id));
+    }
+
+    @Mapping(value = "/api/jobs/{id}", method = MethodType.DELETE)
+    public Map<String, Object> apiDelete(String id, Context context) throws Exception {
+        try {
+            cronService.delete(id);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("ok", Boolean.TRUE);
+            return result;
+        } catch (IllegalStateException e) {
+            context.status(404);
+            return apiError(e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> body(Context context) throws Exception {
+        String raw = context.body();
+        if (raw == null || raw.trim().length() == 0) {
+            return new LinkedHashMap<String, Object>();
+        }
+        Object data = ONode.ofJson(raw).toData();
+        return data instanceof Map ? (Map<String, Object>) data : new LinkedHashMap<String, Object>();
+    }
+
+    private Map<String, Object> apiJobsResponse(List<Map<String, Object>> jobs) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("jobs", jobs);
+        return result;
+    }
+
+    private Map<String, Object> apiJobResponse(Map<String, Object> job) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("job", job);
+        return result;
+    }
+
+    private Map<String, Object> apiError(String message) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("error", message == null ? "" : message);
+        return result;
+    }
+
+    private boolean isNotFound(IllegalStateException e) {
+        return e.getMessage() != null && e.getMessage().startsWith("Job not found:");
     }
 }

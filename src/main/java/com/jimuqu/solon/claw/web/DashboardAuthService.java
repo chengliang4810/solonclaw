@@ -98,7 +98,7 @@ public class DashboardAuthService {
         context.headerSet("Access-Control-Allow-Origin", origin);
         context.headerSet("Vary", "Origin");
         context.headerSet("Access-Control-Allow-Headers", "Authorization, Content-Type");
-        context.headerSet("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+        context.headerSet("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
     }
 
     public boolean allowReveal() {

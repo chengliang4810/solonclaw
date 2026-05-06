@@ -725,6 +725,89 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult missingName =
+                request("POST", "/api/jobs", "{\"schedule\":\"every 1h\",\"prompt\":\"missing name\"}", token);
+        assertThat(missingName.status).isEqualTo(400);
+        assertThat(missingName.body).contains("name");
+
+        HttpResult invalidRepeat =
+                request(
+                        "POST",
+                        "/api/jobs",
+                        "{\"name\":\"bad-repeat\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"repeat\":0}",
+                        token);
+        assertThat(invalidRepeat.status).isEqualTo(400);
+        assertThat(invalidRepeat.body).contains("repeat");
+
+        HttpResult create =
+                request(
+                        "POST",
+                        "/api/jobs",
+                        "{\"name\":\"compat-cron\",\"schedule\":\"every 1h\",\"prompt\":\"compat prompt\",\"repeat\":2,\"no_agent\":true,\"script\":\"compat-run.py\"}",
+                        token);
+        assertThat(create.status).isEqualTo(200);
+        ONode created = ONode.ofJson(create.body).get("job");
+        String jobId = created.get("id").getString();
+        assertThat(jobId).isNotBlank();
+        assertThat(created.get("name").getString()).isEqualTo("compat-cron");
+
+        HttpResult list = request("GET", "/api/jobs", null, token);
+        assertThat(list.status).isEqualTo(200);
+        assertThat(list.body).contains("\"jobs\"").contains("compat-cron");
+
+        HttpResult get = request("GET", "/api/jobs/" + jobId, null, token);
+        assertThat(get.status).isEqualTo(200);
+        assertThat(get.body).contains("\"job\"").contains("compat prompt");
+
+        HttpResult patchUnknown =
+                request("PATCH", "/api/jobs/" + jobId, "{\"evil_field\":\"ignored\"}", token);
+        assertThat(patchUnknown.status).isEqualTo(400);
+        assertThat(patchUnknown.body).contains("No valid fields");
+
+        HttpResult patch =
+                request(
+                        "PATCH",
+                        "/api/jobs/" + jobId,
+                        "{\"name\":\"compat-renamed\",\"evil_field\":\"ignored\",\"__proto__\":\"ignored\"}",
+                        token);
+        assertThat(patch.status).isEqualTo(200);
+        assertThat(patch.body).contains("compat-renamed");
+        assertThat(patch.body).doesNotContain("evil_field");
+        assertThat(patch.body).doesNotContain("__proto__");
+
+        HttpResult pause = request("POST", "/api/jobs/" + jobId + "/pause", "{}", token);
+        assertThat(pause.status).isEqualTo(200);
+        assertThat(pause.body).contains("\"enabled\":false");
+
+        HttpResult listDefault = request("GET", "/api/jobs", null, token);
+        assertThat(listDefault.body).doesNotContain("compat-renamed");
+
+        HttpResult listAll = request("GET", "/api/jobs?include_disabled=true", null, token);
+        assertThat(listAll.body).contains("compat-renamed");
+
+        HttpResult resume = request("POST", "/api/jobs/" + jobId + "/resume", "{}", token);
+        assertThat(resume.status).isEqualTo(200);
+        assertThat(resume.body).contains("\"enabled\":true");
+
+        File scriptsDir = new File(runtimeHome, "scripts");
+        FileUtil.mkdir(scriptsDir);
+        FileUtil.writeUtf8String("print('compat cron run')\n", new File(scriptsDir, "compat-run.py"));
+        HttpResult run = request("POST", "/api/jobs/" + jobId + "/run", "{}", token);
+        assertThat(run.status).isEqualTo(200);
+        assertThat(run.body).contains("\"job\"").contains("compat-renamed");
+
+        HttpResult delete = request("DELETE", "/api/jobs/" + jobId, null, token);
+        assertThat(delete.status).isEqualTo(200);
+        assertThat(delete.body).contains("\"ok\":true");
+
+        HttpResult missing = request("GET", "/api/jobs/" + jobId, null, token);
+        assertThat(missing.status).isEqualTo(404);
+    }
+
+    @Test
     void shouldSupportDashboardChatRunsAndUploads() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
@@ -936,6 +1019,9 @@ public class DashboardControllerHttpTest {
     private static HttpResult requestOnce(
             String method, String path, String body, String token, Map<String, String> headers)
             throws Exception {
+        if ("PATCH".equalsIgnoreCase(method)) {
+            return requestPatch(path, body, token, headers);
+        }
         HttpURLConnection connection =
                 (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
         connection.setRequestMethod(method);
@@ -982,6 +1068,59 @@ public class DashboardControllerHttpTest {
             reader.close();
             connection.disconnect();
         }
+    }
+
+    private static HttpResult requestPatch(
+            String path, String body, String token, Map<String, String> headers)
+            throws Exception {
+        java.net.Socket socket = new java.net.Socket("127.0.0.1", port);
+        try {
+            byte[] bodyBytes = body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8);
+            StringBuilder request = new StringBuilder();
+            request.append("PATCH ").append(path).append(" HTTP/1.1\r\n");
+            request.append("Host: 127.0.0.1:").append(port).append("\r\n");
+            request.append("Connection: close\r\n");
+            request.append("Content-Type: application/json; charset=UTF-8\r\n");
+            request.append("Content-Length: ").append(bodyBytes.length).append("\r\n");
+            if (token != null) {
+                request.append("Authorization: Bearer ").append(token).append("\r\n");
+            }
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    request.append(entry.getKey()).append(": ").append(entry.getValue()).append("\r\n");
+                }
+            }
+            request.append("\r\n");
+            OutputStream outputStream = socket.getOutputStream();
+            outputStream.write(request.toString().getBytes(StandardCharsets.UTF_8));
+            if (bodyBytes.length > 0) {
+                outputStream.write(bodyBytes);
+            }
+            outputStream.flush();
+
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            java.io.InputStream inputStream = socket.getInputStream();
+            byte[] chunk = new byte[1024];
+            int read;
+            while ((read = inputStream.read(chunk)) >= 0) {
+                buffer.write(chunk, 0, read);
+            }
+            String response = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
+            int status = parseHttpStatus(response);
+            int bodyStart = response.indexOf("\r\n\r\n");
+            return new HttpResult(status, bodyStart < 0 ? "" : response.substring(bodyStart + 4));
+        } finally {
+            socket.close();
+        }
+    }
+
+    private static int parseHttpStatus(String response) {
+        if (response == null || response.length() < 12) {
+            return -1;
+        }
+        String firstLine = response.split("\\r?\\n", 2)[0];
+        String[] parts = firstLine.split(" ");
+        return parts.length >= 2 ? Integer.parseInt(parts[1]) : -1;
     }
 
     private static Map<String, String> signedHeaders(
