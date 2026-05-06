@@ -120,11 +120,11 @@ public class ProcessTools {
         return ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("pid", managed.getPid())
-                .data("command", managed.getCommand())
-                .data("cwd", managed.getCwd())
+                .data("command", SecretRedactor.redact(managed.getCommand()))
+                .data("cwd", SecretRedactor.redact(managed.getCwd()))
                 .data("status", managed.isExited() ? "exited" : "running")
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
-                .data("output_preview", stripAnsi(managed.outputPreview(1000)))
+                .data("output_preview", cleanOutput(managed.outputPreview(1000)))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
                 .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
@@ -139,7 +139,7 @@ public class ProcessTools {
         int safeOffset = offset == null ? 0 : Math.max(0, offset.intValue());
         List<String> lines =
                 new ArrayList<String>(
-                        Arrays.asList(stripAnsi(managed.getOutput()).split("\\r?\\n", -1)));
+                        Arrays.asList(cleanOutput(managed.getOutput()).split("\\r?\\n", -1)));
         if (!lines.isEmpty() && lines.get(lines.size() - 1).length() == 0) {
             lines.remove(lines.size() - 1);
         }
@@ -173,7 +173,7 @@ public class ProcessTools {
     private String list() {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (ProcessRegistry.ManagedProcess managed : processRegistry.snapshot().values()) {
-            items.add(managed.toMap());
+            items.add(managed.toRedactedMap());
         }
         return ToolResultEnvelope.ok("受管进程：" + items.size() + " 个")
                 .data("processes", items)
@@ -183,13 +183,13 @@ public class ProcessTools {
 
     private String poll(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
-        String output = stripAnsi(managed.outputPreview(1000));
+        String output = cleanOutput(managed.outputPreview(1000));
         return ToolResultEnvelope.ok(
                         managed.isExited()
                                 ? "后台进程已结束：" + managed.getId()
                                 : "后台进程仍在运行：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("command", managed.getCommand())
+                .data("command", SecretRedactor.redact(managed.getCommand()))
                 .data("status", managed.isExited() ? "exited" : "running")
                 .data("pid", managed.getPid())
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
@@ -210,7 +210,7 @@ public class ProcessTools {
         int seconds = timeoutSeconds == null ? 30 : Math.max(0, timeoutSeconds.intValue());
         boolean finished = processRegistry.waitFor(managed.getId(), seconds * 1000L);
         if (!finished) {
-            String output = tail(stripAnsi(managed.getOutput()), 1000);
+            String output = tail(cleanOutput(managed.getOutput()), 1000);
             return ToolResultEnvelope.ok("后台进程等待超时：" + managed.getId())
                     .data("session_id", managed.getId())
                     .data("status", "timeout")
@@ -222,7 +222,7 @@ public class ProcessTools {
                     .preview(output)
                     .toJson();
         }
-        String output = tail(stripAnsi(managed.getOutput()), 2000);
+        String output = tail(cleanOutput(managed.getOutput()), 2000);
         return ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("status", "exited")
@@ -240,7 +240,7 @@ public class ProcessTools {
     private String stop(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         ProcessRegistry.StopResult stopResult = processRegistry.stopDetailed(managed.getId());
-        String output = stripAnsi(managed.outputPreview(1000));
+        String output = cleanOutput(managed.outputPreview(1000));
         return ToolResultEnvelope.ok(
                         stopResult.isStopped()
                                 ? "后台进程已停止：" + managed.getId()
@@ -377,6 +377,10 @@ public class ProcessTools {
 
     private String stripAnsi(String text) {
         return ANSI_CONTROL_SEQUENCE.matcher(StrUtil.nullToEmpty(text)).replaceAll("");
+    }
+
+    private String cleanOutput(String text) {
+        return SecretRedactor.redact(stripAnsi(text));
     }
 
     private String exitCodeMeaning(ProcessRegistry.ManagedProcess managed) {

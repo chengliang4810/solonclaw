@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -217,14 +218,14 @@ public class HermesShellSkill extends ShellSkill {
         ProcessRegistry.ManagedProcess managed = processRegistry.start(command, dir);
         return ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("command", managed.getCommand())
-                .data("cwd", managed.getCwd())
+                .data("command", SecretRedactor.redact(managed.getCommand()))
+                .data("cwd", SecretRedactor.redact(managed.getCwd()))
                 .data("pid", managed.getPid())
                 .data("status", managed.isExited() ? "exited" : "running")
                 .data("background", Boolean.TRUE)
                 .data("notify_on_complete", Boolean.TRUE.equals(notifyOnComplete))
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
-                .data("output_preview", managed.outputPreview(1000))
+                .data("output_preview", normalizeTerminalOutput(managed.outputPreview(1000)))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
                 .toJson();
     }
@@ -571,7 +572,7 @@ public class HermesShellSkill extends ShellSkill {
                             + " total] ...\n\n";
             value = value.substring(0, headChars) + notice + value.substring(value.length() - tailChars);
         }
-        return ANSI_CONTROL_SEQUENCE.matcher(value).replaceAll("");
+        return SecretRedactor.redact(ANSI_CONTROL_SEQUENCE.matcher(value).replaceAll(""));
     }
 
     private int resolveMaxOutputChars() {

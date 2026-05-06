@@ -223,6 +223,58 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldRedactSecretsFromForegroundTerminalOutputAndBackgroundMetadata()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        HermesShellSkill skill = new HermesShellSkill(workdir, config, null, registry);
+
+        ONode foreground =
+                ONode.ofJson(
+                        skill.terminal(
+                                echoSecretCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+        ONode background =
+                ONode.ofJson(
+                        skill.terminal(
+                                sleepWithSecretCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(foreground.get("output").getString())
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("secret123")
+                .doesNotContain("user:pass");
+        assertThat(background.get("command").getString())
+                .contains("TOKEN=***")
+                .doesNotContain("secret123");
+        assertThat(registry.stop(background.get("session_id").getString())).isTrue();
+    }
+
+    @Test
+    void shouldRedactSecretsFromExecuteShellTextOutput() throws Exception {
+        AppConfig config = new AppConfig();
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute(echoSecretCommand(), Integer.valueOf(10000));
+
+        assertThat(result)
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("secret123");
+    }
+
+    @Test
     void shouldReturnExitCodeMeaningForForegroundTerminalCommands() throws Exception {
         assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
         AppConfig config = new AppConfig();
@@ -305,5 +357,19 @@ public class HermesShellSkillTest {
             return "exit /b " + exitCode;
         }
         return "exit " + exitCode;
+    }
+
+    private String echoSecretCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123";
+        }
+        return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123'";
+    }
+
+    private String sleepWithSecretCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "set TOKEN=secret123 && ping -n 30 127.0.0.1 > nul";
+        }
+        return "TOKEN=secret123 sleep 30";
     }
 }

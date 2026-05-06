@@ -193,6 +193,62 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromManagedProcessOutputsAndMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                secretEchoCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(5),
+                                null,
+                                null));
+        ONode polled =
+                ONode.ofJson(tools.process("poll", null, sessionId, null, null, null, null, null));
+        ONode logged =
+                ONode.ofJson(
+                        tools.process(
+                                "log",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(0),
+                                Integer.valueOf(10)));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+        String combined = waited.toString() + polled.toString() + logged.toString() + listed.toString();
+
+        assertThat(combined)
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("secret123")
+                .doesNotContain("user:pass");
+    }
+
+    @Test
     void shouldReturnCleanErrorsForInvalidTerminalCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         HermesShellSkill shell =
@@ -735,5 +791,12 @@ public class ToolRegistryExposureTest {
             return "echo line-1 & echo line-2 & echo line-3 & echo line-4";
         }
         return "printf 'line-1\\nline-2\\nline-3\\nline-4\\n'";
+    }
+
+    private String secretEchoCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123";
+        }
+        return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123'";
     }
 }

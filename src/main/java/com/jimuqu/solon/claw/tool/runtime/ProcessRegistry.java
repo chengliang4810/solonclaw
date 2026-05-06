@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -509,6 +510,22 @@ public class ProcessRegistry {
             map.put("truncated", Boolean.valueOf(truncated));
             map.put("stdin_closed", Boolean.valueOf(isStdinClosed()));
             return map;
+        }
+
+        public Map<String, Object> toRedactedMap() {
+            Map<String, Object> map = toMap();
+            redactMapText(map, "command");
+            redactMapText(map, "cwd");
+            redactMapText(map, "output");
+            redactMapText(map, "output_preview");
+            return map;
+        }
+
+        private void redactMapText(Map<String, Object> map, String key) {
+            Object value = map.get(key);
+            if (value instanceof String) {
+                map.put(key, SecretRedactor.redact((String) value));
+            }
         }
 
         public String getId() {

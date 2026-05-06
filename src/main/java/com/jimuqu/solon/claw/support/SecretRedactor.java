@@ -25,6 +25,8 @@ public final class SecretRedactor {
         }
         String result = BEARER.matcher(text).replaceAll("Bearer ***");
         result = KEY_VALUE.matcher(result).replaceAll("$1$2***");
+        result = URL_USERINFO.matcher(result).replaceAll("$1***@");
+        result = result.replaceAll("(?i)([?&](?:token|key|secret|password)=)[^&\\s]+", "$1***");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {
             return result.substring(0, limit)
