@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 public class DefaultCronScheduler {
     private static final Logger log = LoggerFactory.getLogger(DefaultCronScheduler.class);
     private static final String SILENT_MARKER = "[SILENT]";
+    private static final int MAX_CONTEXT_FROM_CHARS = 8000;
     private static final List<String> CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
     private static final Pattern MEDIA_PATTERN =
@@ -717,26 +718,35 @@ public class DefaultCronScheduler {
     }
 
     private String buildPrompt(CronJobRecord job) throws Exception {
-        StringBuilder prompt = new StringBuilder(StrUtil.nullToEmpty(job.getPrompt()));
+        StringBuilder prompt = new StringBuilder();
         Map<String, Object> view = cronJobService.toView(job);
         List<String> skills =
                 view.containsKey("skills") ? (List<String>) view.get("skills") : new ArrayList<String>();
         if (!skills.isEmpty()) {
-            prompt.insert(0, "请先加载并遵循这些技能：" + skills + "\n\n");
+            prompt.append("请先加载并遵循这些技能：").append(skills).append("\n\n");
         }
         Object contextFrom = view.get("context_from");
         if (contextFrom instanceof Iterable) {
             for (Object ref : (Iterable<?>) contextFrom) {
                 CronJobRecord upstream = cronJobRepository.findById(String.valueOf(ref));
                 if (upstream != null && StrUtil.isNotBlank(upstream.getLastOutput())) {
-                    prompt.append("\n\n上游任务 ")
+                    prompt.append("上游任务 ")
                             .append(upstream.getJobId())
                             .append(" 最近输出：\n")
-                            .append(upstream.getLastOutput());
+                            .append(truncateContextFromOutput(upstream.getLastOutput()))
+                            .append("\n\n");
                 }
             }
         }
+        prompt.append(StrUtil.nullToEmpty(job.getPrompt()));
         return prompt.toString();
+    }
+
+    private String truncateContextFromOutput(String output) {
+        if (output == null || output.length() <= MAX_CONTEXT_FROM_CHARS) {
+            return output;
+        }
+        return output.substring(0, MAX_CONTEXT_FROM_CHARS) + "\n\n[... output truncated ...]";
     }
 
     private String modelOverride(CronJobRecord job) {

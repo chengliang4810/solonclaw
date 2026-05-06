@@ -1194,6 +1194,49 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldInjectCronContextFromOutputBeforePromptAndTruncate() throws Exception {
+        RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        long now = System.currentTimeMillis();
+
+        CronJobRecord upstream = job("job-upstream", "MEMORY:upstream-room:user");
+        upstream.setLastOutput(repeat("context-", 1200));
+        upstream.setLastStatus("ok");
+        upstream.setLastRunAt(now - 1000L);
+        upstream.setNextRunAt(now + 60000L);
+        env.cronJobRepository.save(upstream);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "dependent");
+        body.put("schedule", "30m");
+        body.put("prompt", "Process the context above");
+        body.put("context_from", upstream.getJobId());
+        CronJobRecord job = service.create("MEMORY:dependent-room:user", body);
+        job.setNextRunAt(now - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        assertThat(gateway.userMessage)
+                .contains("上游任务 " + upstream.getJobId() + " 最近输出：")
+                .contains("[... output truncated ...]")
+                .contains("Process the context above");
+        assertThat(gateway.userMessage.indexOf("context-context"))
+                .isLessThan(gateway.userMessage.indexOf("Process the context above"));
+        assertThat(gateway.userMessage).doesNotContain(repeat("context-", 1200));
+    }
+
+    @Test
     void shouldApplyCronWorkdirToAgentPromptAndTools() throws Exception {
         RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
@@ -1308,6 +1351,14 @@ public class DefaultCronSchedulerTest {
         return job;
     }
 
+    private String repeat(String value, int times) {
+        StringBuilder builder = new StringBuilder(value.length() * times);
+        for (int i = 0; i < times; i++) {
+            builder.append(value);
+        }
+        return builder.toString();
+    }
+
     private CronJobRecord createNoAgentScriptJob(
             TestEnvironment env, CronJobService service, String name, String schedule)
             throws Exception {
@@ -1347,6 +1398,7 @@ public class DefaultCronSchedulerTest {
         private String model;
         private String apiUrl;
         private String systemPrompt;
+        private String userMessage;
         private String runWorkspaceDir;
 
         @Override
@@ -1365,6 +1417,7 @@ public class DefaultCronSchedulerTest {
             this.model = resolved.getModel();
             this.apiUrl = resolved.getApiUrl();
             this.systemPrompt = systemPrompt;
+            this.userMessage = userMessage;
             this.runWorkspaceDir = runContext == null ? null : runContext.getWorkspaceDir();
             return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
