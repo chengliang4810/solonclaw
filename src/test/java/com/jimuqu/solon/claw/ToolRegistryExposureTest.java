@@ -207,6 +207,48 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReturnTimeoutWhenWaitingForRunningManagedProcess() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                javaSleepCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(0),
+                                null,
+                                null));
+
+        assertThat(waited.get("success").getBoolean()).isTrue();
+        assertThat(waited.get("status").getString()).isEqualTo("timeout");
+        assertThat(waited.get("running").getBoolean()).isTrue();
+        assertThat(waited.get("timeout_note").getString()).contains("still running");
+
+        assertThat(env.processRegistry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldWriteSubmitAndCloseManagedProcessStdin() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =

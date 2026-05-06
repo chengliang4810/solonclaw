@@ -195,8 +195,32 @@ public class ProcessTools {
     private String waitFor(String sessionId, Integer timeoutSeconds) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         int seconds = timeoutSeconds == null ? 30 : Math.max(0, timeoutSeconds.intValue());
-        processRegistry.waitFor(managed.getId(), seconds * 1000L);
-        return poll(managed.getId());
+        boolean finished = processRegistry.waitFor(managed.getId(), seconds * 1000L);
+        if (!finished) {
+            String output = tail(stripAnsi(managed.getOutput()), 1000);
+            return ToolResultEnvelope.ok("后台进程等待超时：" + managed.getId())
+                    .data("session_id", managed.getId())
+                    .data("status", "timeout")
+                    .data("exited", Boolean.valueOf(false))
+                    .data("running", Boolean.valueOf(true))
+                    .data("pid", managed.getPid())
+                    .data("output", output)
+                    .data("timeout_note", "Waited " + seconds + "s, process still running")
+                    .preview(output)
+                    .toJson();
+        }
+        String output = tail(stripAnsi(managed.getOutput()), 2000);
+        return ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
+                .data("session_id", managed.getId())
+                .data("status", "exited")
+                .data("exited", Boolean.valueOf(true))
+                .data("running", Boolean.valueOf(false))
+                .data("pid", managed.getPid())
+                .data("exit_code", managed.getExitCode())
+                .data("output", output)
+                .preview(output)
+                .truncated(managed.isTruncated())
+                .toJson();
     }
 
     private String stop(String sessionId) {
@@ -321,5 +345,13 @@ public class ProcessTools {
             buffer.append(lines.get(i));
         }
         return buffer.toString();
+    }
+
+    private String tail(String text, int maxChars) {
+        String value = StrUtil.nullToEmpty(text);
+        if (value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(value.length() - maxChars);
     }
 }
