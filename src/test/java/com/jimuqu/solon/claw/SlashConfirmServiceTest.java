@@ -84,6 +84,51 @@ public class SlashConfirmServiceTest {
     }
 
     @Test
+    void shouldReturnNullForMissingPendingConfirm() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+
+        assertThat(service.getPending("missing-session")).isNull();
+        assertThat(service.resolve("missing-session", "confirm-id")).isNull();
+    }
+
+    @Test
+    void shouldExpirePendingConfirmOnResolve() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+        SlashConfirmService.PendingConfirm pending =
+                service.register("session-a", "reload-mcp", "reload?");
+        pending.setCreatedAt(System.currentTimeMillis() - 600000L);
+
+        SlashConfirmService.PendingConfirm resolved =
+                service.resolve("session-a", pending.getConfirmId());
+
+        assertThat(resolved).isNull();
+        assertThat(service.getPending("session-a")).isNull();
+    }
+
+    @Test
+    void shouldResolvePendingConfirmOnlyOnce() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+        SlashConfirmService.PendingConfirm pending =
+                service.register("session-a", "reload-mcp", "reload?");
+
+        SlashConfirmService.PendingConfirm first =
+                service.resolve("session-a", pending.getConfirmId());
+        SlashConfirmService.PendingConfirm second =
+                service.resolve("session-a", pending.getConfirmId());
+
+        assertThat(first).isNotNull();
+        assertThat(second).isNull();
+    }
+
+    @Test
+    void shouldClearMissingPendingConfirmAsNoop() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+
+        assertThat(service.clear("missing-session")).isFalse();
+        assertThat(service.clearIfStale("missing-session", 1L)).isFalse();
+    }
+
+    @Test
     void shouldClearStalePendingConfirm() {
         SlashConfirmService service = new SlashConfirmService(new MemorySettings());
         SlashConfirmService.PendingConfirm pending =
