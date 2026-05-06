@@ -56,7 +56,9 @@ public class DashboardKanbanController {
         return kanbanService.tasks(
                 context.param("board"),
                 context.param("status"),
-                Boolean.parseBoolean(String.valueOf(context.param("archived"))));
+                Boolean.parseBoolean(String.valueOf(context.param("archived"))),
+                context.param("assignee"),
+                context.param("tenant"));
     }
 
     @Mapping(value = "/api/kanban/tasks", method = MethodType.POST)

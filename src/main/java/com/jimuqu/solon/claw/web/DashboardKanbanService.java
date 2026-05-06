@@ -48,6 +48,12 @@ public class DashboardKanbanService {
         return kanbanService.tasks(board, status, includeArchived);
     }
 
+    public List<Map<String, Object>> tasks(
+            String board, String status, boolean includeArchived, String assignee, String tenant)
+            throws Exception {
+        return kanbanService.tasks(board, status, includeArchived, assignee, tenant);
+    }
+
     public Map<String, Object> task(String taskId) throws Exception {
         return kanbanService.task(taskId);
     }

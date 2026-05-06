@@ -108,9 +108,21 @@ public class KanbanService {
 
     public List<Map<String, Object>> tasks(String board, String status, boolean includeArchived)
             throws Exception {
+        return tasks(board, status, includeArchived, null, null);
+    }
+
+    public List<Map<String, Object>> tasks(
+            String board, String status, boolean includeArchived, String assignee, String tenant)
+            throws Exception {
         String normalizedStatus = StrUtil.isBlank(status) ? null : normalizeStatus(status);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (KanbanTaskRecord task : repository.listTasks(board, normalizedStatus, includeArchived)) {
+            if (StrUtil.isNotBlank(assignee) && !StrUtil.equals(assignee, task.getAssignee())) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(tenant) && !StrUtil.equals(tenant, task.getTenant())) {
+                continue;
+            }
             result.add(taskView(task, false));
         }
         return result;
@@ -717,13 +729,10 @@ public class KanbanService {
             return formatTaskDetail(task(requireArg(rest, "/kanban show <task-id>")));
         }
         if ("create".equals(action) || "new".equals(action)) {
-            Map<String, Object> body = new LinkedHashMap<String, Object>();
-            body.put("title", requireArg(rest, "/kanban create <title>"));
-            body.put("created_by", author);
-            return "已创建看板任务："
-                    + taskId(createTask(body))
-                    + "\n"
-                    + formatTaskList(tasks(null, null, false));
+            return createCommand(rest, author);
+        }
+        if ("list".equals(action) || "ls".equals(action)) {
+            return listCommand(rest, author);
         }
         if ("move".equals(action) || "status".equals(action)) {
             String[] tokens = rest.split("\\s+", 3);
@@ -902,6 +911,78 @@ public class KanbanService {
         return kanbanHelp();
     }
 
+    private String createCommand(String rest, String author) throws Exception {
+        String raw = requireArg(rest, "/kanban create <title> [--body text] [--assignee name] [--parent task-id]");
+        ParsedKanbanOptions parsed = parseCommandOptions(raw);
+        String title = parsed.positionalText();
+        if (StrUtil.isBlank(title)) {
+            return "用法：/kanban create <title> [--body text] [--assignee name] [--parent task-id]";
+        }
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", title);
+        putOption(body, parsed, "body", "body");
+        putOption(body, parsed, "assignee", "assignee");
+        putOption(body, parsed, "tenant", "tenant");
+        putOption(body, parsed, "priority", "priority");
+        putOption(body, parsed, "idempotency_key", "idempotency-key");
+        putOption(body, parsed, "created_by", "created-by");
+        if (!body.containsKey("created_by")) {
+            body.put("created_by", StrUtil.blankToDefault(author, "user"));
+        }
+        if (parsed.hasFlag("triage")) {
+            body.put("status", "triage");
+        } else {
+            body.put("status", initialCommandStatus(parsed.values("parent")));
+        }
+        String workspace = parsed.value("workspace");
+        if (StrUtil.isNotBlank(workspace)) {
+            applyWorkspaceOption(body, workspace);
+        }
+        String maxRuntime = parsed.value("max-runtime");
+        if (StrUtil.isNotBlank(maxRuntime)) {
+            body.put("max_runtime_seconds", Long.valueOf(parseDurationSeconds(maxRuntime)));
+        }
+        List<String> parents = parsed.values("parent");
+        if (!parents.isEmpty()) {
+            body.put("parents", parents);
+        }
+        List<String> skills = parsed.values("skill");
+        if (!skills.isEmpty()) {
+            body.put("skills", skills);
+        }
+        Map<String, Object> created = createTask(body);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(created);
+        }
+        return "已创建看板任务："
+                + taskId(created)
+                + "  ("
+                + created.get("status")
+                + ", assignee="
+                + StrUtil.blankToDefault((String) created.get("assignee"), "-")
+                + ")";
+    }
+
+    private String listCommand(String rest, String author) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        String status = parsed.value("status");
+        String assignee = parsed.value("assignee");
+        if (parsed.hasFlag("mine") && StrUtil.isBlank(assignee)) {
+            assignee = author;
+        }
+        List<Map<String, Object>> list =
+                tasks(
+                        parsed.value("board"),
+                        status,
+                        parsed.hasFlag("archived"),
+                        assignee,
+                        parsed.value("tenant"));
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(list);
+        }
+        return formatTaskList(list);
+    }
+
     private String blockCommand(String rest, String author) throws Exception {
         String raw = requireArg(rest, "/kanban block <task-id> [reason] [--ids task-id...]");
         String[] split = raw.split("\\s+", 2);
@@ -968,6 +1049,68 @@ public class KanbanService {
         return "已编辑任务结果：" + taskId;
     }
 
+    private String initialCommandStatus(List<String> parents) throws Exception {
+        if (parents == null || parents.isEmpty()) {
+            return "ready";
+        }
+        for (String parentId : parents) {
+            KanbanTaskRecord parent = repository.findTask(parentId);
+            if (parent == null) {
+                throw new IllegalArgumentException("Kanban parent task not found: " + parentId);
+            }
+            if (!"done".equals(parent.getStatus())) {
+                return "todo";
+            }
+        }
+        return "ready";
+    }
+
+    private void putOption(
+            Map<String, Object> body, ParsedKanbanOptions parsed, String bodyKey, String optionKey) {
+        String value = parsed.value(optionKey);
+        if (StrUtil.isNotBlank(value)) {
+            body.put(bodyKey, value);
+        }
+    }
+
+    private void applyWorkspaceOption(Map<String, Object> body, String workspace) {
+        String value = StrUtil.nullToEmpty(workspace).trim();
+        if (value.startsWith("dir:")) {
+            body.put("workspace_kind", "dir");
+            body.put("workspace_path", value.substring("dir:".length()).trim());
+            return;
+        }
+        if ("scratch".equals(value) || "worktree".equals(value) || "dir".equals(value)) {
+            body.put("workspace_kind", value);
+            return;
+        }
+        throw new IllegalArgumentException("workspace must be scratch, worktree, or dir:<path>");
+    }
+
+    private long parseDurationSeconds(String value) {
+        String text = StrUtil.nullToEmpty(value).trim().toLowerCase(Locale.ROOT);
+        if (StrUtil.isBlank(text)) {
+            return 0L;
+        }
+        long multiplier = 1L;
+        char last = text.charAt(text.length() - 1);
+        if (last == 's' || last == 'm' || last == 'h' || last == 'd') {
+            text = text.substring(0, text.length() - 1);
+            if (last == 'm') {
+                multiplier = 60L;
+            } else if (last == 'h') {
+                multiplier = 3600L;
+            } else if (last == 'd') {
+                multiplier = 86400L;
+            }
+        }
+        try {
+            return Long.parseLong(text) * multiplier;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("max-runtime must be seconds or a duration like 90s, 30m, 2h, 1d");
+        }
+    }
+
     private String bulkStatusCommand(String rest, String status, String label, String usage)
             throws Exception {
         String raw = requireArg(rest, usage);
@@ -1032,6 +1175,66 @@ public class KanbanService {
             index = next < 0 ? raw.length() : next + 1;
         }
         return result;
+    }
+
+    private ParsedKanbanOptions parseCommandOptions(String rest) {
+        ParsedKanbanOptions parsed = new ParsedKanbanOptions();
+        String raw = StrUtil.nullToEmpty(rest).trim();
+        int index = 0;
+        while (index < raw.length()) {
+            int marker = raw.indexOf("--", index);
+            if (marker < 0) {
+                addPositional(parsed, raw.substring(index));
+                break;
+            }
+            addPositional(parsed, raw.substring(index, marker));
+            int keyStart = marker + 2;
+            int keyEnd = keyStart;
+            while (keyEnd < raw.length()) {
+                char ch = raw.charAt(keyEnd);
+                if (Character.isWhitespace(ch)) {
+                    break;
+                }
+                keyEnd++;
+            }
+            if (keyEnd <= keyStart) {
+                index = keyStart;
+                continue;
+            }
+            String key = raw.substring(keyStart, keyEnd).trim();
+            int valueStart = keyEnd;
+            while (valueStart < raw.length() && Character.isWhitespace(raw.charAt(valueStart))) {
+                valueStart++;
+            }
+            if (isFlagOption(key)) {
+                parsed.addFlag(key);
+                index = valueStart <= marker ? keyEnd : valueStart;
+                continue;
+            }
+            int next = raw.indexOf(" --", valueStart);
+            String value = next < 0 ? raw.substring(valueStart).trim() : raw.substring(valueStart, next).trim();
+            if (StrUtil.isBlank(value)) {
+                parsed.addFlag(key);
+            } else {
+                parsed.addValue(key, stripWrappingQuotes(value));
+            }
+            index = next < 0 ? raw.length() : next + 1;
+        }
+        return parsed;
+    }
+
+    private void addPositional(ParsedKanbanOptions parsed, String text) {
+        String value = StrUtil.nullToEmpty(text).trim();
+        if (StrUtil.isNotBlank(value)) {
+            parsed.addPositional(stripWrappingQuotes(value));
+        }
+    }
+
+    private boolean isFlagOption(String key) {
+        return "json".equals(key)
+                || "triage".equals(key)
+                || "archived".equals(key)
+                || "mine".equals(key);
     }
 
     private String handleDaemonCommand(String rest) {
@@ -2180,6 +2383,57 @@ public class KanbanService {
     public static class HallucinatedCardsException extends IllegalArgumentException {
         public HallucinatedCardsException(String message) {
             super(message);
+        }
+    }
+
+    private static class ParsedKanbanOptions {
+        private final List<String> positional = new ArrayList<String>();
+        private final List<String> flags = new ArrayList<String>();
+        private final Map<String, List<String>> values = new LinkedHashMap<String, List<String>>();
+
+        void addPositional(String value) {
+            if (StrUtil.isNotBlank(value)) {
+                positional.add(value);
+            }
+        }
+
+        void addFlag(String key) {
+            if (StrUtil.isNotBlank(key) && !flags.contains(key)) {
+                flags.add(key);
+            }
+        }
+
+        void addValue(String key, String value) {
+            if (StrUtil.isBlank(key)) {
+                return;
+            }
+            List<String> list = values.get(key);
+            if (list == null) {
+                list = new ArrayList<String>();
+                values.put(key, list);
+            }
+            list.add(value);
+        }
+
+        boolean hasFlag(String key) {
+            return flags.contains(key);
+        }
+
+        String value(String key) {
+            List<String> list = values.get(key);
+            return list == null || list.isEmpty() ? null : list.get(list.size() - 1);
+        }
+
+        List<String> values(String key) {
+            List<String> list = values.get(key);
+            return list == null ? Collections.<String>emptyList() : list;
+        }
+
+        String positionalText() {
+            if (positional.isEmpty()) {
+                return "";
+            }
+            return String.join(" ", positional).trim();
         }
     }
 }

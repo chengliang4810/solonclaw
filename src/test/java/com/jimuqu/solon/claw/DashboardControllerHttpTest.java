@@ -679,6 +679,11 @@ public class DashboardControllerHttpTest {
         assertThat(kanbanTasks.status).isEqualTo(200);
         assertThat(kanbanTasks.body).contains("Kanban task");
 
+        HttpResult filteredKanbanTasks =
+                request("GET", "/api/kanban/tasks?assignee=next&status=done", null, token);
+        assertThat(filteredKanbanTasks.status).isEqualTo(200);
+        assertThat(filteredKanbanTasks.body).contains("Kanban task").doesNotContain("Kanban child");
+
         HttpResult daemonStatus = request("GET", "/api/kanban/daemon", null, token);
         assertThat(daemonStatus.status).isEqualTo(200);
         assertThat(daemonStatus.body).contains("\"running\":false");

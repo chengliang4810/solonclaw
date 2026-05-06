@@ -76,6 +76,51 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldSupportHermesCreateAndListCommandOptions() throws Exception {
+        KanbanService service = service();
+
+        String parentOutput =
+                service.handleCommand(
+                        "create 父任务 --body 父任务正文 --assignee alice --priority 7 --tenant demo --created-by planner --skill research --max-runtime 30m",
+                        "tester");
+        String parentId = firstTaskId(parentOutput);
+        Map<String, Object> parent = service.task(parentId);
+        assertThat(parent.get("status")).isEqualTo("ready");
+        assertThat(parent.get("body")).isEqualTo("父任务正文");
+        assertThat(parent.get("assignee")).isEqualTo("alice");
+        assertThat(parent.get("priority")).isEqualTo(7);
+        assertThat(parent.get("tenant")).isEqualTo("demo");
+        assertThat(parent.get("created_by")).isEqualTo("planner");
+        assertThat(parent.get("max_runtime_seconds")).isEqualTo(1800L);
+        assertThat(String.valueOf(parent.get("skills"))).contains("research");
+
+        String childOutput =
+                service.handleCommand(
+                        "create 子任务 --assignee bob --parent "
+                                + parentId
+                                + " --tenant demo --workspace dir:C:\\\\work\\\\child",
+                        "tester");
+        String childId = firstTaskId(childOutput);
+        Map<String, Object> child = service.task(childId);
+        assertThat(child.get("status")).isEqualTo("todo");
+        assertThat(child.get("workspace_kind")).isEqualTo("dir");
+        assertThat(child.get("workspace_path")).isEqualTo("C:\\\\work\\\\child");
+        assertThat(String.valueOf(child.get("parents"))).contains(parentId);
+
+        String bobList = service.handleCommand("list --assignee bob --status todo --tenant demo", "tester");
+        assertThat(bobList).contains(childId).contains("子任务").doesNotContain(parentId);
+
+        String mineList = service.handleCommand("list --mine --status ready", "alice");
+        assertThat(mineList).contains(parentId).doesNotContain(childId);
+
+        String jsonList = service.handleCommand("list --assignee alice --json", "tester");
+        assertThat(jsonList).contains("\"id\":\"" + parentId + "\"").contains("\"assignee\":\"alice\"");
+
+        String triageJson = service.handleCommand("create 需要澄清 --triage --json", "tester");
+        assertThat(triageJson).contains("\"status\":\"triage\"");
+    }
+
+    @Test
     void shouldVerifyWorkerCreatedCardsBeforeCompletion() throws Exception {
         KanbanService service = service();
 
@@ -598,5 +643,12 @@ public class KanbanServiceTest {
         task.put("assignee", assignee);
         task.put("created_by", createdBy);
         return String.valueOf(service.createTask(task).get("id"));
+    }
+
+    private static String firstTaskId(String value) {
+        java.util.regex.Matcher matcher =
+                java.util.regex.Pattern.compile("KB-[0-9A-F]{8}").matcher(value);
+        assertThat(matcher.find()).isTrue();
+        return matcher.group();
     }
 }
