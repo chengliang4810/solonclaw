@@ -121,6 +121,31 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldSupportHermesShowJsonAndUnassignCommands() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "待分配任务", "alice", "tester");
+        service.comment(taskId, "tester", "补充上下文");
+
+        String showJson = service.handleCommand("show " + taskId + " --json", "tester");
+        assertThat(showJson)
+                .contains("\"id\":\"" + taskId + "\"")
+                .contains("\"comments\"")
+                .contains("补充上下文");
+
+        assertThat(service.handleCommand("assign " + taskId + " none", "tester"))
+                .contains("-> -");
+        Map<String, Object> unassigned = service.task(taskId);
+        assertThat(unassigned.get("assignee")).isNull();
+        assertThat(String.valueOf(unassigned.get("events"))).contains("assigned");
+
+        assertThat(service.handleCommand("reassign " + taskId + " none", "tester"))
+                .contains("-> -");
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(detail.get("assignee")).isNull();
+        assertThat(String.valueOf(detail.get("events"))).contains("reassigned");
+    }
+
+    @Test
     void shouldVerifyWorkerCreatedCardsBeforeCompletion() throws Exception {
         KanbanService service = service();
 

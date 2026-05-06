@@ -703,6 +703,15 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.setString(3, taskId);
             int updated = statement.executeUpdate();
             statement.close();
+            if (updated > 0) {
+                KanbanEventRecord event = new KanbanEventRecord();
+                event.setTaskId(taskId);
+                event.setKind("assigned");
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("assignee", StrUtil.blankToDefault(assignee, null));
+                event.setPayloadJson(ONode.serialize(payload));
+                addEvent(event);
+            }
             return updated > 0;
         } finally {
             connection.close();

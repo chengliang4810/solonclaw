@@ -726,7 +726,7 @@ public class KanbanService {
             return handleBoardsCommand(rest);
         }
         if ("show".equals(action)) {
-            return formatTaskDetail(task(requireArg(rest, "/kanban show <task-id>")));
+            return showCommand(rest);
         }
         if ("create".equals(action) || "new".equals(action)) {
             return createCommand(rest, author);
@@ -745,10 +745,11 @@ public class KanbanService {
         if ("assign".equals(action)) {
             String[] tokens = rest.split("\\s+", 2);
             if (tokens.length < 2) {
-                return "用法：/kanban assign <task-id> <assignee>";
+                return "用法：/kanban assign <task-id> <assignee|none>";
             }
-            assign(tokens[0], tokens[1]);
-            return "已分配任务：" + tokens[0] + " -> " + tokens[1];
+            String assignee = normalizeAssigneeOption(tokens[1]);
+            assign(tokens[0], assignee);
+            return "已分配任务：" + tokens[0] + " -> " + displayAssignee(assignee);
         }
         if ("link".equals(action) || "unlink".equals(action)) {
             String[] tokens = rest.split("\\s+", 3);
@@ -773,7 +774,7 @@ public class KanbanService {
         if ("reassign".equals(action)) {
             String[] tokens = rest.split("\\s+", 4);
             if (tokens.length < 2) {
-                return "用法：/kanban reassign <task-id> <assignee> [--reclaim] [reason]";
+                return "用法：/kanban reassign <task-id> <assignee|none> [--reclaim] [reason]";
             }
             boolean reclaimFirst = false;
             String reason = null;
@@ -785,8 +786,9 @@ public class KanbanService {
                     reason = tokens[2] + (tokens.length > 3 ? " " + tokens[3] : "");
                 }
             }
-            reassign(tokens[0], tokens[1], reclaimFirst, reason);
-            return "已重新分配任务：" + tokens[0] + " -> " + tokens[1];
+            String assignee = normalizeAssigneeOption(tokens[1]);
+            reassign(tokens[0], assignee, reclaimFirst, reason);
+            return "已重新分配任务：" + tokens[0] + " -> " + displayAssignee(assignee);
         }
         if ("retry".equals(action)) {
             String[] tokens = rest.split("\\s+", 2);
@@ -981,6 +983,31 @@ public class KanbanService {
             return ONode.serialize(list);
         }
         return formatTaskList(list);
+    }
+
+    private String showCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        String taskId = parsed.positionalText();
+        if (StrUtil.isBlank(taskId)) {
+            return "用法：/kanban show <task-id> [--json]";
+        }
+        Map<String, Object> detail = task(taskId);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(detail);
+        }
+        return formatTaskDetail(detail);
+    }
+
+    private String normalizeAssigneeOption(String assignee) {
+        String value = StrUtil.nullToEmpty(assignee).trim();
+        if (StrUtil.isBlank(value) || "none".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return value;
+    }
+
+    private String displayAssignee(String assignee) {
+        return StrUtil.blankToDefault(assignee, "-");
     }
 
     private String blockCommand(String rest, String author) throws Exception {
