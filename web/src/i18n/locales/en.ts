@@ -1,7 +1,7 @@
 export default {
   // Login
   login: {
-    title: 'Hermes Web UI',
+    title: 'SolonClaw Web UI',
     description: 'Enter your access token to continue. Find it in the server startup logs.',
     placeholder: 'Access token',
     submit: 'Login',
@@ -121,7 +121,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'remaining',
-    emptyState: 'Start a conversation with Hermes Agent',
+    emptyState: 'Start a conversation with SolonClaw Agent',
     inputPlaceholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
     attachFiles: 'Attach files',
     stop: 'Stop',

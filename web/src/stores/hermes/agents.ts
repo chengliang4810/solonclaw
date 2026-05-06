@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as agentsApi from '@/api/hermes/agents'
-import type { AgentMutationPayload, HermesAgent } from '@/api/hermes/agents'
+import type { AgentMutationPayload, SolonClawAgent } from '@/api/hermes/agents'
 
 export const useAgentsStore = defineStore('agents', () => {
-  const agents = ref<HermesAgent[]>([])
-  const detailMap = ref<Record<string, HermesAgent>>({})
+  const agents = ref<SolonClawAgent[]>([])
+  const detailMap = ref<Record<string, SolonClawAgent>>({})
   const activeAgentName = ref('default')
   const selectedAgentName = ref('')
   const loading = ref(false)

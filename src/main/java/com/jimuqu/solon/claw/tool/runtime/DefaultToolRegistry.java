@@ -342,37 +342,37 @@ public class DefaultToolRegistry implements ToolRegistry {
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools = new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService);
         String sysWorkDir = resolveWorkDir(agentScope);
-        HermesFileStateTracker fileStateTracker = new HermesFileStateTracker();
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileStateTracker fileStateTracker = new SolonClawFileStateTracker();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         sysWorkDir,
                         securityPolicyService,
                         appConfig.getTask().getToolOutputMaxLines(),
                         appConfig.getTask().getToolOutputMaxLineLength(),
                         fileStateTracker);
-        HermesPatchTools patchTools =
-                new HermesPatchTools(sysWorkDir, securityPolicyService, fileStateTracker);
+        SolonClawPatchTools patchTools =
+                new SolonClawPatchTools(sysWorkDir, securityPolicyService, fileStateTracker);
         ProcessRegistry activeProcessRegistry = resolveProcessRegistry();
         ShellSkill shellSkill =
-                new HermesShellSkill(
+                new SolonClawShellSkill(
                         sysWorkDir, appConfig, securityPolicyService, activeProcessRegistry);
         ProcessTools processTools =
                 new ProcessTools(activeProcessRegistry, sysWorkDir, securityPolicyService);
-        HermesCodeExecutionSkills.SafePythonSkill pythonSkill =
-                new HermesCodeExecutionSkills.SafePythonSkill(
+        SolonClawCodeExecutionSkills.SafePythonSkill pythonSkill =
+                new SolonClawCodeExecutionSkills.SafePythonSkill(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);
-        HermesCodeExecutionSkills.SafeNodejsSkill nodejsSkill =
-                new HermesCodeExecutionSkills.SafeNodejsSkill(sysWorkDir, securityPolicyService);
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCodeTool =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeNodejsSkill nodejsSkill =
+                new SolonClawCodeExecutionSkills.SafeNodejsSkill(sysWorkDir, securityPolicyService);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCodeTool =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService, appConfig);
         SystemClockSkill systemClockSkill = new SystemClockSkill();
-        HermesWebTools.SafeWebsearchTool websearchTool =
-                new HermesWebTools.SafeWebsearchTool(securityPolicyService);
-        HermesWebTools.SafeWebfetchTool webfetchTool =
-                new HermesWebTools.SafeWebfetchTool(securityPolicyService);
-        HermesWebTools.SafeCodeSearchTool codeSearchTool =
-                new HermesWebTools.SafeCodeSearchTool(securityPolicyService);
+        SolonClawWebTools.SafeWebsearchTool websearchTool =
+                new SolonClawWebTools.SafeWebsearchTool(securityPolicyService);
+        SolonClawWebTools.SafeWebfetchTool webfetchTool =
+                new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
+        SolonClawWebTools.SafeCodeSearchTool codeSearchTool =
+                new SolonClawWebTools.SafeCodeSearchTool(securityPolicyService);
         SecurityAuditTools securityAuditTools =
                 new SecurityAuditTools(
                         securityPolicyService,

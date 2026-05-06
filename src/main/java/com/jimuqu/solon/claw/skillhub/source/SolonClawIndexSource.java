@@ -10,7 +10,7 @@ import java.util.List;
 import org.noear.snack4.ONode;
 
 /** Hermes 中央索引来源。 */
-public class HermesIndexSource implements SkillSource {
+public class SolonClawIndexSource implements SkillSource {
     private static final String INDEX_URL =
             "https://hermes-agent.nousresearch.com/docs/api/skills-index.json";
 
@@ -18,7 +18,7 @@ public class HermesIndexSource implements SkillSource {
     private final SkillHubStateStore stateStore;
     private final GitHubSkillSource githubSkillSource;
 
-    public HermesIndexSource(
+    public SolonClawIndexSource(
             SkillHubHttpClient httpClient,
             SkillHubStateStore stateStore,
             GitHubSkillSource githubSkillSource) {
@@ -159,3 +159,4 @@ public class HermesIndexSource implements SkillSource {
         return normalized;
     }
 }
+

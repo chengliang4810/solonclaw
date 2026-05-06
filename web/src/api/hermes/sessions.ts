@@ -27,7 +27,7 @@ export interface SessionSummary {
 }
 
 export interface SessionDetail extends SessionSummary {
-  messages: HermesMessage[]
+  messages: SolonClawMessage[]
 }
 
 export interface SessionSearchResult extends SessionSummary {
@@ -36,7 +36,7 @@ export interface SessionSearchResult extends SessionSummary {
   rank: number
 }
 
-export interface HermesMessage {
+export interface SolonClawMessage {
   id: number
   session_id: string
   role: 'user' | 'assistant' | 'system' | 'tool'
@@ -138,7 +138,7 @@ function mapSummary(s: DashboardSessionSummary): SessionSummary {
   }
 }
 
-function mapMessages(sessionId: string, messages: DashboardSessionDetail['messages']): HermesMessage[] {
+function mapMessages(sessionId: string, messages: DashboardSessionDetail['messages']): SolonClawMessage[] {
   return messages.map((msg, index) => ({
     id: index + 1,
     session_id: sessionId,

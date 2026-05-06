@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Shared Hermes-style file read/write state for stale-write warnings. */
-public class HermesFileStateTracker {
+public class SolonClawFileStateTracker {
     private static final int READ_TIMESTAMPS_CAP = 1000;
 
     private final Map<String, Long> readTimestamps = new LinkedHashMap<String, Long>();
@@ -68,3 +68,4 @@ public class HermesFileStateTracker {
         }
     }
 }
+

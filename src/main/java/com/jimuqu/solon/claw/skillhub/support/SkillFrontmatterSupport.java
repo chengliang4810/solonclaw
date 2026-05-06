@@ -80,20 +80,20 @@ public final class SkillFrontmatterSupport {
         if (!tags.isEmpty()) {
             return tags;
         }
-        Map<String, Object> hermes = getHermesMetadata(frontmatter);
-        return parseStringList(hermes.get("tags"));
+        Map<String, Object> compatibility = getCompatibilityMetadata(frontmatter);
+        return parseStringList(compatibility.get("tags"));
     }
 
-    public static Map<String, Object> getHermesMetadata(Map<String, Object> frontmatter) {
+    public static Map<String, Object> getCompatibilityMetadata(Map<String, Object> frontmatter) {
         Object metadata = frontmatter.get("metadata");
         if (!(metadata instanceof Map)) {
             return Collections.emptyMap();
         }
-        Object hermes = ((Map<?, ?>) metadata).get("hermes");
-        if (!(hermes instanceof Map)) {
+        Object compatibility = ((Map<?, ?>) metadata).get("hermes");
+        if (!(compatibility instanceof Map)) {
             return Collections.emptyMap();
         }
-        return sanitizeMap((Map<?, ?>) hermes);
+        return sanitizeMap((Map<?, ?>) compatibility);
     }
 
     public static SkillSetupState resolveSetupState(Map<String, Object> frontmatter) {

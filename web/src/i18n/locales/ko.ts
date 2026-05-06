@@ -1,7 +1,7 @@
 export default {
   // 로그인
   login: {
-    title: 'Hermes Web UI',
+    title: 'SolonClaw Web UI',
     description: '계속하려면 액세스 토큰을 입력하세요. 서버 시작 로그에서 확인할 수 있습니다.',
     placeholder: '액세스 토큰',
     submit: '로그인',
@@ -94,7 +94,7 @@ export default {
   // 채팅
   chat: {
     contextRemaining: '남음',
-    emptyState: 'Hermes Agent와 대화를 시작하세요',
+    emptyState: 'SolonClaw Agent와 대화를 시작하세요',
     inputPlaceholder: '메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)',
     attachFiles: '파일 첨부',
     stop: '중지',

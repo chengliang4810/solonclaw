@@ -410,7 +410,7 @@ public class DefaultSkillImportService implements SkillImportService {
         java.util.Map<String, Object> frontmatter =
                 SkillFrontmatterSupport.parseFrontmatter(skillMd);
         java.util.Map<String, Object> hermes =
-                SkillFrontmatterSupport.getHermesMetadata(frontmatter);
+                SkillFrontmatterSupport.getCompatibilityMetadata(frontmatter);
         Object category = hermes.get("category");
         if (category instanceof String && StrUtil.isNotBlank((String) category)) {
             return SkillBundlePathSupport.normalizeCategoryName((String) category);

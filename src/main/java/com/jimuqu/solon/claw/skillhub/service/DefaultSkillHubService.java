@@ -14,7 +14,7 @@ import com.jimuqu.solon.claw.skillhub.model.TapRecord;
 import com.jimuqu.solon.claw.skillhub.source.ClaudeMarketplaceSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.ClawHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.GitHubSkillSource;
-import com.jimuqu.solon.claw.skillhub.source.HermesIndexSource;
+import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.LobeHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.OfficialSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillSource;
@@ -317,7 +317,7 @@ public class DefaultSkillHubService implements SkillHubService {
     protected List<SkillSource> sources() {
         List<SkillSource> sources = new ArrayList<SkillSource>();
         sources.add(new OfficialSkillSource(repoRoot));
-        sources.add(new HermesIndexSource(httpClient, stateStore, gitHubSkillSource));
+        sources.add(new SolonClawIndexSource(httpClient, stateStore, gitHubSkillSource));
         sources.add(new SkillsShSkillSource(httpClient, stateStore, gitHubSkillSource));
         sources.add(new WellKnownSkillSource(httpClient));
         sources.add(gitHubSkillSource);

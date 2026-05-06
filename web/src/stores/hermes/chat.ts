@@ -1,5 +1,5 @@
 import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage, type RunEvent } from '@/api/hermes/chat'
-import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, fetchSessionUsageSingle, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
+import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionSummary } from '@/api/hermes/sessions'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
@@ -49,7 +49,7 @@ function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
-function mapHermesMessages(msgs: HermesMessage[]): Message[] {
+function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
   // Build lookups from assistant messages with tool_calls
   const toolNameMap = new Map<string, string>()
   const toolArgsMap = new Map<string, string>()
@@ -131,7 +131,7 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
   return result
 }
 
-function mapHermesSession(s: SessionSummary): Session {
+function mapSolonClawSession(s: SessionSummary): Session {
   return {
     id: s.id,
     title: s.title || '',
@@ -151,17 +151,25 @@ function mapHermesSession(s: SessionSummary): Session {
 // Cache keys for stale-while-revalidate loading of sessions / messages.
 // Rendering from cache on boot avoids the multi-round-trip wait the user sees
 // every time they open the page (esp. noticeable on mobile).
-const STORAGE_KEY = 'hermes_active_session'
-const SESSIONS_CACHE_KEY = 'hermes_sessions_cache_v1'
+const STORAGE_KEY = 'solonclaw_active_session'
+const LEGACY_STORAGE_KEY = 'hermes_active_session'
+const SESSIONS_CACHE_KEY = 'solonclaw_sessions_cache_v1'
 const IN_FLIGHT_TTL_MS = 15 * 60 * 1000 // Give up after 15 minutes
 const POLL_INTERVAL_MS = 2000
 const POLL_STABLE_EXITS = 3 // 3 × 2s = 6s of no change → assume run finished
 const LIVE_BADGE_WINDOW_MS = 5 * 60 * 1000
 
 function storageKey(): string { return STORAGE_KEY }
+function readActiveSessionKey(): string | null {
+  const value = localStorage.getItem(storageKey()) || localStorage.getItem(LEGACY_STORAGE_KEY)
+  if (value && !localStorage.getItem(storageKey())) {
+    setItemBestEffort(storageKey(), value)
+  }
+  return value
+}
 function sessionsCacheKey(): string { return SESSIONS_CACHE_KEY }
-function msgsCacheKey(sid: string): string { return `hermes_session_msgs_v1_${sid}_` }
-function inFlightKey(sid: string): string { return `hermes_in_flight_v1_${sid}` }
+function msgsCacheKey(sid: string): string { return `solonclaw_session_msgs_v1_${sid}_` }
+function inFlightKey(sid: string): string { return `solonclaw_in_flight_v1_${sid}` }
 
 interface InFlightRun {
   runId: string
@@ -187,6 +195,8 @@ function recoverStorageQuota() {
   try {
     const prefixes = [
       sessionsCacheKey(),
+      'solonclaw_session_msgs_v1_',
+      'solonclaw_in_flight_v1_',
       'hermes_session_msgs_v1_',
       'hermes_in_flight_v1_',
     ]
@@ -345,7 +355,7 @@ export const useChatStore = defineStore('chat', () => {
       try {
         const detail = await fetchSession(sid)
         if (!detail) return
-        const mapped = mapHermesMessages(detail.messages || [])
+        const mapped = mapSolonClawMessages(detail.messages || [])
         const target = sessions.value.find(s => s.id === sid)
         if (!target) return
         // Use the same "content-aware" comparison as switchSession: server
@@ -411,7 +421,7 @@ export const useChatStore = defineStore('chat', () => {
       const cachedSessions = loadJson<Session[]>(sessionsCacheKey())
       if (sessions.value.length === 0 && cachedSessions?.length) {
         sessions.value = cachedSessions
-        const savedId = localStorage.getItem(storageKey())
+        const savedId = readActiveSessionKey()
         if (savedId) {
           const cachedActive = cachedSessions.find(s => s.id === savedId) || null
           if (cachedActive) {
@@ -424,7 +434,7 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       const list = await fetchSessions()
-      const fresh = list.map(mapHermesSession)
+      const fresh = list.map(mapSolonClawSession)
       const freshIds = new Set(fresh.map(s => s.id))
       // Preserve already-loaded messages for sessions that are still present,
       // so we don't blow away the active session's messages on refresh.
@@ -472,7 +482,7 @@ export const useChatStore = defineStore('chat', () => {
       if (!detail) return false
       const target = sessions.value.find(s => s.id === sid)
       if (!target) return false
-      const mapped = mapHermesMessages(detail.messages || [])
+      const mapped = mapSolonClawMessages(detail.messages || [])
       target.messages = mapped
       if (detail.title) target.title = detail.title
       persistActiveMessages()
@@ -525,9 +535,9 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const detail = await fetchSession(sessionId)
       if (detail && detail.messages) {
-        const mapped = mapHermesMessages(detail.messages)
+        const mapped = mapSolonClawMessages(detail.messages)
         // Pick whichever view has more information. Simple length comparison
-        // is wrong because mapHermesMessages folds tool_call-only assistant
+        // is wrong because mapSolonClawMessages folds tool_call-only assistant
         // msgs and matches them with tool-result msgs — so post-fold `mapped`
         // can be SHORTER than the raw SSE-built local array even when the
         // server is strictly ahead. Instead, compare the last assistant

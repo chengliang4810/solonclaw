@@ -5,12 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.support.TestEnvironment;
-import com.jimuqu.solon.claw.tool.runtime.HermesCodeExecutionSkills;
-import com.jimuqu.solon.claw.tool.runtime.HermesFileReadWriteSkill;
-import com.jimuqu.solon.claw.tool.runtime.HermesFileStateTracker;
-import com.jimuqu.solon.claw.tool.runtime.HermesPatchTools;
-import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
-import com.jimuqu.solon.claw.tool.runtime.HermesWebTools;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawFileStateTracker;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -81,8 +81,8 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeWebsearchTool");
         assertThat(joined).contains("SafeWebfetchTool");
         assertThat(joined).contains("SecurityAuditTools");
-        assertThat(joined).contains("HermesFileReadWriteSkill");
-        assertThat(joined).contains("HermesPatchTools");
+        assertThat(joined).contains("SolonClawFileReadWriteSkill");
+        assertThat(joined).contains("SolonClawPatchTools");
         assertThat(joined).contains("ShellSkill");
         assertThat(joined).contains("ProcessTools");
         assertThat(joined).contains("SafeExecuteCodeTool");
@@ -312,8 +312,8 @@ public class ToolRegistryExposureTest {
     @Test
     void shouldReturnCleanErrorsForInvalidTerminalCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        HermesShellSkill shell =
-                new HermesShellSkill(
+        SolonClawShellSkill shell =
+                new SolonClawShellSkill(
                         env.appConfig.getRuntime().getHome(),
                         env.appConfig,
                         new SecurityPolicyService(env.appConfig),
@@ -650,9 +650,9 @@ public class ToolRegistryExposureTest {
                 .setDomains(Arrays.asList("blocked.example"));
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
 
-        HermesWebTools.SafeWebfetchTool webfetch = new HermesWebTools.SafeWebfetchTool(policy);
-        HermesWebTools.SafeWebsearchTool websearch = new HermesWebTools.SafeWebsearchTool(policy);
-        HermesWebTools.SafeCodeSearchTool codesearch = new HermesWebTools.SafeCodeSearchTool(policy);
+        SolonClawWebTools.SafeWebfetchTool webfetch = new SolonClawWebTools.SafeWebfetchTool(policy);
+        SolonClawWebTools.SafeWebsearchTool websearch = new SolonClawWebTools.SafeWebsearchTool(policy);
+        SolonClawWebTools.SafeCodeSearchTool codesearch = new SolonClawWebTools.SafeCodeSearchTool(policy);
 
         assertThatThrownBy(
                         () ->
@@ -700,11 +700,11 @@ public class ToolRegistryExposureTest {
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
 
-        HermesCodeExecutionSkills.SafePythonSkill python =
-                new HermesCodeExecutionSkills.SafePythonSkill(
+        SolonClawCodeExecutionSkills.SafePythonSkill python =
+                new SolonClawCodeExecutionSkills.SafePythonSkill(
                         env.appConfig.getRuntime().getHome(), "python", policy);
-        HermesCodeExecutionSkills.SafeNodejsSkill nodejs =
-                new HermesCodeExecutionSkills.SafeNodejsSkill(
+        SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
+                new SolonClawCodeExecutionSkills.SafeNodejsSkill(
                         env.appConfig.getRuntime().getHome(), policy);
 
         assertThatThrownBy(
@@ -738,8 +738,8 @@ public class ToolRegistryExposureTest {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTask().setToolOutputInlineLimit(200);
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
                         "python",
                         new SecurityPolicyService(env.appConfig),
@@ -748,7 +748,7 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from hermes_tools import json_parse, shell_quote\n"
+                                "from solonclaw_tools import json_parse, shell_quote\n"
                                         + "print('\\u001b[31mapi_key=sk-test-secret\\u001b[0m')\n"
                                         + "print(json_parse('{\"ok\": true}')['ok'])\n"
                                         + "print(shell_quote('a b'))\n",
@@ -769,8 +769,8 @@ public class ToolRegistryExposureTest {
     void shouldReturnHermesStyleExecuteCodeErrorsWithStderr() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
                         "python",
                         new SecurityPolicyService(env.appConfig),
@@ -797,8 +797,8 @@ public class ToolRegistryExposureTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(workspace.resolve("rpc-source.txt"), Arrays.asList("alpha", "needle"), StandardCharsets.UTF_8);
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
                         "python",
                         new SecurityPolicyService(env.appConfig),
@@ -811,7 +811,7 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from hermes_tools import read_file, write_file, patch, search_files, terminal\n"
+                                "from solonclaw_tools import read_file, write_file, patch, search_files, terminal\n"
                                         + "print(read_file('rpc-source.txt')['content'].splitlines()[0])\n"
                                         + "print(search_files('needle', path='.', limit=5)['matches'][0]['path'])\n"
                                         + "print(write_file('rpc-output.txt', 'before\\n')['output'])\n"
@@ -836,8 +836,8 @@ public class ToolRegistryExposureTest {
     void shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
                         "python",
                         new SecurityPolicyService(env.appConfig),
@@ -846,7 +846,7 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from hermes_tools import read_file\n"
+                                "from solonclaw_tools import read_file\n"
                                         + "print(read_file('.env')['error'])\n",
                                 Integer.valueOf(10)));
 
@@ -859,8 +859,8 @@ public class ToolRegistryExposureTest {
     void shouldGuardFileToolsBeforeDelegatingToSolonAiSkill() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
 
         assertThatThrownBy(() -> fileSkill.read(".env"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -885,8 +885,8 @@ public class ToolRegistryExposureTest {
                         "api_key=sk-test-secret",
                         "callback=https://user:pass@example.com/?token=secret123"),
                 StandardCharsets.UTF_8);
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
 
@@ -912,8 +912,8 @@ public class ToolRegistryExposureTest {
         Files.write(outsideFile, Arrays.asList("TOKEN=old"), StandardCharsets.UTF_8);
         Path link = workspace.resolve("linked");
         assumeTrue(createDirectoryLink(link, outside));
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
 
@@ -940,8 +940,8 @@ public class ToolRegistryExposureTest {
                         "charlie",
                         "delta"),
                 StandardCharsets.UTF_8);
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig),
                         2,
@@ -975,8 +975,8 @@ public class ToolRegistryExposureTest {
                 workspace.resolve("repeat.txt"),
                 Arrays.asList("alpha", "bravo", "charlie"),
                 StandardCharsets.UTF_8);
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
 
@@ -1006,8 +1006,8 @@ public class ToolRegistryExposureTest {
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path file = workspace.resolve("stale-write.txt");
         Files.write(file, Arrays.asList("alpha"), StandardCharsets.UTF_8);
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
 
@@ -1032,16 +1032,16 @@ public class ToolRegistryExposureTest {
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path file = workspace.resolve("stale-patch.txt");
         Files.write(file, Arrays.asList("alpha", "bravo"), StandardCharsets.UTF_8);
-        HermesFileStateTracker tracker = new HermesFileStateTracker();
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileStateTracker tracker = new SolonClawFileStateTracker();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig),
                         2000,
                         2000,
                         tracker);
-        HermesPatchTools patchTools =
-                new HermesPatchTools(
+        SolonClawPatchTools patchTools =
+                new SolonClawPatchTools(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig),
                         tracker);
@@ -1076,8 +1076,8 @@ public class ToolRegistryExposureTest {
                 workspace.resolve("dedup-source.txt"),
                 Arrays.asList("alpha", "bravo"),
                 StandardCharsets.UTF_8);
-        HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
 

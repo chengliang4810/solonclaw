@@ -15,30 +15,30 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes-compatible patch tool backed by the local workspace. */
-public class HermesPatchTools {
+/** Patch tool backed by the local workspace. */
+public class SolonClawPatchTools {
     private final Path rootPath;
     private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
-    private final HermesFileStateTracker fileStateTracker;
+    private final SolonClawFileStateTracker fileStateTracker;
 
-    public HermesPatchTools(String workDir) {
+    public SolonClawPatchTools(String workDir) {
         this(workDir, null);
     }
 
-    public HermesPatchTools(String workDir, SecurityPolicyService securityPolicyService) {
-        this(workDir, securityPolicyService, new HermesFileStateTracker());
+    public SolonClawPatchTools(String workDir, SecurityPolicyService securityPolicyService) {
+        this(workDir, securityPolicyService, new SolonClawFileStateTracker());
     }
 
-    public HermesPatchTools(
+    public SolonClawPatchTools(
             String workDir,
             SecurityPolicyService securityPolicyService,
-            HermesFileStateTracker fileStateTracker) {
+            SolonClawFileStateTracker fileStateTracker) {
         String dir = StrUtil.blankToDefault(workDir, ".");
         this.rootPath = Paths.get(dir).toAbsolutePath().normalize();
         this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
-        this.fileStateTracker = fileStateTracker == null ? new HermesFileStateTracker() : fileStateTracker;
+        this.fileStateTracker = fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
         try {
             Files.createDirectories(this.rootPath);
         } catch (IOException ignored) {
@@ -760,3 +760,4 @@ public class HermesPatchTools {
         }
     }
 }
+

@@ -1,6 +1,6 @@
-# Hermes Agent — Web UI
+# SolonClaw Agent — Web UI
 
-Browser-based dashboard for managing Hermes Agent configuration, API keys, and monitoring active sessions.
+Browser-based dashboard for managing SolonClaw Agent configuration, API keys, and monitoring active sessions.
 
 ## Stack
 

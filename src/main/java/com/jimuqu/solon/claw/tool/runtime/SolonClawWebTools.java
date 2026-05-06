@@ -12,7 +12,7 @@ import org.noear.solon.ai.skills.web.WebfetchTool;
 import org.noear.solon.ai.skills.web.WebsearchTool;
 
 /** Solon AI web tools wrapped with Hermes-style URL and website policy checks. */
-public class HermesWebTools {
+public class SolonClawWebTools {
     private static String blockedMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
                 + verdict.getMessage()
@@ -114,3 +114,4 @@ public class HermesWebTools {
         }
     }
 }
+

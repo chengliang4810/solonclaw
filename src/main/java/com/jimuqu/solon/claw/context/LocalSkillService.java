@@ -694,7 +694,7 @@ public class LocalSkillService implements SkillCatalogService {
             return false;
         }
         Map<String, Object> hermes =
-                SkillFrontmatterSupport.getHermesMetadata(descriptor.getMetadata());
+                SkillFrontmatterSupport.getCompatibilityMetadata(descriptor.getMetadata());
         if (!checkRequiresTools(
                 sourceKey,
                 SkillFrontmatterSupport.parseStringList(hermes.get("requires_tools")),

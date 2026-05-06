@@ -20,7 +20,7 @@ import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 
 /** Solon AI file skill wrapped with Hermes-style path and credential guardrails. */
-public class HermesFileReadWriteSkill extends FileReadWriteSkill {
+public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private static final int DEFAULT_READ_OFFSET = 1;
     private static final int DEFAULT_READ_LIMIT = 500;
     private static final String READ_DEDUP_STATUS_MESSAGE =
@@ -31,36 +31,36 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     private final SecurityPolicyService securityPolicyService;
     private final int maxLines;
     private final int maxLineLength;
-    private final HermesFileStateTracker fileStateTracker;
+    private final SolonClawFileStateTracker fileStateTracker;
     private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
     private ReadKey lastReadKey;
     private int consecutiveReadCount;
 
-    public HermesFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
-        this(workDir, securityPolicyService, 2000, 2000, new HermesFileStateTracker());
+    public SolonClawFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
+        this(workDir, securityPolicyService, 2000, 2000, new SolonClawFileStateTracker());
     }
 
-    public HermesFileReadWriteSkill(
+    public SolonClawFileReadWriteSkill(
             String workDir,
             SecurityPolicyService securityPolicyService,
             int maxLines,
             int maxLineLength) {
-        this(workDir, securityPolicyService, maxLines, maxLineLength, new HermesFileStateTracker());
+        this(workDir, securityPolicyService, maxLines, maxLineLength, new SolonClawFileStateTracker());
     }
 
-    public HermesFileReadWriteSkill(
+    public SolonClawFileReadWriteSkill(
             String workDir,
             SecurityPolicyService securityPolicyService,
             int maxLines,
             int maxLineLength,
-            HermesFileStateTracker fileStateTracker) {
+            SolonClawFileStateTracker fileStateTracker) {
         super(workDir);
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
         this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
         this.maxLines = Math.max(1, maxLines);
         this.maxLineLength = Math.max(1, maxLineLength);
-        this.fileStateTracker = fileStateTracker == null ? new HermesFileStateTracker() : fileStateTracker;
+        this.fileStateTracker = fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
     }
 
     @Override
@@ -473,3 +473,4 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
         }
     }
 }
+

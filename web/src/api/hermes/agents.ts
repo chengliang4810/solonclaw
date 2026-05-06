@@ -1,6 +1,6 @@
 import { request } from '../client'
 
-export interface HermesAgentRunSummary {
+export interface SolonClawAgentRunSummary {
   run_id: string
   session_id: string
   status: string
@@ -9,7 +9,7 @@ export interface HermesAgentRunSummary {
   finished_at?: number
 }
 
-export interface HermesAgent {
+export interface SolonClawAgent {
   name: string
   display_name: string
   description?: string
@@ -26,13 +26,13 @@ export interface HermesAgent {
   skills_path?: string
   cache_path?: string
   running_runs?: number
-  recent_runs?: HermesAgentRunSummary[]
+  recent_runs?: SolonClawAgentRunSummary[]
   last_used_at?: number
   updated_at?: number
 }
 
-export interface HermesAgentsResponse {
-  agents: HermesAgent[]
+export interface SolonClawAgentsResponse {
+  agents: SolonClawAgent[]
   active_agent_name: string
 }
 
@@ -55,23 +55,23 @@ function withSession(path: string, sessionId?: string | null): string {
   return `${path}?${params.toString()}`
 }
 
-export async function fetchAgents(sessionId?: string | null): Promise<HermesAgentsResponse> {
-  return request<HermesAgentsResponse>(withSession('/api/agents', sessionId))
+export async function fetchAgents(sessionId?: string | null): Promise<SolonClawAgentsResponse> {
+  return request<SolonClawAgentsResponse>(withSession('/api/agents', sessionId))
 }
 
-export async function fetchAgent(name: string, sessionId?: string | null): Promise<HermesAgent> {
-  return request<HermesAgent>(withSession(`/api/agents/${encodeURIComponent(name)}`, sessionId))
+export async function fetchAgent(name: string, sessionId?: string | null): Promise<SolonClawAgent> {
+  return request<SolonClawAgent>(withSession(`/api/agents/${encodeURIComponent(name)}`, sessionId))
 }
 
-export async function createAgent(payload: AgentMutationPayload): Promise<HermesAgent> {
-  return request<HermesAgent>('/api/agents', {
+export async function createAgent(payload: AgentMutationPayload): Promise<SolonClawAgent> {
+  return request<SolonClawAgent>('/api/agents', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
-export async function updateAgent(name: string, payload: AgentMutationPayload): Promise<HermesAgent> {
-  return request<HermesAgent>(`/api/agents/${encodeURIComponent(name)}`, {
+export async function updateAgent(name: string, payload: AgentMutationPayload): Promise<SolonClawAgent> {
+  return request<SolonClawAgent>(`/api/agents/${encodeURIComponent(name)}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   })

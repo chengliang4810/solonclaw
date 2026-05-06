@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.tool.runtime.HermesPatchTools;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -13,7 +13,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
-public class HermesPatchToolsTest {
+public class SolonClawPatchToolsTest {
     @Test
     void shouldReplaceUniqueString() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
@@ -21,7 +21,7 @@ public class HermesPatchToolsTest {
         Files.createDirectories(file.getParent());
         Files.write(file, "hello\nworld\n".getBytes(StandardCharsets.UTF_8));
 
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
         String json = tools.patch("replace", "src/app.txt", "hello", "hi", false, null);
 
         Map<?, ?> result = parse(json);
@@ -37,7 +37,7 @@ public class HermesPatchToolsTest {
         Path file = dir.resolve("dup.txt");
         Files.write(file, "x\nx\n".getBytes(StandardCharsets.UTF_8));
 
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
         String json = tools.patch("replace", "dup.txt", "x", "y", false, null);
 
         Map<?, ?> result = parse(json);
@@ -51,7 +51,7 @@ public class HermesPatchToolsTest {
         Path file = dir.resolve("app.txt");
         Files.write(file, "alpha\nbeta\n".getBytes(StandardCharsets.UTF_8));
 
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
         String patch =
                 "*** Begin Patch\n"
                         + "*** Update File: app.txt\n"
@@ -81,7 +81,7 @@ public class HermesPatchToolsTest {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("old.txt");
         Files.write(file, "obsolete\n".getBytes(StandardCharsets.UTF_8));
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
         String patch =
                 "*** Begin Patch\n"
                         + "*** Delete File: old.txt\n"
@@ -103,7 +103,7 @@ public class HermesPatchToolsTest {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("app.txt");
         Files.write(file, "def main():\n    pass\n".getBytes(StandardCharsets.UTF_8));
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
         String patch =
                 "*** Begin Patch\n"
                         + "*** Update File: app.txt\n"
@@ -128,7 +128,7 @@ public class HermesPatchToolsTest {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("app.txt");
         Files.write(file, "marker\none\nmarker\ntwo\n".getBytes(StandardCharsets.UTF_8));
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
         String patch =
                 "*** Begin Patch\n"
                         + "*** Update File: app.txt\n"
@@ -150,7 +150,7 @@ public class HermesPatchToolsTest {
     @Test
     void shouldRejectTraversalBeforeWriting() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
 
         String json = tools.patch("replace", "../outside.txt", "a", "b", false, null);
 
@@ -167,7 +167,7 @@ public class HermesPatchToolsTest {
         Files.write(outsideFile, "TOKEN=old\n".getBytes(StandardCharsets.UTF_8));
         Path link = dir.resolve("linked");
         assumeTrue(createDirectoryLink(link, outside));
-        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
 
         String json = tools.patch("replace", "linked/secret.txt", "old", "new", false, null);
 
@@ -183,8 +183,8 @@ public class HermesPatchToolsTest {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve(".env.production");
         Files.write(file, "TOKEN=old\n".getBytes(StandardCharsets.UTF_8));
-        HermesPatchTools tools =
-                new HermesPatchTools(dir.toString(), new SecurityPolicyService(new AppConfig()));
+        SolonClawPatchTools tools =
+                new SolonClawPatchTools(dir.toString(), new SecurityPolicyService(new AppConfig()));
 
         String json = tools.patch("replace", ".env.production", "old", "new", false, null);
 
@@ -198,8 +198,8 @@ public class HermesPatchToolsTest {
     @Test
     void shouldBlockCredentialFilesInV4aPatchBeforeWriting() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
-        HermesPatchTools tools =
-                new HermesPatchTools(dir.toString(), new SecurityPolicyService(new AppConfig()));
+        SolonClawPatchTools tools =
+                new SolonClawPatchTools(dir.toString(), new SecurityPolicyService(new AppConfig()));
         String patch =
                 "*** Begin Patch\n"
                         + "*** Add File: .env.local\n"
@@ -244,3 +244,4 @@ public class HermesPatchToolsTest {
         }
     }
 }
+

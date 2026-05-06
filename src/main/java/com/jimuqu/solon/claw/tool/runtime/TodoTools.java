@@ -20,7 +20,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes-compatible session todo tool. */
+/** Session todo tool. */
 @RequiredArgsConstructor
 public class TodoTools {
     private static final String STATUS_PENDING = "pending";

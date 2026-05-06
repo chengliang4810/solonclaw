@@ -30,8 +30,8 @@ import org.noear.solon.ai.rag.Document;
 import org.noear.solon.ai.skills.sys.NodejsSkill;
 import org.noear.solon.ai.skills.sys.PythonSkill;
 
-/** Solon AI code execution skills wrapped with Hermes-style safety checks. */
-public class HermesCodeExecutionSkills {
+/** Solon AI code execution skills wrapped with local safety checks. */
+public class SolonClawCodeExecutionSkills {
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
     private static final int MAX_STDERR_CHARS = 10000;
@@ -47,19 +47,19 @@ public class HermesCodeExecutionSkills {
     private static final String[] SECRET_ENV_SUBSTRINGS =
             new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
 
-    private HermesCodeExecutionSkills() {}
+    private SolonClawCodeExecutionSkills() {}
 
     public static class SafeExecuteCodeTool {
         private final String workDir;
         private final String pythonCommand;
         private final SecurityPolicyService securityPolicyService;
         private final AppConfig appConfig;
-        private final HermesFileStateTracker fileStateTracker;
-        private final HermesFileReadWriteSkill fileSkill;
-        private final HermesPatchTools patchTools;
-        private final HermesShellSkill shellSkill;
-        private final HermesWebTools.SafeWebsearchTool websearchTool;
-        private final HermesWebTools.SafeWebfetchTool webfetchTool;
+        private final SolonClawFileStateTracker fileStateTracker;
+        private final SolonClawFileReadWriteSkill fileSkill;
+        private final SolonClawPatchTools patchTools;
+        private final SolonClawShellSkill shellSkill;
+        private final SolonClawWebTools.SafeWebsearchTool websearchTool;
+        private final SolonClawWebTools.SafeWebfetchTool webfetchTool;
 
         public SafeExecuteCodeTool(
                 String workDir,
@@ -80,41 +80,41 @@ public class HermesCodeExecutionSkills {
                 String pythonCommand,
                 SecurityPolicyService securityPolicyService,
                 AppConfig appConfig,
-                HermesWebTools.SafeWebsearchTool websearchTool,
-                HermesWebTools.SafeWebfetchTool webfetchTool) {
+                SolonClawWebTools.SafeWebsearchTool websearchTool,
+                SolonClawWebTools.SafeWebfetchTool webfetchTool) {
             this.workDir = checkedWorkDir(workDir);
             this.pythonCommand = StrUtil.blankToDefault(pythonCommand, defaultPythonCommand());
             this.securityPolicyService = securityPolicyService;
             this.appConfig = appConfig;
-            this.fileStateTracker = new HermesFileStateTracker();
+            this.fileStateTracker = new SolonClawFileStateTracker();
             this.fileSkill =
-                    new HermesFileReadWriteSkill(
+                    new SolonClawFileReadWriteSkill(
                             this.workDir,
                             securityPolicyService,
                             maxFileReadLines(appConfig),
                             maxFileReadLineLength(appConfig),
                             fileStateTracker);
-            this.patchTools = new HermesPatchTools(this.workDir, securityPolicyService, fileStateTracker);
+            this.patchTools = new SolonClawPatchTools(this.workDir, securityPolicyService, fileStateTracker);
             this.shellSkill =
-                    new HermesShellSkill(
+                    new SolonClawShellSkill(
                             this.workDir,
                             appConfig,
                             securityPolicyService,
                             new ProcessRegistry());
             this.websearchTool =
                     websearchTool == null
-                            ? new HermesWebTools.SafeWebsearchTool(securityPolicyService)
+                            ? new SolonClawWebTools.SafeWebsearchTool(securityPolicyService)
                             : websearchTool;
             this.webfetchTool =
                     webfetchTool == null
-                            ? new HermesWebTools.SafeWebfetchTool(securityPolicyService)
+                            ? new SolonClawWebTools.SafeWebfetchTool(securityPolicyService)
                             : webfetchTool;
         }
 
         @ToolMapping(
                 name = "execute_code",
                 description =
-                        "Run a Python script and return a Hermes-style JSON result. The hermes_tools module exposes web_search, web_extract, read_file, write_file, search_files, patch and terminal for multi-step local processing.")
+                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes web_search, web_extract, read_file, write_file, search_files, patch and terminal for multi-step local processing.")
         public String executeCode(
                 @Param(
                                 name = "code",
@@ -143,7 +143,7 @@ public class HermesCodeExecutionSkills {
                 try {
                     Path rpcDir = staging.resolve("rpc");
                     Files.createDirectories(rpcDir);
-                    writeHermesToolsStub(staging.resolve("hermes_tools.py"));
+                    writeSolonClawToolsStub(staging.resolve("solonclaw_tools.py"));
                     Path script = staging.resolve("script.py");
                     Files.write(script, StrUtil.nullToEmpty(code).getBytes(StandardCharsets.UTF_8));
                     ProcessBuilder builder =
@@ -321,7 +321,7 @@ public class HermesCodeExecutionSkills {
             return Math.round(value * 100.0d) / 100.0d;
         }
 
-        private void writeHermesToolsStub(Path target) throws Exception {
+        private void writeSolonClawToolsStub(Path target) throws Exception {
             String source =
                     "import json, os, shlex, time\n"
                             + "\n"
@@ -1109,3 +1109,4 @@ public class HermesCodeExecutionSkills {
                 : "python3";
     }
 }
+

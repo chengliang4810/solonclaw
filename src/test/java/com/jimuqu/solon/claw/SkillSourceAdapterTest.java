@@ -7,7 +7,7 @@ import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.skillhub.source.ClaudeMarketplaceSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.ClawHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.GitHubSkillSource;
-import com.jimuqu.solon.claw.skillhub.source.HermesIndexSource;
+import com.jimuqu.solon.claw.skillhub.source.SolonClawIndexSource;
 import com.jimuqu.solon.claw.skillhub.source.LobeHubSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.SkillsShSkillSource;
 import com.jimuqu.solon.claw.skillhub.source.WellKnownSkillSource;
@@ -204,7 +204,7 @@ public class SkillSourceAdapterTest {
         SkillHubStateStore stateStore = newStateStore();
         GitHubSkillSource github = new GitHubSkillSource(new GitHubAuth(http), http, stateStore);
         LobeHubSkillSource lobeHub = new LobeHubSkillSource(http, stateStore);
-        HermesIndexSource hermesIndex = new HermesIndexSource(http, stateStore, github);
+        SolonClawIndexSource hermesIndex = new SolonClawIndexSource(http, stateStore, github);
 
         SkillBundle lobeBundle = lobeHub.fetch("lobehub/demo-agent");
         SkillBundle indexBundle = hermesIndex.fetch("github/openai/skills/skills/hub-skill");

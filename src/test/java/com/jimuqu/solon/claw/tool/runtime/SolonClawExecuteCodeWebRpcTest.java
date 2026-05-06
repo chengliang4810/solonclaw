@@ -10,13 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.rag.Document;
 
-public class HermesExecuteCodeWebRpcTest {
+public class SolonClawExecuteCodeWebRpcTest {
     @Test
     void shouldExposeHermesWebSearchAndExtractInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
                         "python",
                         new SecurityPolicyService(env.appConfig),
@@ -27,7 +27,7 @@ public class HermesExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from hermes_tools import web_search, web_extract\n"
+                                "from solonclaw_tools import web_search, web_extract\n"
                                         + "search = web_search('solon ai', limit=2)\n"
                                         + "print(search['data']['web'][0]['url'])\n"
                                         + "print(search['data']['web'][0]['title'])\n"
@@ -49,8 +49,8 @@ public class HermesExecuteCodeWebRpcTest {
     void shouldReturnWebExtractErrorsPerUrl() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
                         "python",
                         new SecurityPolicyService(env.appConfig),
@@ -61,7 +61,7 @@ public class HermesExecuteCodeWebRpcTest {
         ONode result =
                 ONode.ofJson(
                         executeCode.executeCode(
-                                "from hermes_tools import web_extract\n"
+                                "from solonclaw_tools import web_extract\n"
                                         + "extract = web_extract(['https://example.com/fail'])\n"
                                         + "print(extract['results'][0]['url'])\n"
                                         + "print(extract['results'][0]['error'])\n",
@@ -89,7 +89,7 @@ public class HermesExecuteCodeWebRpcTest {
         }
     }
 
-    private static class FakeWebsearchTool extends HermesWebTools.SafeWebsearchTool {
+    private static class FakeWebsearchTool extends SolonClawWebTools.SafeWebsearchTool {
         FakeWebsearchTool() {
             super(null, null);
         }
@@ -113,7 +113,7 @@ public class HermesExecuteCodeWebRpcTest {
         }
     }
 
-    private static class FakeWebfetchTool extends HermesWebTools.SafeWebfetchTool {
+    private static class FakeWebfetchTool extends SolonClawWebTools.SafeWebfetchTool {
         FakeWebfetchTool() {
             super(null, null);
         }
@@ -127,3 +127,4 @@ public class HermesExecuteCodeWebRpcTest {
         }
     }
 }
+

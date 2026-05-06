@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import com.jimuqu.solon.claw.tool.runtime.HermesToolSchemaSanitizer;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.io.Closeable;
@@ -543,7 +543,7 @@ public class McpRuntimeService implements Closeable {
     }
 
     private String sanitizeInputSchema(String inputSchema) {
-        return HermesToolSchemaSanitizer.sanitizeSchemaJson(inputSchema);
+        return SolonClawToolSchemaSanitizer.sanitizeSchemaJson(inputSchema);
     }
 
     private Object firstPresent(Map<String, Object> map, String... keys) {

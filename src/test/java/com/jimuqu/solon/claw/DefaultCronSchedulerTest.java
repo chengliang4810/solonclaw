@@ -1020,9 +1020,9 @@ public class DefaultCronSchedulerTest {
                 .contains("WebsearchTool")
                 .contains("WebfetchTool")
                 .contains("CodeSearchTool")
-                .doesNotContain("HermesShellSkill")
+                .doesNotContain("SolonClawShellSkill")
                 .doesNotContain("CronjobTools")
-                .doesNotContain("HermesFileReadWriteSkill");
+                .doesNotContain("SolonClawFileReadWriteSkill");
         assertThat(gateway.systemPrompt).contains("websearch").doesNotContain("execute_shell");
     }
 
@@ -1052,7 +1052,7 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         assertThat(gateway.toolObjectsText)
-                .contains("HermesShellSkill")
+                .contains("SolonClawShellSkill")
                 .doesNotContain("CronjobTools")
                 .doesNotContain("MessagingTools");
         assertThat(gateway.systemPrompt)
@@ -1090,7 +1090,7 @@ public class DefaultCronSchedulerTest {
                 .contains("WebsearchTool")
                 .contains("WebfetchTool")
                 .contains("CodeSearchTool")
-                .doesNotContain("HermesShellSkill")
+                .doesNotContain("SolonClawShellSkill")
                 .doesNotContain("CronjobTools")
                 .doesNotContain("MessagingTools");
         assertThat(gateway.systemPrompt).contains("websearch").doesNotContain("execute_shell");

@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** Hermes-style tool JSON-schema sanitizer for MCP and dynamic tool schemas. */
-public final class HermesToolSchemaSanitizer {
-    private HermesToolSchemaSanitizer() {}
+/** Tool JSON-schema sanitizer for MCP and dynamic tool schemas. */
+public final class SolonClawToolSchemaSanitizer {
+    private SolonClawToolSchemaSanitizer() {}
 
     public static String sanitizeSchemaJson(String schemaJson) {
         Object data = parseJsonObject(schemaJson);

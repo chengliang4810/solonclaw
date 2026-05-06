@@ -4,7 +4,7 @@ import { NButton, NCheckbox, NForm, NFormItem, NInput, NModal, NSelect, NSwitch,
 import { useAgentsStore } from '@/stores/hermes/agents'
 import { useChatStore } from '@/stores/hermes/chat'
 import { useModelsStore } from '@/stores/hermes/models'
-import type { HermesAgent } from '@/api/hermes/agents'
+import type { SolonClawAgent } from '@/api/hermes/agents'
 
 const agentsStore = useAgentsStore()
 const chatStore = useChatStore()
@@ -77,7 +77,7 @@ function parseJsonList(raw: string): string[] {
   return []
 }
 
-function copyAgent(agent: HermesAgent | null) {
+function copyAgent(agent: SolonClawAgent | null) {
   form.display_name = agent?.display_name || agent?.name || ''
   form.description = agent?.description || ''
   form.role_prompt = agent?.role_prompt || ''

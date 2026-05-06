@@ -20,8 +20,8 @@ import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.sys.ShellSkill;
 
-/** Solon AI ShellSkill wrapper with Hermes-style terminal safeguards. */
-public class HermesShellSkill extends ShellSkill {
+/** Solon AI ShellSkill wrapper with local terminal safeguards. */
+public class SolonClawShellSkill extends ShellSkill {
     private static final Pattern ANSI_CONTROL_SEQUENCE =
             Pattern.compile(
                     "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|[\\u0080-\\u009F]");
@@ -31,16 +31,16 @@ public class HermesShellSkill extends ShellSkill {
     private final String shellCmd;
     private final String extension;
 
-    public HermesShellSkill(String workDir, AppConfig appConfig) {
+    public SolonClawShellSkill(String workDir, AppConfig appConfig) {
         this(workDir, defaultShellCmd(), defaultExtension(), appConfig, null, null);
     }
 
-    public HermesShellSkill(
+    public SolonClawShellSkill(
             String workDir, AppConfig appConfig, SecurityPolicyService securityPolicyService) {
         this(workDir, defaultShellCmd(), defaultExtension(), appConfig, securityPolicyService, null);
     }
 
-    public HermesShellSkill(
+    public SolonClawShellSkill(
             String workDir,
             AppConfig appConfig,
             SecurityPolicyService securityPolicyService,
@@ -54,11 +54,11 @@ public class HermesShellSkill extends ShellSkill {
                 processRegistry);
     }
 
-    public HermesShellSkill(String workDir, String shellCmd, String extension, AppConfig appConfig) {
+    public SolonClawShellSkill(String workDir, String shellCmd, String extension, AppConfig appConfig) {
         this(workDir, shellCmd, extension, appConfig, null, null);
     }
 
-    public HermesShellSkill(
+    public SolonClawShellSkill(
             String workDir,
             String shellCmd,
             String extension,
@@ -67,7 +67,7 @@ public class HermesShellSkill extends ShellSkill {
         this(workDir, shellCmd, extension, appConfig, securityPolicyService, null);
     }
 
-    public HermesShellSkill(
+    public SolonClawShellSkill(
             String workDir,
             String shellCmd,
             String extension,
@@ -94,7 +94,7 @@ public class HermesShellSkill extends ShellSkill {
                     .data("exit_code", Integer.valueOf(-1))
                     .toJson();
         }
-        HermesCodeExecutionSkills.assertSafe(
+        SolonClawCodeExecutionSkills.assertSafe(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 code,
                 securityPolicyService);
@@ -114,7 +114,7 @@ public class HermesShellSkill extends ShellSkill {
     @ToolMapping(
             name = "terminal",
             description =
-                    "Hermes-compatible terminal tool. Run foreground commands or use background=true for long-running processes; background runs return a process session_id for the process tool.")
+                    "Terminal tool. Run foreground commands or use background=true for long-running processes; background runs return a process session_id for the process tool.")
     public String terminal(
             @Param(name = "command", description = "Command to execute") String command,
             @Param(
@@ -138,7 +138,7 @@ public class HermesShellSkill extends ShellSkill {
                             name = "notify_on_complete",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for Hermes compatibility; delivery is handled by higher-level runtime events.")
+                            description = "Accepted for compatibility; delivery is handled by higher-level runtime events.")
                     Boolean notifyOnComplete) {
         try {
             if (Boolean.TRUE.equals(background)) {
@@ -157,7 +157,7 @@ public class HermesShellSkill extends ShellSkill {
         if (commandError != null) {
             return terminalError(commandError);
         }
-        HermesCodeExecutionSkills.assertSafe(
+        SolonClawCodeExecutionSkills.assertSafe(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
                 securityPolicyService);
@@ -210,7 +210,7 @@ public class HermesShellSkill extends ShellSkill {
                     .data("background", Boolean.TRUE)
                     .toJson();
         }
-        HermesCodeExecutionSkills.assertSafe(
+        SolonClawCodeExecutionSkills.assertSafe(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
                 securityPolicyService);
@@ -714,3 +714,4 @@ public class HermesShellSkill extends ShellSkill {
         }
     }
 }
+

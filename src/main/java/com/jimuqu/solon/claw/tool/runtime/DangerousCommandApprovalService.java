@@ -881,7 +881,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        if (isHermesYoloModeEnabled()) {
+        if (isCompatibilityYoloModeEnabled()) {
             persistTraceSnapshot(trace);
             return null;
         }
@@ -1146,7 +1146,7 @@ public class DangerousCommandApprovalService {
         return System.getenv("HERMES_YOLO_MODE");
     }
 
-    private boolean isHermesYoloModeEnabled() {
+    private boolean isCompatibilityYoloModeEnabled() {
         String value = StrUtil.nullToEmpty(hermesYoloModeEnv()).trim();
         return "true".equalsIgnoreCase(value)
                 || "1".equals(value)

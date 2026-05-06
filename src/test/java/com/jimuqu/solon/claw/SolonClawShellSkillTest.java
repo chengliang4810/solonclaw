@@ -5,19 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
-public class HermesShellSkillTest {
+public class SolonClawShellSkillTest {
     @Test
     void shouldNotRewriteSudoMentionInArgumentsOrStrings() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("secret");
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.transformSudoCommand("grep -n sudo README.md").isChanged()).isFalse();
         assertThat(skill.transformSudoCommand("printf '%s\\n' sudo").isChanged()).isFalse();
@@ -30,10 +30,10 @@ public class HermesShellSkillTest {
     void shouldRewriteActualSudoCommandWithConfiguredPassword() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
-        HermesShellSkill.SudoTransform transform =
+        SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand("sudo apt install -y ripgrep");
 
         assertThat(transform.isChanged()).isTrue();
@@ -45,10 +45,10 @@ public class HermesShellSkillTest {
     void shouldRewriteSudoAfterLeadingEnvAssignment() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
-        HermesShellSkill.SudoTransform transform =
+        SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand("DEBUG=1 sudo whoami");
 
         assertThat(transform.isChanged()).isTrue();
@@ -59,10 +59,10 @@ public class HermesShellSkillTest {
     void shouldRewriteOnlyRealCompoundSudoInvocationsLikeHermes() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
-        HermesShellSkill.SudoTransform transform =
+        SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand(
                         "echo sudo && sudo apt update\n# sudo ignored\n( sudo whoami )");
 
@@ -78,10 +78,10 @@ public class HermesShellSkillTest {
     void shouldNotRewriteAlreadyStdinEnabledSudo() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
-        HermesShellSkill.SudoTransform transform =
+        SolonClawShellSkill.SudoTransform transform =
                 skill.transformSudoCommand("sudo -S -p '' whoami");
 
         assertThat(transform.isChanged()).isFalse();
@@ -91,10 +91,10 @@ public class HermesShellSkillTest {
     @Test
     void shouldNotRewriteWhenPasswordIsUnset() throws Exception {
         AppConfig config = new AppConfig();
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
-        HermesShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
+        SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
 
         assertThat(transform.isChanged()).isFalse();
     }
@@ -105,7 +105,7 @@ public class HermesShellSkillTest {
 
         assertThatThrownBy(
                         () ->
-                                new HermesShellSkill(
+                                new SolonClawShellSkill(
                                         "C:\\workspace; rm -rf runtime",
                                         config))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -117,8 +117,8 @@ public class HermesShellSkillTest {
     void shouldRejectForegroundTimeoutAboveHermesCap() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setMaxForegroundTimeoutSeconds(1);
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute("echo should_not_run", 2000);
 
@@ -130,8 +130,8 @@ public class HermesShellSkillTest {
     @Test
     void shouldApplyHermesCompoundBackgroundRewriteBeforeForegroundExecution() throws Exception {
         AppConfig config = new AppConfig();
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.rewriteCompoundBackground("echo ready && python -m http.server 8000 &"))
                 .isEqualTo("echo ready && { python -m http.server 8000 & }");
@@ -142,8 +142,8 @@ public class HermesShellSkillTest {
     @Test
     void shouldInterpretHermesTerminalExitCodeSemantics() throws Exception {
         AppConfig config = new AppConfig();
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThat(skill.interpretExitCode("grep 'pattern' file.txt", Integer.valueOf(1)))
                 .isEqualTo("No matches found (not an error)");
@@ -169,7 +169,7 @@ public class HermesShellSkillTest {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
-        HermesShellSkill skill = new HermesShellSkill(workdir, config, null, registry);
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
 
         ONode result =
                 ONode.ofJson(
@@ -195,7 +195,7 @@ public class HermesShellSkillTest {
     void shouldReturnHermesJsonForForegroundTerminalCommands() throws Exception {
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
-        HermesShellSkill skill = new HermesShellSkill(workdir, config);
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
 
         ONode success =
                 ONode.ofJson(
@@ -228,7 +228,7 @@ public class HermesShellSkillTest {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
-        HermesShellSkill skill = new HermesShellSkill(workdir, config, null, registry);
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
 
         ONode foreground =
                 ONode.ofJson(
@@ -262,8 +262,8 @@ public class HermesShellSkillTest {
     @Test
     void shouldRedactSecretsFromExecuteShellTextOutput() throws Exception {
         AppConfig config = new AppConfig();
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(echoSecretCommand(), Integer.valueOf(10000));
 
@@ -279,7 +279,7 @@ public class HermesShellSkillTest {
         assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
-        HermesShellSkill skill = new HermesShellSkill(workdir, config);
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
 
         ONode result =
                 ONode.ofJson(
@@ -299,8 +299,8 @@ public class HermesShellSkillTest {
     @Test
     void shouldRejectForegroundBackgroundWrappersOnDirectShellExecution() throws Exception {
         AppConfig config = new AppConfig();
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         assertThatThrownBy(() -> skill.execute("nohup npm run dev > app.log 2>&1", 1000))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -312,8 +312,8 @@ public class HermesShellSkillTest {
     void shouldTimeoutSudoRewriteBranchWithoutWaitingForOutputEof() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute("sudo ping 127.0.0.1", 10);
 
@@ -324,8 +324,8 @@ public class HermesShellSkillTest {
     void shouldCloseForegroundStdinWhenNoInputIsProvidedLikeHermesPipedStdinGuardrail()
             throws Exception {
         AppConfig config = new AppConfig();
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(waitForStdinEofCommand(), Integer.valueOf(10000));
 
@@ -336,8 +336,8 @@ public class HermesShellSkillTest {
     void shouldApplyHermesForegroundOutputByteLimit() throws Exception {
         AppConfig config = new AppConfig();
         config.getTask().setToolOutputInlineLimit(300);
-        HermesShellSkill skill =
-                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
         String result = skill.execute(javaLongOutputCommand(), 10000);
 
@@ -392,3 +392,4 @@ public class HermesShellSkillTest {
         return "cat >/dev/null; printf 'stdin-closed\\n'";
     }
 }
+
