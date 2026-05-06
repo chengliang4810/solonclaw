@@ -8,6 +8,7 @@ public interface ToolNameConstants {
     String FILE_DELETE = "file_delete";
     String PATCH = "patch";
     String EXECUTE_SHELL = "execute_shell";
+    String TERMINAL = "terminal";
     String PROCESS = "process";
     String EXECUTE_PYTHON = "execute_python";
     String EXECUTE_JS = "execute_js";

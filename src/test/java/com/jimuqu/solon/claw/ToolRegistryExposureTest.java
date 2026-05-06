@@ -33,6 +33,7 @@ public class ToolRegistryExposureTest {
                         "file_delete",
                         "patch",
                         "execute_shell",
+                        "terminal",
                         "process",
                         "execute_python",
                         "execute_js",

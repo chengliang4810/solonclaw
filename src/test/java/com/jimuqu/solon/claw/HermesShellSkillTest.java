@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 
 public class HermesShellSkillTest {
     @Test
@@ -125,6 +127,33 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldStartHermesTerminalBackgroundProcessInRegistry() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        HermesShellSkill skill = new HermesShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.TRUE));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isEqualTo("running");
+        assertThat(result.get("background").getBoolean()).isTrue();
+        assertThat(result.get("notify_on_complete").getBoolean()).isTrue();
+        assertThat(sessionId).startsWith("proc_");
+        assertThat(registry.get(sessionId)).isNotNull();
+
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldRejectForegroundBackgroundWrappersOnDirectShellExecution() throws Exception {
         AppConfig config = new AppConfig();
         HermesShellSkill skill =
@@ -146,5 +175,12 @@ public class HermesShellSkillTest {
         String result = skill.execute("sudo ping 127.0.0.1", 10);
 
         assertThat(result).contains("执行超时");
+    }
+
+    private String javaSleepCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "ping -n 30 127.0.0.1 > nul";
+        }
+        return "sleep 30";
     }
 }

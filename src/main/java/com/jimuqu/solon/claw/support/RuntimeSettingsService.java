@@ -518,7 +518,7 @@ public class RuntimeSettingsService {
                 "shell_probe_example=Use execute_shell with commands like: command -v git >/dev/null 2>&1 && git --version || echo git_missing\n");
         if (enabledToolNames.contains(ToolNameConstants.PROCESS)) {
             buffer.append(
-                    "background_process_policy=Use process(action=start, command=...) for long-running commands instead of '&', nohup, disown, or foreground watch/server processes.\n");
+                    "background_process_policy=Use terminal(command=..., background=true, notify_on_complete=true) or process(action=start, command=...) for long-running commands; manage them with process(action=poll|log|wait|kill). Avoid '&', nohup, disown, or foreground watch/server processes.\n");
         }
     }
 

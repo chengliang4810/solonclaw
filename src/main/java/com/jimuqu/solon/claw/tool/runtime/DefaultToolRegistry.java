@@ -46,6 +46,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.TERMINAL,
                     ToolNameConstants.PROCESS,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
@@ -342,9 +343,12 @@ public class DefaultToolRegistry implements ToolRegistry {
         HermesFileReadWriteSkill fileSkill =
                 new HermesFileReadWriteSkill(sysWorkDir, securityPolicyService);
         HermesPatchTools patchTools = new HermesPatchTools(sysWorkDir, securityPolicyService);
-        ShellSkill shellSkill = new HermesShellSkill(sysWorkDir, appConfig, securityPolicyService);
+        ProcessRegistry activeProcessRegistry = resolveProcessRegistry();
+        ShellSkill shellSkill =
+                new HermesShellSkill(
+                        sysWorkDir, appConfig, securityPolicyService, activeProcessRegistry);
         ProcessTools processTools =
-                new ProcessTools(resolveProcessRegistry(), sysWorkDir, securityPolicyService);
+                new ProcessTools(activeProcessRegistry, sysWorkDir, securityPolicyService);
         HermesCodeExecutionSkills.SafePythonSkill pythonSkill =
                 new HermesCodeExecutionSkills.SafePythonSkill(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);
@@ -358,6 +362,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         HermesWebTools.SafeCodeSearchTool codeSearchTool =
                 new HermesWebTools.SafeCodeSearchTool(securityPolicyService);
         boolean fileSkillAdded = false;
+        boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
         List<Object> gatewayCandidates = new ArrayList<Object>();
 
@@ -373,8 +378,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 }
             } else if (ToolNameConstants.PATCH.equals(toolName)) {
                 tools.add(patchTools);
-            } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
-                tools.add(shellSkill);
+            } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                    || ToolNameConstants.TERMINAL.equals(toolName)) {
+                if (!shellSkillAdded) {
+                    tools.add(shellSkill);
+                    shellSkillAdded = true;
+                }
             } else if (ToolNameConstants.PROCESS.equals(toolName)) {
                 tools.add(processTools);
             } else if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {

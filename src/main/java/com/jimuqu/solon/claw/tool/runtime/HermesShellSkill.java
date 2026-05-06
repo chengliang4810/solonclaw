@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -17,20 +19,35 @@ import org.noear.solon.ai.skills.sys.ShellSkill;
 public class HermesShellSkill extends ShellSkill {
     private final AppConfig appConfig;
     private final SecurityPolicyService securityPolicyService;
+    private final ProcessRegistry processRegistry;
     private final String shellCmd;
     private final String extension;
 
     public HermesShellSkill(String workDir, AppConfig appConfig) {
-        this(workDir, defaultShellCmd(), defaultExtension(), appConfig, null);
+        this(workDir, defaultShellCmd(), defaultExtension(), appConfig, null, null);
     }
 
     public HermesShellSkill(
             String workDir, AppConfig appConfig, SecurityPolicyService securityPolicyService) {
-        this(workDir, defaultShellCmd(), defaultExtension(), appConfig, securityPolicyService);
+        this(workDir, defaultShellCmd(), defaultExtension(), appConfig, securityPolicyService, null);
+    }
+
+    public HermesShellSkill(
+            String workDir,
+            AppConfig appConfig,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry) {
+        this(
+                workDir,
+                defaultShellCmd(),
+                defaultExtension(),
+                appConfig,
+                securityPolicyService,
+                processRegistry);
     }
 
     public HermesShellSkill(String workDir, String shellCmd, String extension, AppConfig appConfig) {
-        this(workDir, shellCmd, extension, appConfig, null);
+        this(workDir, shellCmd, extension, appConfig, null, null);
     }
 
     public HermesShellSkill(
@@ -39,9 +56,20 @@ public class HermesShellSkill extends ShellSkill {
             String extension,
             AppConfig appConfig,
             SecurityPolicyService securityPolicyService) {
+        this(workDir, shellCmd, extension, appConfig, securityPolicyService, null);
+    }
+
+    public HermesShellSkill(
+            String workDir,
+            String shellCmd,
+            String extension,
+            AppConfig appConfig,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry) {
         super(checkedWorkDir(workDir));
         this.appConfig = appConfig;
         this.securityPolicyService = securityPolicyService;
+        this.processRegistry = processRegistry == null ? new ProcessRegistry() : processRegistry;
         this.shellCmd = shellCmd;
         this.extension = extension;
     }
@@ -65,6 +93,70 @@ public class HermesShellSkill extends ShellSkill {
             return super.execute(code, effectiveTimeout);
         }
         return executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout);
+    }
+
+    @ToolMapping(
+            name = "terminal",
+            description =
+                    "Hermes-compatible terminal tool. Run foreground commands or use background=true for long-running processes; background runs return a process session_id for the process tool.")
+    public String terminal(
+            @Param(name = "command", description = "Command to execute") String command,
+            @Param(
+                            name = "background",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Run in the managed background process registry")
+                    Boolean background,
+            @Param(
+                            name = "timeout",
+                            required = false,
+                            defaultValue = "180",
+                            description = "Timeout in seconds for foreground commands")
+                    Integer timeoutSeconds,
+            @Param(
+                            name = "workdir",
+                            required = false,
+                            description = "Working directory. Defaults to the tool workdir.")
+                    String workdir,
+            @Param(
+                            name = "notify_on_complete",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Accepted for Hermes compatibility; delivery is handled by higher-level runtime events.")
+                    Boolean notifyOnComplete) {
+        try {
+            if (Boolean.TRUE.equals(background)) {
+                return startBackground(command, workdir, notifyOnComplete);
+            }
+            int seconds = timeoutSeconds == null ? 180 : Math.max(1, timeoutSeconds.intValue());
+            return execute(command, Integer.valueOf(seconds * 1000));
+        } catch (Exception e) {
+            return ToolResultEnvelope.error(
+                            e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
+                    .toJson();
+        }
+    }
+
+    private String startBackground(String command, String workdir, Boolean notifyOnComplete)
+            throws Exception {
+        HermesCodeExecutionSkills.assertSafe(
+                com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
+                command,
+                securityPolicyService);
+        File dir = resolveBackgroundWorkdir(workdir);
+        ProcessRegistry.ManagedProcess managed = processRegistry.start(command, dir);
+        return ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
+                .data("session_id", managed.getId())
+                .data("command", managed.getCommand())
+                .data("cwd", managed.getCwd())
+                .data("pid", managed.getPid())
+                .data("status", managed.isExited() ? "exited" : "running")
+                .data("background", Boolean.TRUE)
+                .data("notify_on_complete", Boolean.TRUE.equals(notifyOnComplete))
+                .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
+                .data("output_preview", managed.outputPreview(1000))
+                .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
+                .toJson();
     }
 
     public SudoTransform transformSudoCommand(String command) {
@@ -320,6 +412,22 @@ public class HermesShellSkill extends ShellSkill {
                 + "ms exceeds the maximum of "
                 + (Math.max(1, maxSeconds) * 1000)
                 + "ms. Use background=true with notify_on_complete=true for long-running commands.";
+    }
+
+    private File resolveBackgroundWorkdir(String workdir) {
+        String value = StrUtil.blankToDefault(workdir, workPath.toString());
+        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(value);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "Blocked: "
+                            + verdict.getMessage()
+                            + ". Use a simple filesystem path without shell metacharacters.");
+        }
+        File dir = new File(value);
+        if (!dir.isDirectory()) {
+            throw new IllegalArgumentException("workdir is not a directory: " + value);
+        }
+        return dir;
     }
 
     private String readOutput(Process process) throws Exception {

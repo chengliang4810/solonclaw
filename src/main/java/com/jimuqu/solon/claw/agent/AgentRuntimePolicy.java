@@ -21,6 +21,7 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.TERMINAL,
                     ToolNameConstants.PROCESS,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
@@ -209,6 +210,7 @@ public final class AgentRuntimePolicy {
                 || "shell".equals(key)
                 || "terminal".equals(key)) {
             output.add(ToolNameConstants.EXECUTE_SHELL);
+            output.add(ToolNameConstants.TERMINAL);
             output.add(ToolNameConstants.PROCESS);
             output.add(ToolNameConstants.EXECUTE_PYTHON);
             output.add(ToolNameConstants.EXECUTE_JS);
