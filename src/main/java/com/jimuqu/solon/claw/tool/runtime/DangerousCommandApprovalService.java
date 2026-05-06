@@ -321,7 +321,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "chmod_execute_script",
                                     "chmod +x followed by immediate execution",
-                                    pattern("\\bchmod\\s+\\+x\\b.*[;&|]+\\s*\\./"),
+                                    pattern(
+                                            "\\bchmod\\s+\\+x\\b.*(?:&&|;|\\|\\|)\\s*(?:(?:bash|sh|zsh|ksh)\\s+[^\\s;&|]+|(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sql_drop",

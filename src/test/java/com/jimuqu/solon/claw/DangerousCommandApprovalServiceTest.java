@@ -246,6 +246,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectChmodExecuteCombosLikeHermesApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult relativeExecute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod +x /tmp/cleanup.sh && ./cleanup.sh");
+        DangerousCommandApprovalService.DetectionResult absoluteExecute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod +x /tmp/cleanup.sh && /tmp/cleanup.sh");
+        DangerousCommandApprovalService.DetectionResult shellExecute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod +x cleanup.sh; bash cleanup.sh");
+        DangerousCommandApprovalService.DetectionResult shAbsoluteExecute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod +x /tmp/cleanup.sh && sh /tmp/cleanup.sh");
+        DangerousCommandApprovalService.DetectionResult safeChmod =
+                env.dangerousCommandApprovalService.detect("execute_shell", "chmod +x cleanup.sh");
+
+        assertThat(relativeExecute).isNotNull();
+        assertThat(relativeExecute.getPatternKey()).isEqualTo("chmod_execute_script");
+        assertThat(absoluteExecute).isNotNull();
+        assertThat(absoluteExecute.getPatternKey()).isEqualTo("chmod_execute_script");
+        assertThat(shellExecute).isNotNull();
+        assertThat(shellExecute.getPatternKey()).isEqualTo("chmod_execute_script");
+        assertThat(shAbsoluteExecute).isNotNull();
+        assertThat(shAbsoluteExecute.getPatternKey()).isEqualTo("chmod_execute_script");
+        assertThat(safeChmod).isNull();
+    }
+
+    @Test
     void shouldWarnForForegroundBackgroundShellPatterns() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
