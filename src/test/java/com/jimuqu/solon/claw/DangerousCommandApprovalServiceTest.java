@@ -934,6 +934,83 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldExpandHomeSafeRootLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String oldHome = System.getProperty("user.home");
+        File fakeHome = new File(env.appConfig.getRuntime().getHome(), "fake-home").getCanonicalFile();
+        File outsideHome =
+                new File(fakeHome.getParentFile(), "outside-home-safe-root.txt").getCanonicalFile();
+        FileUtil.mkdir(fakeHome);
+        FileUtil.writeUtf8String("outside\n", outsideHome);
+        System.setProperty("user.home", fakeHome.getAbsolutePath());
+        env.appConfig.getTerminal().setWriteSafeRoot("~");
+        try {
+            SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+            Map<String, Object> insideArgs = new LinkedHashMap<String, Object>();
+            insideArgs.put(
+                    "fileName", new File(fakeHome, "ordinary-project-note.txt").getAbsolutePath());
+            Map<String, Object> outsideArgs = new LinkedHashMap<String, Object>();
+            outsideArgs.put("fileName", outsideHome.getAbsolutePath());
+            Map<String, Object> credentialArgs = new LinkedHashMap<String, Object>();
+            credentialArgs.put("fileName", new File(fakeHome, ".ssh/id_rsa").getAbsolutePath());
+
+            SecurityPolicyService.FileVerdict inside =
+                    securityPolicyService.checkFileToolArgs("file_write", insideArgs);
+            SecurityPolicyService.FileVerdict outside =
+                    securityPolicyService.checkFileToolArgs("file_write", outsideArgs);
+            SecurityPolicyService.FileVerdict credential =
+                    securityPolicyService.checkFileToolArgs("file_write", credentialArgs);
+
+            assertThat(inside.isAllowed()).isTrue();
+            assertThat(outside.isAllowed()).isFalse();
+            assertThat(outside.getMessage()).contains("安全写入根");
+            assertThat(credential.isAllowed()).isFalse();
+            assertThat(credential.getMessage()).contains("凭据");
+        } finally {
+            if (oldHome == null) {
+                System.clearProperty("user.home");
+            } else {
+                System.setProperty("user.home", oldHome);
+            }
+        }
+    }
+
+    @Test
+    void shouldBlockSafeRootSymlinkEscapeLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File safeRoot = new File(runtimeHome, "safe-root");
+        File outside = new File(runtimeHome.getParentFile(), "safe-root-outside");
+        FileUtil.mkdir(safeRoot);
+        FileUtil.mkdir(outside);
+        File outsideFile = new File(outside, "secret.txt");
+        FileUtil.writeUtf8String("secret\n", outsideFile);
+        File link = new File(safeRoot, "linked-outside");
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+        env.appConfig.getTerminal().setWriteSafeRoot(safeRoot.getAbsolutePath());
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", new File(link, outsideFile.getName()).getAbsolutePath());
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_write", args);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("安全写入根");
+    }
+
+    @Test
     void shouldApplyConfiguredSafeRootToShellCommandPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");

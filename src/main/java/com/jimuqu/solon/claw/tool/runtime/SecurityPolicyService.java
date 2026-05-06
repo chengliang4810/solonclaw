@@ -314,7 +314,7 @@ public class SecurityPolicyService {
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
-        if (writeLike && isOutsideSafeWriteRoot(normalized)) {
+        if (writeLike && isOutsideSafeWriteRoot(path)) {
             return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
         }
         return FileVerdict.allow();
@@ -641,7 +641,7 @@ public class SecurityPolicyService {
         return normalized.startsWith(normalizedHome + "/");
     }
 
-    private boolean isOutsideSafeWriteRoot(String normalized) {
+    private boolean isOutsideSafeWriteRoot(String rawPath) {
         String safeRoot = "";
         if (appConfig != null && appConfig.getTerminal() != null) {
             safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
@@ -655,14 +655,45 @@ public class SecurityPolicyService {
         if (StrUtil.isBlank(safeRoot)) {
             return false;
         }
-        String root = normalizePathText(safeRoot);
-        if (root.endsWith("/") && root.length() > 1) {
-            root = root.substring(0, root.length() - 1);
-        }
-        if (StrUtil.isBlank(root)) {
+        File root = resolveComparablePath(safeRoot);
+        File target = resolveComparablePath(rawPath);
+        if (root == null || target == null) {
             return false;
         }
-        return !(normalized.equals(root) || normalized.startsWith(root + "/"));
+        return !isInside(target, root);
+    }
+
+    private File resolveComparablePath(String rawPath) {
+        String value = expandUserHome(StrUtil.nullToEmpty(rawPath).trim());
+        if (StrUtil.isBlank(value)) {
+            return null;
+        }
+        try {
+            return new File(value).getCanonicalFile();
+        } catch (Exception e) {
+            try {
+                return new File(value).getAbsoluteFile().toPath().normalize().toFile();
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+    }
+
+    private String expandUserHome(String path) {
+        if (StrUtil.isBlank(path)) {
+            return path;
+        }
+        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
+        if (StrUtil.isBlank(home)) {
+            return path;
+        }
+        if ("~".equals(path)) {
+            return home;
+        }
+        if (path.startsWith("~/") || path.startsWith("~\\")) {
+            return home + path.substring(1);
+        }
+        return path;
     }
 
     private String stripKnownPrefix(String normalized) {
