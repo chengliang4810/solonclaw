@@ -662,7 +662,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldIgnoreSharedWebsiteBlocklistFilesOutsideRuntimeHomeLikeHermes() throws Exception {
+    void shouldApplyAbsoluteSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File outside =
@@ -673,15 +673,70 @@ public class DangerousCommandApprovalServiceTest {
         env.appConfig
                 .getSecurity()
                 .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList("../" + outside.getName(), outside.getAbsolutePath()));
+                .setSharedFiles(Arrays.asList(outside.getAbsolutePath()));
         SecurityPolicyService securityPolicyService =
                 new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
 
         SecurityPolicyService.UrlVerdict escaped =
                 securityPolicyService.checkUrl("https://escaped.example/docs");
 
-        assertThat(escaped.isAllowed()).isTrue();
-        assertThat(escaped.getMessage()).doesNotContain("website policy");
+        assertThat(escaped.isAllowed()).isFalse();
+        assertThat(escaped.getMessage()).contains("escaped.example");
+    }
+
+    @Test
+    void shouldExpandHomeInSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String oldHome = System.getProperty("user.home");
+        File fakeHome = new File(env.appConfig.getRuntime().getHome(), "fake-home").getCanonicalFile();
+        File shared = new File(fakeHome, "home-website-blocklist.txt").getCanonicalFile();
+        FileUtil.mkdir(fakeHome);
+        FileUtil.writeUtf8String("home-shared.example\n", shared);
+        try {
+            System.setProperty("user.home", fakeHome.getAbsolutePath());
+            env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+            env.appConfig
+                    .getSecurity()
+                    .getWebsiteBlocklist()
+                    .setSharedFiles(Arrays.asList("~/home-website-blocklist.txt"));
+            SecurityPolicyService securityPolicyService =
+                    new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+            SecurityPolicyService.UrlVerdict verdict =
+                    securityPolicyService.checkUrl("https://home-shared.example/docs");
+
+            assertThat(verdict.isAllowed()).isFalse();
+            assertThat(verdict.getMessage()).contains("home-shared.example");
+        } finally {
+            if (oldHome == null) {
+                System.clearProperty("user.home");
+            } else {
+                System.setProperty("user.home", oldHome);
+            }
+        }
+    }
+
+    @Test
+    void shouldIgnoreRelativeSharedWebsiteBlocklistTraversal() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File outside =
+                new File(runtimeHome.getParentFile(), "traversal-website-blocklist.txt")
+                        .getCanonicalFile();
+        FileUtil.writeUtf8String("traversal-shared.example\n", outside);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("../" + outside.getName()));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://traversal-shared.example/docs");
+
+        assertThat(verdict.isAllowed()).isTrue();
+        assertThat(verdict.getMessage()).doesNotContain("website policy");
     }
 
     @Test

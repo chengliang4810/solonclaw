@@ -807,26 +807,29 @@ public class SecurityPolicyService {
     }
 
     private File resolveSharedFile(String rawPath) {
-        String path = StrUtil.nullToEmpty(rawPath).trim();
+        String path = expandUserHome(StrUtil.nullToEmpty(rawPath).trim());
         if (path.length() == 0) {
             return null;
         }
-        if (isAbsolutePathText(path) || containsTraversal(normalizePathText(path))) {
-            return null;
-        }
-        File runtimeHome =
-                appConfig == null || appConfig.getRuntime() == null
-                        ? new File(".")
-                        : new File(StrUtil.blankToDefault(
-                                appConfig.getRuntime().getHome(),
-                                com.jimuqu.solon.claw.support.constants.RuntimePathConstants.RUNTIME_HOME));
         try {
-            File home = runtimeHome.getCanonicalFile();
-            File file = new File(home, path).getCanonicalFile();
-            if (!isInside(file, home)) {
+            if (isAbsolutePathText(path)) {
+                return new File(path).getCanonicalFile();
+            }
+            if (containsTraversal(normalizePathText(path))) {
                 return null;
             }
-            return file;
+            File runtimeHome =
+                    appConfig == null || appConfig.getRuntime() == null
+                            ? new File(".")
+                            : new File(StrUtil.blankToDefault(
+                                    appConfig.getRuntime().getHome(),
+                                    RuntimePathConstants.RUNTIME_HOME));
+            File home = runtimeHome.getCanonicalFile();
+            File file = new File(home, path).getCanonicalFile();
+            if (isInside(file, home)) {
+                return file;
+            }
+            return null;
         } catch (Exception ignored) {
             return null;
         }
