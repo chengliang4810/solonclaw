@@ -53,6 +53,7 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.KANBAN_COMMENT,
                     ToolNameConstants.KANBAN_CREATE,
                     ToolNameConstants.KANBAN_LINK,
+                    ToolNameConstants.KANBAN_UNLINK,
                     ToolNameConstants.CONFIG_GET,
                     ToolNameConstants.CONFIG_SET,
                     ToolNameConstants.CONFIG_SET_SECRET,
@@ -61,7 +62,8 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.MCP,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
-                    ToolNameConstants.WEBFETCH);
+                    ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.SECURITY_AUDIT);
 
     private AgentRuntimePolicy() {}
 
@@ -272,6 +274,11 @@ public final class AgentRuntimePolicy {
             output.add(ToolNameConstants.KANBAN_COMMENT);
             output.add(ToolNameConstants.KANBAN_CREATE);
             output.add(ToolNameConstants.KANBAN_LINK);
+            output.add(ToolNameConstants.KANBAN_UNLINK);
+            return;
+        }
+        if ("security".equals(key) || "audit".equals(key) || "security_audit".equals(key)) {
+            output.add(ToolNameConstants.SECURITY_AUDIT);
             return;
         }
         if ("delegate".equals(key) || "delegation".equals(key)) {
