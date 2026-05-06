@@ -9,8 +9,12 @@ import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -68,6 +72,38 @@ public class AttachmentAwareConversationTest {
         assertThat(MessageSupport.getLastUserMessage(session.getNdjson()))
                 .contains("[attachments]");
         assertThat(MessageSupport.getLastUserMessage(session.getNdjson())).contains("report.pdf");
+    }
+
+    @Test
+    void shouldRejectMediaCacheSymlinkEscapingRuntimeLikeHermesContextReferences()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File outside = new File(runtimeHome.getParentFile(), "outside-attachment-secret.txt");
+        Files.write(outside.toPath(), "secret".getBytes("UTF-8"));
+        File mediaDir = attachmentCacheService.platformDir(PlatformType.MEMORY);
+        Files.createDirectories(mediaDir.toPath());
+        Path link = mediaDir.toPath().resolve("leaked.txt");
+        boolean symlinkCreated = false;
+        try {
+            Files.createSymbolicLink(link, outside.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Some Windows test environments do not support symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () ->
+                                attachmentCacheService.fromMediaCacheFile(
+                                        PlatformType.MEMORY, link.toFile(), "file", false, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("outside media cache");
     }
 
     private MessageAttachment attachment(

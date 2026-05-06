@@ -349,9 +349,7 @@ public class AttachmentCacheService {
 
     private boolean isUnder(File file, File root) {
         try {
-            if (isUnderPath(file.getCanonicalFile(), root.getCanonicalFile())) {
-                return true;
-            }
+            return isUnderPath(file.getCanonicalFile(), root.getCanonicalFile());
         } catch (Exception ignored) {
         }
         return isUnderPath(file.getAbsoluteFile(), root.getAbsoluteFile());
