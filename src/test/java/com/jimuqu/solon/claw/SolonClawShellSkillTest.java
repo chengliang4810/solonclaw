@@ -197,6 +197,84 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRewriteCompoundBackgroundShellPatterns() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(skill.rewriteCompoundBackground("A && B &")).isEqualTo("A && { B & }");
+        assertThat(skill.rewriteCompoundBackground("A || B &")).isEqualTo("A || { B & }");
+        assertThat(skill.rewriteCompoundBackground("A && B && C &"))
+                .isEqualTo("A && B && { C & }");
+        assertThat(skill.rewriteCompoundBackground("A || B || C &"))
+                .isEqualTo("A || B || { C & }");
+        assertThat(skill.rewriteCompoundBackground("A && B || C &"))
+                .isEqualTo("A && B || { C & }");
+        assertThat(skill.rewriteCompoundBackground("A && B &\nfalse || C &"))
+                .isEqualTo("A && { B & }\nfalse || { C & }");
+        assertThat(skill.rewriteCompoundBackground("   A && B &"))
+                .isEqualTo("   A && { B & }");
+        assertThat(skill.rewriteCompoundBackground("A\t&&\tB\t&"))
+                .isEqualTo("A\t&&\t{ B\t& }");
+    }
+
+    @Test
+    void shouldPreserveNonCompoundBackgroundShellPatterns() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(skill.rewriteCompoundBackground("sleep 5 &")).isEqualTo("sleep 5 &");
+        assertThat(skill.rewriteCompoundBackground("python3 -m http.server 0 &"))
+                .isEqualTo("python3 -m http.server 0 &");
+        assertThat(skill.rewriteCompoundBackground("A && B")).isEqualTo("A && B");
+        assertThat(skill.rewriteCompoundBackground("A && B\nC &")).isEqualTo("A && B\nC &");
+        assertThat(skill.rewriteCompoundBackground("A && B; C &")).isEqualTo("A && B; C &");
+        assertThat(skill.rewriteCompoundBackground("A && B | C &")).isEqualTo("A && B | C &");
+        assertThat(skill.rewriteCompoundBackground("")).isEqualTo("");
+        assertThat(skill.rewriteCompoundBackground("   \n\t")).isEqualTo("   \n\t");
+    }
+
+    @Test
+    void shouldNotMistakeRedirectsQuotesOrSubshellsForCompoundBackgrounds() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(skill.rewriteCompoundBackground("echo hi &>/dev/null"))
+                .isEqualTo("echo hi &>/dev/null");
+        assertThat(skill.rewriteCompoundBackground("cmd 2>&1")).isEqualTo("cmd 2>&1");
+        assertThat(skill.rewriteCompoundBackground("cmd 2>&1 &")).isEqualTo("cmd 2>&1 &");
+        assertThat(skill.rewriteCompoundBackground("A && B &>/dev/null &"))
+                .isEqualTo("A && { B &>/dev/null & }");
+        assertThat(skill.rewriteCompoundBackground("A && B 2>&1 &"))
+                .isEqualTo("A && { B 2>&1 & }");
+        assertThat(skill.rewriteCompoundBackground("echo 'A && B &'"))
+                .isEqualTo("echo 'A && B &'");
+        assertThat(skill.rewriteCompoundBackground("echo \"A && B &\""))
+                .isEqualTo("echo \"A && B &\"");
+        assertThat(skill.rewriteCompoundBackground("(A && B) &")).isEqualTo("(A && B) &");
+        assertThat(skill.rewriteCompoundBackground("echo \"$(A && B)\" &"))
+                .isEqualTo("echo \"$(A && B)\" &");
+        assertThat(skill.rewriteCompoundBackground("echo A \\&\\& B"))
+                .isEqualTo("echo A \\&\\& B");
+        assertThat(skill.rewriteCompoundBackground("# A && B &\nC")).isEqualTo("# A && B &\nC");
+    }
+
+    @Test
+    void shouldKeepCompoundBackgroundRewriteIdempotent() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String once = skill.rewriteCompoundBackground("A && B &");
+        assertThat(skill.rewriteCompoundBackground(once)).isEqualTo(once);
+
+        String multiline = skill.rewriteCompoundBackground("cd /tmp && server &\nsleep 1");
+        assertThat(skill.rewriteCompoundBackground(multiline)).isEqualTo(multiline);
+    }
+
+    @Test
     void shouldInterpretHermesTerminalExitCodeSemantics() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
