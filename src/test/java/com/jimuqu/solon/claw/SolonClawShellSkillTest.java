@@ -9,11 +9,14 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
+import org.noear.solon.annotation.Param;
 
 public class SolonClawShellSkillTest {
     @Test
@@ -247,6 +250,30 @@ public class SolonClawShellSkillTest {
 
         assertThat(result)
                 .contains("Foreground timeout 2000ms exceeds the maximum of 1000ms")
+                .contains("background=true");
+    }
+
+    @Test
+    void shouldExposeForegroundTimeoutCapInToolParameterDescriptionsLikeHermes()
+            throws Exception {
+        Method execute = SolonClawShellSkill.class.getMethod("execute", String.class, Integer.class);
+        Method terminal =
+                SolonClawShellSkill.class.getMethod(
+                        "terminal",
+                        String.class,
+                        Boolean.class,
+                        Integer.class,
+                        String.class,
+                        Boolean.class,
+                        Boolean.class,
+                        List.class);
+
+        String executeTimeoutDescription = paramDescription(execute, "timeout");
+        String terminalTimeoutDescription = paramDescription(terminal, "timeout");
+
+        assertThat(executeTimeoutDescription).contains("600000ms").contains("background=true");
+        assertThat(terminalTimeoutDescription)
+                .contains("600 seconds")
                 .contains("background=true");
     }
 
@@ -1134,6 +1161,19 @@ public class SolonClawShellSkillTest {
             builder.append(value);
         }
         return builder.toString();
+    }
+
+    private String paramDescription(Method method, String name) {
+        for (Parameter parameter : method.getParameters()) {
+            Param annotation = parameter.getAnnotation(Param.class);
+            if (annotation == null) {
+                continue;
+            }
+            if (name.equals(annotation.name()) || name.equals(annotation.value())) {
+                return annotation.description();
+            }
+        }
+        return "";
     }
 }
 

@@ -100,7 +100,7 @@ public class SolonClawShellSkill extends ShellSkill {
     @ToolMapping(name = "execute_shell", description = "在本地系统中执行单行指令或多行脚本，并获取标准输出。")
     public String execute(
             @Param("code") String code,
-            @Param(name = "timeout", required = false, defaultValue = "180000", description = "可选超时时间，单位为毫秒")
+            @Param(name = "timeout", required = false, defaultValue = "180000", description = "可选前台超时时间，单位为毫秒；显式传入时最大 600000ms，长时间任务请使用 terminal(background=true)。")
                     Integer timeout) {
         String commandError = validateCommand(code);
         if (commandError != null) {
@@ -139,7 +139,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "timeout",
                             required = false,
                             defaultValue = "180",
-                            description = "Timeout in seconds for foreground commands")
+                            description = "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
@@ -167,7 +167,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "timeout",
                             required = false,
                             defaultValue = "180",
-                            description = "Timeout in seconds for foreground commands")
+                            description = "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
@@ -205,7 +205,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "timeout",
                             required = false,
                             defaultValue = "180",
-                            description = "Timeout in seconds for foreground commands")
+                            description = "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
