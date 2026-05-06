@@ -82,7 +82,8 @@ public class CronJobService {
         scanPrompt(prompt);
         validateScript(script);
         validateWorkdir(string(body.get("workdir"), null));
-        validateContextFrom(stringList(body.get("context_from")));
+        List<String> dependencyRefs = dependencyRefs(body);
+        validateContextFrom(dependencyRefs);
 
         long now = System.currentTimeMillis();
         CronJobRecord record = new CronJobRecord();
@@ -101,7 +102,7 @@ public class CronJobService {
         record.setScript(script);
         record.setWorkdir(string(body.get("workdir"), null));
         record.setNoAgent(noAgent);
-        record.setContextFromJson(json(stringList(body.get("context_from"))));
+        record.setContextFromJson(json(dependencyRefs));
         record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
         applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         record.setWrapResponse(
@@ -166,8 +167,8 @@ public class CronJobService {
             }
             record.setNoAgent(noAgent);
         }
-        if (body.containsKey("context_from")) {
-            List<String> refs = stringList(body.get("context_from"));
+        if (containsDependencyRefs(body)) {
+            List<String> refs = dependencyRefs(body);
             validateContextFrom(refs);
             record.setContextFromJson(json(refs));
         }
@@ -328,7 +329,9 @@ public class CronJobService {
         result.put("script", record.getScript());
         result.put("workdir", record.getWorkdir());
         result.put("no_agent", Boolean.valueOf(record.isNoAgent()));
-        result.put("context_from", parseList(record.getContextFromJson()));
+        List<String> contextFrom = parseList(record.getContextFromJson());
+        result.put("context_from", contextFrom);
+        result.put("depends_on", contextFrom);
         result.put("enabled_toolsets", parseList(record.getEnabledToolsetsJson()));
         result.put("model", record.getModel());
         result.put("provider", record.getProvider());
@@ -379,6 +382,17 @@ public class CronJobService {
                 throw new IllegalStateException("context_from job not found: " + ref);
             }
         }
+    }
+
+    private boolean containsDependencyRefs(Map<String, Object> body) {
+        return body.containsKey("context_from") || body.containsKey("depends_on");
+    }
+
+    private List<String> dependencyRefs(Map<String, Object> body) {
+        if (body.containsKey("context_from")) {
+            return stringList(body.get("context_from"));
+        }
+        return stringList(body.get("depends_on"));
     }
 
     private void validateScript(String script) {

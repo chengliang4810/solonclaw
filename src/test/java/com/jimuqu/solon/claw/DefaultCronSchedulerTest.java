@@ -637,7 +637,7 @@ public class DefaultCronSchedulerTest {
 
         Map<String, Object> update = new LinkedHashMap<String, Object>();
         update.put("skills", java.util.Arrays.asList("blogwatcher"));
-        update.put("context_from", java.util.Arrays.asList(job.getJobId()));
+        update.put("depends_on", java.util.Arrays.asList(job.getJobId()));
         update.put("provider", "default");
         update.put("model", "gpt-5.4");
         update.put("baseUrl", "https://api.next.example/");
@@ -645,6 +645,8 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = service.update(job.getJobId(), update);
         assertThat(ONode.ofJson(updated.getSkillsJson()).toJson()).contains("blogwatcher");
         assertThat(ONode.ofJson(updated.getContextFromJson()).toJson()).contains(job.getJobId());
+        assertThat(service.toView(updated).get("depends_on"))
+                .isEqualTo(java.util.Collections.singletonList(job.getJobId()));
         assertThat(updated.getRepeatTimes()).isEqualTo(3);
         assertThat(updated.isWrapResponse()).isFalse();
         assertThat(updated.getModel()).isEqualTo("gpt-5.4");
@@ -803,7 +805,59 @@ public class DefaultCronSchedulerTest {
         assertThat(metadataJob.get("workdir")).isEqualTo(workdir.getAbsolutePath());
         assertThat(metadataJob.get("no_agent")).isEqualTo(Boolean.TRUE);
         assertThat(metadataJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(jobId));
+        assertThat(metadataJob.get("depends_on")).isEqualTo(java.util.Collections.singletonList(jobId));
         assertThat(metadataJob.get("enabled_toolsets")).isEqualTo(java.util.Arrays.asList("terminal", "file"));
+        Map<?, ?> aliasPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-depends-on",
+                                                "30m",
+                                                "depends payload prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                java.util.Collections.singletonList(jobId),
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> aliasJob = (Map<?, ?>) aliasPayload.get("job");
+        String aliasJobId = String.valueOf(aliasPayload.get("job_id"));
+        assertThat(aliasJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(jobId));
+        assertThat(aliasJob.get("depends_on")).isEqualTo(java.util.Collections.singletonList(jobId));
+        tools.cronjob(
+                "remove",
+                aliasJobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
         tools.cronjob(
                 "remove",
                 metadataJobId,

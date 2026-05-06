@@ -2020,6 +2020,10 @@ public class DefaultCommandService implements CommandService {
                 body.put("context_from", field.substring("--context-from ".length()).trim());
             } else if ("--clear-context-from".equals(field)) {
                 body.put("context_from", new ArrayList<String>());
+            } else if (field.startsWith("--depends-on ")) {
+                body.put("depends_on", field.substring("--depends-on ".length()).trim());
+            } else if ("--clear-depends-on".equals(field)) {
+                body.put("depends_on", new ArrayList<String>());
             } else if (field.startsWith("--toolsets ")) {
                 body.put("enabled_toolsets", field.substring("--toolsets ".length()).trim());
             } else if ("--clear-toolsets".equals(field)) {
@@ -2055,6 +2059,7 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "script", options.script);
         putIfNotBlank(body, "workdir", options.workdir);
         putIfNotBlank(body, "context_from", options.contextFrom);
+        putIfNotBlank(body, "depends_on", options.dependsOn);
         putIfNotBlank(body, "enabled_toolsets", options.enabledToolsets);
         putIfNotBlank(body, "model", options.model);
         putIfNotBlank(body, "provider", options.provider);
@@ -2067,6 +2072,9 @@ public class DefaultCommandService implements CommandService {
         }
         if (options.clearContextFrom) {
             body.put("context_from", new ArrayList<String>());
+        }
+        if (options.clearDependsOn) {
+            body.put("depends_on", new ArrayList<String>());
         }
         if (options.clearToolsets) {
             body.put("enabled_toolsets", new ArrayList<String>());
@@ -2130,6 +2138,10 @@ public class DefaultCommandService implements CommandService {
                 options.contextFrom = tokens.get(++i);
             } else if ("--clear-context-from".equals(token)) {
                 options.clearContextFrom = true;
+            } else if ("--depends-on".equals(token) && i + 1 < tokens.size()) {
+                options.dependsOn = tokens.get(++i);
+            } else if ("--clear-depends-on".equals(token)) {
+                options.clearDependsOn = true;
             } else if ("--toolsets".equals(token) && i + 1 < tokens.size()) {
                 options.enabledToolsets = tokens.get(++i);
             } else if ("--clear-toolsets".equals(token)) {
@@ -3233,6 +3245,7 @@ public class DefaultCommandService implements CommandService {
         private String script;
         private String workdir;
         private String contextFrom;
+        private String dependsOn;
         private String enabledToolsets;
         private String model;
         private String provider;
@@ -3240,6 +3253,7 @@ public class DefaultCommandService implements CommandService {
         private boolean clearScript;
         private boolean clearWorkdir;
         private boolean clearContextFrom;
+        private boolean clearDependsOn;
         private boolean clearToolsets;
         private boolean noAgent;
         private boolean agent;

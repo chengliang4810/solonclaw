@@ -37,6 +37,7 @@ public class CronjobTools {
             @Param(name = "workdir", description = "绝对工作目录", required = false) String workdir,
             @Param(name = "no_agent", description = "是否跳过 Agent 直接投递脚本输出", required = false) Boolean noAgent,
             @Param(name = "context_from", description = "上游 job id 列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object contextFrom,
+            @Param(name = "depends_on", description = "上游 job id 列表别名", required = false) Object dependsOn,
             @Param(name = "enabled_toolsets", description = "工具集列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object enabledToolsets,
             @Param(name = "model", description = "任务固定模型；支持字符串或 {provider, model} 对象", required = false) Object model,
             @Param(name = "provider", description = "任务固定 provider", required = false) String provider,
@@ -70,7 +71,7 @@ public class CronjobTools {
         }
 
         if ("create".equals(normalized)) {
-            CronJobRecord job = cronJobService.create(sourceKey, body(name, schedule, prompt, deliver, skill, skills, repeat, wrapResponse, script, workdir, noAgent, contextFrom, enabledToolsets, model, provider, baseUrl));
+            CronJobRecord job = cronJobService.create(sourceKey, body(name, schedule, prompt, deliver, skill, skills, repeat, wrapResponse, script, workdir, noAgent, contextFrom, dependsOn, enabledToolsets, model, provider, baseUrl));
             Map<String, Object> view = formattedView(job);
             return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
                     .data("job_id", job.getJobId())
@@ -105,7 +106,7 @@ public class CronjobTools {
         CronJobRecord job;
         if ("update".equals(normalized)) {
             Map<String, Object> updateBody =
-                    body(name, schedule, prompt, deliver, skill, skills, repeat, wrapResponse, script, workdir, noAgent, contextFrom, enabledToolsets, model, provider, baseUrl);
+                    body(name, schedule, prompt, deliver, skill, skills, repeat, wrapResponse, script, workdir, noAgent, contextFrom, dependsOn, enabledToolsets, model, provider, baseUrl);
             if (updateBody.isEmpty()) {
                 return ToolResultEnvelope.error("No updates provided.").toJson();
             }
@@ -172,6 +173,7 @@ public class CronjobTools {
                 workdir,
                 noAgent,
                 contextFrom,
+                null,
                 enabledToolsets,
                 model,
                 provider,
@@ -218,12 +220,61 @@ public class CronjobTools {
                 workdir,
                 noAgent,
                 contextFrom,
+                null,
                 enabledToolsets,
                 model,
                 provider,
                 baseUrl,
                 limit,
                 null);
+    }
+
+    public String cronjob(
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Integer limit,
+            String reason)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                skill,
+                skills,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                null,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                limit,
+                reason);
     }
 
     private Map<String, Object> body(
@@ -239,6 +290,7 @@ public class CronjobTools {
             String workdir,
             Boolean noAgent,
             Object contextFrom,
+            Object dependsOn,
             Object enabledToolsets,
             Object model,
             String provider,
@@ -262,6 +314,7 @@ public class CronjobTools {
             body.put("no_agent", noAgent);
         }
         put(body, "context_from", contextFrom);
+        put(body, "depends_on", dependsOn);
         put(body, "enabled_toolsets", enabledToolsets);
         put(body, "model", model);
         put(body, "provider", provider);
@@ -323,6 +376,7 @@ public class CronjobTools {
         Object contextFrom = base.get("context_from");
         if (contextFrom instanceof Iterable && ((Iterable<?>) contextFrom).iterator().hasNext()) {
             result.put("context_from", contextFrom);
+            result.put("depends_on", contextFrom);
         }
         Object enabledToolsets = base.get("enabled_toolsets");
         if (enabledToolsets instanceof Iterable && ((Iterable<?>) enabledToolsets).iterator().hasNext()) {

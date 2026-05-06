@@ -298,7 +298,20 @@ public class CommandEnhancementTest {
                 .contains("script=collect.py")
                 .contains("workdir=" + runtimeHome)
                 .contains("context_from=[" + jobId + "]")
+                .contains("depends_on=[" + jobId + "]")
                 .contains("enabled_toolsets=[web, terminal]");
+
+        GatewayReply dependsOn =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --depends-on " + jobId);
+        assertThat(dependsOn.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("context_from=[" + jobId + "]")
+                .contains("depends_on=[" + jobId + "]");
+
+        GatewayReply clearedDependsOn =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-depends-on");
+        assertThat(clearedDependsOn.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("context_from=[]").contains("depends_on=[]");
 
         GatewayReply noAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent --wrap-response");
         assertThat(noAgent.getContent()).contains("已更新定时任务");
