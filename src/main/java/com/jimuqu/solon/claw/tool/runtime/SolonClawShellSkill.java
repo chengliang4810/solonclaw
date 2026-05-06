@@ -210,7 +210,7 @@ public class SolonClawShellSkill extends ShellSkill {
                     .data("background", Boolean.TRUE)
                     .toJson();
         }
-        SolonClawCodeExecutionSkills.assertSafe(
+        SolonClawCodeExecutionSkills.assertSafeForManagedBackground(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
                 securityPolicyService);

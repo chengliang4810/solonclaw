@@ -972,6 +972,19 @@ public class SolonClawCodeExecutionSkills {
 
     static void assertSafe(
             String toolName, String code, SecurityPolicyService securityPolicyService) {
+        assertSafe(toolName, code, securityPolicyService, true);
+    }
+
+    static void assertSafeForManagedBackground(
+            String toolName, String code, SecurityPolicyService securityPolicyService) {
+        assertSafe(toolName, code, securityPolicyService, false);
+    }
+
+    private static void assertSafe(
+            String toolName,
+            String code,
+            SecurityPolicyService securityPolicyService,
+            boolean rejectForegroundPatterns) {
         if (securityPolicyService != null) {
             SecurityPolicyService.FileVerdict fileVerdict =
                     securityPolicyService.checkCommandPaths(code);
@@ -992,9 +1005,11 @@ public class SolonClawCodeExecutionSkills {
         if (hardline != null) {
             throw new IllegalArgumentException(blockedHardlineMessage(toolName, hardline));
         }
-        String foregroundGuidance = approvalService.foregroundBackgroundGuidance(toolName, code);
-        if (foregroundGuidance != null) {
-            throw new IllegalArgumentException(foregroundGuidance);
+        if (rejectForegroundPatterns) {
+            String foregroundGuidance = approvalService.foregroundBackgroundGuidance(toolName, code);
+            if (foregroundGuidance != null) {
+                throw new IllegalArgumentException(foregroundGuidance);
+            }
         }
         DangerousCommandApprovalService.DetectionResult dangerous =
                 approvalService.detect(toolName, code);

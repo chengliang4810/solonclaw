@@ -444,6 +444,93 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRejectLongLivedServerCommandsOnForegroundTerminalLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "pnpm dev",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString())
+                .contains("长驻服务")
+                .contains("受管的后台进程能力");
+    }
+
+    @Test
+    void shouldRejectShellLevelBackgroundWrappersOnForegroundTerminalLikeHermes()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "nohup pnpm dev > app.log 2>&1 &",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("error").getString())
+                .contains("nohup")
+                .contains("受管的后台进程能力");
+    }
+
+    @Test
+    void shouldAllowHelpVariantForLongLivedForegroundCommandLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                safeHelpVariantCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(result.get("error").isNull()).isTrue();
+        assertThat(result.get("output").getString()).contains("usage");
+    }
+
+    @Test
+    void shouldAllowLongLivedCommandWhenTerminalBackgroundIsManaged() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepWithLongLivedCommentCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(9999),
+                                workdir,
+                                Boolean.TRUE));
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("background").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isEqualTo("running");
+        assertThat(registry.stop(result.get("session_id").getString())).isTrue();
+    }
+
+    @Test
     void shouldTimeoutSudoRewriteBranchWithoutWaitingForOutputEof() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
@@ -526,6 +613,20 @@ public class SolonClawShellSkillTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private String javaSleepWithLongLivedCommentCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "ping -n 30 127.0.0.1 > nul && rem pnpm dev";
+        }
+        return "sleep 30 # pnpm dev";
+    }
+
+    private String safeHelpVariantCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo usage && rem pnpm dev --help";
+        }
+        return "printf 'usage\\n' # pnpm dev --help";
     }
 
     private String partialOutputThenSleepCommand() {
