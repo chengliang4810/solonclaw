@@ -427,6 +427,13 @@ public class SolonClawShellSkillTest {
                 .isEqualTo("Condition evaluated to false (expected, not an error)");
         assertThat(skill.interpretExitCode("curl https://example.com", Integer.valueOf(28)))
                 .isEqualTo("Operation timed out");
+        assertThat(skill.interpretExitCode("git diff HEAD~1", Integer.valueOf(1)))
+                .isEqualTo("Git diff found differences (normal for diff commands)");
+        assertThat(skill.interpretExitCode("LANG=C git diff --exit-code", Integer.valueOf(1)))
+                .isEqualTo("Git diff found differences (normal for diff commands)");
+        assertThat(skill.interpretExitCode("git status", Integer.valueOf(1))).isNull();
+        assertThat(skill.interpretExitCode("git rev-parse --verify missing", Integer.valueOf(1)))
+                .isNull();
         assertThat(skill.interpretExitCode("python3 script.py", Integer.valueOf(1))).isNull();
         assertThat(skill.interpretExitCode("", Integer.valueOf(1))).isNull();
         assertThat(skill.interpretExitCode("FOO=bar", Integer.valueOf(1))).isNull();

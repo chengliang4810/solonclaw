@@ -26,10 +26,7 @@ final class TerminalExitCodeSemantics {
         register("curl", 7, "Failed to connect to host");
         register("curl", 22, "HTTP response code indicated error (e.g. 404, 500)");
         register("curl", 28, "Operation timed out");
-        register(
-                "git",
-                1,
-                "Non-zero exit (often normal - e.g. 'git diff' returns 1 when files differ)");
+        register("git diff", 1, "Git diff found differences (normal for diff commands)");
     }
 
     private TerminalExitCodeSemantics() {}
@@ -38,9 +35,13 @@ final class TerminalExitCodeSemantics {
         if (exitCode == null || exitCode.intValue() == 0 || StrUtil.isBlank(command)) {
             return null;
         }
-        String baseCommand = baseCommand(lastCommandSegment(command));
+        String segment = lastCommandSegment(command);
+        String baseCommand = baseCommand(segment);
         if (StrUtil.isBlank(baseCommand)) {
             return null;
+        }
+        if ("git".equalsIgnoreCase(baseCommand)) {
+            return interpretGit(segment, exitCode);
         }
         Map<Integer, String> commandSemantics =
                 SEMANTICS.get(baseCommand.toLowerCase(Locale.ROOT));
@@ -48,6 +49,22 @@ final class TerminalExitCodeSemantics {
             return null;
         }
         return commandSemantics.get(exitCode);
+    }
+
+    private static String interpretGit(String segment, Integer exitCode) {
+        if (exitCode == null || exitCode.intValue() != 1) {
+            return null;
+        }
+        String normalized = normalizeCommandTokens(segment).toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("git diff ")
+                || "git diff".equals(normalized)
+                || normalized.startsWith("git diff-index ")
+                || normalized.startsWith("git diff-files ")
+                || normalized.startsWith("git diff-tree ")) {
+            Map<Integer, String> commandSemantics = SEMANTICS.get("git diff");
+            return commandSemantics == null ? null : commandSemantics.get(exitCode);
+        }
+        return null;
     }
 
     private static void register(String command, int exitCode, String meaning) {
@@ -121,6 +138,33 @@ final class TerminalExitCodeSemantics {
             i = end;
         }
         return "";
+    }
+
+    private static String normalizeCommandTokens(String segment) {
+        StringBuilder builder = new StringBuilder();
+        int i = 0;
+        boolean seenCommand = false;
+        while (i < segment.length()) {
+            while (i < segment.length() && Character.isWhitespace(segment.charAt(i))) {
+                i++;
+            }
+            if (i >= segment.length()) {
+                break;
+            }
+            int end = tokenEnd(segment, i);
+            String token = stripPath(stripQuotes(segment.substring(i, end)));
+            if (!seenCommand && looksLikeEnvAssignment(token)) {
+                i = end;
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(token);
+            seenCommand = true;
+            i = end;
+        }
+        return builder.toString().trim();
     }
 
     private static int tokenEnd(String segment, int start) {
