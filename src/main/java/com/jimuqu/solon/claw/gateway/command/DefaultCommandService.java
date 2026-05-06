@@ -1485,7 +1485,7 @@ public class DefaultCommandService implements CommandService {
                 return GatewayReply.error(
                         "用法："
                                 + GatewayCommandConstants.SLASH_CRON
-                                + " edit <job-id> [--schedule ...] [--prompt ...] [--skill ...|--add-skill ...|--remove-skill ...|--clear-skills]");
+                                + " edit <job-id> [--schedule ...] [--prompt ...] [--skill ...|--add-skill ...|--remove-skill ...|--clear-skills] [--clear-script|--clear-workdir|--clear-context-from|--clear-toolsets]");
             }
             CronJobRecord job = cronJobService.update(edit.jobId, edit.body);
             return GatewayReply.ok("已更新定时任务：" + job.getJobId());
@@ -1513,6 +1513,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --skill blogwatcher --skill maps - 替换绑定技能\n")
                 .append("/cron edit <job-id> --remove-skill blogwatcher - 移除绑定技能\n")
                 .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
+                .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append("/cron pause <job-id> - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
@@ -1745,12 +1746,20 @@ public class DefaultCommandService implements CommandService {
                 body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
             } else if (field.startsWith("--script ")) {
                 body.put("script", field.substring("--script ".length()).trim());
+            } else if ("--clear-script".equals(field)) {
+                body.put("script", null);
             } else if (field.startsWith("--workdir ")) {
                 body.put("workdir", field.substring("--workdir ".length()).trim());
+            } else if ("--clear-workdir".equals(field)) {
+                body.put("workdir", null);
             } else if (field.startsWith("--context-from ")) {
                 body.put("context_from", field.substring("--context-from ".length()).trim());
+            } else if ("--clear-context-from".equals(field)) {
+                body.put("context_from", new ArrayList<String>());
             } else if (field.startsWith("--toolsets ")) {
                 body.put("enabled_toolsets", field.substring("--toolsets ".length()).trim());
+            } else if ("--clear-toolsets".equals(field)) {
+                body.put("enabled_toolsets", new ArrayList<String>());
             } else if ("--no-agent".equals(field)) {
                 body.put("no_agent", Boolean.TRUE);
             } else if ("--raw".equals(field) || "--no-wrap".equals(field)) {
@@ -1769,6 +1778,18 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "workdir", options.workdir);
         putIfNotBlank(body, "context_from", options.contextFrom);
         putIfNotBlank(body, "enabled_toolsets", options.enabledToolsets);
+        if (options.clearScript) {
+            body.put("script", null);
+        }
+        if (options.clearWorkdir) {
+            body.put("workdir", null);
+        }
+        if (options.clearContextFrom) {
+            body.put("context_from", new ArrayList<String>());
+        }
+        if (options.clearToolsets) {
+            body.put("enabled_toolsets", new ArrayList<String>());
+        }
         if (options.noAgent) {
             body.put("no_agent", Boolean.TRUE);
         }
@@ -1810,12 +1831,20 @@ public class DefaultCommandService implements CommandService {
                 options.schedule = tokens.get(++i);
             } else if ("--script".equals(token) && i + 1 < tokens.size()) {
                 options.script = tokens.get(++i);
+            } else if ("--clear-script".equals(token)) {
+                options.clearScript = true;
             } else if ("--workdir".equals(token) && i + 1 < tokens.size()) {
                 options.workdir = tokens.get(++i);
+            } else if ("--clear-workdir".equals(token)) {
+                options.clearWorkdir = true;
             } else if ("--context-from".equals(token) && i + 1 < tokens.size()) {
                 options.contextFrom = tokens.get(++i);
+            } else if ("--clear-context-from".equals(token)) {
+                options.clearContextFrom = true;
             } else if ("--toolsets".equals(token) && i + 1 < tokens.size()) {
                 options.enabledToolsets = tokens.get(++i);
+            } else if ("--clear-toolsets".equals(token)) {
+                options.clearToolsets = true;
             } else if ("--no-agent".equals(token)) {
                 options.noAgent = true;
             } else if ("--raw".equals(token) || "--no-wrap".equals(token)) {
@@ -2706,6 +2735,10 @@ public class DefaultCommandService implements CommandService {
         private String workdir;
         private String contextFrom;
         private String enabledToolsets;
+        private boolean clearScript;
+        private boolean clearWorkdir;
+        private boolean clearContextFrom;
+        private boolean clearToolsets;
         private boolean noAgent;
         private boolean raw;
         private final List<String> positionals = new ArrayList<String>();

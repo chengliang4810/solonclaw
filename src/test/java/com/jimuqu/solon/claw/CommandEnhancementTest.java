@@ -190,6 +190,39 @@ public class CommandEnhancementTest {
         assertThat(cleared.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("skills=[]");
 
+        String runtimeHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
+        GatewayReply tuned =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit "
+                                + jobId
+                                + " --script collect.py --workdir \""
+                                + runtimeHome
+                                + "\" --context-from "
+                                + jobId
+                                + " --toolsets web,terminal");
+        assertThat(tuned.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("script=collect.py")
+                .contains("workdir=" + runtimeHome)
+                .contains("context_from=[" + jobId + "]")
+                .contains("enabled_toolsets=[web, terminal]");
+
+        GatewayReply clearedRuntime =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit "
+                                + jobId
+                                + " --clear-script --clear-workdir --clear-context-from --clear-toolsets");
+        assertThat(clearedRuntime.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("script=null")
+                .contains("workdir=null")
+                .contains("context_from=[]")
+                .contains("enabled_toolsets=[]");
+
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history]");
     }
