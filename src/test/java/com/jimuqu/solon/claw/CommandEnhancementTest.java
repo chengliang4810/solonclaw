@@ -164,12 +164,18 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher --skill maps");
+                        "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher --skill maps --model gpt-test-cron --provider default --base-url https://api.example.com/ --no-wrap-response");
         assertThat(created.getContent()).contains("已创建定时任务");
         String jobId = env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user")
                 .get(0)
                 .getJobId();
-        assertThat(cronJobView(env, jobId)).contains("blogwatcher").contains("maps");
+        assertThat(cronJobView(env, jobId))
+                .contains("blogwatcher")
+                .contains("maps")
+                .contains("model=gpt-test-cron")
+                .contains("provider=default")
+                .contains("base_url=https://api.example.com")
+                .contains("wrap_response=false");
 
         GatewayReply edited =
                 env.send(
@@ -209,6 +215,14 @@ public class CommandEnhancementTest {
                 .contains("context_from=[" + jobId + "]")
                 .contains("enabled_toolsets=[web, terminal]");
 
+        GatewayReply noAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent --wrap-response");
+        assertThat(noAgent.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("no_agent=true").contains("wrap_response=true");
+
+        GatewayReply agent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --agent");
+        assertThat(agent.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("no_agent=false");
+
         GatewayReply clearedRuntime =
                 env.send(
                         "admin-chat",
@@ -222,6 +236,9 @@ public class CommandEnhancementTest {
                 .contains("workdir=null")
                 .contains("context_from=[]")
                 .contains("enabled_toolsets=[]");
+
+        GatewayReply invalidNoAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent");
+        assertThat(invalidNoAgent.getContent()).contains("no_agent requires script");
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history]");

@@ -196,6 +196,9 @@ public class CronJobService {
             record.setStatus(bool(body.get("enabled"), true) ? STATUS_ACTIVE : STATUS_PAUSED);
             record.setPausedAt(bool(body.get("enabled"), true) ? 0L : System.currentTimeMillis());
         }
+        if (record.isNoAgent() && StrUtil.isBlank(record.getScript())) {
+            throw new IllegalStateException("no_agent requires script");
+        }
         return cronJobRepository.update(record);
     }
 

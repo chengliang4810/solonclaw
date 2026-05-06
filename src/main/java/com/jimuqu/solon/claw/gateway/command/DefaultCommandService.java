@@ -1514,6 +1514,8 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --remove-skill blogwatcher - 移除绑定技能\n")
                 .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
                 .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
+                .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
+                .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
                 .append("/cron pause <job-id> - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
@@ -1760,9 +1762,23 @@ public class DefaultCommandService implements CommandService {
                 body.put("enabled_toolsets", field.substring("--toolsets ".length()).trim());
             } else if ("--clear-toolsets".equals(field)) {
                 body.put("enabled_toolsets", new ArrayList<String>());
+            } else if (field.startsWith("--model ")) {
+                body.put("model", field.substring("--model ".length()).trim());
+            } else if (field.startsWith("--provider ")) {
+                body.put("provider", field.substring("--provider ".length()).trim());
+            } else if (field.startsWith("--base-url ")) {
+                body.put("base_url", field.substring("--base-url ".length()).trim());
+            } else if (field.startsWith("--base_url ")) {
+                body.put("base_url", field.substring("--base_url ".length()).trim());
             } else if ("--no-agent".equals(field)) {
                 body.put("no_agent", Boolean.TRUE);
+            } else if ("--agent".equals(field)) {
+                body.put("no_agent", Boolean.FALSE);
+            } else if ("--wrap-response".equals(field) || "--wrap".equals(field)) {
+                body.put("wrap_response", Boolean.TRUE);
             } else if ("--raw".equals(field) || "--no-wrap".equals(field)) {
+                body.put("wrap_response", Boolean.FALSE);
+            } else if ("--no-wrap-response".equals(field)) {
                 body.put("wrap_response", Boolean.FALSE);
             }
         }
@@ -1778,6 +1794,9 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "workdir", options.workdir);
         putIfNotBlank(body, "context_from", options.contextFrom);
         putIfNotBlank(body, "enabled_toolsets", options.enabledToolsets);
+        putIfNotBlank(body, "model", options.model);
+        putIfNotBlank(body, "provider", options.provider);
+        putIfNotBlank(body, "base_url", options.baseUrl);
         if (options.clearScript) {
             body.put("script", null);
         }
@@ -1792,6 +1811,12 @@ public class DefaultCommandService implements CommandService {
         }
         if (options.noAgent) {
             body.put("no_agent", Boolean.TRUE);
+        }
+        if (options.agent) {
+            body.put("no_agent", Boolean.FALSE);
+        }
+        if (options.wrapResponse) {
+            body.put("wrap_response", Boolean.TRUE);
         }
         if (options.raw) {
             body.put("wrap_response", Boolean.FALSE);
@@ -1845,9 +1870,21 @@ public class DefaultCommandService implements CommandService {
                 options.enabledToolsets = tokens.get(++i);
             } else if ("--clear-toolsets".equals(token)) {
                 options.clearToolsets = true;
+            } else if ("--model".equals(token) && i + 1 < tokens.size()) {
+                options.model = tokens.get(++i);
+            } else if ("--provider".equals(token) && i + 1 < tokens.size()) {
+                options.provider = tokens.get(++i);
+            } else if (("--base-url".equals(token) || "--base_url".equals(token)) && i + 1 < tokens.size()) {
+                options.baseUrl = tokens.get(++i);
             } else if ("--no-agent".equals(token)) {
                 options.noAgent = true;
-            } else if ("--raw".equals(token) || "--no-wrap".equals(token)) {
+            } else if ("--agent".equals(token)) {
+                options.agent = true;
+            } else if ("--wrap-response".equals(token) || "--wrap".equals(token)) {
+                options.wrapResponse = true;
+            } else if ("--raw".equals(token)
+                    || "--no-wrap".equals(token)
+                    || "--no-wrap-response".equals(token)) {
                 options.raw = true;
             } else {
                 options.positionals.add(token);
@@ -2735,11 +2772,16 @@ public class DefaultCommandService implements CommandService {
         private String workdir;
         private String contextFrom;
         private String enabledToolsets;
+        private String model;
+        private String provider;
+        private String baseUrl;
         private boolean clearScript;
         private boolean clearWorkdir;
         private boolean clearContextFrom;
         private boolean clearToolsets;
         private boolean noAgent;
+        private boolean agent;
+        private boolean wrapResponse;
         private boolean raw;
         private final List<String> positionals = new ArrayList<String>();
     }
