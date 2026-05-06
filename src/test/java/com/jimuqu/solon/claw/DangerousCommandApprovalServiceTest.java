@@ -428,6 +428,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldFailClosedForEmptyUrlsLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl("   ");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("URL");
+    }
+
+    @Test
+    void shouldAllowToolArgsWithoutUrls() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("query", "普通搜索内容，没有链接");
+
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkToolArgs("websearch", args);
+
+        assertThat(verdict.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockHermesStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

@@ -96,7 +96,7 @@ public class SecurityPolicyService {
     public UrlVerdict checkUrl(String url) {
         String raw = StrUtil.nullToEmpty(url).trim();
         if (raw.length() == 0) {
-            return UrlVerdict.allow();
+            return UrlVerdict.block(raw, "URL 缺少内容");
         }
 
         URI uri = parseUri(raw);
