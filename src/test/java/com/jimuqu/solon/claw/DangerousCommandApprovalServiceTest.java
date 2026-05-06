@@ -587,6 +587,34 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockHermesCliCredentialFilePathsForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        assertFileReadDenied(securityPolicyService, "~/.claude/.credentials.json");
+        assertFileReadDenied(securityPolicyService, "~/.hermes/.anthropic_oauth.json");
+        assertFileReadDenied(securityPolicyService, "~/.codex/auth.json");
+        assertFileReadDenied(securityPolicyService, "~/.qwen/oauth_creds.json");
+        assertFileReadDenied(
+                securityPolicyService,
+                "$HOME/.config/gcloud/application_default_credentials.json");
+
+        Map<String, Object> authNotes = new LinkedHashMap<String, Object>();
+        authNotes.put("fileName", "docs/auth.md");
+        Map<String, Object> tokenNotes = new LinkedHashMap<String, Object>();
+        tokenNotes.put("fileName", "docs/token-notes.md");
+        Map<String, Object> configExample = new LinkedHashMap<String, Object>();
+        configExample.put("fileName", "config.example.yml");
+
+        assertThat(securityPolicyService.checkFileToolArgs("file_read", authNotes).isAllowed())
+                .isTrue();
+        assertThat(securityPolicyService.checkFileToolArgs("file_read", tokenNotes).isAllowed())
+                .isTrue();
+        assertThat(securityPolicyService.checkFileToolArgs("file_read", configExample).isAllowed())
+                .isTrue();
+    }
+
+    @Test
     void shouldBlockHermesDevicePathsThatCanHangFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -843,6 +871,38 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(verdict.getMessage()).contains("凭据");
         assertThat(verdict.getPath()).isEqualTo("~/.aws/credentials");
+    }
+
+    @Test
+    void shouldBlockHermesCliCredentialPathsInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict claude =
+                securityPolicyService.checkCommandPaths("cat ~/.claude/.credentials.json");
+        SecurityPolicyService.FileVerdict codex =
+                securityPolicyService.checkCommandPaths("type ~/.codex/auth.json");
+        SecurityPolicyService.FileVerdict qwen =
+                securityPolicyService.checkCommandPaths("Get-Content ~/.qwen/oauth_creds.json");
+        SecurityPolicyService.FileVerdict gcloud =
+                securityPolicyService.checkCommandPaths(
+                        "cat ~/.config/gcloud/application_default_credentials.json");
+        SecurityPolicyService.FileVerdict safeAuthDoc =
+                securityPolicyService.checkCommandPaths("cat docs/auth.md");
+        SecurityPolicyService.FileVerdict safeTokenDoc =
+                securityPolicyService.checkCommandPaths("cat docs/token-notes.md");
+
+        assertThat(claude.isAllowed()).isFalse();
+        assertThat(claude.getPath()).isEqualTo("~/.claude/.credentials.json");
+        assertThat(codex.isAllowed()).isFalse();
+        assertThat(codex.getPath()).isEqualTo("~/.codex/auth.json");
+        assertThat(qwen.isAllowed()).isFalse();
+        assertThat(qwen.getPath()).isEqualTo("~/.qwen/oauth_creds.json");
+        assertThat(gcloud.isAllowed()).isFalse();
+        assertThat(gcloud.getPath())
+                .isEqualTo("~/.config/gcloud/application_default_credentials.json");
+        assertThat(safeAuthDoc.isAllowed()).isTrue();
+        assertThat(safeTokenDoc.isAllowed()).isTrue();
     }
 
     @Test
@@ -1387,6 +1447,17 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs("file_write", args);
         assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getPath()).isEqualTo(path);
+    }
+
+    private static void assertFileReadDenied(
+            SecurityPolicyService securityPolicyService, String path) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", path);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_read", args);
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("凭据");
         assertThat(verdict.getPath()).isEqualTo(path);
     }
 

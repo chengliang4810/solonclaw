@@ -43,7 +43,12 @@ public class SecurityPolicyService {
                     ".kube",
                     ".docker",
                     ".azure",
-                    ".config/gh");
+                    ".claude",
+                    ".hermes",
+                    ".codex",
+                    ".qwen",
+                    ".config/gh",
+                    ".config/gcloud");
     private static final List<String> CREDENTIAL_FILE_NAMES =
             Arrays.asList(
                     ".env",
@@ -54,11 +59,22 @@ public class SecurityPolicyService {
                     ".pgpass",
                     ".npmrc",
                     ".pypirc",
+                    ".credentials.json",
+                    ".anthropic_oauth.json",
+                    "oauth_creds.json",
+                    "application_default_credentials.json",
                     "authorized_keys",
                     "hosts.yml",
                     "id_rsa",
                     "id_ed25519",
                     "known_hosts");
+    private static final List<String> CREDENTIAL_PATH_SUFFIXES =
+            Arrays.asList(
+                    ".claude/.credentials.json",
+                    ".hermes/.anthropic_oauth.json",
+                    ".codex/auth.json",
+                    ".qwen/oauth_creds.json",
+                    ".config/gcloud/application_default_credentials.json");
     private static final List<String> WRITE_DENIED_EXACT_PATHS =
             Arrays.asList(
                     "/etc/sudoers",
@@ -101,7 +117,7 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials)|(?:\\.netrc)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_.-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials)|(?:\\.netrc)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:application_default_credentials\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_.-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
@@ -556,6 +572,12 @@ public class SecurityPolicyService {
 
     private boolean matchesCredentialPath(String normalized) {
         String path = stripKnownPrefix(normalized);
+        for (String suffix : CREDENTIAL_PATH_SUFFIXES) {
+            String normalizedSuffix = suffix.toLowerCase(Locale.ROOT);
+            if (path.equals(normalizedSuffix) || path.endsWith("/" + normalizedSuffix)) {
+                return true;
+            }
+        }
         for (String segment : CREDENTIAL_DIR_SEGMENTS) {
             String normalizedSegment = segment.toLowerCase(Locale.ROOT);
             if (path.equals(normalizedSegment) || path.contains("/" + normalizedSegment + "/")) {
