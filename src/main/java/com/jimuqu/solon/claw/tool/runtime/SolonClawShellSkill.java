@@ -114,7 +114,9 @@ public class SolonClawShellSkill extends ShellSkill {
                 securityPolicyService);
         Integer effectiveTimeout = normalizeForegroundTimeout(timeout, timeout != null);
         if (effectiveTimeout == null) {
-            return foregroundTimeoutExceededMessage(timeout);
+            return ToolResultEnvelope.error(foregroundTimeoutExceededMessage(timeout))
+                    .data("exit_code", Integer.valueOf(-1))
+                    .toJson();
         }
         String executableCode = rewriteCompoundBackground(code);
         SudoTransform transform = transformSudoCommand(executableCode);

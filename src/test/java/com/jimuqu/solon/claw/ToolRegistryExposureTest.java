@@ -432,6 +432,58 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRejectForegroundTerminalTimeoutsAboveConfiguredCap() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawShellSkill shell =
+                new SolonClawShellSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        env.processRegistry);
+
+        ONode executeTooLong =
+                ONode.ofJson(shell.execute(shortEchoCommand(), Integer.valueOf(600001)));
+        ONode terminalTooLong =
+                ONode.ofJson(
+                        shell.terminal(
+                                shortEchoCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(601),
+                                env.appConfig.getRuntime().getHome(),
+                                Boolean.FALSE));
+        ONode backgroundLong =
+                ONode.ofJson(
+                        shell.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(9999),
+                                env.appConfig.getRuntime().getHome(),
+                                Boolean.FALSE));
+        String backgroundSessionId = backgroundLong.get("session_id").getString();
+
+        assertThat(executeTooLong.get("success").getBoolean()).isFalse();
+        assertThat(executeTooLong.get("status").getString()).isEqualTo("error");
+        assertThat(executeTooLong.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(executeTooLong.get("error").getString())
+                .contains("600001ms")
+                .contains("600000ms")
+                .contains("background=true");
+
+        assertThat(terminalTooLong.get("success").getBoolean()).isFalse();
+        assertThat(terminalTooLong.get("status").getString()).isEqualTo("error");
+        assertThat(terminalTooLong.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(terminalTooLong.get("error").getString())
+                .contains("601000ms")
+                .contains("600000ms")
+                .contains("background=true");
+
+        assertThat(backgroundLong.get("success").getBoolean()).isTrue();
+        assertThat(backgroundLong.get("background").getBoolean()).isTrue();
+        assertThat(backgroundSessionId).isNotBlank();
+        env.processRegistry.stop(backgroundSessionId);
+    }
+
+    @Test
     void shouldPageManagedProcessLogs() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =
@@ -1483,6 +1535,13 @@ public class ToolRegistryExposureTest {
             return "echo line-1 & echo line-2 & echo line-3 & echo line-4";
         }
         return "printf 'line-1\\nline-2\\nline-3\\nline-4\\n'";
+    }
+
+    private String shortEchoCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo ok";
+        }
+        return "printf 'ok\\n'";
     }
 
     private String secretEchoCommand() {
