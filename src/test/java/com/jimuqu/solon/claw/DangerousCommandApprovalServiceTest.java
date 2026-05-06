@@ -1188,6 +1188,8 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.FileVerdict gcloud =
                 securityPolicyService.checkCommandPaths(
                         "cat ~/.config/gcloud/application_default_credentials.json");
+        SecurityPolicyService.FileVerdict bracedHome =
+                securityPolicyService.checkCommandPaths("cat ${HOME}/.codex/auth.json");
         SecurityPolicyService.FileVerdict safeAuthDoc =
                 securityPolicyService.checkCommandPaths("cat docs/auth.md");
         SecurityPolicyService.FileVerdict safeTokenDoc =
@@ -1202,6 +1204,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(gcloud.isAllowed()).isFalse();
         assertThat(gcloud.getPath())
                 .isEqualTo("~/.config/gcloud/application_default_credentials.json");
+        assertThat(bracedHome.isAllowed()).isFalse();
+        assertThat(bracedHome.getPath()).isEqualTo("${HOME}/.codex/auth.json");
         assertThat(safeAuthDoc.isAllowed()).isTrue();
         assertThat(safeTokenDoc.isAllowed()).isTrue();
     }
@@ -1235,11 +1239,15 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("type $env:USERPROFILE\\.ssh\\id_rsa");
         SecurityPolicyService.FileVerdict cmd =
                 securityPolicyService.checkCommandPaths("type %APPDATA%\\gh\\hosts.yml");
+        SecurityPolicyService.FileVerdict powershellAppData =
+                securityPolicyService.checkCommandPaths("type $env:APPDATA\\gh\\hosts.yml");
 
         assertThat(powershell.isAllowed()).isFalse();
         assertThat(powershell.getMessage()).contains("凭据");
         assertThat(cmd.isAllowed()).isFalse();
         assertThat(cmd.getMessage()).contains("凭据");
+        assertThat(powershellAppData.isAllowed()).isFalse();
+        assertThat(powershellAppData.getPath()).isEqualTo("$env:APPDATA\\gh\\hosts.yml");
     }
 
     @Test
@@ -1251,12 +1259,17 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("echo bad > /etc/shadow");
         SecurityPolicyService.FileVerdict profile =
                 securityPolicyService.checkCommandPaths("Set-Content ~/.bashrc bad");
+        SecurityPolicyService.FileVerdict envHomeProfile =
+                securityPolicyService.checkCommandPaths(
+                        "Set-Content $env:HOME/.bash_profile bad");
         SecurityPolicyService.FileVerdict systemd =
                 securityPolicyService.checkCommandPaths("cat service > /etc/systemd/system/evil.service");
 
         assertThat(shadow.isAllowed()).isFalse();
         assertThat(shadow.getMessage()).contains("系统文件");
         assertThat(profile.isAllowed()).isFalse();
+        assertThat(envHomeProfile.isAllowed()).isFalse();
+        assertThat(envHomeProfile.getPath()).isEqualTo("$env:HOME/.bash_profile");
         assertThat(systemd.isAllowed()).isFalse();
     }
 

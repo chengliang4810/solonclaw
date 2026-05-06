@@ -115,7 +115,7 @@ public class SecurityPolicyService {
                     "/dev/fd/2");
     private static final Pattern SHELL_PATH_PATTERN =
             Pattern.compile(
-                    "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
+                    "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
@@ -627,7 +627,10 @@ public class SecurityPolicyService {
     private boolean startsWithHomeLikePrefix(String normalized) {
         return normalized.startsWith("~/")
                 || normalized.startsWith("$home/")
+                || normalized.startsWith("${home}/")
+                || normalized.startsWith("$env:home/")
                 || normalized.startsWith("$env:userprofile/")
+                || normalized.startsWith("${userprofile}/")
                 || normalized.startsWith("%userprofile%/")
                 || normalized.startsWith("%homepath%/");
     }
@@ -707,8 +710,17 @@ public class SecurityPolicyService {
         if (value.startsWith("$home/")) {
             return value.substring("$home/".length());
         }
+        if (value.startsWith("${home}/")) {
+            return value.substring("${home}/".length());
+        }
+        if (value.startsWith("$env:home/")) {
+            return value.substring("$env:home/".length());
+        }
         if (value.startsWith("$env:userprofile/")) {
             return value.substring("$env:userprofile/".length());
+        }
+        if (value.startsWith("${userprofile}/")) {
+            return value.substring("${userprofile}/".length());
         }
         if (value.startsWith("%userprofile%/")) {
             return value.substring("%userprofile%/".length());
