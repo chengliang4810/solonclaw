@@ -197,10 +197,10 @@ public class SecurityPolicyService {
                 appConfig != null
                         && appConfig.getSecurity() != null
                         && appConfig.getSecurity().isAllowPrivateUrls();
-        boolean trustedPrivate = "https".equals(scheme) && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
+        boolean trustedPrivateHost = "https".equals(scheme) && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
 
         try {
-            InetAddress[] addresses = InetAddress.getAllByName(host);
+            InetAddress[] addresses = resolveHost(host);
             for (InetAddress address : addresses) {
                 String ip = address.getHostAddress();
                 if (isAlwaysBlockedIp(ip)
@@ -208,7 +208,9 @@ public class SecurityPolicyService {
                         || isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
-                if (!allowPrivate && !trustedPrivate && isPrivateOrInternal(address, ip)) {
+                if (!allowPrivate
+                        && isPrivateOrInternal(address, ip)
+                        && !(trustedPrivateHost && isTrustedPrivateAddress(address))) {
                     return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
                 }
             }
@@ -228,6 +230,10 @@ public class SecurityPolicyService {
             }
         }
         return UrlVerdict.allow();
+    }
+
+    protected InetAddress[] resolveHost(String host) throws Exception {
+        return InetAddress.getAllByName(host);
     }
 
     public FileVerdict checkFileToolArgs(String toolName, Map<String, Object> args) {
@@ -973,6 +979,16 @@ public class SecurityPolicyService {
         return (a == 192 && b == 0 && (c == 0 || c == 2))
                 || (a == 198 && b == 51 && c == 100)
                 || (a == 203 && b == 0 && c == 113);
+    }
+
+    private boolean isTrustedPrivateAddress(InetAddress address) {
+        byte[] rawAddress = address == null ? null : address.getAddress();
+        if (rawAddress == null || rawAddress.length != 4) {
+            return false;
+        }
+        int a = rawAddress[0] & 0xff;
+        int b = rawAddress[1] & 0xff;
+        return a == 198 && (b == 18 || b == 19);
     }
 
     private boolean isBlockedIpv6Address(byte[] rawAddress) {

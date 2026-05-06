@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.io.File;
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -512,6 +513,37 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(privateUrl.isAllowed()).isTrue();
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeHermesUrlSafety()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService benchmark =
+                new FixedDnsSecurityPolicyService(env.appConfig, "198.18.0.23");
+        SecurityPolicyService loopback =
+                new FixedDnsSecurityPolicyService(env.appConfig, "127.0.0.1");
+        SecurityPolicyService metadata =
+                new FixedDnsSecurityPolicyService(env.appConfig, "169.254.169.254");
+
+        SecurityPolicyService.UrlVerdict benchmarkVerdict =
+                benchmark.checkUrl("https://multimedia.nt.qq.com.cn/download?id=123");
+        SecurityPolicyService.UrlVerdict loopbackVerdict =
+                loopback.checkUrl("https://multimedia.nt.qq.com.cn/download?id=123");
+        SecurityPolicyService.UrlVerdict metadataVerdict =
+                metadata.checkUrl("https://multimedia.nt.qq.com.cn/download?id=123");
+        SecurityPolicyService.UrlVerdict httpVerdict =
+                benchmark.checkUrl("http://multimedia.nt.qq.com.cn/download?id=123");
+        SecurityPolicyService.UrlVerdict subdomainVerdict =
+                benchmark.checkUrl("https://sub.multimedia.nt.qq.com.cn/download?id=123");
+
+        assertThat(benchmarkVerdict.isAllowed()).isTrue();
+        assertThat(loopbackVerdict.isAllowed()).isFalse();
+        assertThat(loopbackVerdict.getMessage()).contains("内网");
+        assertThat(metadataVerdict.isAllowed()).isFalse();
+        assertThat(metadataVerdict.getMessage()).contains("元数据");
+        assertThat(httpVerdict.isAllowed()).isFalse();
+        assertThat(subdomainVerdict.isAllowed()).isFalse();
     }
 
     @Test
@@ -1473,6 +1505,21 @@ public class DangerousCommandApprovalServiceTest {
         public TirithSecurityService.ScanResult checkCommandSecurityForTool(
                 String toolName, String command) {
             return result;
+        }
+    }
+
+    private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
+        private final String ip;
+
+        private FixedDnsSecurityPolicyService(
+                com.jimuqu.solon.claw.config.AppConfig appConfig, String ip) {
+            super(appConfig);
+            this.ip = ip;
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            return new InetAddress[] {InetAddress.getByName(ip)};
         }
     }
 
