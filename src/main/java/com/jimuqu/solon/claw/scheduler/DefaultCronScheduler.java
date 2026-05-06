@@ -1145,7 +1145,16 @@ public class DefaultCronScheduler {
         if (!job.isWrapResponse()) {
             return content;
         }
-        return "定时任务：" + StrUtil.blankToDefault(job.getName(), job.getJobId()) + "\n\n" + content;
+        String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
+        return "Cronjob Response: "
+                + taskName
+                + "\n(job_id: "
+                + job.getJobId()
+                + ")\n-------------\n\n"
+                + content
+                + "\n\nTo stop or manage this job, send me a new message (e.g. \"stop reminder "
+                + taskName
+                + "\").";
     }
 
     private Map<String, List<CronJobRecord>> groupBySource(List<CronJobRecord> jobs) {

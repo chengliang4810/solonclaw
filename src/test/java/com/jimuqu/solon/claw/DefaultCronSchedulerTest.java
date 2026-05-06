@@ -112,8 +112,10 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastOutput()).contains("disk ok");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("定时任务：watchdog")
-                .contains("disk ok");
+                .contains("Cronjob Response: watchdog")
+                .contains("(job_id: " + job.getJobId() + ")")
+                .contains("disk ok")
+                .contains("To stop or manage this job");
     }
 
     @Test
@@ -156,6 +158,35 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastOutput()).contains("path-ok");
+    }
+
+    @Test
+    void shouldNotWrapCronDeliveryWhenDisabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "raw-output");
+        body.put("schedule", "30m");
+        body.put("prompt", "raw prompt");
+        body.put("deliver", "origin");
+        body.put("wrap_response", Boolean.FALSE);
+        CronJobRecord job = service.create("MEMORY:raw-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText())
+                .isEqualTo("echo:raw prompt")
+                .doesNotContain("Cronjob Response");
     }
 
     @Test
