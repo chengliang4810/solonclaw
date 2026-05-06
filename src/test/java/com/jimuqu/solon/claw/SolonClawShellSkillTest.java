@@ -358,6 +358,158 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldLeaveTerminalOutputUnchangedWhenNoTransformerIsRegistered() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo plain-output",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("output").getString()).contains("plain-output");
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(result.get("error").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldIgnoreNullTerminalOutputTransformerResultLikeHermesHook() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+        skill.addOutputTransformer(
+                context -> {
+                    assertThat(context.getOutput()).contains("plain-output");
+                    return null;
+                });
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo plain-output",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("output").getString()).contains("plain-output");
+    }
+
+    @Test
+    void shouldUseFirstValidTerminalOutputTransformerResult() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+        skill.addOutputTransformer(context -> null);
+        skill.addOutputTransformer(context -> "first-replacement");
+        skill.addOutputTransformer(context -> "second-replacement");
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo plain-output",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("output").getString()).isEqualTo("first-replacement");
+    }
+
+    @Test
+    void shouldFallbackToOriginalTerminalOutputWhenTransformerThrows() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+        skill.addOutputTransformer(
+                context -> {
+                    throw new RuntimeException("boom");
+                });
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo plain-output",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("output").getString()).contains("plain-output");
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(result.get("error").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldStillNormalizeTransformedTerminalOutputLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTask().setToolOutputInlineLimit(300);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+        skill.addOutputTransformer(
+                context ->
+                        "PLUGIN-HEAD\n"
+                                + repeat("A", 600)
+                                + "\napi_key=sk-test-secret \u001B[31mPLUGIN-TAIL\u001B[0m");
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo plain-output",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        String output = result.get("output").getString();
+        assertThat(output)
+                .contains("PLUGIN-HEAD")
+                .contains("PLUGIN-TAIL")
+                .contains("OUTPUT TRUNCATED")
+                .contains("api_key=***")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("\u001B");
+    }
+
+    @Test
+    void shouldKeepExitCodeWhenTerminalOutputIsTransformed() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+        skill.addOutputTransformer(context -> "replaced-output");
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                terminalExitCommand(7),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("output").getString()).isEqualTo("replaced-output");
+        assertThat(result.get("exit_code").getInt()).isEqualTo(7);
+    }
+
+    @Test
+    void shouldApplyTerminalOutputTransformerToExecuteShellCompatibilityTool()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+        skill.addOutputTransformer(context -> "execute-shell-replacement");
+
+        String result = skill.execute("echo plain-output", Integer.valueOf(10000));
+
+        assertThat(result).isEqualTo("execute-shell-replacement");
+    }
+
+    @Test
     void shouldRedactSecretsFromForegroundTerminalOutputAndBackgroundMetadata()
             throws Exception {
         AppConfig config = new AppConfig();
@@ -669,6 +821,14 @@ public class SolonClawShellSkillTest {
             return "powershell -NoProfile -Command \"$null=[Console]::In.ReadToEnd(); Write-Output stdin-closed\"";
         }
         return "cat >/dev/null; printf 'stdin-closed\\n'";
+    }
+
+    private String repeat(String value, int count) {
+        StringBuilder builder = new StringBuilder(value.length() * count);
+        for (int i = 0; i < count; i++) {
+            builder.append(value);
+        }
+        return builder.toString();
     }
 }
 

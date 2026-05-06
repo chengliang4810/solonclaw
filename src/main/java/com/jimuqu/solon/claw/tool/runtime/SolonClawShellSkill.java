@@ -11,8 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
@@ -30,6 +32,8 @@ public class SolonClawShellSkill extends ShellSkill {
     private final ProcessRegistry processRegistry;
     private final String shellCmd;
     private final String extension;
+    private final List<TerminalOutputTransformer> outputTransformers =
+            new CopyOnWriteArrayList<TerminalOutputTransformer>();
 
     public SolonClawShellSkill(String workDir, AppConfig appConfig) {
         this(workDir, defaultShellCmd(), defaultExtension(), appConfig, null, null);
@@ -80,6 +84,18 @@ public class SolonClawShellSkill extends ShellSkill {
         this.processRegistry = processRegistry == null ? new ProcessRegistry() : processRegistry;
         this.shellCmd = shellCmd;
         this.extension = extension;
+    }
+
+    public void addOutputTransformer(TerminalOutputTransformer transformer) {
+        if (transformer != null) {
+            outputTransformers.add(transformer);
+        }
+    }
+
+    public void removeOutputTransformer(TerminalOutputTransformer transformer) {
+        if (transformer != null) {
+            outputTransformers.remove(transformer);
+        }
     }
 
     @Override
@@ -181,7 +197,13 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private String terminalResult(String originalCommand, ForegroundResult result) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("output", normalizeTerminalOutput(outputWithTimeoutNotice(result)).trim());
+        String output =
+                transformTerminalOutput(
+                        originalCommand,
+                        outputWithTimeoutNotice(result),
+                        result.getExitCode(),
+                        result.getError());
+        map.put("output", normalizeTerminalOutput(output).trim());
         map.put("exit_code", result.getExitCode());
         map.put("error", result.getError());
         String meaning = TerminalExitCodeSemantics.interpret(originalCommand, result.getExitCode());
@@ -431,6 +453,7 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private String executeWithStdin(String code, String stdin, Integer timeoutMs) {
         ForegroundResult result = executeForeground(code, stdin, timeoutMs, workPath.toFile());
+        String output;
         if (result.getError() != null) {
             if (result.isTimedOut()) {
                 String timeoutNotice =
@@ -439,12 +462,34 @@ public class SolonClawShellSkill extends ShellSkill {
                                 + " 毫秒。"
                                 + " "
                                 + StrUtil.blankToDefault(result.getError(), "Command timed out");
-                return outputWithNotice(result.getOutput(), timeoutNotice).trim();
+                output = outputWithNotice(result.getOutput(), timeoutNotice).trim();
+                return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
             }
-            return result.getError();
+            output = result.getError();
+            return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
         }
-        String output = StrUtil.nullToEmpty(result.getOutput()).trim();
-        return output.length() == 0 ? "执行成功" : output;
+        output = StrUtil.nullToEmpty(result.getOutput()).trim();
+        output = output.length() == 0 ? "执行成功" : output;
+        return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
+    }
+
+    private String transformTerminalOutput(
+            String command, String output, Integer exitCode, String error) {
+        String value = StrUtil.nullToEmpty(output);
+        if (outputTransformers.isEmpty()) {
+            return value;
+        }
+        TerminalOutputContext context = new TerminalOutputContext(command, value, exitCode, error);
+        for (TerminalOutputTransformer transformer : outputTransformers) {
+            try {
+                String transformed = transformer.transform(context);
+                if (transformed != null) {
+                    return transformed;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return value;
     }
 
     private String outputWithTimeoutNotice(ForegroundResult result) {
@@ -703,6 +748,40 @@ public class SolonClawShellSkill extends ShellSkill {
 
         public boolean isChanged() {
             return changed;
+        }
+    }
+
+    public interface TerminalOutputTransformer {
+        String transform(TerminalOutputContext context) throws Exception;
+    }
+
+    public static class TerminalOutputContext {
+        private final String command;
+        private final String output;
+        private final Integer exitCode;
+        private final String error;
+
+        private TerminalOutputContext(String command, String output, Integer exitCode, String error) {
+            this.command = command;
+            this.output = output;
+            this.exitCode = exitCode;
+            this.error = error;
+        }
+
+        public String getCommand() {
+            return command;
+        }
+
+        public String getOutput() {
+            return output;
+        }
+
+        public Integer getExitCode() {
+            return exitCode;
+        }
+
+        public String getError() {
+            return error;
         }
     }
 
