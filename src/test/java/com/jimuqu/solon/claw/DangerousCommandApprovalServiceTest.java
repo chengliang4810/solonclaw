@@ -128,6 +128,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult nul =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git\u0000 reset --hard");
+        DangerousCommandApprovalService.DetectionResult c1Csi =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "\u009B31mrm\u009B0m -rf /");
 
         assertThat(oscTitle).isNotNull();
         assertThat(oscTitle.getPatternKey()).isEqualTo("recursive_delete");
@@ -135,6 +138,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(unicode.getPatternKey()).isEqualTo("recursive_delete_long_flag");
         assertThat(nul).isNotNull();
         assertThat(nul.getPatternKey()).isEqualTo("git_reset_hard");
+        assertThat(c1Csi).isNotNull();
+        assertThat(c1Csi.getPatternKey()).isEqualTo("delete_root");
     }
 
     @Test
