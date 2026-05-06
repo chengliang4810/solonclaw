@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -82,6 +83,7 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final SessionRepository sessionRepository;
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
     private final LlmProviderService llmProviderService;
+    private final ToolResultTransformService toolResultTransformService;
     private volatile PdfSkill pdfSkill;
 
     public SolonAiLlmGateway(AppConfig appConfig) {
@@ -104,11 +106,29 @@ public class SolonAiLlmGateway implements LlmGateway {
             SessionRepository sessionRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             LlmProviderService llmProviderService) {
+        this(
+                appConfig,
+                sessionRepository,
+                dangerousCommandApprovalService,
+                llmProviderService,
+                null);
+    }
+
+    public SolonAiLlmGateway(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            LlmProviderService llmProviderService,
+            ToolResultTransformService toolResultTransformService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.llmProviderService =
                 llmProviderService == null ? new LlmProviderService(appConfig) : llmProviderService;
+        this.toolResultTransformService =
+                toolResultTransformService == null
+                        ? new ToolResultTransformService()
+                        : toolResultTransformService;
         if (this.dangerousCommandApprovalService != null) {
             this.dangerousCommandApprovalService.setSmartApprovalJudge(
                     new SolonAiSmartApprovalJudge());
@@ -886,6 +906,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (dangerousCommandApprovalService != null) {
             builder.defaultInterceptorAdd(dangerousCommandApprovalService.buildInterceptor());
         }
+        builder.defaultInterceptorAdd(toolResultTransformService.buildInterceptor());
         ToolResultStorageService toolResultStorageService =
                 new ToolResultStorageService(
                         appConfig.getRuntime().getCacheDir(),
