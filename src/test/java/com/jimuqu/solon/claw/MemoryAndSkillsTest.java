@@ -352,6 +352,75 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldResolveLegacyCacheDirectoriesLikeHermesCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File documentCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "document_cache");
+        File imageCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "image_cache");
+        FileUtil.mkdir(documentCache);
+        FileUtil.mkdir(imageCache);
+
+        SkillCredentialFileService service = new SkillCredentialFileService(env.appConfig);
+        List<SkillCredentialFileService.DirectoryMount> mounts = service.cacheDirectoryMounts();
+
+        assertThat(mounts).hasSize(2);
+        assertThat(mounts.get(0).getHostPath()).isEqualTo(documentCache.getAbsolutePath());
+        assertThat(mounts.get(0).getContainerPath())
+                .isEqualTo("/root/.jimuqu-agent/cache/documents");
+        assertThat(mounts.get(1).getHostPath()).isEqualTo(imageCache.getAbsolutePath());
+        assertThat(mounts.get(1).getContainerPath())
+                .isEqualTo("/root/.jimuqu-agent/cache/images");
+    }
+
+    @Test
+    void shouldIterateSkillsAndCacheFilesSkippingSymlinksLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("iter-skill", "ops", skill("iter-skill", "iter"));
+        File skillDir = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "ops", "iter-skill");
+        FileUtil.writeUtf8String("script", FileUtil.file(skillDir, "scripts", "run.ps1"));
+        File screenshotDir =
+                FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "screenshots", "session-a");
+        FileUtil.mkdir(screenshotDir);
+        FileUtil.writeUtf8String("png", FileUtil.file(screenshotDir, "screen1.png"));
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(
+                    FileUtil.file(skillDir, "scripts", "secret-link.txt").toPath(),
+                    FileUtil.file(env.appConfig.getRuntime().getHome(), "secret.txt").toPath());
+            java.nio.file.Files.createSymbolicLink(
+                    FileUtil.file(screenshotDir, "screen-link.png").toPath(),
+                    FileUtil.file(screenshotDir, "screen1.png").toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+
+        SkillCredentialFileService service = new SkillCredentialFileService(env.appConfig);
+        List<SkillCredentialFileService.FileMount> skillFiles = service.iterSkillsFiles();
+        List<SkillCredentialFileService.FileMount> cacheFiles = service.iterCacheFiles();
+        List<String> skillContainerPaths = new java.util.ArrayList<String>();
+        for (SkillCredentialFileService.FileMount mount : skillFiles) {
+            skillContainerPaths.add(mount.getContainerPath());
+        }
+        List<String> cacheContainerPaths = new java.util.ArrayList<String>();
+        for (SkillCredentialFileService.FileMount mount : cacheFiles) {
+            cacheContainerPaths.add(mount.getContainerPath());
+        }
+
+        assertThat(skillContainerPaths)
+                .contains(
+                        "/root/.jimuqu-agent/skills/ops/iter-skill/SKILL.md",
+                        "/root/.jimuqu-agent/skills/ops/iter-skill/scripts/run.ps1");
+        assertThat(cacheContainerPaths)
+                .contains("/root/.jimuqu-agent/cache/screenshots/session-a/screen1.png");
+        if (symlinkCreated) {
+            assertThat(skillContainerPaths.toString()).doesNotContain("secret-link.txt");
+            assertThat(cacheContainerPaths.toString()).doesNotContain("screen-link.png");
+        }
+    }
+
+    @Test
     void shouldCreateSymlinkSafeSkillsMountLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("safe-skill", null, skill("safe-skill", "safe"));

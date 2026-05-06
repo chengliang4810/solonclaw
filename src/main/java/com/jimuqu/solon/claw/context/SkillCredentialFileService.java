@@ -16,16 +16,16 @@ import java.util.Map;
 /** Hermes-style validation for skill-declared credential files. */
 public class SkillCredentialFileService {
     private static final String DEFAULT_CONTAINER_BASE = "/root/.jimuqu-agent";
-    private static final List<String> CACHE_MOUNT_DIRS =
+    private static final List<CacheMountDirectory> CACHE_MOUNT_DIRS =
             Collections.unmodifiableList(
                     Arrays.asList(
-                            "documents",
-                            "images",
-                            "audio",
-                            "screenshots",
-                            "media",
-                            "pdf",
-                            "tool-results"));
+                            new CacheMountDirectory("documents", "document_cache"),
+                            new CacheMountDirectory("images", "image_cache"),
+                            new CacheMountDirectory("audio", "audio_cache"),
+                            new CacheMountDirectory("screenshots", "browser_screenshots"),
+                            new CacheMountDirectory("media", null),
+                            new CacheMountDirectory("pdf", null),
+                            new CacheMountDirectory("tool-results", null)));
 
     private final AppConfig appConfig;
     private final File runtimeHome;
@@ -96,22 +96,58 @@ public class SkillCredentialFileService {
                         stripTrailingSlash(base.replace('\\', '/')) + "/skills"));
     }
 
+    public List<FileMount> iterSkillsFiles() {
+        return iterSkillsFiles(DEFAULT_CONTAINER_BASE);
+    }
+
+    public List<FileMount> iterSkillsFiles(String containerBase) {
+        String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
+                .replace('\\', '/'));
+        List<FileMount> files = new ArrayList<FileMount>();
+        if (!skillsDir.isDirectory() || isSymbolicLink(skillsDir)) {
+            return files;
+        }
+        collectFiles(skillsDir, skillsDir, base + "/skills", files);
+        return files;
+    }
+
+    public List<DirectoryMount> cacheDirectoryMounts() {
+        return cacheDirectoryMounts(DEFAULT_CONTAINER_BASE);
+    }
+
     public List<DirectoryMount> cacheDirectoryMounts(String containerBase) {
         String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
-        if (!cacheDir.isDirectory()) {
-            return Collections.emptyList();
-        }
         List<DirectoryMount> mounts = new ArrayList<DirectoryMount>();
-        for (String name : CACHE_MOUNT_DIRS) {
-            File dir = new File(cacheDir, name);
+        for (CacheMountDirectory directory : CACHE_MOUNT_DIRS) {
+            File dir = resolveCacheDirectory(directory);
             if (dir.isDirectory()) {
                 mounts.add(
                         new DirectoryMount(
                                 dir.getAbsolutePath(),
-                                stripTrailingSlash(base.replace('\\', '/')) + "/cache/" + name));
+                                stripTrailingSlash(base.replace('\\', '/'))
+                                        + "/cache/"
+                                        + directory.containerName));
             }
         }
         return mounts;
+    }
+
+    public List<FileMount> iterCacheFiles() {
+        return iterCacheFiles(DEFAULT_CONTAINER_BASE);
+    }
+
+    public List<FileMount> iterCacheFiles(String containerBase) {
+        String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
+                .replace('\\', '/'));
+        List<FileMount> files = new ArrayList<FileMount>();
+        for (CacheMountDirectory directory : CACHE_MOUNT_DIRS) {
+            File dir = resolveCacheDirectory(directory);
+            if (!dir.isDirectory() || isSymbolicLink(dir)) {
+                continue;
+            }
+            collectFiles(dir, dir, base + "/cache/" + directory.containerName, files);
+        }
+        return files;
     }
 
     public CredentialFilePlan plan(Object rawEntries, String containerBase) {
@@ -221,6 +257,50 @@ public class SkillCredentialFileService {
         }
     }
 
+    private void collectFiles(File root, File current, String containerRoot, List<FileMount> files) {
+        if (current == null || !current.exists() || isSymbolicLink(current)) {
+            return;
+        }
+        if (current.isFile()) {
+            String relativePath = relativePath(root, current);
+            if (StrUtil.isBlank(relativePath)) {
+                return;
+            }
+            files.add(
+                    new FileMount(
+                            current.getAbsolutePath(),
+                            containerRoot + "/" + relativePath.replace('\\', '/')));
+            return;
+        }
+        File[] children = current.listFiles();
+        if (children == null) {
+            return;
+        }
+        for (File child : children) {
+            collectFiles(root, child, containerRoot, files);
+        }
+    }
+
+    private String relativePath(File root, File file) {
+        try {
+            Path rootPath = root.toPath().toAbsolutePath().normalize();
+            Path filePath = file.toPath().toAbsolutePath().normalize();
+            return rootPath.relativize(filePath).toString();
+        } catch (Exception e) {
+            return file.getName();
+        }
+    }
+
+    private File resolveCacheDirectory(CacheMountDirectory directory) {
+        if (StrUtil.isNotBlank(directory.legacyName)) {
+            File legacy = new File(runtimeHome, directory.legacyName);
+            if (legacy.isDirectory()) {
+                return legacy;
+            }
+        }
+        return new File(cacheDir, directory.containerName);
+    }
+
     private boolean isSymbolicLink(File file) {
         try {
             Path path = file.toPath();
@@ -295,6 +375,16 @@ public class SkillCredentialFileService {
             return value == null ? "" : String.valueOf(value).trim();
         }
         return String.valueOf(entry).trim();
+    }
+
+    private static class CacheMountDirectory {
+        private final String containerName;
+        private final String legacyName;
+
+        private CacheMountDirectory(String containerName, String legacyName) {
+            this.containerName = containerName;
+            this.legacyName = legacyName;
+        }
     }
 
     public static class CredentialFilePlan {
@@ -375,6 +465,31 @@ public class SkillCredentialFileService {
         private final String containerPath;
 
         public DirectoryMount(String hostPath, String containerPath) {
+            this.hostPath = hostPath;
+            this.containerPath = containerPath;
+        }
+
+        public String getHostPath() {
+            return hostPath;
+        }
+
+        public String getContainerPath() {
+            return containerPath;
+        }
+
+        private Map<String, Object> toMetadata() {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("host_path", hostPath);
+            map.put("container_path", containerPath);
+            return map;
+        }
+    }
+
+    public static class FileMount {
+        private final String hostPath;
+        private final String containerPath;
+
+        public FileMount(String hostPath, String containerPath) {
             this.hostPath = hostPath;
             this.containerPath = containerPath;
         }
