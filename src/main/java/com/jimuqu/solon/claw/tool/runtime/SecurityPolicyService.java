@@ -107,6 +107,8 @@ public class SecurityPolicyService {
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
     private static final Pattern PROC_STDIO_FD_PATTERN =
             Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
+    private static final Pattern RAW_BLOCK_DEVICE_PATTERN =
+            Pattern.compile("^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?i)(https?://[^\\s)>'\"]+|(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}(?::\\d+)?/[^\\s)>'\"]*)");
@@ -271,6 +273,9 @@ public class SecurityPolicyService {
         }
         if (matchesBlockedDevicePath(normalized)) {
             return FileVerdict.block(path, "读取设备文件可能导致无限输出或阻塞，已阻断");
+        }
+        if (writeLike && matchesRawBlockDevicePath(normalized)) {
+            return FileVerdict.block(path, "写入裸块设备可能破坏磁盘数据，已阻断");
         }
         if (!writeLike && matchesBlockedInternalReadPath(normalized)) {
             return FileVerdict.block(path, "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
@@ -531,6 +536,10 @@ public class SecurityPolicyService {
             return true;
         }
         return PROC_STDIO_FD_PATTERN.matcher(normalized).matches();
+    }
+
+    private boolean matchesRawBlockDevicePath(String normalized) {
+        return RAW_BLOCK_DEVICE_PATTERN.matcher(normalized).matches();
     }
 
     private boolean matchesBlockedInternalReadPath(String normalized) {

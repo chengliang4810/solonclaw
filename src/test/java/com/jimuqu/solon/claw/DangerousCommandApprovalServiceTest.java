@@ -669,6 +669,25 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockRawBlockDeviceWritesForAllFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        assertWriteDenied(securityPolicyService, "/dev/sda");
+        assertWriteDenied(securityPolicyService, "/dev/sda1");
+        assertWriteDenied(securityPolicyService, "/dev/nvme0n1");
+        assertWriteDenied(securityPolicyService, "/dev/nvme0n1p1");
+        assertWriteDenied(securityPolicyService, "/dev/mmcblk0p1");
+
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", "/dev/sda-notes.txt");
+        SecurityPolicyService.FileVerdict safe =
+                securityPolicyService.checkFileToolArgs("file_write", args);
+
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockHermesWriteDeniedHomeFilesForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
