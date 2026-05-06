@@ -276,6 +276,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectGitCleanLongForceLikeHermesApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult shortForce =
+                env.dangerousCommandApprovalService.detect("execute_shell", "git clean -fd");
+        DangerousCommandApprovalService.DetectionResult longForce =
+                env.dangerousCommandApprovalService.detect("execute_shell", "git clean --force");
+        DangerousCommandApprovalService.DetectionResult longForceWithDirectory =
+                env.dangerousCommandApprovalService.detect("execute_shell", "git clean --force -d");
+        DangerousCommandApprovalService.DetectionResult reorderedLongForce =
+                env.dangerousCommandApprovalService.detect("execute_shell", "git clean -d --force");
+        DangerousCommandApprovalService.DetectionResult dryRun =
+                env.dangerousCommandApprovalService.detect("execute_shell", "git clean -n");
+
+        assertThat(shortForce).isNotNull();
+        assertThat(shortForce.getPatternKey()).isEqualTo("git_clean_force");
+        assertThat(longForce).isNotNull();
+        assertThat(longForce.getPatternKey()).isEqualTo("git_clean_force");
+        assertThat(longForceWithDirectory).isNotNull();
+        assertThat(longForceWithDirectory.getPatternKey()).isEqualTo("git_clean_force");
+        assertThat(reorderedLongForce).isNotNull();
+        assertThat(reorderedLongForce.getPatternKey()).isEqualTo("git_clean_force");
+        assertThat(dryRun).isNull();
+    }
+
+    @Test
     void shouldWarnForForegroundBackgroundShellPatterns() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

@@ -307,7 +307,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "git_clean_force",
                                     "git clean with force (deletes untracked files)",
-                                    pattern("\\bgit\\s+clean\\s+-[^\\s]*f"),
+                                    pattern("\\bgit\\s+clean\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
