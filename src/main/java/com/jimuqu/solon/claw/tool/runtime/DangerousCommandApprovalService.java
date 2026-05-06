@@ -1716,6 +1716,7 @@ public class DangerousCommandApprovalService {
         String normalized = StrUtil.nullToEmpty(code).replace("\u0000", "");
         normalized = ANSI_CONTROL_SEQUENCE.matcher(normalized).replaceAll("");
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC);
+        normalized = normalized.replaceAll("\\\\\\r?\\n", " ");
         return normalized.trim();
     }
 
