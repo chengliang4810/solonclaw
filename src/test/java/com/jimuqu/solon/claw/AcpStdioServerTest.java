@@ -199,6 +199,39 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldReturnHermesStylePromptUpdatesAndUsage() throws Exception {
+        TestEnvironment env = TestEnvironment.withLlm(new ToolEventGateway());
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String sessionId = extractSessionId(newAcpSession(server, 38));
+        String prompted =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":39,\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"prompt\":[{\"type\":\"text\",\"text\":\"hello updates\"}]}}");
+
+        assertThat(prompted)
+                .contains("\"id\":39")
+                .contains("\"session_updates\"")
+                .contains("\"available_commands_update\"")
+                .contains("\"tool_call_start\"")
+                .contains("\"tool_call_update\"")
+                .contains("\"agent_thought_chunk\"")
+                .contains("\"usage_update\"")
+                .contains("\"input_tokens\":13")
+                .contains("\"total_tokens\":34")
+                .contains("\"context_estimate_tokens\"")
+                .contains("\"context_window_tokens\"")
+                .contains("\"input\":{\"kind\":\"unstructured\"")
+                .contains("echo:hello updates")
+                .doesNotContain("[tool.start]");
+    }
+
+    @Test
     void shouldRegisterAcpMcpServersThroughDashboardMcpService() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
@@ -535,6 +568,45 @@ public class AcpStdioServerTest {
             result.setInputTokens(1L);
             result.setOutputTokens(1L);
             result.setTotalTokens(2L);
+            return result;
+        }
+    }
+
+    private static class ToolEventGateway extends FakeLlmGateway {
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                java.util.List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            java.util.Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
+            args.put("command", "echo updates");
+            eventSink.onReasoningDelta("thinking");
+            eventSink.onToolStarted("terminal", args);
+            eventSink.onToolCompleted("terminal", "{\"ok\":true}", 12L);
+
+            LlmResult result = super.executeOnce(
+                    session,
+                    systemPrompt,
+                    userMessage,
+                    toolObjects,
+                    feedbackSink,
+                    eventSink,
+                    resume,
+                    resolved,
+                    runContext);
+            session.setLastInputTokens(33L);
+            session.setLastOutputTokens(44L);
+            session.setLastTotalTokens(77L);
+            session.setLastReasoningTokens(5L);
+            session.setLastCacheReadTokens(6L);
+            session.setLastCacheWriteTokens(7L);
             return result;
         }
     }

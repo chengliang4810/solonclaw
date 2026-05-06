@@ -315,6 +315,12 @@ public class AcpStdioServer {
         result.put("stopReason", state.isCancelled() ? "cancelled" : "end_turn");
         result.put("message", message("assistant", finalText));
         result.put("content", contentBlocks(finalText));
+        result.put("session_updates", promptUpdates(state, sink, reply));
+        result.put("sessionUpdates", result.get("session_updates"));
+        Map<String, Object> usage = usage(reply, state);
+        if (!usage.isEmpty()) {
+            result.put("usage", usage);
+        }
         if (StrUtil.isNotBlank(sink.reasoningText())) {
             result.put("thought", sink.reasoningText());
         }
@@ -582,7 +588,139 @@ public class AcpStdioServer {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("name", name);
         item.put("description", description);
+        if ("model".equals(name)) {
+            item.put("input", unstructuredInput("模型 ID，例如 openai:gpt-5.1"));
+        } else if ("busy".equals(name)) {
+            item.put("input", unstructuredInput("queue、steer 或 interrupt"));
+        } else if ("goal".equals(name)) {
+            item.put("input", unstructuredInput("长目标描述"));
+        }
         commands.add(item);
+    }
+
+    private Map<String, Object> unstructuredInput(String hint) {
+        Map<String, Object> input = new LinkedHashMap<String, Object>();
+        input.put("kind", "unstructured");
+        input.put("hint", hint);
+        return input;
+    }
+
+    private List<Map<String, Object>> promptUpdates(
+            AcpSessionManager.AcpSessionState state, AcpEventSink sink, GatewayReply reply)
+            throws Exception {
+        List<Map<String, Object>> updates = new ArrayList<Map<String, Object>>();
+        Map<String, Object> commandsUpdate = new LinkedHashMap<String, Object>();
+        commandsUpdate.put("session_update", "available_commands_update");
+        commandsUpdate.put("type", "available_commands_update");
+        commandsUpdate.put("available_commands", commands());
+        commandsUpdate.put("availableCommands", commandsUpdate.get("available_commands"));
+        updates.add(commandsUpdate);
+        updates.addAll(sink.updates());
+        Map<String, Object> usageUpdate = usageUpdate(reply, state);
+        if (!usageUpdate.isEmpty()) {
+            updates.add(usageUpdate);
+        }
+        return updates;
+    }
+
+    private Map<String, Object> usageUpdate(GatewayReply reply, AcpSessionManager.AcpSessionState state)
+            throws Exception {
+        Map<String, Object> usage = usage(reply, state);
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        if (usage.isEmpty()) {
+            return update;
+        }
+        update.put("session_update", "usage_update");
+        update.put("type", "usage_update");
+        long used =
+                Math.max(
+                        longValue(usage.get("context_estimate_tokens")),
+                        longValue(usage.get("total_tokens")));
+        long size = longValue(usage.get("context_window_tokens"));
+        update.put("used", Long.valueOf(used));
+        update.put("size", Long.valueOf(size > 0L ? size : Math.max(used, 0L)));
+        update.put("usage", usage);
+        return update;
+    }
+
+    private Map<String, Object> usage(GatewayReply reply, AcpSessionManager.AcpSessionState state)
+            throws Exception {
+        Map<String, Object> usage = new LinkedHashMap<String, Object>();
+        Map<String, Object> runtime = reply == null ? null : reply.getRuntimeMetadata();
+        putLong(usage, "input_tokens", runtimeValue(runtime, "input_tokens"));
+        putLong(usage, "output_tokens", runtimeValue(runtime, "output_tokens"));
+        putLong(usage, "total_tokens", runtimeValue(runtime, "total_tokens"));
+        putLong(usage, "thought_tokens", runtimeValue(runtime, "reasoning_tokens"));
+        putLong(usage, "cached_read_tokens", runtimeValue(runtime, "cache_read_tokens"));
+        putLong(usage, "cached_write_tokens", runtimeValue(runtime, "cache_write_tokens"));
+        putLong(usage, "context_estimate_tokens", runtimeValue(runtime, "context_estimate_tokens"));
+        putLong(usage, "context_window_tokens", runtimeValue(runtime, "context_window_tokens"));
+        if (sessionRepository != null && state != null) {
+            SessionRecord record = sessionRepository.findById(state.getSessionId());
+            if (record != null) {
+                putLongIfMissing(usage, "input_tokens", Long.valueOf(record.getLastInputTokens()));
+                putLongIfMissing(usage, "output_tokens", Long.valueOf(record.getLastOutputTokens()));
+                putLongIfMissing(usage, "total_tokens", Long.valueOf(record.getLastTotalTokens()));
+                putLongIfMissing(usage, "thought_tokens", Long.valueOf(record.getLastReasoningTokens()));
+                putLongIfMissing(usage, "cached_read_tokens", Long.valueOf(record.getLastCacheReadTokens()));
+                putLongIfMissing(usage, "cached_write_tokens", Long.valueOf(record.getLastCacheWriteTokens()));
+            }
+        }
+        return usage;
+    }
+
+    private Object runtimeValue(Map<String, Object> runtime, String key) {
+        if (runtime == null || runtime.isEmpty()) {
+            return null;
+        }
+        Object value = runtime.get(key);
+        if (value == null) {
+            value = runtime.get(camelCase(key));
+        }
+        return value;
+    }
+
+    private String camelCase(String value) {
+        StringBuilder result = new StringBuilder();
+        boolean upper = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '_') {
+                upper = true;
+                continue;
+            }
+            result.append(upper ? Character.toUpperCase(ch) : ch);
+            upper = false;
+        }
+        return result.toString();
+    }
+
+    private void putLong(Map<String, Object> usage, String key, Object value) {
+        long number = longValue(value);
+        if (number > 0L) {
+            usage.put(key, Long.valueOf(number));
+        }
+    }
+
+    private void putLongIfMissing(Map<String, Object> usage, String key, Object value) {
+        if (usage.containsKey(key)) {
+            return;
+        }
+        putLong(usage, key, value);
+    }
+
+    private long longValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     private String extractPromptText(ONode prompt) {
