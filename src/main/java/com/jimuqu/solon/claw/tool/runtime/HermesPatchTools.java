@@ -406,7 +406,11 @@ public class HermesPatchTools {
             }
             String replacement = join(replacementLines, "\n");
             if (searchLines.isEmpty()) {
-                content = insertAdditionOnly(content, hunk.contextHint, replacement);
+                ApplyResult inserted = insertAdditionOnly(content, hunk.contextHint, replacement);
+                if (!inserted.success) {
+                    return inserted;
+                }
+                content = inserted.content;
                 continue;
             }
             String search = join(searchLines, "\n");
@@ -423,22 +427,46 @@ public class HermesPatchTools {
         return ApplyResult.success(content);
     }
 
-    private String insertAdditionOnly(String content, String hint, String insertText) {
+    private ApplyResult insertAdditionOnly(String content, String hint, String insertText) {
         if (StrUtil.isBlank(insertText)) {
-            return content;
+            return ApplyResult.success(content);
         }
         if (StrUtil.isBlank(hint)) {
-            return appendWithNewline(content, insertText);
+            return ApplyResult.success(appendWithNewline(content, insertText));
+        }
+        int occurrences = countOccurrences(content, hint);
+        if (occurrences == 0) {
+            return ApplyResult.error(
+                    "addition-only hunk context hint '" + hint + "' not found");
+        }
+        if (occurrences > 1) {
+            return ApplyResult.error(
+                    "addition-only hunk context hint '"
+                            + hint
+                            + "' is ambiguous ("
+                            + occurrences
+                            + " occurrences)");
         }
         int position = content.indexOf(hint);
-        if (position < 0) {
-            return appendWithNewline(content, insertText);
-        }
         int nextLine = content.indexOf('\n', position);
         if (nextLine < 0) {
-            return content + "\n" + insertText;
+            return ApplyResult.success(content + "\n" + insertText);
         }
-        return content.substring(0, nextLine + 1) + insertText + "\n" + content.substring(nextLine + 1);
+        return ApplyResult.success(
+                content.substring(0, nextLine + 1) + insertText + "\n" + content.substring(nextLine + 1));
+    }
+
+    private int countOccurrences(String content, String needle) {
+        if (StrUtil.isEmpty(content) || StrUtil.isEmpty(needle)) {
+            return 0;
+        }
+        int count = 0;
+        int index = content.indexOf(needle);
+        while (index >= 0) {
+            count++;
+            index = content.indexOf(needle, index + 1);
+        }
+        return count;
     }
 
     private String appendWithNewline(String content, String insertText) {

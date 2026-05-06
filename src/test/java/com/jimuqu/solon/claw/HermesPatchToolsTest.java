@@ -73,6 +73,55 @@ public class HermesPatchToolsTest {
     }
 
     @Test
+    void shouldRejectAdditionOnlyHunkWhenContextHintIsMissingWithoutWriting() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("app.txt");
+        Files.write(file, "def main():\n    pass\n".getBytes(StandardCharsets.UTF_8));
+        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: app.txt\n"
+                        + "@@ def missing @@\n"
+                        + "+def helper():\n"
+                        + "+    return 42\n"
+                        + "*** End Patch";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("Patch validation failed")
+                .contains("context hint 'def missing' not found");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("def main():\n    pass\n");
+    }
+
+    @Test
+    void shouldRejectAdditionOnlyHunkWhenContextHintIsAmbiguousWithoutWriting() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("app.txt");
+        Files.write(file, "marker\none\nmarker\ntwo\n".getBytes(StandardCharsets.UTF_8));
+        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: app.txt\n"
+                        + "@@ marker @@\n"
+                        + "+inserted\n"
+                        + "*** End Patch";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("Patch validation failed")
+                .contains("context hint 'marker' is ambiguous");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("marker\none\nmarker\ntwo\n");
+    }
+
+    @Test
     void shouldRejectTraversalBeforeWriting() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         HermesPatchTools tools = new HermesPatchTools(dir.toString());
