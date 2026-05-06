@@ -726,6 +726,63 @@ public class DefaultCronSchedulerTest {
         assertThat(((Map<?, ?>) created.get("job")).get("wrap_response")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("schedule")).isEqualTo("30m");
 
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        FileUtil.writeString("print('metadata')", FileUtil.file(scriptsDir, "metadata.py"), StandardCharsets.UTF_8);
+        File workdir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/cron-metadata");
+        FileUtil.mkdir(workdir);
+        Map<?, ?> metadata =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-metadata",
+                                                "30m",
+                                                null,
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                "metadata.py",
+                                                workdir.getAbsolutePath(),
+                                                Boolean.TRUE,
+                                                jobId,
+                                                "terminal,file",
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> metadataJob = (Map<?, ?>) metadata.get("job");
+        String metadataJobId = String.valueOf(metadata.get("job_id"));
+        assertThat(metadataJob.get("script")).isEqualTo("metadata.py");
+        assertThat(metadataJob.get("workdir")).isEqualTo(workdir.getAbsolutePath());
+        assertThat(metadataJob.get("no_agent")).isEqualTo(Boolean.TRUE);
+        assertThat(metadataJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(jobId));
+        assertThat(metadataJob.get("enabled_toolsets")).isEqualTo(java.util.Arrays.asList("terminal", "file"));
+        tools.cronjob(
+                "remove",
+                metadataJobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
         tools.cronjob(
                 "pause",
                 jobId,

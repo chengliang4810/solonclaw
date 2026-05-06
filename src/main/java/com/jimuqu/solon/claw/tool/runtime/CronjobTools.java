@@ -22,7 +22,7 @@ public class CronjobTools {
             description =
                     "Manage scheduled cron jobs. action can be create, list, update, pause, resume, remove, run, or history. Supports per-job model, provider, and base_url pinning.")
     public String cronjob(
-            @Param(name = "action", description = "create、list、update、pause、resume、remove、run") String action,
+            @Param(name = "action", description = "create、list、update、pause、resume、remove、run、history") String action,
             @Param(name = "job_id", description = "任务 ID", required = false) String jobId,
             @Param(name = "name", description = "任务名", required = false) String name,
             @Param(name = "schedule", description = "cron、every 2h、30m 或 ISO 时间", required = false) String schedule,
@@ -271,6 +271,10 @@ public class CronjobTools {
         put(result, "script", job.getScript());
         if (job.isNoAgent()) {
             result.put("no_agent", Boolean.TRUE);
+        }
+        Object contextFrom = base.get("context_from");
+        if (contextFrom instanceof Iterable && ((Iterable<?>) contextFrom).iterator().hasNext()) {
+            result.put("context_from", contextFrom);
         }
         Object enabledToolsets = base.get("enabled_toolsets");
         if (enabledToolsets instanceof Iterable && ((Iterable<?>) enabledToolsets).iterator().hasNext()) {
