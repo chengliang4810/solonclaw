@@ -65,6 +65,7 @@ public class TirithSecurityService {
                             "posix",
                             "--",
                             StrUtil.nullToEmpty(command));
+            SubprocessEnvironmentSanitizer.sanitize(builder.environment());
             process = builder.start();
             final Process started = process;
             Future<String> stdout =

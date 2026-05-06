@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -825,6 +826,7 @@ public class DefaultCronScheduler {
             builder.directory(new File(job.getWorkdir()));
         }
         builder.redirectErrorStream(true);
+        SubprocessEnvironmentSanitizer.sanitize(builder.environment());
         Process process = builder.start();
         byte[] data = readAll(process.getInputStream());
         int timeoutSeconds = scriptTimeoutSeconds();

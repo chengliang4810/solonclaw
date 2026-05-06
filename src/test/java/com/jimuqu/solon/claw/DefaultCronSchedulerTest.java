@@ -113,6 +113,48 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldPreserveSafeEnvForCronScripts() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("admin-dm", "admin-user", "hello");
+        env.send("admin-dm", "admin-user", "/pairing claim-admin");
+        env.gatewayService.handle(
+                env.message("home-room", "admin-user", "group", "Home", "Admin", "/sethome"));
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "env-path.py");
+        FileUtil.writeString(
+                "import os\nprint('path-ok' if os.environ.get('PATH') else 'path-missing')\n",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "env-path");
+        body.put("schedule", "30m");
+        body.put("script", "env-path.py");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "local");
+        CronJobRecord job = service.create("MEMORY:admin-dm:admin-user", body);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+
+        scheduler.runNow(job.getJobId());
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastStatus()).isEqualTo("ok");
+        assertThat(updated.getLastOutput()).contains("path-ok");
+    }
+
+    @Test
     void shouldExposeHermesScheduleKinds() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
