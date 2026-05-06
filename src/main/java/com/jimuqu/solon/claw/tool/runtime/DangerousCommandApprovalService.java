@@ -498,7 +498,7 @@ public class DangerousCommandApprovalService {
                                     "hardline_windows_shutdown",
                                     "Windows shutdown/reboot",
                                     pattern(
-                                            "(?:^|[;&|\\n`])\\s*(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
+                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c|(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:-Command|-c))\\s+)?(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL)));
 
     private final GlobalSettingRepository globalSettingRepository;

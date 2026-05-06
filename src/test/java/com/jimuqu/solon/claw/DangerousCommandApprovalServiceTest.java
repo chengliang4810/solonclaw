@@ -346,6 +346,16 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "rm -LiteralPath C:\\Windows -r -fo");
         DangerousCommandApprovalService.DetectionResult shutdown =
                 env.dangerousCommandApprovalService.detectHardline("execute_shell", "shutdown /r /t 0");
+        DangerousCommandApprovalService.DetectionResult cmdShutdown =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "cmd /c shutdown /r /t 0");
+        DangerousCommandApprovalService.DetectionResult powershellRestart =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell",
+                        "powershell -NoProfile -Command Restart-Computer -Force");
+        DangerousCommandApprovalService.DetectionResult pwshStop =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "pwsh -c Stop-Computer -Force");
 
         assertThat(format).isNotNull();
         assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
@@ -373,6 +383,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(aliasWindowsDirDelete.getPatternKey()).isEqualTo("hardline_windows_system_dir");
         assertThat(shutdown).isNotNull();
         assertThat(shutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(cmdShutdown).isNotNull();
+        assertThat(cmdShutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(powershellRestart).isNotNull();
+        assertThat(powershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(pwshStop).isNotNull();
+        assertThat(pwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
     }
 
     @Test
@@ -476,6 +492,7 @@ public class DangerousCommandApprovalServiceTest {
                     "cat /dev/urandom | head -c 10",
                     "grep 'shutdown' logs.txt",
                     "echo reboot",
+                    "echo Restart-Computer",
                     "echo '# init 0 in comment'",
                     "cat rebooting.log",
                     "echo 'halt and catch fire'",
