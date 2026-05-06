@@ -86,7 +86,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.MCP,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
-                    ToolNameConstants.WEBFETCH);
+                    ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.SECURITY_AUDIT);
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -372,6 +373,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new HermesWebTools.SafeWebfetchTool(securityPolicyService);
         HermesWebTools.SafeCodeSearchTool codeSearchTool =
                 new HermesWebTools.SafeCodeSearchTool(securityPolicyService);
+        SecurityAuditTools securityAuditTools =
+                new SecurityAuditTools(
+                        securityPolicyService,
+                        new DangerousCommandApprovalService(null, appConfig, securityPolicyService),
+                        new TirithSecurityService(appConfig));
         boolean fileSkillAdded = false;
         boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
@@ -471,6 +477,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(webfetchTool);
             } else if (ToolNameConstants.CODESEARCH.equals(toolName)) {
                 tools.add(codeSearchTool);
+            } else if (ToolNameConstants.SECURITY_AUDIT.equals(toolName)) {
+                tools.add(securityAuditTools);
             }
         }
         if (isGatewayEnabled(sourceKey, agentScope)) {

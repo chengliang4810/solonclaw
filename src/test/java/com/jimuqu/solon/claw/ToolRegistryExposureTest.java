@@ -12,7 +12,9 @@ import com.jimuqu.solon.claw.tool.runtime.HermesPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.HermesWebTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import java.util.Arrays;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +37,7 @@ public class ToolRegistryExposureTest {
                         "codesearch",
                         "websearch",
                         "webfetch",
+                        "security_audit",
                         "file_read",
                         "file_write",
                         "file_list",
@@ -77,6 +80,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeCodeSearchTool");
         assertThat(joined).contains("SafeWebsearchTool");
         assertThat(joined).contains("SafeWebfetchTool");
+        assertThat(joined).contains("SecurityAuditTools");
         assertThat(joined).contains("HermesFileReadWriteSkill");
         assertThat(joined).contains("HermesPatchTools");
         assertThat(joined).contains("ShellSkill");
@@ -91,6 +95,58 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("ConfigRefreshTool");
         assertThat(joined).doesNotContain("ToolGatewaySkill");
+    }
+
+    @Test
+    void shouldAuditSecurityInputsWithoutExecutingThem() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null);
+
+        ONode hardline =
+                ONode.ofJson(
+                        tools.audit(
+                                "command",
+                                "execute_shell",
+                                "sudo reboot",
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode path =
+                ONode.ofJson(
+                        tools.audit(
+                                "path",
+                                null,
+                                null,
+                                null,
+                                ".env",
+                                Boolean.FALSE,
+                                null));
+        ONode toolArgs =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "file_write",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"path\":\"../outside.txt\"}"));
+
+        assertThat(hardline.get("success").getBoolean()).isTrue();
+        assertThat(hardline.get("decision").getString()).isEqualTo("block");
+        assertThat(hardline.get("commandPreview").getString()).contains("sudo reboot");
+        assertThat(String.valueOf(hardline.get("findings"))).contains("hardline").contains("shutdown");
+        assertThat(path.get("decision").getString()).isEqualTo("block");
+        assertThat(String.valueOf(path.get("findings"))).contains("file_policy").contains("凭据");
+        assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
+        assertThat(String.valueOf(toolArgs.get("findings"))).contains("路径遍历");
     }
 
     @Test
