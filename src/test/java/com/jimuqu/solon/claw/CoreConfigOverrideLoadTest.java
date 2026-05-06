@@ -225,6 +225,23 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldTreatHermesBooleanFalseApprovalModeAsOff() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-approvals-mode").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "approvals:\n"
+                        + "  mode: false\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+    }
+
+    @Test
     void shouldLoadHermesExternalSkillsDirsAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-external-skills").toFile();
         File configFile = new File(runtimeHome, "config.yml");
