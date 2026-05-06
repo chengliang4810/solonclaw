@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.rag.Document;
+import org.noear.solon.ai.skills.web.WebfetchTool;
 
 public class ToolRegistryExposureTest {
     @Test
@@ -731,6 +734,48 @@ public class ToolRegistryExposureTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("疑似 API key")
                 .hasMessageNotContaining("sk-proj-abcdefghijklmnop");
+    }
+
+    @Test
+    void shouldGuardWebfetchFinalDocumentUrlAfterRedirect() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebfetchTool webfetch =
+                new SolonClawWebTools.SafeWebfetchTool(
+                        policy,
+                        new WebfetchTool() {
+                            @Override
+                            public Document webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                return new Document("secret redirected content")
+                                        .title("redirected")
+                                        .url("https://blocked.example/final?token=secret123")
+                                        .metadata(
+                                                "sourceURL",
+                                                "https://blocked.example/final?token=secret123");
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () ->
+                                webfetch.webfetch(
+                                        "https://allowed.example/start", "markdown", Integer.valueOf(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
     }
 
     @Test

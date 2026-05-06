@@ -2,7 +2,10 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import cn.hutool.core.util.StrUtil;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
@@ -31,6 +34,36 @@ public class SolonClawWebTools {
         }
     }
 
+    private static void checkUrl(SecurityPolicyService securityPolicyService, String url) {
+        if (securityPolicyService == null || !looksLikeHttpUrl(url)) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(blockedMessage(verdict));
+        }
+    }
+
+    private static boolean looksLikeHttpUrl(String url) {
+        String value = StrUtil.nullToEmpty(url).trim().toLowerCase();
+        return value.startsWith("http://") || value.startsWith("https://");
+    }
+
+    private static void checkFinalDocumentUrls(
+            SecurityPolicyService securityPolicyService, Document document) {
+        if (document == null) {
+            return;
+        }
+        List<String> keys =
+                Arrays.asList("url", "sourceURL", "sourceUrl", "source_url", "finalUrl", "final_url");
+        for (String key : keys) {
+            Object value = document.getMetadata(key);
+            if (value != null) {
+                checkUrl(securityPolicyService, String.valueOf(value));
+            }
+        }
+    }
+
     public static class SafeWebfetchTool {
         private final SecurityPolicyService securityPolicyService;
         private final WebfetchTool delegate;
@@ -53,7 +86,9 @@ public class SolonClawWebTools {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("url", url);
             check(securityPolicyService, ToolNameConstants.WEBFETCH, args);
-            return delegate.webfetch(url, format, timeoutSeconds);
+            Document document = delegate.webfetch(url, format, timeoutSeconds);
+            checkFinalDocumentUrls(securityPolicyService, document);
+            return document;
         }
     }
 
