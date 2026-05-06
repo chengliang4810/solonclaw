@@ -317,7 +317,43 @@ public class SolonClawShellSkillTest {
 
         String result = skill.execute("sudo ping 127.0.0.1", 10);
 
-        assertThat(result).contains("执行超时");
+        assertThat(result).contains("执行超时").contains("Command timed out");
+    }
+
+    @Test
+    void shouldPreservePartialForegroundOutputOnTimeoutLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute(partialOutputThenSleepCommand(), Integer.valueOf(200));
+
+        assertThat(result)
+                .contains("hello from timeout")
+                .contains("执行超时")
+                .contains("Command timed out after 200 ms");
+    }
+
+    @Test
+    void shouldPreservePartialTerminalJsonOutputOnTimeoutLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                partialOutputThenSleepCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("error").getString()).contains("Command timed out");
+        assertThat(result.get("output").getString())
+                .contains("hello from timeout")
+                .contains("Command timed out after 1000 ms");
     }
 
     @Test
@@ -355,6 +391,13 @@ public class SolonClawShellSkillTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private String partialOutputThenSleepCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo hello from timeout && ping -n 30 127.0.0.1 > nul";
+        }
+        return "printf 'hello from timeout\\n'; sleep 30";
     }
 
     private String javaLongOutputCommand() {

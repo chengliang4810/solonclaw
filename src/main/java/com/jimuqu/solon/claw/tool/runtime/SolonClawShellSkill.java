@@ -181,7 +181,7 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private String terminalResult(String originalCommand, ForegroundResult result) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("output", normalizeTerminalOutput(result.getOutput()).trim());
+        map.put("output", normalizeTerminalOutput(outputWithTimeoutNotice(result)).trim());
         map.put("exit_code", result.getExitCode());
         map.put("error", result.getError());
         String meaning = TerminalExitCodeSemantics.interpret(originalCommand, result.getExitCode());
@@ -430,12 +430,42 @@ public class SolonClawShellSkill extends ShellSkill {
         ForegroundResult result = executeForeground(code, stdin, timeoutMs, workPath.toFile());
         if (result.getError() != null) {
             if (result.isTimedOut()) {
-                return "执行超时：运行时间超过 " + timeoutMs + " 毫秒。";
+                String timeoutNotice =
+                        "执行超时：运行时间超过 "
+                                + timeoutMs
+                                + " 毫秒。"
+                                + " "
+                                + StrUtil.blankToDefault(result.getError(), "Command timed out");
+                return outputWithNotice(result.getOutput(), timeoutNotice).trim();
             }
             return result.getError();
         }
         String output = StrUtil.nullToEmpty(result.getOutput()).trim();
         return output.length() == 0 ? "执行成功" : output;
+    }
+
+    private String outputWithTimeoutNotice(ForegroundResult result) {
+        String output = StrUtil.nullToEmpty(result == null ? null : result.getOutput()).trim();
+        if (result == null || !result.isTimedOut()) {
+            return output;
+        }
+        String notice = StrUtil.blankToDefault(result.getError(), "Command timed out").trim();
+        if (output.length() == 0) {
+            return notice;
+        }
+        return output + "\n" + notice;
+    }
+
+    private String outputWithNotice(String outputText, String notice) {
+        String output = StrUtil.nullToEmpty(outputText).trim();
+        String message = StrUtil.nullToEmpty(notice).trim();
+        if (output.length() == 0) {
+            return message;
+        }
+        if (message.length() == 0) {
+            return output;
+        }
+        return output + "\n" + message;
     }
 
     private ForegroundResult executeForeground(
@@ -455,13 +485,14 @@ public class SolonClawShellSkill extends ShellSkill {
             if (stdin == null) {
                 process.getOutputStream().close();
             }
-            CompletableFuture<String> outputFuture =
-                    CompletableFuture.supplyAsync(
+            final StringBuilder outputBuffer = new StringBuilder();
+            CompletableFuture<Void> outputFuture =
+                    CompletableFuture.runAsync(
                             () -> {
                                 try {
-                                    return readOutput(process);
+                                    readOutput(process, outputBuffer);
                                 } catch (Exception e) {
-                                    return "系统失败: " + e.getMessage();
+                                    appendOutput(outputBuffer, "系统失败: " + e.getMessage());
                                 }
                             });
             if (stdin != null) {
@@ -475,14 +506,14 @@ public class SolonClawShellSkill extends ShellSkill {
             boolean finished = process.waitFor(timeout, TimeUnit.MILLISECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                String output = outputFuture.get(1, TimeUnit.SECONDS);
                 return new ForegroundResult(
-                        output,
+                        bufferedOutput(outputBuffer),
                         Integer.valueOf(-1),
                         "Command timed out after " + timeout + " ms",
                         true);
             }
-            String output = outputFuture.get(1, TimeUnit.SECONDS);
+            outputFuture.get(1, TimeUnit.SECONDS);
+            String output = bufferedOutput(outputBuffer);
             return new ForegroundResult(output, Integer.valueOf(process.exitValue()), null);
         } catch (Exception e) {
             return new ForegroundResult("", Integer.valueOf(-1), "系统失败: " + e.getMessage());
@@ -544,20 +575,48 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private String readOutput(Process process) throws Exception {
+        StringBuilder buffer = new StringBuilder();
+        readOutput(process, buffer);
+        return bufferedOutput(buffer);
+    }
+
+    private void readOutput(Process process, StringBuilder buffer) throws Exception {
         InputStreamReader reader =
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
-        StringBuilder buffer = new StringBuilder();
         char[] chars = new char[4096];
         int read;
         while ((read = reader.read(chars)) != -1) {
-            buffer.append(chars, 0, read);
-            if (buffer.length() > 1024 * 1024) {
+            appendOutput(buffer, chars, read);
+            if (bufferedLength(buffer) > 1024 * 1024) {
                 process.destroyForcibly();
-                buffer.append("\n... [输出已截断]");
+                appendOutput(buffer, "\n... [输出已截断]");
                 break;
             }
         }
-        return buffer.toString();
+    }
+
+    private void appendOutput(StringBuilder buffer, char[] chars, int length) {
+        synchronized (buffer) {
+            buffer.append(chars, 0, length);
+        }
+    }
+
+    private void appendOutput(StringBuilder buffer, String text) {
+        synchronized (buffer) {
+            buffer.append(StrUtil.nullToEmpty(text));
+        }
+    }
+
+    private int bufferedLength(StringBuilder buffer) {
+        synchronized (buffer) {
+            return buffer.length();
+        }
+    }
+
+    private String bufferedOutput(StringBuilder buffer) {
+        synchronized (buffer) {
+            return buffer.toString();
+        }
     }
 
     private String normalizeTerminalOutput(String output) {
