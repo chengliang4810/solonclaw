@@ -793,6 +793,12 @@ public class DefaultCommandService implements CommandService {
             if (StrUtil.isBlank(args)) {
                 return GatewayReply.ok(formatCheckpointList(message.sourceKey()));
             }
+            if ("status".equalsIgnoreCase(args)) {
+                return GatewayReply.ok(formatCheckpointStatus(message.sourceKey()));
+            }
+            if ("prune".equalsIgnoreCase(args)) {
+                return GatewayReply.ok(formatCheckpointPrune(message.sourceKey()));
+            }
             if ("latest".equalsIgnoreCase(args)) {
                 return GatewayReply.ok(
                         "已回滚到最近一次 checkpoint："
@@ -2827,6 +2833,67 @@ public class DefaultCommandService implements CommandService {
                                         new java.util.Date(session.getLastUsageAt()))
                                 : "");
         return buffer.toString();
+    }
+
+    private String formatCheckpointStatus(String sourceKey) throws Exception {
+        Map<String, Object> status = checkpointService.status(sourceKey);
+        return "checkpoint_count="
+                + status.get("checkpoint_count")
+                + "\nmissing_dirs="
+                + status.get("missing_dirs")
+                + "\ntotal_size="
+                + formatBytes(asLong(status.get("total_size_bytes")))
+                + "\nmax_checkpoints_per_source="
+                + status.get("max_checkpoints_per_source")
+                + "\nmax_file_size_mb="
+                + status.get("max_file_size_mb")
+                + "\nlatest_created="
+                + formatTimestamp(asLong(status.get("latest_created_at")));
+    }
+
+    private String formatCheckpointPrune(String sourceKey) throws Exception {
+        Map<String, Object> result = checkpointService.prune(sourceKey);
+        return "已清理 checkpoint store。"
+                + "\ndeleted_missing="
+                + result.get("deleted_missing")
+                + "\ndeleted_overflow="
+                + result.get("deleted_overflow")
+                + "\nbytes_freed="
+                + formatBytes(asLong(result.get("bytes_freed")))
+                + "\nremaining="
+                + result.get("checkpoint_count");
+    }
+
+    private String formatTimestamp(long timestamp) {
+        if (timestamp <= 0) {
+            return "never";
+        }
+        return DateUtil.formatDateTime(new java.util.Date(timestamp));
+    }
+
+    private String formatBytes(long bytes) {
+        if (bytes < 1024L) {
+            return bytes + " B";
+        }
+        double value = bytes;
+        String[] units = new String[] {"B", "KB", "MB", "GB", "TB"};
+        int unitIndex = 0;
+        while (value >= 1024D && unitIndex < units.length - 1) {
+            value = value / 1024D;
+            unitIndex++;
+        }
+        return String.format(java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
+    }
+
+    private long asLong(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     private int parseGoalMaxTurns(String raw, int defaultValue) {

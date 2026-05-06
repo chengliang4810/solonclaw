@@ -83,9 +83,15 @@ public class CommandEnhancementTest {
         GatewayReply listReply = env.send("admin-chat", "admin-user", "/rollback");
         assertThat(listReply.getContent()).contains("1.").contains("created=");
 
+        GatewayReply statusReply = env.send("admin-chat", "admin-user", "/rollback status");
+        assertThat(statusReply.getContent()).contains("checkpoint_count=1").contains("total_size=");
+
         GatewayReply rollbackReply = env.send("admin-chat", "admin-user", "/rollback 1");
         assertThat(rollbackReply.getContent()).contains("checkpoint");
         assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
+
+        GatewayReply pruneReply = env.send("admin-chat", "admin-user", "/rollback prune");
+        assertThat(pruneReply.getContent()).contains("deleted_missing=0").contains("remaining=1");
     }
 
     @Test

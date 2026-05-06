@@ -252,6 +252,69 @@ public class DefaultCheckpointService implements CheckpointService {
         return result;
     }
 
+    @Override
+    public Map<String, Object> status(String sourceKey) throws Exception {
+        List<CheckpointRecord> all = listAll(sourceKey);
+        long totalBytes = 0L;
+        int missingDirs = 0;
+        long latestCreatedAt = 0L;
+        for (CheckpointRecord record : all) {
+            File dir = FileUtil.file(record.getCheckpointDir());
+            if (dir.exists()) {
+                totalBytes += FileUtil.size(dir);
+            } else {
+                missingDirs++;
+            }
+            latestCreatedAt = Math.max(latestCreatedAt, record.getCreatedAt());
+        }
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("source_key", sourceKey);
+        result.put("checkpoint_count", Integer.valueOf(all.size()));
+        result.put("missing_dirs", Integer.valueOf(missingDirs));
+        result.put("total_size_bytes", Long.valueOf(totalBytes));
+        result.put("latest_created_at", Long.valueOf(latestCreatedAt));
+        result.put(
+                "max_checkpoints_per_source",
+                Integer.valueOf(appConfig.getRollback().getMaxCheckpointsPerSource()));
+        result.put("max_file_size_mb", Integer.valueOf(appConfig.getRollback().getMaxFileSizeMb()));
+        result.put("enabled", Boolean.valueOf(appConfig.getRollback().isEnabled()));
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> prune(String sourceKey) throws Exception {
+        List<CheckpointRecord> all = listAll(sourceKey);
+        int deletedMissing = 0;
+        int deletedOverflow = 0;
+        long bytesFreed = 0L;
+        int max = Math.max(0, appConfig.getRollback().getMaxCheckpointsPerSource());
+        int liveSeen = 0;
+        for (CheckpointRecord record : all) {
+            File dir = FileUtil.file(record.getCheckpointDir());
+            boolean missing = !dir.exists();
+            boolean overflow = !missing && liveSeen >= max;
+            if (missing || overflow) {
+                bytesFreed += dir.exists() ? FileUtil.size(dir) : 0L;
+                deleteRecord(record.getCheckpointId());
+                FileUtil.del(dir);
+                if (missing) {
+                    deletedMissing++;
+                } else {
+                    deletedOverflow++;
+                }
+                continue;
+            }
+            liveSeen++;
+        }
+
+        Map<String, Object> result = status(sourceKey);
+        result.put("deleted_missing", Integer.valueOf(deletedMissing));
+        result.put("deleted_overflow", Integer.valueOf(deletedOverflow));
+        result.put("bytes_freed", Long.valueOf(bytesFreed));
+        return result;
+    }
+
     private String skipReason(File file) throws Exception {
         String matchedPattern = matchedExcludePattern(file);
         if (matchedPattern != null) {
@@ -425,26 +488,31 @@ public class DefaultCheckpointService implements CheckpointService {
 
     /** 清理超额 checkpoint。 */
     private void pruneOldRecords(String sourceKey) throws Exception {
+        int max = appConfig.getRollback().getMaxCheckpointsPerSource();
+        if (max <= 0) {
+            prune(sourceKey);
+            return;
+        }
+        List<CheckpointRecord> records = listAll(sourceKey);
+        for (int i = max; i < records.size(); i++) {
+            CheckpointRecord record = records.get(i);
+            deleteRecord(record.getCheckpointId());
+            FileUtil.del(record.getCheckpointDir());
+        }
+    }
+
+    private List<CheckpointRecord> listAll(String sourceKey) throws Exception {
+        List<CheckpointRecord> results = new ArrayList<CheckpointRecord>();
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select checkpoint_id, checkpoint_dir from checkpoints where source_key = ? order by created_at desc");
+                            "select checkpoint_id, source_key, session_id, checkpoint_dir, manifest_path, created_at, restored_at from checkpoints where source_key = ? order by created_at desc");
             statement.setString(1, sourceKey);
             ResultSet resultSet = statement.executeQuery();
             try {
-                List<String> ids = new ArrayList<String>();
-                List<String> dirs = new ArrayList<String>();
                 while (resultSet.next()) {
-                    ids.add(resultSet.getString("checkpoint_id"));
-                    dirs.add(resultSet.getString("checkpoint_dir"));
-                }
-
-                for (int i = appConfig.getRollback().getMaxCheckpointsPerSource();
-                        i < ids.size();
-                        i++) {
-                    deleteRecord(ids.get(i));
-                    FileUtil.del(dirs.get(i));
+                    results.add(map(resultSet));
                 }
             } finally {
                 resultSet.close();
@@ -453,6 +521,7 @@ public class DefaultCheckpointService implements CheckpointService {
         } finally {
             connection.close();
         }
+        return results;
     }
 
     /** 删除 checkpoint 记录。 */
