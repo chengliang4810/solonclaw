@@ -180,10 +180,11 @@ public class ProcessTools {
     private String poll(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         String output = cleanOutput(managed.outputPreview(1000));
-        return ToolResultEnvelope.ok(
-                        managed.isExited()
-                                ? "后台进程已结束：" + managed.getId()
-                                : "后台进程仍在运行：" + managed.getId())
+        ToolResultEnvelope envelope =
+                ToolResultEnvelope.ok(
+                                managed.isExited()
+                                        ? "后台进程已结束：" + managed.getId()
+                                        : "后台进程仍在运行：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
                 .data("status", managed.isExited() ? "exited" : "running")
@@ -197,8 +198,9 @@ public class ProcessTools {
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("output", output)
                 .preview(output)
-                .truncated(managed.isTruncated())
-                .toJson();
+                .truncated(managed.isTruncated());
+        addNotificationMetadata(envelope, managed);
+        return envelope.toJson();
     }
 
     private String waitFor(String sessionId, Integer timeoutSeconds) throws Exception {
@@ -300,6 +302,15 @@ public class ProcessTools {
                 .data("exited", Boolean.valueOf(true))
                 .data("running", Boolean.valueOf(false))
                 .toJson();
+    }
+
+    private void addNotificationMetadata(
+            ToolResultEnvelope envelope, ProcessRegistry.ManagedProcess managed) {
+        envelope.data("notify_on_complete", Boolean.valueOf(managed.isNotifyOnComplete()));
+        List<String> watchPatterns = managed.getWatchPatterns();
+        if (!watchPatterns.isEmpty()) {
+            envelope.data("watch_patterns", watchPatterns);
+        }
     }
 
     private ProcessRegistry.ManagedProcess requireProcess(String sessionId) {

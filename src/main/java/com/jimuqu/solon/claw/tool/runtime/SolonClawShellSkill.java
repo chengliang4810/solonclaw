@@ -10,6 +10,8 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,13 +150,9 @@ public class SolonClawShellSkill extends ShellSkill {
                             defaultValue = "false",
                             description = "Accepted for compatibility; delivery is handled by higher-level runtime events.")
                     Boolean notifyOnComplete) {
-        return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, null);
+        return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, null, null);
     }
 
-    @ToolMapping(
-            name = "terminal",
-            description =
-                    "Terminal tool. Run foreground commands or use background=true for long-running processes; background runs return a process session_id for the process tool.")
     public String terminal(
             @Param(name = "command", description = "Command to execute") String command,
             @Param(
@@ -186,9 +184,52 @@ public class SolonClawShellSkill extends ShellSkill {
                             defaultValue = "false",
                             description = "Accepted for Hermes compatibility. PTY execution is disabled for stdin-pipe commands.")
                     Boolean pty) {
+        return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, pty, null);
+    }
+
+    @ToolMapping(
+            name = "terminal",
+            description =
+                    "Terminal tool. Run foreground commands or use background=true for long-running processes; background runs return a process session_id for the process tool.")
+    public String terminal(
+            @Param(name = "command", description = "Command to execute") String command,
+            @Param(
+                            name = "background",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Run in the managed background process registry")
+                    Boolean background,
+            @Param(
+                            name = "timeout",
+                            required = false,
+                            defaultValue = "180",
+                            description = "Timeout in seconds for foreground commands")
+                    Integer timeoutSeconds,
+            @Param(
+                            name = "workdir",
+                            required = false,
+                            description = "Working directory. Defaults to the tool workdir.")
+                    String workdir,
+            @Param(
+                            name = "notify_on_complete",
+                            required = false,
+                            defaultValue = "false",
+                            description = "When true and background=true, the process is marked for one completion notification.")
+                    Boolean notifyOnComplete,
+            @Param(
+                            name = "pty",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Accepted for Hermes compatibility. PTY execution is disabled for stdin-pipe commands.")
+                    Boolean pty,
+            @Param(
+                            name = "watch_patterns",
+                            required = false,
+                            description = "Strings to watch for in background output. Mutually exclusive with notify_on_complete.")
+                    List<String> watchPatterns) {
         try {
             if (Boolean.TRUE.equals(background)) {
-                return startBackground(command, workdir, notifyOnComplete, pty);
+                return startBackground(command, workdir, notifyOnComplete, pty, watchPatterns);
             }
             return runForegroundTerminal(command, timeoutSeconds, workdir);
         } catch (Exception e) {
@@ -256,7 +297,11 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private String startBackground(
-            String command, String workdir, Boolean notifyOnComplete, Boolean pty)
+            String command,
+            String workdir,
+            Boolean notifyOnComplete,
+            Boolean pty,
+            List<String> watchPatterns)
             throws Exception {
         String commandError = validateCommand(command);
         if (commandError != null) {
@@ -278,6 +323,16 @@ public class SolonClawShellSkill extends ShellSkill {
                             + "processes, call process(action='close') after writing so it receives EOF.";
         }
         ProcessRegistry.ManagedProcess managed = processRegistry.start(command, dir);
+        List<String> normalizedWatchPatterns = normalizeWatchPatterns(watchPatterns);
+        String conflictNote = null;
+        if (Boolean.TRUE.equals(notifyOnComplete) && !normalizedWatchPatterns.isEmpty()) {
+            conflictNote =
+                    "watch_patterns ignored because notify_on_complete=True; "
+                            + "these two flags produce duplicate notifications when combined";
+            normalizedWatchPatterns = Collections.emptyList();
+        }
+        managed.setNotifyOnComplete(Boolean.TRUE.equals(notifyOnComplete));
+        managed.setWatchPatterns(normalizedWatchPatterns);
         ToolResultEnvelope envelope = ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
@@ -289,11 +344,34 @@ public class SolonClawShellSkill extends ShellSkill {
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
                 .data("output_preview", normalizeTerminalOutput(managed.outputPreview(1000)))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid());
+        if (conflictNote != null) {
+            envelope.data("watch_patterns_ignored", conflictNote);
+        }
+        if (!normalizedWatchPatterns.isEmpty()) {
+            envelope.data("watch_patterns", normalizedWatchPatterns);
+        }
         if (ptyNote != null) {
             envelope.data("pty", Boolean.FALSE);
             envelope.data("pty_note", ptyNote);
         }
         return envelope.toJson();
+    }
+
+    private List<String> normalizeWatchPatterns(List<String> watchPatterns) {
+        if (watchPatterns == null || watchPatterns.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> normalized = new ArrayList<String>();
+        for (String pattern : watchPatterns) {
+            String value = StrUtil.nullToEmpty(pattern).trim();
+            if (value.length() > 0) {
+                normalized.add(value);
+            }
+        }
+        if (normalized.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Collections.unmodifiableList(normalized);
     }
 
     private String validateCommand(String command) {

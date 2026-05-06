@@ -9,6 +9,8 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -429,6 +431,95 @@ public class SolonClawShellSkillTest {
         assertThat(result.get("notify_on_complete").getBoolean()).isTrue();
         assertThat(sessionId).startsWith("proc_");
         assertThat(registry.get(sessionId)).isNotNull();
+
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
+    void shouldStoreHermesWatchPatternsForManagedBackgroundTerminalProcesses()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+        List<String> watchPatterns = Arrays.asList("Application startup complete", "", "ready");
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                watchPatterns));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("notify_on_complete").getBoolean()).isFalse();
+        assertThat(result.get("watch_patterns").get(0).getString())
+                .isEqualTo("Application startup complete");
+        assertThat(result.get("watch_patterns").get(1).getString()).isEqualTo("ready");
+        assertThat(registry.get(sessionId).getWatchPatterns())
+                .containsExactly("Application startup complete", "ready");
+        assertThat(registry.get(sessionId).isNotifyOnComplete()).isFalse();
+
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
+    void shouldDropWatchPatternsWhenNotifyOnCompleteIsSetLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.TRUE,
+                                Boolean.FALSE,
+                                Arrays.asList("ready")));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(result.get("notify_on_complete").getBoolean()).isTrue();
+        assertThat(result.get("watch_patterns").isNull()).isTrue();
+        assertThat(result.get("watch_patterns_ignored").getString())
+                .contains("watch_patterns ignored")
+                .contains("duplicate notifications");
+        assertThat(registry.get(sessionId).getWatchPatterns()).isEmpty();
+        assertThat(registry.get(sessionId).isNotifyOnComplete()).isTrue();
+
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
+    void shouldIncludeBackgroundNotificationMetadataInProcessSnapshot() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                Arrays.asList("ready")));
+
+        String sessionId = result.get("session_id").getString();
+        ONode process = ONode.ofJson(ONode.serialize(registry.get(sessionId).toRedactedMap()));
+        assertThat(process.get("notify_on_complete").getBoolean()).isFalse();
+        assertThat(process.get("watch_patterns").get(0).getString()).isEqualTo("ready");
 
         assertThat(registry.stop(sessionId)).isTrue();
     }

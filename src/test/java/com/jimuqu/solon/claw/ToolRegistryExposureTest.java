@@ -13,9 +13,11 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
+import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import java.io.File;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
@@ -247,6 +249,42 @@ public class ToolRegistryExposureTest {
         ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(String.valueOf(listed.get("processes"))).contains("output_preview").contains("uptime_seconds");
+    }
+
+    @Test
+    void shouldExposeTerminalNotificationMetadataThroughProcessTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry.ManagedProcess managed =
+                env.processRegistry.start(javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
+        managed.setNotifyOnComplete(true);
+        managed.setWatchPatterns(java.util.Collections.singletonList("ready"));
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode polled =
+                ONode.ofJson(
+                        tools.process(
+                                "poll",
+                                null,
+                                managed.getId(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+
+        assertThat(polled.get("notify_on_complete").getBoolean()).isTrue();
+        assertThat(polled.get("watch_patterns").get(0).getString()).isEqualTo("ready");
+        assertThat(String.valueOf(listed.get("processes")))
+                .contains("notify_on_complete")
+                .contains("watch_patterns")
+                .contains("ready");
+
+        assertThat(env.processRegistry.stop(managed.getId())).isTrue();
     }
 
     @Test

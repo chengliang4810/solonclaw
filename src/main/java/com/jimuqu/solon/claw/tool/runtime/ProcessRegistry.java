@@ -383,6 +383,8 @@ public class ProcessRegistry {
         private Integer exitCode;
         private boolean truncated;
         private boolean stdinClosed;
+        private boolean notifyOnComplete;
+        private List<String> watchPatterns = Collections.emptyList();
 
         ManagedProcess(
                 String id,
@@ -529,6 +531,10 @@ public class ProcessRegistry {
             if (exitCodeMeaning != null) {
                 map.put("exit_code_meaning", exitCodeMeaning);
             }
+            map.put("notify_on_complete", Boolean.valueOf(notifyOnComplete));
+            if (!watchPatterns.isEmpty()) {
+                map.put("watch_patterns", new ArrayList<String>(watchPatterns));
+            }
             map.put("output", getOutput());
             map.put("output_preview", outputPreview(200));
             map.put("truncated", Boolean.valueOf(truncated));
@@ -608,6 +614,27 @@ public class ProcessRegistry {
 
         public synchronized boolean isStdinClosed() {
             return stdinClosed;
+        }
+
+        public synchronized boolean isNotifyOnComplete() {
+            return notifyOnComplete;
+        }
+
+        public synchronized void setNotifyOnComplete(boolean notifyOnComplete) {
+            this.notifyOnComplete = notifyOnComplete;
+        }
+
+        public synchronized List<String> getWatchPatterns() {
+            return new ArrayList<String>(watchPatterns);
+        }
+
+        public synchronized void setWatchPatterns(List<String> watchPatterns) {
+            if (watchPatterns == null || watchPatterns.isEmpty()) {
+                this.watchPatterns = Collections.emptyList();
+            } else {
+                this.watchPatterns =
+                        Collections.unmodifiableList(new ArrayList<String>(watchPatterns));
+            }
         }
 
         private static String isoLocal(long timestamp) {
