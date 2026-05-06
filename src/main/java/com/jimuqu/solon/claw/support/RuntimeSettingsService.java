@@ -516,6 +516,10 @@ public class RuntimeSettingsService {
         buffer.append("shell_probe_policy=Use execute_shell for environment detection.\n");
         buffer.append(
                 "shell_probe_example=Use execute_shell with commands like: command -v git >/dev/null 2>&1 && git --version || echo git_missing\n");
+        if (enabledToolNames.contains(ToolNameConstants.PROCESS)) {
+            buffer.append(
+                    "background_process_policy=Use process(action=start, command=...) for long-running commands instead of '&', nohup, disown, or foreground watch/server processes.\n");
+        }
     }
 
     private void persistConfigValue(String key, Object value, boolean reconnectChannels) {

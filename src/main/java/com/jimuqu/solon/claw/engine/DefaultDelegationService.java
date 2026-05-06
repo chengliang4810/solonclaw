@@ -59,6 +59,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.PROCESS,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,

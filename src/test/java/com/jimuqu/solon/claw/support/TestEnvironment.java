@@ -296,7 +296,10 @@ public class TestEnvironment {
                         delegationService,
                         attachmentCacheService,
                         runtimeSettingsService,
-                        refreshService);
+                        refreshService,
+                        new SecurityPolicyService(config),
+                        processRegistry,
+                        null);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
                 new AgentRunSupervisor(

@@ -73,6 +73,7 @@ public class McpRuntimeServiceTest {
                         null,
                         env.gatewayRuntimeRefreshService,
                         null,
+                        env.processRegistry,
                         mcpRuntimeService);
         List<Object> tools = registry.resolveEnabledTools("MEMORY:room-1:user-1");
         assertThat(tools.toString()).contains("McpToolProvider(local-docs)");

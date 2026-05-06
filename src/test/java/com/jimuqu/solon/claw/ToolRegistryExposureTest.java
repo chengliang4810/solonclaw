@@ -7,10 +7,12 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.HermesCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.HermesFileReadWriteSkill;
 import com.jimuqu.solon.claw.tool.runtime.HermesWebTools;
+import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 
 public class ToolRegistryExposureTest {
     @Test
@@ -31,6 +33,7 @@ public class ToolRegistryExposureTest {
                         "file_delete",
                         "patch",
                         "execute_shell",
+                        "process",
                         "execute_python",
                         "execute_js",
                         "get_current_time",
@@ -67,6 +70,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("HermesFileReadWriteSkill");
         assertThat(joined).contains("HermesPatchTools");
         assertThat(joined).contains("ShellSkill");
+        assertThat(joined).contains("ProcessTools");
         assertThat(joined).contains("SafePythonSkill");
         assertThat(joined).contains("SafeNodejsSkill");
         assertThat(joined).contains("SystemClockSkill");
@@ -76,6 +80,66 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("ConfigRefreshTool");
         assertThat(joined).doesNotContain("ToolGatewaySkill");
+    }
+
+    @Test
+    void shouldManageHermesStyleBackgroundProcesses() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "echo jimuqu-process-ok",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                Integer.valueOf(1)));
+        assertThat(started.get("success").getBoolean()).isTrue();
+        String sessionId = started.get("session_id").getString();
+        assertThat(sessionId).startsWith("proc_");
+
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                Integer.valueOf(5)));
+        assertThat(waited.get("success").getBoolean()).isTrue();
+        assertThat(waited.get("exited").getBoolean()).isTrue();
+        assertThat(waited.get("output").getString()).contains("jimuqu-process-ok");
+
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null));
+        assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void shouldStopManagedBackgroundProcessesThroughStopCommandRegistry() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                javaSleepCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                Integer.valueOf(1)));
+
+        assertThat(env.processRegistry.runningCount()).isEqualTo(1);
+        assertThat(env.processRegistry.stop(started.get("session_id").getString())).isTrue();
+        assertThat(env.processRegistry.runningCount()).isZero();
     }
 
     @Test
@@ -206,5 +270,12 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(() -> fileSkill.delete("~/.ssh/id_rsa"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("敏感");
+    }
+
+    private String javaSleepCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "ping -n 30 127.0.0.1 > nul";
+        }
+        return "sleep 30";
     }
 }

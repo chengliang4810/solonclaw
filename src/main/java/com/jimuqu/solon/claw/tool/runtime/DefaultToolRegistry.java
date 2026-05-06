@@ -46,6 +46,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.PROCESS,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
@@ -139,6 +140,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** MCP 运行时工具发现服务。 */
     private final McpRuntimeService mcpRuntimeService;
 
+    /** 受管后台进程注册表。 */
+    private final ProcessRegistry processRegistry;
+
     public DefaultToolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -173,6 +177,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
+                null,
                 null,
                 null);
     }
@@ -213,6 +218,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                null,
                 null);
     }
 
@@ -235,6 +241,48 @@ public class DefaultToolRegistry implements ToolRegistry {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
             McpRuntimeService mcpRuntimeService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                kanbanService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                null,
+                mcpRuntimeService);
+    }
+
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            KanbanService kanbanService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -253,6 +301,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.securityPolicyService = securityPolicyService;
         this.mcpRuntimeService = mcpRuntimeService;
+        this.processRegistry = processRegistry;
     }
 
     @Override
@@ -294,6 +343,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new HermesFileReadWriteSkill(sysWorkDir, securityPolicyService);
         HermesPatchTools patchTools = new HermesPatchTools(sysWorkDir, securityPolicyService);
         ShellSkill shellSkill = new HermesShellSkill(sysWorkDir, appConfig, securityPolicyService);
+        ProcessTools processTools =
+                new ProcessTools(resolveProcessRegistry(), sysWorkDir, securityPolicyService);
         HermesCodeExecutionSkills.SafePythonSkill pythonSkill =
                 new HermesCodeExecutionSkills.SafePythonSkill(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);
@@ -324,6 +375,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(patchTools);
             } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
                 tools.add(shellSkill);
+            } else if (ToolNameConstants.PROCESS.equals(toolName)) {
+                tools.add(processTools);
             } else if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
                 tools.add(pythonSkill);
             } else if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
@@ -531,5 +584,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     private boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private ProcessRegistry resolveProcessRegistry() {
+        return processRegistry == null ? new ProcessRegistry() : processRegistry;
     }
 }

@@ -21,6 +21,7 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.FILE_DELETE,
                     ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
+                    ToolNameConstants.PROCESS,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
@@ -208,6 +209,7 @@ public final class AgentRuntimePolicy {
                 || "shell".equals(key)
                 || "terminal".equals(key)) {
             output.add(ToolNameConstants.EXECUTE_SHELL);
+            output.add(ToolNameConstants.PROCESS);
             output.add(ToolNameConstants.EXECUTE_PYTHON);
             output.add(ToolNameConstants.EXECUTE_JS);
             output.add(ToolNameConstants.GET_CURRENT_TIME);

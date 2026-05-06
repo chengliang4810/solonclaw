@@ -8,6 +8,7 @@ public interface ToolNameConstants {
     String FILE_DELETE = "file_delete";
     String PATCH = "patch";
     String EXECUTE_SHELL = "execute_shell";
+    String PROCESS = "process";
     String EXECUTE_PYTHON = "execute_python";
     String EXECUTE_JS = "execute_js";
     String GET_CURRENT_TIME = "get_current_time";

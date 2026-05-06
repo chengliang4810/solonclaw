@@ -75,6 +75,7 @@ public class DashboardSkillsService {
                         "官方 Shell/Python/Node.js、文件读写与代码搜索能力",
                         Arrays.asList(
                                 ToolNameConstants.EXECUTE_SHELL,
+                                ToolNameConstants.PROCESS,
                                 ToolNameConstants.EXECUTE_PYTHON,
                                 ToolNameConstants.EXECUTE_JS,
                                 ToolNameConstants.GET_CURRENT_TIME,

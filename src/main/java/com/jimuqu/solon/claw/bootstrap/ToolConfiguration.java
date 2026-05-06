@@ -114,6 +114,7 @@ public class ToolConfiguration {
             RuntimeSettingsService runtimeSettingsService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService) {
         return new DefaultToolRegistry(
                 appConfig,
@@ -133,6 +134,7 @@ public class ToolConfiguration {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                processRegistry,
                 mcpRuntimeService);
     }
 
