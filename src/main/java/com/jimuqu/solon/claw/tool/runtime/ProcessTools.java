@@ -29,9 +29,9 @@ public class ProcessTools {
     @ToolMapping(
             name = "process",
             description =
-                    "Manage tracked background processes. Actions: start, list, poll, wait, kill/stop. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
+                    "Manage tracked background processes. Actions: start, list, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
     public String process(
-            @Param(name = "action", description = "start, list, poll, wait, kill, stop")
+            @Param(name = "action", description = "start, list, poll, log, wait, kill, stop, write, submit, close")
                     String action,
             @Param(name = "command", required = false, description = "Command for action=start")
                     String command,
@@ -42,6 +42,11 @@ public class ProcessTools {
                     String sessionId,
             @Param(name = "cwd", required = false, description = "Optional working directory")
                     String cwd,
+            @Param(
+                            name = "data",
+                            required = false,
+                            description = "Text for action=write or submit. submit appends a newline.")
+                    String data,
             @Param(
                             name = "timeout",
                             required = false,
@@ -65,6 +70,15 @@ public class ProcessTools {
             if ("kill".equals(normalized) || "stop".equals(normalized)) {
                 return stop(sessionId);
             }
+            if ("write".equals(normalized)) {
+                return write(sessionId, data, false);
+            }
+            if ("submit".equals(normalized)) {
+                return write(sessionId, data, true);
+            }
+            if ("close".equals(normalized)) {
+                return close(sessionId);
+            }
             return ToolResultEnvelope.error("Unsupported process action: " + action).toJson();
         } catch (Exception e) {
             return ToolResultEnvelope.error(
@@ -87,6 +101,7 @@ public class ProcessTools {
                 .data("cwd", managed.getCwd())
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
+                .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
                 .toJson();
     }
@@ -113,6 +128,7 @@ public class ProcessTools {
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("running", Boolean.valueOf(!managed.isExited()))
                 .data("exit_code", managed.getExitCode())
+                .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("output", managed.getOutput())
                 .preview(managed.getOutput())
                 .truncated(managed.isTruncated())
@@ -134,9 +150,35 @@ public class ProcessTools {
                 .data("stopped", Boolean.valueOf(stopped))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
+                .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("output", managed.getOutput())
                 .preview(managed.getOutput())
                 .truncated(managed.isTruncated())
+                .toJson();
+    }
+
+    private String write(String sessionId, String data, boolean appendNewline) throws Exception {
+        ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
+        String payload = StrUtil.nullToEmpty(data);
+        if (appendNewline) {
+            payload = payload + "\n";
+        }
+        processRegistry.writeStdin(managed.getId(), payload);
+        return ToolResultEnvelope.ok(
+                        appendNewline ? "已向后台进程提交输入：" + managed.getId() : "已写入后台进程 stdin：" + managed.getId())
+                .data("session_id", managed.getId())
+                .data("written", Integer.valueOf(payload.length()))
+                .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
+                .toJson();
+    }
+
+    private String close(String sessionId) throws Exception {
+        ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
+        processRegistry.closeStdin(managed.getId());
+        return ToolResultEnvelope.ok("后台进程 stdin 已关闭：" + managed.getId())
+                .data("session_id", managed.getId())
+                .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
+                .data("exited", Boolean.valueOf(managed.isExited()))
                 .toJson();
     }
 

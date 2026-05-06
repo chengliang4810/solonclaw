@@ -98,6 +98,7 @@ public class ToolRegistryExposureTest {
                                 "echo jimuqu-process-ok",
                                 null,
                                 env.appConfig.getRuntime().getHome(),
+                                null,
                                 Integer.valueOf(1)));
         assertThat(started.get("success").getBoolean()).isTrue();
         String sessionId = started.get("session_id").getString();
@@ -110,12 +111,13 @@ public class ToolRegistryExposureTest {
                                 null,
                                 sessionId,
                                 null,
+                                null,
                                 Integer.valueOf(5)));
         assertThat(waited.get("success").getBoolean()).isTrue();
         assertThat(waited.get("exited").getBoolean()).isTrue();
         assertThat(waited.get("output").getString()).contains("jimuqu-process-ok");
 
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null));
         assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
     }
 
@@ -135,11 +137,79 @@ public class ToolRegistryExposureTest {
                                 javaSleepCommand(),
                                 null,
                                 env.appConfig.getRuntime().getHome(),
+                                null,
                                 Integer.valueOf(1)));
 
         assertThat(env.processRegistry.runningCount()).isEqualTo(1);
         assertThat(env.processRegistry.stop(started.get("session_id").getString())).isTrue();
         assertThat(env.processRegistry.runningCount()).isZero();
+    }
+
+    @Test
+    void shouldWriteSubmitAndCloseManagedProcessStdin() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                stdinEchoCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1)));
+        String sessionId = started.get("session_id").getString();
+
+        ONode write =
+                ONode.ofJson(
+                        tools.process(
+                                "write",
+                                null,
+                                sessionId,
+                                null,
+                                "alpha",
+                                Integer.valueOf(1)));
+        assertThat(write.get("success").getBoolean()).isTrue();
+
+        ONode submit =
+                ONode.ofJson(
+                        tools.process(
+                                "submit",
+                                null,
+                                sessionId,
+                                null,
+                                "-beta",
+                                Integer.valueOf(1)));
+        assertThat(submit.get("success").getBoolean()).isTrue();
+
+        ONode close =
+                ONode.ofJson(
+                        tools.process(
+                                "close",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(1)));
+        assertThat(close.get("success").getBoolean()).isTrue();
+        assertThat(close.get("stdin_closed").getBoolean()).isTrue();
+
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(5)));
+        assertThat(waited.get("success").getBoolean()).isTrue();
+        assertThat(waited.get("output").getString()).contains("alpha-beta");
     }
 
     @Test
@@ -277,5 +347,12 @@ public class ToolRegistryExposureTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private String stdinEchoCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "findstr /n .*";
+        }
+        return "cat";
     }
 }

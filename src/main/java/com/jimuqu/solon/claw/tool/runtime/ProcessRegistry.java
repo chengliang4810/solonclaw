@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import com.jimuqu.solon.claw.support.IdSupport;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -89,6 +90,24 @@ public class ProcessRegistry {
         return true;
     }
 
+    public boolean writeStdin(String id, String data) throws Exception {
+        ManagedProcess managed = processes.get(id);
+        if (managed == null) {
+            return false;
+        }
+        managed.writeStdin(data);
+        return true;
+    }
+
+    public boolean closeStdin(String id) throws Exception {
+        ManagedProcess managed = processes.get(id);
+        if (managed == null) {
+            return false;
+        }
+        managed.closeStdin();
+        return true;
+    }
+
     public int stopAll() {
         Map<String, ManagedProcess> snapshot = snapshot();
         int stopped = 0;
@@ -155,6 +174,7 @@ public class ProcessRegistry {
         private boolean exited;
         private Integer exitCode;
         private boolean truncated;
+        private boolean stdinClosed;
 
         ManagedProcess(
                 String id,
@@ -256,6 +276,32 @@ public class ProcessRegistry {
             refreshExitState();
         }
 
+        void writeStdin(String data) throws Exception {
+            refreshExitState();
+            if (isExited()) {
+                throw new IllegalStateException("Process has already exited");
+            }
+            synchronized (this) {
+                if (stdinClosed) {
+                    throw new IllegalStateException("Process stdin is already closed");
+                }
+                OutputStreamWriter writer =
+                        new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
+                writer.write(data == null ? "" : data);
+                writer.flush();
+            }
+        }
+
+        void closeStdin() throws Exception {
+            synchronized (this) {
+                if (stdinClosed) {
+                    return;
+                }
+                process.getOutputStream().close();
+                stdinClosed = true;
+            }
+        }
+
         public Map<String, Object> toMap() {
             refreshExitState();
             Map<String, Object> map = new LinkedHashMap<String, Object>();
@@ -270,6 +316,7 @@ public class ProcessRegistry {
             map.put("exit_code", exitCode);
             map.put("output", getOutput());
             map.put("truncated", Boolean.valueOf(truncated));
+            map.put("stdin_closed", Boolean.valueOf(isStdinClosed()));
             return map;
         }
 
@@ -313,6 +360,10 @@ public class ProcessRegistry {
 
         public synchronized boolean isTruncated() {
             return truncated;
+        }
+
+        public synchronized boolean isStdinClosed() {
+            return stdinClosed;
         }
     }
 }
