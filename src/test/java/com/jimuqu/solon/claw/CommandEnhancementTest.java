@@ -7,7 +7,11 @@ import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
+import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -17,7 +21,13 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.File;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 public class CommandEnhancementTest {
@@ -102,6 +112,63 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/busy [status|queue|steer|interrupt|reject]");
+    }
+
+    @Test
+    void shouldSupportExplicitQueueAndSteerCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        String sourceKey = "MEMORY:admin-chat:admin-user";
+        SessionRecord session = env.sessionRepository.getBoundSession(sourceKey);
+        if (session == null) {
+            session = env.sessionRepository.bindNewSession(sourceKey);
+        }
+
+        GatewayReply queued = env.send("admin-chat", "admin-user", "/queue run tests next");
+
+        assertThat(queued.getContent()).contains("队列");
+        assertThat(queued.getRuntimeMetadata()).containsKey("queue_id");
+        QueuedRunMessage queuedMessage =
+                env.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId());
+        assertThat(queuedMessage).isNotNull();
+        assertThat(queuedMessage.getMessageText()).isEqualTo("run tests next");
+        assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
+                .doesNotContain("run tests next");
+
+        GatewayReply idleSteer = env.send("admin-chat", "admin-user", "/steer summarize README");
+
+        assertThat(idleSteer.getContent()).contains("echo:summarize README");
+        assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
+                .contains("summarize README");
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/queue <prompt>").contains("/steer <prompt>");
+    }
+
+    @Test
+    void shouldInjectExplicitSteerIntoRunningAgentWithoutInterrupting() throws Exception {
+        SteerAwareSlowLlmGateway slowLlmGateway = new SteerAwareSlowLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(slowLlmGateway);
+        bootstrapAdmin(env);
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<GatewayReply> running =
+                executorService.submit(() -> env.send("admin-chat", "admin-user", "执行一个长任务"));
+
+        assertThat(slowLlmGateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        GatewayReply steer = env.send("admin-chat", "admin-user", "/steer prefer simpler fix");
+
+        assertThat(steer.getContent()).contains("steer").contains("注入");
+        assertThat(steer.getRuntimeMetadata()).containsEntry("busy_status", "steered");
+        String runId = String.valueOf(steer.getRuntimeMetadata().get("run_id"));
+        RunControlCommand pending =
+                env.agentRunRepository.findLatestPendingCommand(runId, "steer");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getPayloadJson()).contains("prefer simpler fix");
+        assertThat(slowLlmGateway.interrupted).isFalse();
+
+        env.send("admin-chat", "admin-user", "/stop");
+        running.get(3, TimeUnit.SECONDS);
+        executorService.shutdownNow();
     }
 
     @Test
@@ -504,6 +571,36 @@ public class CommandEnhancementTest {
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
         env.send("admin-chat", "admin-user", "hello");
         env.send("admin-chat", "admin-user", "/pairing claim-admin");
+    }
+
+    private static class SteerAwareSlowLlmGateway implements LlmGateway {
+        private final CountDownLatch started = new CountDownLatch(1);
+        private volatile boolean interrupted;
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            started.countDown();
+            try {
+                while (true) {
+                    Thread.sleep(1000L);
+                }
+            } catch (InterruptedException e) {
+                interrupted = true;
+                throw e;
+            }
+        }
+
+        @Override
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects)
+                throws Exception {
+            return chat(session, systemPrompt, null, toolObjects);
+        }
     }
 
     private String cronJobView(TestEnvironment env, String jobId) throws Exception {

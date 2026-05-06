@@ -28,6 +28,16 @@ public interface AgentRunControlService {
         return RunBusyDecision.runNow("queue");
     }
 
+    default RunBusyDecision queueIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        return RunBusyDecision.runNow("queue");
+    }
+
+    default RunBusyDecision steerIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        return RunBusyDecision.runNow("steer");
+    }
+
     default Map<String, Object> controlRun(String runId, String command, Map<String, Object> payload)
             throws Exception {
         throw new UnsupportedOperationException("run control unavailable");

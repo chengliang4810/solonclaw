@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -436,6 +437,8 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_STATUS,
                         GatewayCommandConstants.COMMAND_USAGE,
                         GatewayCommandConstants.COMMAND_BUSY,
+                        GatewayCommandConstants.COMMAND_QUEUE,
+                        GatewayCommandConstants.COMMAND_STEER,
                         GatewayCommandConstants.COMMAND_REASONING,
                         GatewayCommandConstants.COMMAND_STOP,
                         GatewayCommandConstants.COMMAND_PERSONALITY,
@@ -603,6 +606,14 @@ public class DefaultCommandService implements CommandService {
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
+        }
+
+        if (GatewayCommandConstants.COMMAND_QUEUE.equals(command)) {
+            return handleQueue(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_STEER.equals(command)) {
+            return handleSteer(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_REASONING.equals(command)) {
@@ -2249,6 +2260,70 @@ public class DefaultCommandService implements CommandService {
                         + " [status|queue|steer|interrupt|reject]");
     }
 
+    private GatewayReply handleQueue(GatewayMessage message, String args) throws Exception {
+        if (StrUtil.isBlank(args)) {
+            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_QUEUE + " <prompt>");
+        }
+        SessionRecord session = requireSession(message.sourceKey());
+        GatewayMessage queuedMessage = cloneUserMessage(message, args);
+        RunBusyDecision decision =
+                agentRunControlService.queueIncoming(
+                        message.sourceKey(), session.getSessionId(), queuedMessage);
+        GatewayReply reply =
+                GatewayReply.ok(
+                        StrUtil.blankToDefault(decision.getMessage(), "已加入下一轮队列。"));
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("busy_policy", decision.getPolicy());
+        reply.getRuntimeMetadata().put("busy_status", decision.getStatus());
+        if (StrUtil.isNotBlank(decision.getRunId())) {
+            reply.getRuntimeMetadata().put("run_id", decision.getRunId());
+        }
+        if (StrUtil.isNotBlank(decision.getQueueId())) {
+            reply.getRuntimeMetadata().put("queue_id", decision.getQueueId());
+        }
+        return reply;
+    }
+
+    private GatewayReply handleSteer(GatewayMessage message, String args) throws Exception {
+        if (StrUtil.isBlank(args)) {
+            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_STEER + " <prompt>");
+        }
+        SessionRecord session = requireSession(message.sourceKey());
+        GatewayMessage steerMessage = cloneUserMessage(message, args);
+        RunBusyDecision decision =
+                agentRunControlService.steerIncoming(
+                        message.sourceKey(), session.getSessionId(), steerMessage);
+        if (decision.isShouldRunNow()) {
+            return conversationOrchestrator.handleIncoming(steerMessage);
+        }
+        GatewayReply reply =
+                GatewayReply.ok(
+                        StrUtil.blankToDefault(decision.getMessage(), "已将 steer 指令注入当前任务。"));
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("busy_policy", decision.getPolicy());
+        reply.getRuntimeMetadata().put("busy_status", decision.getStatus());
+        if (StrUtil.isNotBlank(decision.getRunId())) {
+            reply.getRuntimeMetadata().put("run_id", decision.getRunId());
+        }
+        return reply;
+    }
+
+    private GatewayMessage cloneUserMessage(GatewayMessage source, String text) {
+        GatewayMessage copy =
+                new GatewayMessage(
+                        source.getPlatform(), source.getChatId(), source.getUserId(), text);
+        copy.setThreadId(source.getThreadId());
+        copy.setChatType(source.getChatType());
+        copy.setChatName(source.getChatName());
+        copy.setUserName(source.getUserName());
+        copy.setTimestamp(source.getTimestamp());
+        copy.setHeartbeat(source.isHeartbeat());
+        copy.setSourceKeyOverride(source.sourceKey());
+        return copy;
+    }
+
     private void persistBusyPolicy(String policy) {
         if (runtimeSettingsService != null) {
             runtimeSettingsService.setConfigValue("task.busyPolicy", policy);
@@ -2599,6 +2674,8 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_BUSY
                                         + " [status|queue|steer|interrupt|reject]",
                                 "查看或切换运行中输入策略"),
+                        helpLine(GatewayCommandConstants.SLASH_QUEUE + " <prompt>", "将提示排到当前任务之后执行"),
+                        helpLine(GatewayCommandConstants.SLASH_STEER + " <prompt>", "向运行中任务注入修正；空闲时按普通提示执行"),
                         helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_PERSONALITY + " [name|none]",

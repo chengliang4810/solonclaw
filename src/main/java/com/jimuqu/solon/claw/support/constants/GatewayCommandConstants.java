@@ -45,6 +45,8 @@ public interface GatewayCommandConstants {
     String COMMAND_STATUS = "status";
     String COMMAND_USAGE = "usage";
     String COMMAND_BUSY = "busy";
+    String COMMAND_QUEUE = "queue";
+    String COMMAND_STEER = "steer";
     String COMMAND_STOP = "stop";
     String COMMAND_PERSONALITY = "personality";
     String COMMAND_VERSION = "version";
@@ -81,6 +83,8 @@ public interface GatewayCommandConstants {
     String SLASH_STATUS = COMMAND_PREFIX + COMMAND_STATUS;
     String SLASH_USAGE = COMMAND_PREFIX + COMMAND_USAGE;
     String SLASH_BUSY = COMMAND_PREFIX + COMMAND_BUSY;
+    String SLASH_QUEUE = COMMAND_PREFIX + COMMAND_QUEUE;
+    String SLASH_STEER = COMMAND_PREFIX + COMMAND_STEER;
     String SLASH_STOP = COMMAND_PREFIX + COMMAND_STOP;
     String SLASH_PERSONALITY = COMMAND_PREFIX + COMMAND_PERSONALITY;
     String SLASH_VERSION = COMMAND_PREFIX + COMMAND_VERSION;

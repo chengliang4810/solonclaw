@@ -162,6 +162,52 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     @Override
+    public RunBusyDecision queueIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        String key = normalizeSourceKey(sourceKey);
+        QueuedRunMessage queued = queueMessage(key, sessionId, message, "queue");
+        RunBusyDecision decision = new RunBusyDecision();
+        decision.setPolicy("queue");
+        decision.setStatus("queued");
+        decision.setRunId(queued.getRunId());
+        decision.setQueueId(queued.getQueueId());
+        decision.setQueued(true);
+        decision.setMessage("已加入下一轮队列。");
+        return decision;
+    }
+
+    @Override
+    public RunBusyDecision steerIncoming(
+            String sourceKey, String sessionId, GatewayMessage message) throws Exception {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null || handle.cancelled.get()) {
+            return RunBusyDecision.runNow("steer");
+        }
+        AgentRunRecord runningRecord = agentRunRepository.findRun(handle.runId);
+        if (runningRecord != null && runningRecord.isBackgrounded()) {
+            return RunBusyDecision.runNow("steer");
+        }
+        String text = message == null ? "" : message.getText();
+        recordCommand(
+                handle.runId,
+                key,
+                "steer",
+                "{\"instruction\":\"" + escapeJson(AgentRunContext.safe(text, 2000)) + "\"}",
+                "pending");
+        AgentRunRecord active = agentRunRepository.findRun(handle.runId);
+        if (active != null) {
+            appendRunEvent(active, "run.steer", "收到 /steer 指令，下一轮模型调用前注入", null);
+        }
+        RunBusyDecision decision = new RunBusyDecision();
+        decision.setPolicy("steer");
+        decision.setStatus("steered");
+        decision.setRunId(handle.runId);
+        decision.setMessage("已将 steer 指令注入当前任务。");
+        return decision;
+    }
+
+    @Override
     public Map<String, Object> controlRun(String runId, String command, Map<String, Object> payload)
             throws Exception {
         AgentRunRecord record = agentRunRepository.findRun(runId);
