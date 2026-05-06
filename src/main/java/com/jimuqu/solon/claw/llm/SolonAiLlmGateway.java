@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
@@ -760,6 +761,10 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
                 && !StrUtil.containsIgnoreCase(resolved.getApiUrl(), "/responses")) {
             throw new IllegalStateException("openai-responses 的 apiUrl 必须直接指向 /responses 接口。");
+        }
+        if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                && SecretValueGuard.isPlaceholderSecret(resolved.getApiKey())) {
+            throw new IllegalStateException("LLM apiKey 不能使用示例或占位符密钥。");
         }
     }
 

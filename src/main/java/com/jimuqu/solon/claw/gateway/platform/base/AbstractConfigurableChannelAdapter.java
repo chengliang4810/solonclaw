@@ -7,34 +7,18 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** 可配置渠道适配器基类，负责处理启用状态、连接状态和基础日志。 */
 public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapter {
-    private static final Set<String> WEAK_CREDENTIAL_PLACEHOLDERS =
-            new LinkedHashSet<String>(
-                    Arrays.asList(
-                            "*",
-                            "**",
-                            "***",
-                            "changeme",
-                            "your_api_key",
-                            "your-api-key",
-                            "placeholder",
-                            "example",
-                            "dummy",
-                            "null",
-                            "none"));
-
     /** 渠道日志器。 */
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -258,11 +242,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     protected static boolean isWeakCredentialPlaceholder(String value) {
-        if (StrUtil.isBlank(value)) {
-            return false;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return WEAK_CREDENTIAL_PLACEHOLDERS.contains(normalized);
+        return SecretValueGuard.isPlaceholderSecret(value);
     }
 
     protected static class CredentialField {

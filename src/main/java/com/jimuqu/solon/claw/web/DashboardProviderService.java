@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.io.File;
 import java.util.ArrayList;
@@ -97,7 +98,7 @@ public class DashboardProviderService {
         if (provider == null || StrUtil.isBlank(provider.getBaseUrl())) {
             return "unreachable";
         }
-        if (StrUtil.isBlank(provider.getApiKey())
+        if (!SecretValueGuard.hasUsableSecret(provider.getApiKey())
                 && !"ollama".equalsIgnoreCase(provider.getDialect())) {
             return "missing_key";
         }
@@ -274,7 +275,7 @@ public class DashboardProviderService {
         item.put("baseUrl", StrUtil.nullToEmpty(provider.getBaseUrl()));
         item.put("defaultModel", StrUtil.nullToEmpty(provider.getDefaultModel()));
         item.put("dialect", StrUtil.nullToEmpty(provider.getDialect()));
-        item.put("hasApiKey", StrUtil.isNotBlank(provider.getApiKey()));
+        item.put("hasApiKey", SecretValueGuard.hasUsableSecret(provider.getApiKey()));
         item.put("isDefault", StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
         item.put("metadata", metadataMap(modelMetadataService.resolve(providerKey, provider)));
         return item;
@@ -330,6 +331,10 @@ public class DashboardProviderService {
         }
         if (StrUtil.isBlank(dialect) || !LlmProviderSupport.isSupportedDialect(dialect)) {
             throw new IllegalArgumentException("不支持的 dialect：" + dialect);
+        }
+        if (SecretValueGuard.isPlaceholderSecret(apiKey)
+                && !LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+            throw new IllegalArgumentException("apiKey 不能使用示例或占位符密钥。");
         }
         if (StrUtil.isBlank(defaultModel) && StrUtil.isBlank(appConfig.getModel().getDefault())) {
             throw new IllegalArgumentException("defaultModel 不能为空。");

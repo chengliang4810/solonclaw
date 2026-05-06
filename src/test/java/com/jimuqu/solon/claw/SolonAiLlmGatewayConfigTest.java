@@ -47,6 +47,24 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
+    void shouldFailFastForPlaceholderApiKey() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("openai");
+        config.getLlm().setDialect("openai");
+        config.getLlm().setApiUrl("https://example.com/v1/chat/completions");
+        config.getLlm().setApiKey("example");
+        config.getLlm().setModel("gpt-5.4");
+
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-placeholder-key");
+
+        assertThatThrownBy(() -> gateway.chat(session, "system", "hello", Collections.emptyList()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("占位符密钥");
+    }
+
+    @Test
     void shouldUseRawResponseLoggingDialectForOpenaiResponsesProvider() throws Exception {
         AppConfig config = new AppConfig();
         config.getLlm().setProvider("openai-responses");

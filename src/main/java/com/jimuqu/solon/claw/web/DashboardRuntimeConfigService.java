@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -459,6 +460,9 @@ public class DashboardRuntimeConfigService {
 
     public Map<String, Object> set(String key, String value, boolean reconnectChannels) {
         ensureSupported(key);
+        if ("providers.default.apiKey".equals(key) && SecretValueGuard.isPlaceholderSecret(value)) {
+            throw new IllegalArgumentException("providers.default.apiKey 不能使用示例或占位符密钥。");
+        }
         configResolver.setFileValue(key, value);
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();

@@ -841,6 +841,29 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRejectProviderPlaceholderApiKeys() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult createProvider =
+                request(
+                        "POST",
+                        "/api/providers",
+                        "{\"providerKey\":\"placeholder-provider\",\"name\":\"占位 Provider\",\"baseUrl\":\"https://api.example.com\",\"apiKey\":\"  Your-API-Key  \",\"defaultModel\":\"gpt-5-mini\",\"dialect\":\"openai\"}",
+                        token);
+        assertThat(createProvider.status).isEqualTo(500);
+        assertThat(request("GET", "/api/providers", null, token).body)
+                .doesNotContain("placeholder-provider");
+
+        HttpResult saveRuntimeConfig =
+                request(
+                        "PUT",
+                        "/api/runtime-config",
+                        "{\"key\":\"providers.default.apiKey\",\"value\":\"NONE\"}",
+                        token);
+        assertThat(saveRuntimeConfig.status).isEqualTo(500);
+    }
+
+    @Test
     void shouldRejectBadGatewayInjectionWithoutBurningNonce() throws Exception {
         String body =
                 "{\"platform\":\"MEMORY\",\"chatId\":\"signed-chat\",\"userId\":\"signed-user\",\"text\":\"/status\"}";

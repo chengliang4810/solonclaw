@@ -40,4 +40,36 @@ public class ConfigToolsTest {
         assertThat(ONode.ofJson(summaryResponse).get("success").getBoolean()).isTrue();
         assertThat(env.appConfig.getReact().getSummarizationMaxTokens()).isEqualTo(48000);
     }
+
+    @Test
+    void shouldRejectPlaceholderSecretsFromConfigTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configSetSecretTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configSetSecret".equals(method.getName())) {
+                    configSetSecretTool = tool;
+                    break;
+                }
+            }
+            if (configSetSecretTool != null) {
+                break;
+            }
+        }
+
+        assertThat(configSetSecretTool).isNotNull();
+        Method method =
+                configSetSecretTool
+                        .getClass()
+                        .getMethod("configSetSecret", String.class, String.class);
+        String response =
+                (String)
+                        method.invoke(
+                                configSetSecretTool,
+                                "providers.default.apiKey",
+                                "your-api-key");
+
+        assertThat(ONode.ofJson(response).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(response).get("error").getString()).contains("占位符密钥");
+    }
 }
