@@ -195,6 +195,31 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldSupportHermesDurationAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        Map<String, Object> durationBody = new LinkedHashMap<String, Object>();
+        durationBody.put("name", "duration-alias");
+        durationBody.put("schedule", "1hr");
+        durationBody.put("prompt", "duration prompt");
+        CronJobRecord duration = service.create("MEMORY:cron:user", durationBody);
+        Map<?, ?> durationSchedule = (Map<?, ?>) service.toView(duration).get("schedule");
+        assertThat(durationSchedule.get("kind")).isEqualTo("once");
+        assertThat(durationSchedule.get("display")).isEqualTo("once in 1hr");
+
+        Map<String, Object> intervalBody = new LinkedHashMap<String, Object>();
+        intervalBody.put("name", "interval-alias");
+        intervalBody.put("schedule", "every 2 hrs");
+        intervalBody.put("prompt", "interval prompt");
+        CronJobRecord interval = service.create("MEMORY:cron:user", intervalBody);
+        Map<?, ?> intervalSchedule = (Map<?, ?>) service.toView(interval).get("schedule");
+        assertThat(intervalSchedule.get("kind")).isEqualTo("interval");
+        assertThat(intervalSchedule.get("minutes")).isEqualTo(Integer.valueOf(120));
+        assertThat(intervalSchedule.get("display")).isEqualTo("every 120m");
+    }
+
+    @Test
     void shouldCompleteDurationScheduleButKeepEveryIntervalActive() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

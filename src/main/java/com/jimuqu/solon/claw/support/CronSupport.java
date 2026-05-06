@@ -13,9 +13,9 @@ import java.util.regex.Pattern;
 /** 轻量级 cron 计算辅助类，仅覆盖当前项目需要的 5 段 cron 语义。 */
 public final class CronSupport {
     private static final Pattern RECURRING_INTERVAL_PATTERN =
-            Pattern.compile("^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hour|hours|d|day|days)$");
+            Pattern.compile("^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
     private static final Pattern DURATION_PATTERN =
-            Pattern.compile("^(\\d+)\\s*(m|min|minute|minutes|h|hour|hours|d|day|days)$");
+            Pattern.compile("^(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
 
     private CronSupport() {}
 
