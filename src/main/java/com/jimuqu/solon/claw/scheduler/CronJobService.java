@@ -61,9 +61,15 @@ public class CronJobService {
         List<String> skills = canonicalSkills(body);
         String script = string(body.get("script"), null);
         boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
-        String model = string(body.get("model"), null);
-        String provider = string(body.get("provider"), null);
-        String baseUrl = string(body.get("base_url"), string(body.get("baseUrl"), null));
+        ModelOverride modelOverride =
+                modelOverride(
+                        body.get("model"),
+                        body.get("provider"),
+                        body.get("base_url"),
+                        body.get("baseUrl"),
+                        null,
+                        null,
+                        null);
         if (StrUtil.isBlank(schedule)) {
             throw new IllegalStateException("schedule is required");
         }
@@ -97,7 +103,7 @@ public class CronJobService {
         record.setNoAgent(noAgent);
         record.setContextFromJson(json(stringList(body.get("context_from"))));
         record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
-        applyModelPin(record, model, provider, baseUrl);
+        applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         record.setWrapResponse(
                 bool(body.get("wrap_response"), bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
         record.setStatus(STATUS_ACTIVE);
@@ -172,14 +178,16 @@ public class CronJobService {
                 || body.containsKey("provider")
                 || body.containsKey("base_url")
                 || body.containsKey("baseUrl")) {
-            String model = body.containsKey("model") ? string(body.get("model"), null) : record.getModel();
-            String provider =
-                    body.containsKey("provider") ? string(body.get("provider"), null) : record.getProvider();
-            String baseUrl =
-                    body.containsKey("base_url") || body.containsKey("baseUrl")
-                            ? string(body.get("base_url"), string(body.get("baseUrl"), null))
-                            : record.getBaseUrl();
-            applyModelPin(record, model, provider, baseUrl);
+            ModelOverride modelOverride =
+                    modelOverride(
+                            body.get("model"),
+                            body.get("provider"),
+                            body.get("base_url"),
+                            body.get("baseUrl"),
+                            record.getModel(),
+                            record.getProvider(),
+                            record.getBaseUrl());
+            applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         }
         if (body.containsKey("wrap_response") || body.containsKey("wrapResponse")) {
             record.setWrapResponse(bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
@@ -430,6 +438,18 @@ public class CronJobService {
         }
     }
 
+    private static class ModelOverride {
+        private final String model;
+        private final String provider;
+        private final String baseUrl;
+
+        private ModelOverride(String model, String provider, String baseUrl) {
+            this.model = model;
+            this.provider = provider;
+            this.baseUrl = baseUrl;
+        }
+    }
+
     private String json(Object value) {
         if (value == null) {
             return null;
@@ -516,6 +536,9 @@ public class CronJobService {
         String normalizedModel = normalizeBlank(model);
         String normalizedProvider = normalizeBlank(provider);
         String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+        if ("custom".equals(normalizedProvider)) {
+            normalizedProvider = null;
+        }
         if (StrUtil.isNotBlank(normalizedProvider)
                 && !appConfig.getProviders().containsKey(normalizedProvider)) {
             throw new IllegalStateException("provider not found: " + normalizedProvider);
@@ -531,6 +554,63 @@ public class CronJobService {
         record.setModel(normalizedModel);
         record.setProvider(normalizedProvider);
         record.setBaseUrl(normalizedBaseUrl);
+    }
+
+    private ModelOverride modelOverride(
+            Object modelValue,
+            Object providerValue,
+            Object baseUrlValue,
+            Object baseUrlAliasValue,
+            String defaultModel,
+            String defaultProvider,
+            String defaultBaseUrl) {
+        Map<?, ?> modelObject = objectMap(modelValue);
+        String model =
+                modelObject != null
+                        ? firstString(modelObject, "model", "name", "id")
+                        : string(modelValue, defaultModel);
+        String provider =
+                providerValue != null
+                        ? string(providerValue, defaultProvider)
+                        : modelObject != null
+                                ? firstString(modelObject, "provider", "providerKey", "provider_key")
+                                : defaultProvider;
+        String baseUrl =
+                baseUrlValue != null || baseUrlAliasValue != null
+                        ? string(baseUrlValue, string(baseUrlAliasValue, defaultBaseUrl))
+                        : modelObject != null
+                                ? firstString(modelObject, "base_url", "baseUrl", "api_url", "apiUrl")
+                                : defaultBaseUrl;
+        return new ModelOverride(model, provider, baseUrl);
+    }
+
+    private Map<?, ?> objectMap(Object value) {
+        if (value instanceof Map) {
+            return (Map<?, ?>) value;
+        }
+        if (!(value instanceof String)) {
+            return null;
+        }
+        String text = ((String) value).trim();
+        if (!text.startsWith("{") || !text.endsWith("}")) {
+            return null;
+        }
+        try {
+            Object data = ONode.ofJson(text).toData();
+            return data instanceof Map ? (Map<?, ?>) data : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String firstString(Map<?, ?> map, String... keys) {
+        for (int i = 0; i < keys.length; i++) {
+            Object value = map.get(keys[i]);
+            if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+                return String.valueOf(value);
+            }
+        }
+        return null;
     }
 
     private String normalizeBaseUrl(String value) {

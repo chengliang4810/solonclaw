@@ -38,7 +38,7 @@ public class CronjobTools {
             @Param(name = "no_agent", description = "是否跳过 Agent 直接投递脚本输出", required = false) Boolean noAgent,
             @Param(name = "context_from", description = "逗号分隔上游 job id", required = false) String contextFrom,
             @Param(name = "enabled_toolsets", description = "逗号分隔工具集", required = false) String enabledToolsets,
-            @Param(name = "model", description = "任务固定模型；只填 model 时会固定当前 provider", required = false) String model,
+            @Param(name = "model", description = "任务固定模型；支持字符串或 {provider, model} 对象", required = false) Object model,
             @Param(name = "provider", description = "任务固定 provider", required = false) String provider,
             @Param(name = "base_url", description = "任务固定模型 API base URL", required = false) String baseUrl,
             @Param(name = "limit", description = "history 返回条数", required = false) Integer limit)
@@ -145,7 +145,7 @@ public class CronjobTools {
             Boolean noAgent,
             String contextFrom,
             String enabledToolsets,
-            String model,
+            Object model,
             String provider,
             String baseUrl)
             throws Exception {
@@ -186,7 +186,7 @@ public class CronjobTools {
             Boolean noAgent,
             String contextFrom,
             String enabledToolsets,
-            String model,
+            Object model,
             String provider,
             String baseUrl) {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -215,7 +215,7 @@ public class CronjobTools {
         return body;
     }
 
-    private void put(Map<String, Object> body, String key, String value) {
+    private void put(Map<String, Object> body, String key, Object value) {
         if (value != null) {
             body.put(key, value);
         }

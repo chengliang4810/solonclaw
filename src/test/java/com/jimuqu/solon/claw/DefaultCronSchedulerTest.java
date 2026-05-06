@@ -558,6 +558,46 @@ public class DefaultCronSchedulerTest {
         CronJobRecord wrapped = service.create("MEMORY:room:user", explicitWrap);
         assertThat(wrapped.isWrapResponse()).isTrue();
 
+        AppConfig.ProviderConfig directProvider = new AppConfig.ProviderConfig();
+        directProvider.setName("Direct");
+        directProvider.setBaseUrl("https://api.direct.example");
+        directProvider.setApiKey("key");
+        directProvider.setDefaultModel("direct-default");
+        directProvider.setDialect("openai-responses");
+        env.appConfig.getProviders().put("direct", directProvider);
+
+        Map<String, Object> modelObject = new LinkedHashMap<String, Object>();
+        modelObject.put("provider", "direct");
+        modelObject.put("model", "object-model");
+        modelObject.put("base_url", "https://api.object.example/");
+        Map<String, Object> objectModelBody = new LinkedHashMap<String, Object>();
+        objectModelBody.put("name", "object-model");
+        objectModelBody.put("schedule", "every 2h");
+        objectModelBody.put("prompt", "对象模型");
+        objectModelBody.put("model", modelObject);
+        CronJobRecord objectModel = service.create("MEMORY:room:user", objectModelBody);
+        assertThat(objectModel.getProvider()).isEqualTo("direct");
+        assertThat(objectModel.getModel()).isEqualTo("object-model");
+        assertThat(objectModel.getBaseUrl()).isEqualTo("https://api.object.example");
+
+        Map<String, Object> customModel = new LinkedHashMap<String, Object>();
+        customModel.put("provider", "custom");
+        customModel.put("model", "fallback-provider-model");
+        Map<String, Object> customUpdate = new LinkedHashMap<String, Object>();
+        customUpdate.put("model", customModel);
+        CronJobRecord customUpdated = service.update(objectModel.getJobId(), customUpdate);
+        assertThat(customUpdated.getProvider()).isEqualTo("default");
+        assertThat(customUpdated.getModel()).isEqualTo("fallback-provider-model");
+
+        Map<String, Object> topLevelOverride = new LinkedHashMap<String, Object>();
+        topLevelOverride.put("model", modelObject);
+        topLevelOverride.put("provider", "default");
+        topLevelOverride.put("base_url", "https://api.top.example/");
+        CronJobRecord topLevelUpdated = service.update(objectModel.getJobId(), topLevelOverride);
+        assertThat(topLevelUpdated.getProvider()).isEqualTo("default");
+        assertThat(topLevelUpdated.getModel()).isEqualTo("object-model");
+        assertThat(topLevelUpdated.getBaseUrl()).isEqualTo("https://api.top.example");
+
         Map<String, Object> unsafe = new LinkedHashMap<String, Object>();
         unsafe.put("name", "unsafe");
         unsafe.put("schedule", "30m");
@@ -749,6 +789,66 @@ public class DefaultCronSchedulerTest {
                                 .toData();
         assertThat(missingJob.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(missingJob.get("error")).asString().contains("Job not found");
+
+        Map<String, Object> toolModel = new LinkedHashMap<String, Object>();
+        toolModel.put("model", "tool-object-model");
+        toolModel.put("provider", "custom");
+        Map<?, ?> toolObjectModel =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-object-model",
+                                                "30m",
+                                                "tool object model prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                toolModel,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> objectModelJob = (Map<?, ?>) toolObjectModel.get("job");
+        assertThat(objectModelJob.get("model")).isEqualTo("tool-object-model");
+        assertThat(objectModelJob.get("provider")).isEqualTo("default");
+
+        Map<?, ?> toolJsonModel =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-json-model",
+                                                "30m",
+                                                "tool json model prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                "{\"provider\":\"default\",\"model\":\"tool-json-model\",\"base_url\":\"https://api.json.example/\"}",
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> jsonModelJob = (Map<?, ?>) toolJsonModel.get("job");
+        assertThat(jsonModelJob.get("model")).isEqualTo("tool-json-model");
+        assertThat(jsonModelJob.get("provider")).isEqualTo("default");
+        assertThat(jsonModelJob.get("base_url")).isEqualTo("https://api.json.example");
 
         Map<?, ?> emptyUpdate =
                 (Map<?, ?>)
