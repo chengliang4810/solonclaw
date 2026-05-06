@@ -415,6 +415,19 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockIpv4MappedIpv6MetadataEvenWhenPrivateUrlsAreAllowed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("http://[::ffff:169.254.169.254]/latest/meta-data/");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldBlockHermesStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

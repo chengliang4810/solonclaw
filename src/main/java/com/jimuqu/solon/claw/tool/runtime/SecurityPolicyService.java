@@ -158,7 +158,9 @@ public class SecurityPolicyService {
             InetAddress[] addresses = InetAddress.getAllByName(host);
             for (InetAddress address : addresses) {
                 String ip = address.getHostAddress();
-                if (isAlwaysBlockedIp(ip) || address.isLinkLocalAddress()) {
+                if (isAlwaysBlockedIp(ip)
+                        || address.isLinkLocalAddress()
+                        || isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
                 if (!allowPrivate && !trustedPrivate && isPrivateOrInternal(address, ip)) {
@@ -763,6 +765,40 @@ public class SecurityPolicyService {
             return true;
         }
         return ip != null && ip.startsWith("169.254.");
+    }
+
+    private boolean isAlwaysBlockedAddress(InetAddress address) {
+        if (address == null) {
+            return false;
+        }
+        byte[] rawAddress = address.getAddress();
+        if (rawAddress == null) {
+            return false;
+        }
+        if (rawAddress.length == 4) {
+            return isAlwaysBlockedIpv4(
+                    rawAddress[0] & 0xff,
+                    rawAddress[1] & 0xff,
+                    rawAddress[2] & 0xff,
+                    rawAddress[3] & 0xff);
+        }
+        if (rawAddress.length == 16
+                && rawAddress[10] == (byte) 0xff
+                && rawAddress[11] == (byte) 0xff) {
+            return isAlwaysBlockedIpv4(
+                    rawAddress[12] & 0xff,
+                    rawAddress[13] & 0xff,
+                    rawAddress[14] & 0xff,
+                    rawAddress[15] & 0xff);
+        }
+        return false;
+    }
+
+    private boolean isAlwaysBlockedIpv4(int a, int b, int c, int d) {
+        if (a == 169 && b == 254) {
+            return true;
+        }
+        return (a == 100 && b == 100 && c == 100 && d == 200);
     }
 
     private boolean isPrivateOrInternal(InetAddress address, String ip) {
