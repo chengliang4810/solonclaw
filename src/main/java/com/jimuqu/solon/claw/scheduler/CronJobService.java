@@ -286,9 +286,22 @@ public class CronJobService {
 
     public Map<String, Object> toView(CronJobRecord record) {
         Map<String, Object> schedule = new LinkedHashMap<String, Object>();
-        schedule.put("kind", CronSupport.isOneShot(record.getCronExpr()) ? "once" : "cron");
-        schedule.put("expr", record.getCronExpr());
-        schedule.put("display", record.getCronExpr());
+        String scheduleKind = CronSupport.kind(record.getCronExpr());
+        schedule.put("kind", scheduleKind);
+        schedule.put("raw", record.getCronExpr());
+        if ("interval".equals(scheduleKind)) {
+            schedule.put("minutes", CronSupport.intervalMinutes(record.getCronExpr()));
+        } else if ("once".equals(scheduleKind)) {
+            Long absoluteRunAt = CronSupport.absoluteRunAt(record.getCronExpr());
+            schedule.put(
+                    "run_at",
+                    absoluteRunAt == null
+                            ? Long.valueOf(record.getNextRunAt())
+                            : absoluteRunAt);
+        } else {
+            schedule.put("expr", record.getCronExpr());
+        }
+        schedule.put("display", scheduleDisplay(record));
 
         Map<String, Object> repeat = new LinkedHashMap<String, Object>();
         repeat.put("times", record.getRepeatTimes() <= 0 ? null : Integer.valueOf(record.getRepeatTimes()));
@@ -300,8 +313,9 @@ public class CronJobService {
         result.put("name", record.getName());
         result.put("prompt", record.getPrompt());
         result.put("prompt_preview", StrUtil.maxLength(record.getPrompt(), 120));
+        result.put("cron_expr", record.getCronExpr());
         result.put("schedule", schedule);
-        result.put("schedule_display", record.getCronExpr());
+        result.put("schedule_display", schedule.get("display"));
         result.put("enabled", Boolean.valueOf(STATUS_ACTIVE.equalsIgnoreCase(record.getStatus())));
         result.put("state", state(record));
         result.put("deliver", StrUtil.blankToDefault(record.getDeliverPlatform(), "local"));
@@ -340,6 +354,23 @@ public class CronJobService {
             return "completed";
         }
         return "scheduled";
+    }
+
+    private String scheduleDisplay(CronJobRecord record) {
+        String expr = record.getCronExpr();
+        String kind = CronSupport.kind(expr);
+        if ("interval".equals(kind)) {
+            Integer minutes = CronSupport.intervalMinutes(expr);
+            return minutes == null ? expr : "every " + minutes + "m";
+        }
+        if ("once".equals(kind)) {
+            Long absoluteRunAt = CronSupport.absoluteRunAt(expr);
+            if (absoluteRunAt != null) {
+                return "once at " + absoluteRunAt;
+            }
+            return "once in " + expr;
+        }
+        return expr;
     }
 
     private void validateContextFrom(List<String> refs) throws Exception {

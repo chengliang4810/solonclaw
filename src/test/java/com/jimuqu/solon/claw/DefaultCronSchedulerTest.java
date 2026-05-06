@@ -113,6 +113,65 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExposeHermesScheduleKinds() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        Map<String, Object> onceBody = new LinkedHashMap<String, Object>();
+        onceBody.put("name", "once-duration");
+        onceBody.put("schedule", "30m");
+        onceBody.put("prompt", "once prompt");
+        CronJobRecord once = service.create("MEMORY:cron:user", onceBody);
+        Map<?, ?> onceSchedule = (Map<?, ?>) service.toView(once).get("schedule");
+        assertThat(onceSchedule.get("kind")).isEqualTo("once");
+        assertThat(onceSchedule.get("run_at")).isEqualTo(Long.valueOf(once.getNextRunAt()));
+        assertThat(onceSchedule.get("display")).isEqualTo("once in 30m");
+
+        Map<String, Object> intervalBody = new LinkedHashMap<String, Object>();
+        intervalBody.put("name", "interval");
+        intervalBody.put("schedule", "every 2h");
+        intervalBody.put("prompt", "interval prompt");
+        CronJobRecord interval = service.create("MEMORY:cron:user", intervalBody);
+        Map<?, ?> intervalSchedule = (Map<?, ?>) service.toView(interval).get("schedule");
+        assertThat(intervalSchedule.get("kind")).isEqualTo("interval");
+        assertThat(intervalSchedule.get("minutes")).isEqualTo(Integer.valueOf(120));
+        assertThat(intervalSchedule.get("display")).isEqualTo("every 120m");
+
+        Map<String, Object> cronBody = new LinkedHashMap<String, Object>();
+        cronBody.put("name", "cron");
+        cronBody.put("schedule", "0 9 * * *");
+        cronBody.put("prompt", "cron prompt");
+        CronJobRecord cron = service.create("MEMORY:cron:user", cronBody);
+        Map<?, ?> cronSchedule = (Map<?, ?>) service.toView(cron).get("schedule");
+        assertThat(cronSchedule.get("kind")).isEqualTo("cron");
+        assertThat(cronSchedule.get("expr")).isEqualTo("0 9 * * *");
+        assertThat(cronSchedule.get("display")).isEqualTo("0 9 * * *");
+    }
+
+    @Test
+    void shouldCompleteDurationScheduleButKeepEveryIntervalActive() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        CronJobRecord once = createNoAgentScriptJob(env, service, "duration-once", "30m");
+        CronJobRecord interval = createNoAgentScriptJob(env, service, "interval-recurring", "every 30m");
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        assertThat(env.cronJobRepository.findById(once.getJobId()).getStatus()).isEqualTo("COMPLETED");
+        assertThat(env.cronJobRepository.findById(interval.getJobId()).getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
     void shouldSkipDeliveryForLocalCronTarget() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobRecord job = job("job-local", "MEMORY:admin-dm:admin-user");
@@ -1247,6 +1306,25 @@ public class DefaultCronSchedulerTest {
         job.setCreatedAt(now);
         job.setUpdatedAt(now);
         return job;
+    }
+
+    private CronJobRecord createNoAgentScriptJob(
+            TestEnvironment env, CronJobService service, String name, String schedule)
+            throws Exception {
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, name + ".py");
+        FileUtil.writeString("print('" + name + "')", script, StandardCharsets.UTF_8);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", name);
+        body.put("schedule", schedule);
+        body.put("script", script.getName());
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "local");
+        CronJobRecord job = service.create("MEMORY:" + name + ":user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        return env.cronJobRepository.update(job);
     }
 
     private void assertBlockedCronPrompt(CronJobService service, String prompt, String marker) {

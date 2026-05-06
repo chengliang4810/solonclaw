@@ -12,8 +12,10 @@ import java.util.regex.Pattern;
 
 /** 轻量级 cron 计算辅助类，仅覆盖当前项目需要的 5 段 cron 语义。 */
 public final class CronSupport {
-    private static final Pattern INTERVAL_PATTERN =
-            Pattern.compile("^(?:every\\s+)?(\\d+)\\s*(m|min|minute|minutes|h|hour|hours|d|day|days)$");
+    private static final Pattern RECURRING_INTERVAL_PATTERN =
+            Pattern.compile("^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hour|hours|d|day|days)$");
+    private static final Pattern DURATION_PATTERN =
+            Pattern.compile("^(\\d+)\\s*(m|min|minute|minutes|h|hour|hours|d|day|days)$");
 
     private CronSupport() {}
 
@@ -106,6 +108,9 @@ public final class CronSupport {
             return false;
         }
         String normalized = schedule.trim();
+        if (DURATION_PATTERN.matcher(normalized.toLowerCase(Locale.ROOT)).matches()) {
+            return true;
+        }
         try {
             parseIsoMillis(normalized);
             return true;
@@ -114,9 +119,76 @@ public final class CronSupport {
         }
     }
 
+    public static boolean isInterval(String schedule) {
+        return StrUtil.isNotBlank(schedule)
+                && RECURRING_INTERVAL_PATTERN
+                        .matcher(schedule.trim().toLowerCase(Locale.ROOT))
+                        .matches();
+    }
+
+    public static boolean isCronExpression(String schedule) {
+        if (StrUtil.isBlank(schedule)) {
+            return false;
+        }
+        String[] parts = schedule.trim().split("\\s+");
+        if (parts.length != 5) {
+            return false;
+        }
+        try {
+            validate(parts);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public static String kind(String schedule) {
+        if (isInterval(schedule)) {
+            return "interval";
+        }
+        if (isOneShot(schedule)) {
+            return "once";
+        }
+        return "cron";
+    }
+
+    public static Integer intervalMinutes(String schedule) {
+        if (StrUtil.isBlank(schedule)) {
+            return null;
+        }
+        Matcher matcher =
+                RECURRING_INTERVAL_PATTERN.matcher(schedule.trim().toLowerCase(Locale.ROOT));
+        if (!matcher.matches()) {
+            matcher = DURATION_PATTERN.matcher(schedule.trim().toLowerCase(Locale.ROOT));
+        }
+        if (!matcher.matches()) {
+            return null;
+        }
+        long millis = intervalMillis(matcher);
+        return Integer.valueOf((int) Math.max(1L, millis / 60000L));
+    }
+
+    public static Long absoluteRunAt(String schedule) {
+        if (StrUtil.isBlank(schedule)) {
+            return null;
+        }
+        String normalized = schedule.trim();
+        if (DURATION_PATTERN.matcher(normalized.toLowerCase(Locale.ROOT)).matches()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(parseIsoMillis(normalized));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private static Long nextDirectSchedule(String schedule, long fromEpochMillis) {
         String normalized = schedule.trim().toLowerCase(Locale.ROOT);
-        Matcher matcher = INTERVAL_PATTERN.matcher(normalized);
+        Matcher matcher = RECURRING_INTERVAL_PATTERN.matcher(normalized);
+        if (!matcher.matches()) {
+            matcher = DURATION_PATTERN.matcher(normalized);
+        }
         if (matcher.matches()) {
             long millis = intervalMillis(matcher);
             return Long.valueOf(fromEpochMillis + Math.max(60000L, millis));
@@ -130,7 +202,8 @@ public final class CronSupport {
     }
 
     private static Long directIntervalMillis(String schedule) {
-        Matcher matcher = INTERVAL_PATTERN.matcher(schedule.trim().toLowerCase(Locale.ROOT));
+        Matcher matcher =
+                RECURRING_INTERVAL_PATTERN.matcher(schedule.trim().toLowerCase(Locale.ROOT));
         if (!matcher.matches()) {
             return null;
         }

@@ -48,7 +48,12 @@ const targetOptions = computed(() => [
   { label: t('jobs.local'), value: 'local' },
 ])
 
-const originalSchedule = ref<{ kind: string; expr: string; display: string } | null>(null)
+const originalSchedule = ref<{ kind: string; raw?: string; expr?: string; display: string } | null>(null)
+
+function editableScheduleValue(schedule: any, fallback: string) {
+  if (!schedule || typeof schedule === 'string') return schedule || fallback
+  return schedule.raw || schedule.expr || schedule.display || fallback
+}
 
 onMounted(async () => {
   if (props.jobId) {
@@ -57,7 +62,7 @@ onMounted(async () => {
       const job = await getJob(props.jobId)
       formData.value = {
         name: job.name,
-        schedule: typeof job.schedule === 'string' ? job.schedule : (job.schedule?.expr || job.schedule_display || ''),
+        schedule: editableScheduleValue(job.schedule, job.schedule_display || ''),
         prompt: job.prompt,
         deliver: job.deliver || 'origin',
         repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),

@@ -249,6 +249,8 @@ public class CronjobTools {
         result.put("provider", job.getProvider());
         result.put("base_url", job.getBaseUrl());
         result.put("schedule", job.getCronExpr());
+        result.put("schedule_detail", base.get("schedule"));
+        result.put("schedule_display", base.get("schedule_display"));
         result.put("repeat", repeatDisplay(job));
         result.put("deliver", base.get("deliver"));
         result.put("next_run_at", base.get("next_run_at"));

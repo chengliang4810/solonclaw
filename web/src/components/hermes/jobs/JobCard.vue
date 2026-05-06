@@ -33,7 +33,7 @@ const statusType = computed(() => {
 const scheduleExpr = computed(() => {
   const s = props.job.schedule
   if (typeof s === 'string') return s
-  return s?.expr || props.job.schedule_display || '—'
+  return s?.display || s?.expr || props.job.schedule_display || '—'
 })
 
 const formatTime = (t?: string | null) => {

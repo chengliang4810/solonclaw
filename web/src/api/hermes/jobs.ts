@@ -12,7 +12,7 @@ export interface Job {
   provider: string | null
   base_url: string | null
   script: string | null
-  schedule: string | { kind: string; expr: string; display: string }
+  schedule: string | { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string }
   schedule_display: string
   repeat: string | { times: number | null; completed: number }
   enabled: boolean
@@ -45,7 +45,7 @@ export interface CreateJobRequest {
 
 export interface UpdateJobRequest {
   name?: string
-  schedule?: string | { kind: string; expr: string; display: string }
+  schedule?: string | { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string }
   prompt?: string
   deliver?: string
   skills?: string[]
@@ -67,7 +67,7 @@ interface DashboardJob {
   base_url?: string | null
   script?: string | null
   repeat?: string | { times: number | null; completed: number }
-  schedule: { kind: string; expr: string; display: string }
+  schedule: { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string }
   schedule_display: string
   enabled: boolean
   state: string
@@ -114,9 +114,10 @@ function mapJob(job: DashboardJob): Job {
   }
 }
 
-function unwrapSchedule(schedule: string | { kind: string; expr: string; display: string } | undefined): string | undefined {
+function unwrapSchedule(schedule: string | { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string } | undefined): string | undefined {
   if (!schedule) return undefined
-  return typeof schedule === 'string' ? schedule : schedule.expr
+  if (typeof schedule === 'string') return schedule
+  return schedule.raw || schedule.expr || schedule.display
 }
 
 export async function listJobs(): Promise<Job[]> {
