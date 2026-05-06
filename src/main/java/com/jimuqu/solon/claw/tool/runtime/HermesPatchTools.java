@@ -552,8 +552,18 @@ public class HermesPatchTools {
 
     private String simpleDiff(String filePath, String oldContent, String newContent) {
         StringBuilder diff = new StringBuilder();
-        diff.append("--- a/").append(filePath).append('\n');
-        diff.append("+++ b/").append(filePath).append('\n');
+        boolean added = StrUtil.isEmpty(oldContent) && StrUtil.isNotEmpty(newContent);
+        boolean deleted = StrUtil.isNotEmpty(oldContent) && StrUtil.isEmpty(newContent);
+        if (added) {
+            diff.append("--- /dev/null\n");
+            diff.append("+++ b/").append(filePath).append('\n');
+        } else if (deleted) {
+            diff.append("--- a/").append(filePath).append('\n');
+            diff.append("+++ /dev/null\n");
+        } else {
+            diff.append("--- a/").append(filePath).append('\n');
+            diff.append("+++ b/").append(filePath).append('\n');
+        }
         if (!StrUtil.equals(oldContent, newContent)) {
             for (String line : StrUtil.nullToEmpty(oldContent).split("\n", -1)) {
                 if (line.length() > 0) {

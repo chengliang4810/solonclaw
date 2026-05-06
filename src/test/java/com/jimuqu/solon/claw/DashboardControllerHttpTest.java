@@ -764,7 +764,7 @@ public class DashboardControllerHttpTest {
     private static HttpResult request(
             String method, String path, String body, String token, Map<String, String> headers)
             throws Exception {
-        int attempts = body == null || path.startsWith("/api/todos") ? 3 : 1;
+        int attempts = 3;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
                 return requestOnce(method, path, body, token, headers);

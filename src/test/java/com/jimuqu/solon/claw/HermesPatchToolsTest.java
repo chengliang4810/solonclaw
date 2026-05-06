@@ -66,10 +66,36 @@ public class HermesPatchToolsTest {
 
         Map<?, ?> result = parse(json);
         assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(result.get("diff")))
+                .contains("--- /dev/null")
+                .contains("+++ b/new.txt")
+                .contains("+created");
         assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
                 .isEqualTo("alpha\ngamma\n");
         assertThat(new String(Files.readAllBytes(dir.resolve("new.txt")), StandardCharsets.UTF_8))
                 .isEqualTo("created");
+    }
+
+    @Test
+    void shouldUseDevNullDiffForDeletedFilesLikeHermes() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("old.txt");
+        Files.write(file, "obsolete\n".getBytes(StandardCharsets.UTF_8));
+        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Delete File: old.txt\n"
+                        + "*** End Patch";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(result.get("diff")))
+                .contains("--- a/old.txt")
+                .contains("+++ /dev/null")
+                .contains("-obsolete");
+        assertThat(Files.exists(file)).isFalse();
     }
 
     @Test
