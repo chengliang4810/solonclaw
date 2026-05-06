@@ -840,6 +840,18 @@ public class DangerousCommandApprovalServiceTest {
                                 "https://user:pass@example.com/path?token=secret123"))
                 .doesNotContain("user:pass")
                 .doesNotContain("secret123");
+        assertThat(
+                        com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
+                                "https://oauth.example/callback?access_token=access-secret&client_secret=client-secret&code=oauth-code&x-amz-signature=aws-signature&ok=value"))
+                .contains("access_token=***")
+                .contains("client_secret=***")
+                .contains("code=***")
+                .contains("x-amz-signature=***")
+                .contains("ok=value")
+                .doesNotContain("access-secret")
+                .doesNotContain("client-secret")
+                .doesNotContain("oauth-code")
+                .doesNotContain("aws-signature");
         assertThat(python.isAllowed()).isFalse();
         assertThat(python.getMessage()).contains("blocked.example");
     }

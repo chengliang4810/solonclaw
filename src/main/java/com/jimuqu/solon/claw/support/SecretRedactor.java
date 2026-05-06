@@ -12,6 +12,10 @@ public final class SecretRedactor {
                     "(?i)(api[_-]?key|token|secret|password|authorization|client[_-]?secret)(\\s*[:=]\\s*)([^\\s,;\"'}]+)");
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)(https?://)([^/?#\\s@]+)@");
+    private static final String SENSITIVE_QUERY_NAMES =
+            "access_token|refresh_token|id_token|token|api_key|apikey|client_secret|password|auth|jwt|session|secret|key|code|signature|x-amz-signature";
+    private static final Pattern SENSITIVE_QUERY =
+            Pattern.compile("(?i)([?&](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&#\\s]+");
     private static final Pattern PREFIX_SECRET =
             Pattern.compile(
                     "(?<![A-Za-z0-9_-])("
@@ -63,7 +67,7 @@ public final class SecretRedactor {
         result = KEY_VALUE.matcher(result).replaceAll("$1$2***");
         result = PREFIX_SECRET.matcher(result).replaceAll("***");
         result = URL_USERINFO.matcher(result).replaceAll("$1***@");
-        result = result.replaceAll("(?i)([?&](?:token|key|secret|password)=)[^&\\s]+", "$1***");
+        result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {
             return result.substring(0, limit)
@@ -101,7 +105,7 @@ public final class SecretRedactor {
             return value;
         }
         String result = URL_USERINFO.matcher(value).replaceAll("$1***@");
-        result = result.replaceAll("(?i)([?&](?:token|key|secret|password)=)[^&]+", "$1***");
+        result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         return PREFIX_SECRET.matcher(result).replaceAll("***");
     }
 }
