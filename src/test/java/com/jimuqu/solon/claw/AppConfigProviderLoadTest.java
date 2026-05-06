@@ -72,4 +72,50 @@ public class AppConfigProviderLoadTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("fallbackProviders");
     }
+
+    @Test
+    void shouldRejectMalformedProviderBaseUrl() throws Exception {
+        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-bad-url").toFile();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  local:\n"
+                        + "    name: 本地模型\n"
+                        + "    baseUrl: http://127.0.0.1:6153export\n"
+                        + "    defaultModel: test-model\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: local\n",
+                new File(runtimeHome, "config.yml"));
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        assertThatThrownBy(() -> AppConfig.load(props))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("provider.baseUrl")
+                .hasMessageContaining("local");
+    }
+
+    @Test
+    void shouldRejectProviderBaseUrlWithUserInfo() throws Exception {
+        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-userinfo").toFile();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  custom:\n"
+                        + "    name: 自定义渠道\n"
+                        + "    baseUrl: https://user:pass@api.example.com/v1\n"
+                        + "    defaultModel: test-model\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: custom\n",
+                new File(runtimeHome, "config.yml"));
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        assertThatThrownBy(() -> AppConfig.load(props))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("provider.baseUrl")
+                .hasMessageContaining("userinfo");
+    }
 }

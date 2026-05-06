@@ -2309,6 +2309,12 @@ public class AppConfig {
             if (StrUtil.isBlank(provider.getBaseUrl())) {
                 throw new IllegalStateException("provider.baseUrl 不能为空：" + providerKey);
             }
+            try {
+                LlmProviderSupport.validateBaseUrl(provider.getBaseUrl());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException(
+                        "provider.baseUrl 配置无效：" + providerKey + "，" + e.getMessage(), e);
+            }
             if (StrUtil.isBlank(provider.getDialect())) {
                 throw new IllegalStateException("provider.dialect 不能为空：" + providerKey);
             }
