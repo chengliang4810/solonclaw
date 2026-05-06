@@ -2191,6 +2191,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForTirithWarningEvenWhenFindingsAreEmptyLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.<TirithSecurityService.Finding>emptyList(),
+                                "generic warning"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "echo hello");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+
+        assertThat(trace.getFinalAnswer()).contains("Security scan").contains("generic warning");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getPatternKey()).isEqualTo("tirith:security_scan");
+        assertThat(pending.getPatternKeys()).containsExactly("tirith:security_scan");
+        assertThat(pending.isPermanentApprovalAllowed()).isFalse();
+    }
+
+    @Test
     void shouldHidePermanentApprovalCardChoiceForTirithFindings() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FakeTirithSecurityService tirith =
