@@ -97,6 +97,10 @@ public class DashboardKanbanService {
                 body == null || body.get("reason") == null ? null : String.valueOf(body.get("reason")));
     }
 
+    public Map<String, Object> unblock(String taskId) throws Exception {
+        return kanbanService.unblock(taskId);
+    }
+
     public List<Map<String, Object>> runs(String taskId) throws Exception {
         return kanbanService.runs(taskId);
     }

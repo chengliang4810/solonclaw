@@ -559,6 +559,36 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public boolean unblockTask(String taskId) throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            KanbanTaskRecord task = findTask(taskId);
+            if (task == null || !"blocked".equals(task.getStatus())) {
+                return false;
+            }
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_tasks set status = 'ready', claim_lock = null, claim_expires_at = 0, worker_id = null, worker_pid = 0, current_run_id = null, completed_at = 0, updated_at = ? where task_id = ? and status = 'blocked'");
+            statement.setLong(1, now);
+            statement.setString(2, taskId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0) {
+                closeRunById(task.getCurrentRunId(), "released", "unblocked", null, null, null, now, connection);
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put("previous_status", task.getStatus());
+                payload.put("previous_run_id", task.getCurrentRunId());
+                payload.put("previous_result", task.getResult());
+                addEvent(connection, taskId, "unblocked", payload);
+            }
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public KanbanTaskRecord findTaskByIdempotencyKey(String boardSlug, String idempotencyKey)
             throws Exception {
         if (StrUtil.isBlank(idempotencyKey)) {

@@ -104,6 +104,11 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.retry(taskId, body(context)));
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/unblock", method = MethodType.POST)
+    public Map<String, Object> unblock(String taskId) throws Exception {
+        return DashboardResponse.ok(kanbanService.unblock(taskId));
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/runs", method = MethodType.GET)
     public List<Map<String, Object>> runs(String taskId) throws Exception {
         return kanbanService.runs(taskId);

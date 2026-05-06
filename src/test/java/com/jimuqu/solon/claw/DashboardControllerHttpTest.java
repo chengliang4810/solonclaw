@@ -536,10 +536,31 @@ public class DashboardControllerHttpTest {
         assertThat(kanbanRuns.status).isEqualTo(200);
         assertThat(kanbanRuns.body).contains("http-worker").contains("reclaimed");
 
+        HttpResult kanbanBlocked =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/status",
+                        "{\"status\":\"blocked\",\"result\":\"dashboard unblock wait\"}",
+                        token);
+        assertThat(kanbanBlocked.status).isEqualTo(200);
+        assertThat(kanbanBlocked.body).contains("\"status\":\"blocked\"");
+
+        HttpResult kanbanUnblock =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/unblock",
+                        "{}",
+                        token);
+        assertThat(kanbanUnblock.status).isEqualTo(200);
+        assertThat(kanbanUnblock.body)
+                .contains("\"status\":\"ready\"")
+                .contains("unblocked")
+                .contains("dashboard unblock wait");
+
         HttpResult kanbanEvents =
                 request("GET", "/api/kanban/tasks/" + taskId + "/events", null, token);
         assertThat(kanbanEvents.status).isEqualTo(200);
-        assertThat(kanbanEvents.body).contains("reassigned");
+        assertThat(kanbanEvents.body).contains("reassigned").contains("unblocked");
 
         HttpResult kanbanContext =
                 request("GET", "/api/kanban/tasks/" + taskId + "/context", null, token);

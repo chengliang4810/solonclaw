@@ -326,6 +326,14 @@ public class KanbanService {
         return task(taskId);
     }
 
+    public Map<String, Object> unblock(String taskId) throws Exception {
+        String id = requireArg(taskId, "kanban_unblock task_id");
+        if (!repository.unblockTask(id)) {
+            throw new IllegalArgumentException("Kanban task is not blocked or not found: " + id);
+        }
+        return task(id);
+    }
+
     public List<Map<String, Object>> runs(String taskId) throws Exception {
         requireTask(taskId);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -711,6 +719,9 @@ public class KanbanService {
                     tokens.length > 1 ? tokens[1] : null);
             return "已重试任务：" + tokens[0];
         }
+        if ("unblock".equals(action)) {
+            return unblockCommand(rest);
+        }
         if ("runs".equals(action) || "history".equals(action)) {
             return formatRuns(requireArg(rest, "/kanban runs <task-id>"));
         }
@@ -816,6 +827,29 @@ public class KanbanService {
             return "已归档任务：" + rest;
         }
         return kanbanHelp();
+    }
+
+    private String unblockCommand(String rest) throws Exception {
+        String raw = requireArg(rest, "/kanban unblock <task-id> [task-id...]");
+        String[] taskIds = raw.split("\\s+");
+        List<String> unblocked = new ArrayList<String>();
+        List<String> failed = new ArrayList<String>();
+        for (String taskId : taskIds) {
+            if (StrUtil.isBlank(taskId)) {
+                continue;
+            }
+            try {
+                unblock(taskId);
+                unblocked.add(taskId);
+            } catch (IllegalArgumentException e) {
+                failed.add(taskId);
+            }
+        }
+        if (!failed.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Kanban task is not blocked or not found: " + String.join(", ", failed));
+        }
+        return "已解除阻塞任务：" + String.join(", ", unblocked);
     }
 
     private String handleDaemonCommand(String rest) {
@@ -1181,6 +1215,7 @@ public class KanbanService {
                         "/kanban reclaim <task-id> [reason] - 收回运行中的任务",
                         "/kanban reassign <task-id> <assignee> [--reclaim] - 重新分配任务",
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",
+                        "/kanban unblock <task-id> [task-id...] - 将 blocked 任务恢复为 ready",
                         "/kanban link <parent-id> <child-id> - 添加任务依赖",
                         "/kanban unlink <parent-id> <child-id> - 移除任务依赖",
                         "/kanban runs <task-id> - 查看任务执行历史",

@@ -228,6 +228,39 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldUnblockOnlyBlockedTasks() throws Exception {
+        KanbanService service = service();
+        String blockedId = createTask(service, "等待人工确认", "alice", "alice");
+        String readyId = createTask(service, "已经可执行", "alice", "alice");
+
+        service.status(blockedId, "blocked", "需要补充信息");
+        service.status(readyId, "ready", null);
+
+        Map<String, Object> unblocked = service.unblock(blockedId);
+        assertThat(unblocked.get("status")).isEqualTo("ready");
+        assertThat(unblocked.get("claim_lock")).isNull();
+        assertThat(unblocked.get("current_run_id")).isNull();
+        assertThat(String.valueOf(unblocked.get("events")))
+                .contains("unblocked")
+                .contains("previous_status=blocked")
+                .contains("需要补充信息");
+
+        assertThatThrownBy(() -> service.unblock(readyId))
+                .hasMessageContaining("not blocked");
+
+        service.status(blockedId, "blocked", "再次等待确认");
+        service.status(readyId, "blocked", "批量等待确认");
+        assertThat(service.handleCommand("unblock " + blockedId + " " + readyId, "tester"))
+                .contains("已解除阻塞任务")
+                .contains(blockedId)
+                .contains(readyId);
+        assertThat(service.task(blockedId).get("status")).isEqualTo("ready");
+        assertThat(service.task(readyId).get("status")).isEqualTo("ready");
+        assertThatThrownBy(() -> service.handleCommand("unblock " + readyId, "tester"))
+                .hasMessageContaining("not blocked");
+    }
+
+    @Test
     void shouldExposePipelineLinksIdempotencyAndWorkerContext() throws Exception {
         KanbanService service = service();
         String parentId = createTask(service, "父任务", "lead", "lead");

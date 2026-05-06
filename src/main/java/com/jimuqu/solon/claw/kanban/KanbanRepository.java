@@ -44,6 +44,8 @@ public interface KanbanRepository {
 
     boolean updateTaskStatus(String taskId, String status, String result) throws Exception;
 
+    boolean unblockTask(String taskId) throws Exception;
+
     boolean reclaimTask(String taskId, String reason) throws Exception;
 
     boolean assignTask(String taskId, String assignee) throws Exception;
