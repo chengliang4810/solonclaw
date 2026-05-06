@@ -6,13 +6,18 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
 /** Hermes 风格的受管后台进程工具。 */
 public class ProcessTools {
+    private static final Pattern ANSI_CONTROL_SEQUENCE =
+            Pattern.compile(
+                    "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|[\\u0080-\\u009F]");
     private final ProcessRegistry processRegistry;
     private final String defaultWorkDir;
     private final SecurityPolicyService securityPolicyService;
@@ -52,7 +57,19 @@ public class ProcessTools {
                             required = false,
                             defaultValue = "30",
                             description = "Wait timeout in seconds for action=wait")
-                    Integer timeoutSeconds) {
+                    Integer timeoutSeconds,
+            @Param(
+                            name = "offset",
+                            required = false,
+                            defaultValue = "0",
+                            description = "Line offset for action=log. With offset=0, returns the last limit lines.")
+                    Integer offset,
+            @Param(
+                            name = "limit",
+                            required = false,
+                            defaultValue = "200",
+                            description = "Max lines to return for action=log.")
+                    Integer limit) {
         try {
             String normalized = StrUtil.blankToDefault(action, "list").trim().toLowerCase();
             if ("start".equals(normalized)) {
@@ -61,8 +78,11 @@ public class ProcessTools {
             if ("list".equals(normalized)) {
                 return list();
             }
-            if ("poll".equals(normalized) || "log".equals(normalized)) {
+            if ("poll".equals(normalized)) {
                 return poll(sessionId);
+            }
+            if ("log".equals(normalized)) {
+                return log(sessionId, offset, limit);
             }
             if ("wait".equals(normalized)) {
                 return waitFor(sessionId, timeoutSeconds);
@@ -103,6 +123,43 @@ public class ProcessTools {
                 .data("exit_code", managed.getExitCode())
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
+                .toJson();
+    }
+
+    private String log(String sessionId, Integer offset, Integer limit) {
+        ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
+        int safeLimit = limit == null ? 200 : Math.max(1, limit.intValue());
+        int safeOffset = offset == null ? 0 : Math.max(0, offset.intValue());
+        List<String> lines =
+                new ArrayList<String>(
+                        Arrays.asList(stripAnsi(managed.getOutput()).split("\\r?\\n", -1)));
+        if (!lines.isEmpty() && lines.get(lines.size() - 1).length() == 0) {
+            lines.remove(lines.size() - 1);
+        }
+        int totalLines = lines.size();
+        int start;
+        int end;
+        if (safeOffset == 0) {
+            start = Math.max(0, totalLines - safeLimit);
+            end = totalLines;
+        } else {
+            start = Math.min(safeOffset, totalLines);
+            end = Math.min(totalLines, start + safeLimit);
+        }
+        List<String> selected = lines.subList(start, end);
+        String output = joinLines(selected);
+        return ToolResultEnvelope.ok(
+                        managed.isExited()
+                                ? "后台进程日志已读取：" + managed.getId()
+                                : "后台进程日志已读取，进程仍在运行：" + managed.getId())
+                .data("session_id", managed.getId())
+                .data("status", managed.isExited() ? "exited" : "running")
+                .data("output", output)
+                .data("total_lines", Integer.valueOf(totalLines))
+                .data("showing", selected.size() + " lines")
+                .data("offset", Integer.valueOf(safeOffset))
+                .data("limit", Integer.valueOf(safeLimit))
+                .preview(output)
                 .toJson();
     }
 
@@ -249,5 +306,20 @@ public class ProcessTools {
                             + StrUtil.blankToDefault(
                                     dangerous.getDescription(), dangerous.getPatternKey()));
         }
+    }
+
+    private String stripAnsi(String text) {
+        return ANSI_CONTROL_SEQUENCE.matcher(StrUtil.nullToEmpty(text)).replaceAll("");
+    }
+
+    private String joinLines(List<String> lines) {
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) {
+                buffer.append('\n');
+            }
+            buffer.append(lines.get(i));
+        }
+        return buffer.toString();
     }
 }

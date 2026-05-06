@@ -99,7 +99,9 @@ public class ToolRegistryExposureTest {
                                 null,
                                 env.appConfig.getRuntime().getHome(),
                                 null,
-                                Integer.valueOf(1)));
+                                Integer.valueOf(1),
+                                null,
+                                null));
         assertThat(started.get("success").getBoolean()).isTrue();
         String sessionId = started.get("session_id").getString();
         assertThat(sessionId).startsWith("proc_");
@@ -112,13 +114,70 @@ public class ToolRegistryExposureTest {
                                 sessionId,
                                 null,
                                 null,
-                                Integer.valueOf(5)));
+                                Integer.valueOf(5),
+                                null,
+                                null));
         assertThat(waited.get("success").getBoolean()).isTrue();
         assertThat(waited.get("exited").getBoolean()).isTrue();
         assertThat(waited.get("output").getString()).contains("jimuqu-process-ok");
 
-        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void shouldPageManagedProcessLogs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                multiLineEchoCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+        tools.process("wait", null, sessionId, null, null, Integer.valueOf(5), null, null);
+
+        ONode lastTwo =
+                ONode.ofJson(
+                        tools.process(
+                                "log",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(0),
+                                Integer.valueOf(2)));
+        assertThat(lastTwo.get("success").getBoolean()).isTrue();
+        assertThat(lastTwo.get("total_lines").getInt()).isGreaterThanOrEqualTo(4);
+        assertThat(lastTwo.get("showing").getString()).isEqualTo("2 lines");
+        assertThat(lastTwo.get("output").getString()).contains("line-3").contains("line-4");
+        assertThat(lastTwo.get("output").getString()).doesNotContain("line-1");
+
+        ONode middle =
+                ONode.ofJson(
+                        tools.process(
+                                "log",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(1),
+                                Integer.valueOf(2)));
+        assertThat(middle.get("output").getString()).contains("line-2").contains("line-3");
+        assertThat(middle.get("output").getString()).doesNotContain("line-4");
     }
 
     @Test
@@ -138,7 +197,9 @@ public class ToolRegistryExposureTest {
                                 null,
                                 env.appConfig.getRuntime().getHome(),
                                 null,
-                                Integer.valueOf(1)));
+                                Integer.valueOf(1),
+                                null,
+                                null));
 
         assertThat(env.processRegistry.runningCount()).isEqualTo(1);
         assertThat(env.processRegistry.stop(started.get("session_id").getString())).isTrue();
@@ -162,7 +223,9 @@ public class ToolRegistryExposureTest {
                                 null,
                                 env.appConfig.getRuntime().getHome(),
                                 null,
-                                Integer.valueOf(1)));
+                                Integer.valueOf(1),
+                                null,
+                                null));
         String sessionId = started.get("session_id").getString();
 
         ONode write =
@@ -173,7 +236,9 @@ public class ToolRegistryExposureTest {
                                 sessionId,
                                 null,
                                 "alpha",
-                                Integer.valueOf(1)));
+                                Integer.valueOf(1),
+                                null,
+                                null));
         assertThat(write.get("success").getBoolean()).isTrue();
 
         ONode submit =
@@ -184,7 +249,9 @@ public class ToolRegistryExposureTest {
                                 sessionId,
                                 null,
                                 "-beta",
-                                Integer.valueOf(1)));
+                                Integer.valueOf(1),
+                                null,
+                                null));
         assertThat(submit.get("success").getBoolean()).isTrue();
 
         ONode close =
@@ -195,7 +262,9 @@ public class ToolRegistryExposureTest {
                                 sessionId,
                                 null,
                                 null,
-                                Integer.valueOf(1)));
+                                Integer.valueOf(1),
+                                null,
+                                null));
         assertThat(close.get("success").getBoolean()).isTrue();
         assertThat(close.get("stdin_closed").getBoolean()).isTrue();
 
@@ -207,7 +276,9 @@ public class ToolRegistryExposureTest {
                                 sessionId,
                                 null,
                                 null,
-                                Integer.valueOf(5)));
+                                Integer.valueOf(5),
+                                null,
+                                null));
         assertThat(waited.get("success").getBoolean()).isTrue();
         assertThat(waited.get("output").getString()).contains("alpha-beta");
     }
@@ -354,5 +425,12 @@ public class ToolRegistryExposureTest {
             return "findstr /n .*";
         }
         return "cat";
+    }
+
+    private String multiLineEchoCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo line-1 & echo line-2 & echo line-3 & echo line-4";
+        }
+        return "printf 'line-1\\nline-2\\nline-3\\nline-4\\n'";
     }
 }
