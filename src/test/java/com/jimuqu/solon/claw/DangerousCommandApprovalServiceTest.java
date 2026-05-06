@@ -2702,6 +2702,120 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
     }
 
+    @Test
+    void shouldBlockHermesHardlineCommandSamples() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String[] commands =
+                new String[] {
+                    "rm -rf /",
+                    "rm -rf /*",
+                    "rm -rf /home",
+                    "rm --recursive --force /",
+                    "rm -fr /",
+                    "sudo rm -rf /",
+                    "rm -rf ~",
+                    "rm -rf ~/*",
+                    "rm -rf $HOME",
+                    "mkfs.ext4 /dev/sda1",
+                    "mkfs /dev/sdb",
+                    "mkfs.xfs /dev/nvme0n1",
+                    "dd if=/dev/zero of=/dev/sda bs=1M",
+                    "dd if=/dev/urandom of=/dev/nvme0n1",
+                    "echo bad > /dev/sda",
+                    "cat /dev/urandom > /dev/sdb",
+                    ":(){ :|:& };:",
+                    "kill -9 -1",
+                    "kill -1",
+                    "shutdown -h now",
+                    "shutdown -r now",
+                    "sudo shutdown now",
+                    "reboot",
+                    "sudo reboot",
+                    "halt",
+                    "poweroff",
+                    "init 0",
+                    "init 6",
+                    "telinit 0",
+                    "systemctl poweroff",
+                    "systemctl reboot",
+                    "systemctl halt",
+                    "ls; reboot",
+                    "echo done && shutdown -h now",
+                    "false || halt",
+                    "$(reboot)",
+                    "`shutdown now`",
+                    "sudo -E shutdown now",
+                    "env FOO=1 reboot",
+                    "exec shutdown",
+                    "nohup reboot",
+                    "setsid poweroff"
+                };
+
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detectHardline(
+                            "execute_shell", command);
+
+            assertThat(result)
+                    .withFailMessage("expected hardline block for command: %s", command)
+                    .isNotNull();
+            assertThat(result.isHardline()).isTrue();
+            assertThat(result.getDescription()).isNotBlank();
+        }
+    }
+
+    @Test
+    void shouldAllowHermesHardlineNegativeSamples() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String[] commands =
+                new String[] {
+                    "rm -rf /tmp/foo",
+                    "rm -rf /tmp/*",
+                    "rm -rf ./build",
+                    "rm -rf node_modules",
+                    "rm -rf /home/user/scratch",
+                    "rm -rf ~/Downloads/old",
+                    "rm -rf $HOME/tmp",
+                    "rm foo.txt",
+                    "rm -rf some/path",
+                    "dd if=/dev/zero of=./image.bin",
+                    "dd if=./data of=./backup.bin",
+                    "echo done > /tmp/flag",
+                    "echo test > /dev/null",
+                    "ls /dev/sda",
+                    "cat /dev/urandom | head -c 10",
+                    "grep 'shutdown' logs.txt",
+                    "echo reboot",
+                    "echo '# init 0 in comment'",
+                    "cat rebooting.log",
+                    "echo 'halt and catch fire'",
+                    "python3 -c 'print(\"shutdown\")'",
+                    "find . -name '*reboot*'",
+                    "mkfs_helper --version",
+                    "systemctl status nginx",
+                    "systemctl restart nginx",
+                    "systemctl stop nginx",
+                    "systemctl start nginx",
+                    "kill -9 12345",
+                    "kill -HUP 1234",
+                    "pkill python",
+                    "git status",
+                    "npm run build",
+                    "sudo apt update",
+                    "curl https://example.com | head"
+                };
+
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detectHardline(
+                            "execute_shell", command);
+
+            assertThat(result)
+                    .withFailMessage("expected hardline allow for command: %s", command)
+                    .isNull();
+        }
+    }
+
     private static TirithSecurityService.ScanResult scanResult(
             String action, List<TirithSecurityService.Finding> findings, String summary)
             throws Exception {
