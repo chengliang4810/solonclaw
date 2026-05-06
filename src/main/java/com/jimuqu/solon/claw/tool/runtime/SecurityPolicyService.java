@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -271,6 +272,9 @@ public class SecurityPolicyService {
         if (matchesBlockedDevicePath(normalized)) {
             return FileVerdict.block(path, "读取设备文件可能导致无限输出或阻塞，已阻断");
         }
+        if (!writeLike && matchesBlockedInternalReadPath(normalized)) {
+            return FileVerdict.block(path, "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
+        }
         if (matchesCredentialPath(normalized)) {
             return FileVerdict.block(
                     path,
@@ -529,6 +533,18 @@ public class SecurityPolicyService {
         return PROC_STDIO_FD_PATTERN.matcher(normalized).matches();
     }
 
+    private boolean matchesBlockedInternalReadPath(String normalized) {
+        String path = stripKnownPrefix(normalized);
+        String hub = RuntimePathConstants.SKILLS_DIR_NAME + "/.hub";
+        if (path.equals(hub) || path.startsWith(hub + "/")) {
+            return true;
+        }
+        String runtimeSkillsHub = normalizeRuntimePath(RuntimePathConstants.SKILLS_DIR_NAME, ".hub");
+        return runtimeSkillsHub.length() > 0
+                && (normalized.equals(runtimeSkillsHub)
+                        || normalized.startsWith(runtimeSkillsHub + "/"));
+    }
+
     private boolean matchesCredentialPath(String normalized) {
         String path = stripKnownPrefix(normalized);
         for (String segment : CREDENTIAL_DIR_SEGMENTS) {
@@ -644,6 +660,20 @@ public class SecurityPolicyService {
         } catch (Exception ignored) {
         }
         return value;
+    }
+
+    private String normalizeRuntimePath(String first, String second) {
+        try {
+            if (appConfig == null || appConfig.getRuntime() == null) {
+                return "";
+            }
+            Path path = Paths.get(appConfig.getRuntime().getHome(), first, second)
+                    .toAbsolutePath()
+                    .normalize();
+            return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private String lastPathPart(String path) {

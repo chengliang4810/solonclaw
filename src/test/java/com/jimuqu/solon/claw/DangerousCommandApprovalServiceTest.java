@@ -613,6 +613,44 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockSkillsHubInternalCacheReadsLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> relativeHub = new LinkedHashMap<String, Object>();
+        relativeHub.put("fileName", "skills/.hub/index-cache/catalog.json");
+        Map<String, Object> absoluteHub = new LinkedHashMap<String, Object>();
+        absoluteHub.put(
+                "fileName",
+                new File(env.appConfig.getRuntime().getSkillsDir(), ".hub/tap.json")
+                        .getAbsolutePath());
+        Map<String, Object> skillFile = new LinkedHashMap<String, Object>();
+        skillFile.put("fileName", "skills/demo/SKILL.md");
+        Map<String, Object> projectNotes = new LinkedHashMap<String, Object>();
+        projectNotes.put("fileName", "docs/skills/.hub-notes.md");
+        Map<String, Object> projectHub = new LinkedHashMap<String, Object>();
+        projectHub.put("fileName", "docs/skills/.hub/readme.md");
+
+        SecurityPolicyService.FileVerdict relative =
+                securityPolicyService.checkFileToolArgs("file_read", relativeHub);
+        SecurityPolicyService.FileVerdict absolute =
+                securityPolicyService.checkFileToolArgs("file_read", absoluteHub);
+        SecurityPolicyService.FileVerdict skill =
+                securityPolicyService.checkFileToolArgs("file_read", skillFile);
+        SecurityPolicyService.FileVerdict notes =
+                securityPolicyService.checkFileToolArgs("file_read", projectNotes);
+        SecurityPolicyService.FileVerdict hubNotes =
+                securityPolicyService.checkFileToolArgs("file_read", projectHub);
+
+        assertThat(relative.isAllowed()).isFalse();
+        assertThat(relative.getMessage()).contains("Skills Hub");
+        assertThat(absolute.isAllowed()).isFalse();
+        assertThat(absolute.getMessage()).contains("Skills Hub");
+        assertThat(skill.isAllowed()).isTrue();
+        assertThat(notes.isAllowed()).isTrue();
+        assertThat(hubNotes.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockHermesWriteDeniedSystemPathsForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
