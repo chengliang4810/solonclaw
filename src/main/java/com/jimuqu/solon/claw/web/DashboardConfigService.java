@@ -22,7 +22,7 @@ import org.yaml.snakeyaml.Yaml;
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
     private static final List<String> PASSTHROUGH_PREFIXES =
-            Arrays.asList("channels.wecom.groups.");
+            Arrays.asList("channels.wecom.groups.", "security.website_blocklist.");
     private static final Object WRITE_LOCK = new Object();
 
     private final AppConfig appConfig;

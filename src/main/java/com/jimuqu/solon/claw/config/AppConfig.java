@@ -1094,7 +1094,15 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.security.websiteBlocklist.enabled",
-                                        false)));
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "solonclaw.security.website_blocklist.enabled",
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "security.website_blocklist.enabled",
+                                                        false)))));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setDomains(
@@ -1103,7 +1111,15 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.security.websiteBlocklist.domains",
-                                        "")));
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "solonclaw.security.website_blocklist.domains",
+                                                readRaw(
+                                                        props,
+                                                        overrides,
+                                                        "security.website_blocklist.domains",
+                                                        "")))));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setSharedFiles(
@@ -1112,7 +1128,15 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.security.websiteBlocklist.sharedFiles",
-                                        "")));
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "solonclaw.security.website_blocklist.shared_files",
+                                                readRaw(
+                                                        props,
+                                                        overrides,
+                                                        "security.website_blocklist.shared_files",
+                                                        "")))));
         config.getSecurity()
                 .setTirithEnabled(
                         resolveBoolean(

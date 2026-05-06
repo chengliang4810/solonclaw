@@ -216,4 +216,31 @@ public class CoreConfigOverrideLoadTest {
 
         assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/hermes-safe");
     }
+
+    @Test
+    void shouldLoadHermesWebsiteBlocklistAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-website-policy").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  website_blocklist:\n"
+                        + "    enabled: true\n"
+                        + "    domains:\n"
+                        + "      - blocked.example\n"
+                        + "      - '*.tracking.example'\n"
+                        + "    shared_files:\n"
+                        + "      - community-blocklist.txt\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
+        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
+                .containsExactly("blocked.example", "*.tracking.example");
+        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
+                .containsExactly("community-blocklist.txt");
+    }
 }

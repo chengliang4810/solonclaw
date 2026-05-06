@@ -496,12 +496,18 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.security.tirithFailOpen",
                     "solonclaw.approvals.mcpReloadConfirm",
                     "solonclaw.approvals.mcp_reload_confirm",
+                    "solonclaw.security.website_blocklist.enabled",
+                    "security.website_blocklist.enabled",
                     "solonclaw.mcp.enabled");
 
     private static final Set<String> LIST_KEYS =
             setOf(
                     "solonclaw.display.runtimeFooter.fields",
                     "solonclaw.gateway.allowedUsers",
+                    "solonclaw.security.website_blocklist.domains",
+                    "solonclaw.security.website_blocklist.shared_files",
+                    "security.website_blocklist.domains",
+                    "security.website_blocklist.shared_files",
                     "solonclaw.terminal.credentialFiles",
                     "terminal.credential_files",
                     "solonclaw.terminal.writeSafeRoot",

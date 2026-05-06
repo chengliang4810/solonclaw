@@ -84,6 +84,9 @@ public class RuntimeSettingsService {
                     "security.tirithPath",
                     "security.tirithTimeoutSeconds",
                     "security.tirithFailOpen",
+                    "security.website_blocklist.enabled",
+                    "security.website_blocklist.domains",
+                    "security.website_blocklist.shared_files",
                     "approvals.mode",
                     "approvals.cronMode",
                     "approvals.timeoutSeconds",
@@ -400,6 +403,7 @@ public class RuntimeSettingsService {
                 || "gateway.allowAllUsers".equals(key)
                 || "security.tirithEnabled".equals(key)
                 || "security.tirithFailOpen".equals(key)
+                || "security.website_blocklist.enabled".equals(key)
                 || "approvals.mcpReloadConfirm".equals(key)) {
             return "true".equalsIgnoreCase(value)
                     || "1".equals(value)
@@ -451,6 +455,8 @@ public class RuntimeSettingsService {
                 || key.endsWith("groupAllowedUsers")
                 || "display.runtimeFooter.fields".equals(key)
                 || "gateway.allowedUsers".equals(key)
+                || "security.website_blocklist.domains".equals(key)
+                || "security.website_blocklist.shared_files".equals(key)
                 || "terminal.credentialFiles".equals(key)
                 || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();

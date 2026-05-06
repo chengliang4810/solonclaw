@@ -67,6 +67,34 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldUpdateHermesWebsiteBlocklistRuntimeKeysWithoutReconnectingChannels()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("security.website_blocklist.enabled", "true");
+        runtimeSettingsService.setConfigValue(
+                "security.website_blocklist.domains",
+                "blocked.example, *.tracking.example");
+        runtimeSettingsService.setConfigValue(
+                "security.website_blocklist.shared_files",
+                "community-blocklist.txt");
+
+        assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
+        assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getDomains())
+                .containsExactly("blocked.example", "*.tracking.example");
+        assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())
+                .containsExactly("community-blocklist.txt");
+        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("website_blocklist:")
+                .contains("blocked.example")
+                .contains("community-blocklist.txt");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
     void shouldRefreshDirectConfigFileChangesAfterValidation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.writeUtf8String(
