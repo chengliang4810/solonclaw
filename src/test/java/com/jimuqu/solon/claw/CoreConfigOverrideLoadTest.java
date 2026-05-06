@@ -41,6 +41,8 @@ public class CoreConfigOverrideLoadTest {
                         + "    subagentMaxDepth: 2\n"
                         + "    toolOutputInlineLimit: 8000\n"
                         + "    toolOutputTurnBudget: 160000\n"
+                        + "    toolOutputMaxLines: 5000\n"
+                        + "    toolOutputMaxLineLength: 3000\n"
                         + "    mediaCacheTtlHours: 72\n"
                         + "  terminal:\n"
                         + "    credentialFiles:\n"
@@ -121,6 +123,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTask().getSubagentMaxDepth()).isEqualTo(2);
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(8000);
         assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(160000);
+        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(5000);
+        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(3000);
         assertThat(config.getTask().getMediaCacheTtlHours()).isEqualTo(72);
         assertThat(config.getTerminal().getCredentialFiles())
                 .containsExactly("credentials/oauth.json");
@@ -162,6 +166,27 @@ public class CoreConfigOverrideLoadTest {
                 .isEqualTo("https://poll.example/ilink/bot/getupdates");
         assertThat(config.getChannels().getWeixin().isSplitMultilineMessages()).isTrue();
         assertThat(config.getChannels().getWeixin().getSendChunkRetries()).isEqualTo(9);
+    }
+
+    @Test
+    void shouldLoadHermesToolOutputAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "tool_output:\n"
+                        + "  max_bytes: 12345\n"
+                        + "  max_lines: 2345\n"
+                        + "  max_line_length: 3456\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(12345);
+        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2345);
+        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(3456);
     }
 
     @Test

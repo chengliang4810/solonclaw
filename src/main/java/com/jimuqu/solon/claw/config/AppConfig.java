@@ -1061,7 +1061,11 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.task.toolOutputInlineLimit",
-                                        4000)));
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_output.max_bytes",
+                                                4000))));
         config.getTask()
                 .setToolOutputTurnBudget(
                         resolveInt(
@@ -1070,6 +1074,30 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.task.toolOutputTurnBudget",
                                         200000)));
+        config.getTask()
+                .setToolOutputMaxLines(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.task.toolOutputMaxLines",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_output.max_lines",
+                                                2000))));
+        config.getTask()
+                .setToolOutputMaxLineLength(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.task.toolOutputMaxLineLength",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_output.max_line_length",
+                                                2000))));
         config.getTask()
                 .setMediaCacheTtlHours(
                         resolveInt(
@@ -1530,6 +1558,8 @@ public class AppConfig {
         this.task.setSubagentMaxDepth(other.getSubagentMaxDepth());
         this.task.setToolOutputInlineLimit(other.getToolOutputInlineLimit());
         this.task.setToolOutputTurnBudget(other.getToolOutputTurnBudget());
+        this.task.setToolOutputMaxLines(other.getToolOutputMaxLines());
+        this.task.setToolOutputMaxLineLength(other.getToolOutputMaxLineLength());
         this.task.setMediaCacheTtlHours(other.getMediaCacheTtlHours());
     }
 
@@ -2762,6 +2792,12 @@ public class AppConfig {
 
         /** 单轮工具输出累计超过该长度时，后续输出会落盘/摘要化。 */
         private int toolOutputTurnBudget = 200000;
+
+        /** 对齐 Hermes tool_output.max_lines，供文件读取/分页输出限制使用。 */
+        private int toolOutputMaxLines = 2000;
+
+        /** 对齐 Hermes tool_output.max_line_length，供单行输出截断使用。 */
+        private int toolOutputMaxLineLength = 2000;
 
         /** 媒体缓存 TTL，单位小时。 */
         private int mediaCacheTtlHours = 168;

@@ -469,6 +469,12 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.task.subagentMaxConcurrency",
                     "solonclaw.task.subagentMaxDepth",
                     "solonclaw.task.toolOutputInlineLimit",
+                    "solonclaw.task.toolOutputTurnBudget",
+                    "solonclaw.task.toolOutputMaxLines",
+                    "solonclaw.task.toolOutputMaxLineLength",
+                    "tool_output.max_bytes",
+                    "tool_output.max_lines",
+                    "tool_output.max_line_length",
                     "solonclaw.task.mediaCacheTtlHours",
                     "solonclaw.security.tirithTimeoutSeconds");
 
