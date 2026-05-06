@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
+import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -40,6 +41,74 @@ public class MemoryAndSkillsTest {
         env.localSkillService.disable("MEMORY:room:user", "root-skill");
         assertThat(env.localSkillService.renderSkillIndexPrompt("MEMORY:room:user"))
                 .doesNotContain("root-skill");
+    }
+
+    @Test
+    void shouldListViewAndPromptConfiguredExternalSkillsLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File externalDir =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "shared-skills");
+        File externalSkillDir = FileUtil.file(externalDir, "research", "shared-report");
+        FileUtil.mkdir(externalSkillDir);
+        FileUtil.writeUtf8String(
+                skill("shared-report", "external report skill"),
+                FileUtil.file(externalSkillDir, "SKILL.md"));
+        FileUtil.writeUtf8String(
+                "reference", FileUtil.file(externalSkillDir, "references", "brief.md"));
+        env.appConfig.getSkills().getExternalDirs().add(externalDir.getAbsolutePath());
+
+        SkillView view = env.localSkillService.viewSkill("research/shared-report", "references/brief.md");
+        String prompt = env.localSkillService.renderSkillIndexPrompt("MEMORY:room:user");
+
+        assertThat(env.localSkillService.listSkillNames()).contains("research/shared-report");
+        assertThat(view.getContent()).isEqualTo("reference");
+        assertThat(view.getDescriptor().getSource()).isEqualTo("external");
+        assertThat(view.getDescriptor().getTrustLevel()).isEqualTo("external");
+        assertThat(prompt).contains("research/shared-report");
+    }
+
+    @Test
+    void shouldPreferLocalSkillWhenExternalSkillHasSameCanonicalName() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("deploy", "ops", skill("deploy", "local deploy"));
+        File externalDir =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "duplicate-skills");
+        File externalSkillDir = FileUtil.file(externalDir, "ops", "deploy");
+        FileUtil.mkdir(externalSkillDir);
+        FileUtil.writeUtf8String(
+                skill("deploy", "external deploy"), FileUtil.file(externalSkillDir, "SKILL.md"));
+        env.appConfig.getSkills().getExternalDirs().add(externalDir.getAbsolutePath());
+
+        SkillView view = env.localSkillService.viewSkill("ops/deploy", null);
+
+        assertThat(env.localSkillService.listSkillNames()).contains("ops/deploy");
+        assertThat(view.getContent()).contains("local deploy").doesNotContain("external deploy");
+        assertThat(view.getDescriptor().getSource()).isEqualTo("local");
+    }
+
+    @Test
+    void shouldKeepConfiguredExternalSkillsReadOnlyByDefault() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File externalDir =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "readonly-skills");
+        File externalSkillDir = FileUtil.file(externalDir, "shared-readonly");
+        FileUtil.mkdir(externalSkillDir);
+        FileUtil.writeUtf8String(
+                skill("shared-readonly", "external readonly"),
+                FileUtil.file(externalSkillDir, "SKILL.md"));
+        env.appConfig.getSkills().getExternalDirs().add(externalDir.getAbsolutePath());
+
+        String message = "";
+        try {
+            env.localSkillService.editSkill(
+                    "shared-readonly", skill("shared-readonly", "edited"));
+        } catch (IllegalStateException e) {
+            message = e.getMessage();
+        }
+
+        assertThat(message).contains("pinned/read-only");
+        assertThat(FileUtil.readUtf8String(FileUtil.file(externalSkillDir, "SKILL.md")))
+                .contains("external readonly");
     }
 
     @Test

@@ -44,6 +44,9 @@ public class LocalSkillService implements SkillCatalogService {
     /** Hub 状态存储。 */
     private final SkillHubStateStore hubStateStore;
 
+    /** 技能目录解析器。 */
+    private final SkillDirectoryResolver skillDirectoryResolver;
+
     /** 构造本地技能服务。 */
     public LocalSkillService(AppConfig appConfig, SqlitePreferenceStore preferenceStore) {
         this(appConfig, preferenceStore, null, null);
@@ -57,6 +60,7 @@ public class LocalSkillService implements SkillCatalogService {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.skillImportService = skillImportService;
+        this.skillDirectoryResolver = new SkillDirectoryResolver(appConfig);
         this.hubStateStore =
                 hubStateStore == null
                         ? new SkillHubStateStore(
@@ -107,25 +111,47 @@ public class LocalSkillService implements SkillCatalogService {
     @Override
     public List<SkillDescriptor> listSkills(String category) throws Exception {
         processPendingImportsQuietly();
-        return listSkillsFromRoot(FileUtil.file(appConfig.getRuntime().getSkillsDir()), category);
+        return filterCategory(listConfiguredSkills(null), category);
     }
 
     public List<SkillDescriptor> listSkills(String category, AgentRuntimeScope agentScope)
             throws Exception {
         processPendingImportsQuietly();
-        List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
-        skills.addAll(
-                listSkillsFromRoot(FileUtil.file(appConfig.getRuntime().getSkillsDir()), null));
+        List<SkillDescriptor> skills = listConfiguredSkills(null);
         if (agentScope != null
                 && !agentScope.isDefaultAgentName()
                 && StrUtil.isNotBlank(agentScope.getSkillsDir())) {
-            skills.addAll(listSkillsFromRoot(FileUtil.file(agentScope.getSkillsDir()), null));
+            addUniqueSkills(
+                    skills,
+                    listSkillsFromRoot(
+                            FileUtil.file(agentScope.getSkillsDir()),
+                            null,
+                            "local",
+                            "agent-created"));
         }
         skills.sort(skillComparator());
         skills = filterAgentSkills(skills, agentScope);
+        return filterCategory(skills, category);
+    }
+
+    private List<SkillDescriptor> listSkillsFromRoot(File root, String category) throws Exception {
+        return listSkillsFromRoot(root, category, "local", "agent-created");
+    }
+
+    private List<SkillDescriptor> listSkillsFromRoot(
+            File root, String category, String source, String trustLevel) throws Exception {
+        if (!root.exists()) {
+            return Collections.emptyList();
+        }
+
+        List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
+        collectSkills(root, skills, source, trustLevel);
+        skills.sort(skillComparator());
+
         if (StrUtil.isBlank(category)) {
             return skills;
         }
+
         List<SkillDescriptor> filtered = new ArrayList<SkillDescriptor>();
         for (SkillDescriptor descriptor : skills) {
             if (category.equals(descriptor.getCategory())) {
@@ -135,19 +161,40 @@ public class LocalSkillService implements SkillCatalogService {
         return filtered;
     }
 
-    private List<SkillDescriptor> listSkillsFromRoot(File root, String category) throws Exception {
-        if (!root.exists()) {
-            return Collections.emptyList();
-        }
-
+    private List<SkillDescriptor> listConfiguredSkills(String category) throws Exception {
         List<SkillDescriptor> skills = new ArrayList<SkillDescriptor>();
-        collectSkills(root, skills);
+        addUniqueSkills(
+                skills,
+                listSkillsFromRoot(
+                        skillDirectoryResolver.localSkillsDir(), null, "local", "agent-created"));
+        for (File externalDir : skillDirectoryResolver.externalSkillsDirs()) {
+            addUniqueSkills(
+                    skills,
+                    listSkillsFromRoot(externalDir, null, "external", "external"));
+        }
         skills.sort(skillComparator());
+        return filterCategory(skills, category);
+    }
 
+    private void addUniqueSkills(List<SkillDescriptor> target, List<SkillDescriptor> incoming) {
+        for (SkillDescriptor descriptor : incoming) {
+            boolean exists = false;
+            for (SkillDescriptor current : target) {
+                if (current.canonicalName().equals(descriptor.canonicalName())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                target.add(descriptor);
+            }
+        }
+    }
+
+    private List<SkillDescriptor> filterCategory(List<SkillDescriptor> skills, String category) {
         if (StrUtil.isBlank(category)) {
             return skills;
         }
-
         List<SkillDescriptor> filtered = new ArrayList<SkillDescriptor>();
         for (SkillDescriptor descriptor : skills) {
             if (category.equals(descriptor.getCategory())) {
@@ -355,7 +402,7 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 递归扫描根目录与单层分类目录中的技能。 */
-    private void collectSkills(File root, List<SkillDescriptor> output) {
+    private void collectSkills(File root, List<SkillDescriptor> output, String source, String trustLevel) {
         File[] children = root.listFiles();
         if (children == null) {
             return;
@@ -368,7 +415,7 @@ public class LocalSkillService implements SkillCatalogService {
 
             File directSkill = FileUtil.file(child, SkillConstants.SKILL_FILE_NAME);
             if (directSkill.exists()) {
-                output.add(buildDescriptor(child, null));
+                output.add(buildDescriptor(child, null, source, trustLevel));
                 continue;
             }
 
@@ -379,7 +426,7 @@ public class LocalSkillService implements SkillCatalogService {
             for (File nested : nestedChildren) {
                 if (nested.isDirectory()
                         && FileUtil.file(nested, SkillConstants.SKILL_FILE_NAME).exists()) {
-                    output.add(buildDescriptor(nested, child.getName()));
+                    output.add(buildDescriptor(nested, child.getName(), source, trustLevel));
                 }
             }
         }
@@ -387,6 +434,11 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 构建技能元数据。 */
     private SkillDescriptor buildDescriptor(File skillDir, String category) {
+        return buildDescriptor(skillDir, category, "local", "agent-created");
+    }
+
+    private SkillDescriptor buildDescriptor(
+            File skillDir, String category, String defaultSource, String defaultTrustLevel) {
         File skillFile = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
         String content = FileUtil.readUtf8String(skillFile);
         Map<String, Object> frontmatter = SkillFrontmatterSupport.parseFrontmatter(content);
@@ -420,9 +472,12 @@ public class LocalSkillService implements SkillCatalogService {
             descriptor.setTrustLevel(hubRecord.getTrustLevel());
             descriptor.getMetadata().put("hub", hubRecord.getMetadata());
         } else {
-            descriptor.setSource("local");
+            descriptor.setSource(defaultSource);
             descriptor.setIdentifier(descriptor.canonicalName());
-            descriptor.setTrustLevel("agent-created");
+            descriptor.setTrustLevel(defaultTrustLevel);
+            if ("external".equals(defaultSource)) {
+                descriptor.getMetadata().put("external", Boolean.TRUE);
+            }
         }
         return descriptor;
     }
