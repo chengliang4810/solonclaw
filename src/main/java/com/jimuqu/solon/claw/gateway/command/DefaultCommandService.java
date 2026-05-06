@@ -935,8 +935,13 @@ public class DefaultCommandService implements CommandService {
             }
             if (isCheckpointClearCommand(args)) {
                 if (!hasClearCheckpointConfirmation(args)) {
-                    return GatewayReply.error(
-                            "此操作会删除当前来源的全部 checkpoint 历史。确认执行请发送：/rollback clear --confirm");
+                    SlashConfirmService.PendingConfirm confirm =
+                            slashConfirmService.register(
+                                    message.sourceKey(),
+                                    GatewayCommandConstants.COMMAND_ROLLBACK,
+                                    rollbackClearConfirmPrompt(),
+                                    false);
+                    return GatewayReply.ok(formatSlashConfirmPrompt(confirm));
                 }
                 return GatewayReply.ok(formatCheckpointClear(message.sourceKey()));
             }
@@ -1354,6 +1359,9 @@ public class DefaultCommandService implements CommandService {
         if (choice == null) {
             return GatewayReply.error("用法：/approve、/approve always、/always 或 /cancel");
         }
+        if (SlashConfirmService.CHOICE_ALWAYS.equals(choice) && !pending.isAllowAlways()) {
+            return GatewayReply.error("/" + pending.getCommand() + " 不支持永久确认，请使用 /approve 执行一次。");
+        }
         pending = slashConfirmService.resolve(message.sourceKey());
         if (pending == null) {
             return GatewayReply.error("待确认的 slash 命令已过期，请重新发起。");
@@ -1369,6 +1377,9 @@ public class DefaultCommandService implements CommandService {
         }
         if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(pending.getCommand())) {
             return executeReloadMcp(message, SlashConfirmService.CHOICE_ALWAYS.equals(choice));
+        }
+        if (GatewayCommandConstants.COMMAND_ROLLBACK.equals(pending.getCommand())) {
+            return GatewayReply.ok(formatCheckpointClear(message.sourceKey()));
         }
         return GatewayReply.error("Unsupported slash confirm command: /" + pending.getCommand());
     }
@@ -1417,11 +1428,19 @@ public class DefaultCommandService implements CommandService {
         return "⚠️ /reload-mcp 会重新加载 MCP 工具并让下一轮模型请求重新发送完整工具 schema。";
     }
 
+    private String rollbackClearConfirmPrompt() {
+        return "⚠️ /rollback clear 会删除当前来源的全部 checkpoint 历史。";
+    }
+
     private String formatSlashConfirmPrompt(SlashConfirmService.PendingConfirm confirm) {
-        return confirm.getPrompt()
-                + "\n确认编号："
-                + confirm.getConfirmId()
-                + "\n回复 /approve 执行一次，/approve always 或 /always 执行并永久记住，/deny 或 /cancel 取消。";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(confirm.getPrompt()).append("\n确认编号：").append(confirm.getConfirmId());
+        if (confirm.isAllowAlways()) {
+            buffer.append("\n回复 /approve 执行一次，/approve always 或 /always 执行并永久记住，/deny 或 /cancel 取消。");
+        } else {
+            buffer.append("\n回复 /approve 执行一次，/deny 或 /cancel 取消。");
+        }
+        return buffer.toString();
     }
 
     private GatewayReply executeReloadMcp(GatewayMessage message, boolean savedAlways) throws Exception {

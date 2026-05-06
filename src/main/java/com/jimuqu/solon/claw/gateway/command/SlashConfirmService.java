@@ -29,11 +29,17 @@ public class SlashConfirmService {
     }
 
     public synchronized PendingConfirm register(String sourceKey, String command, String prompt) {
+        return register(sourceKey, command, prompt, true);
+    }
+
+    public synchronized PendingConfirm register(
+            String sourceKey, String command, String prompt, boolean allowAlways) {
         PendingConfirm confirm = new PendingConfirm();
         confirm.setConfirmId(com.jimuqu.solon.claw.support.IdSupport.newId());
         confirm.setSourceKey(StrUtil.nullToEmpty(sourceKey));
         confirm.setCommand(StrUtil.nullToEmpty(command));
         confirm.setPrompt(StrUtil.nullToEmpty(prompt));
+        confirm.setAllowAlways(allowAlways);
         confirm.setCreatedAt(System.currentTimeMillis());
         pendingBySource.put(confirm.getSourceKey(), confirm);
         return confirm;
@@ -160,6 +166,7 @@ public class SlashConfirmService {
         private String sourceKey;
         private String command;
         private String prompt;
+        private boolean allowAlways = true;
         private long createdAt;
 
         public String getConfirmId() {
@@ -194,6 +201,14 @@ public class SlashConfirmService {
             this.prompt = prompt;
         }
 
+        public boolean isAllowAlways() {
+            return allowAlways;
+        }
+
+        public void setAllowAlways(boolean allowAlways) {
+            this.allowAlways = allowAlways;
+        }
+
         public long getCreatedAt() {
             return createdAt;
         }
@@ -208,6 +223,7 @@ public class SlashConfirmService {
             copy.setSourceKey(sourceKey);
             copy.setCommand(command);
             copy.setPrompt(prompt);
+            copy.setAllowAlways(allowAlways);
             copy.setCreatedAt(createdAt);
             return copy;
         }

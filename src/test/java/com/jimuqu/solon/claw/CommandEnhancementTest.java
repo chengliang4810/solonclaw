@@ -96,11 +96,29 @@ public class CommandEnhancementTest {
         assertThat(pruneReply.getContent()).contains("deleted_missing=0").contains("remaining=1");
 
         GatewayReply clearWithoutConfirm = env.send("admin-chat", "admin-user", "/rollback clear");
-        assertThat(clearWithoutConfirm.isError()).isTrue();
-        assertThat(clearWithoutConfirm.getContent()).contains("/rollback clear --confirm");
+        assertThat(clearWithoutConfirm.isError()).isFalse();
+        assertThat(clearWithoutConfirm.getContent())
+                .contains("/rollback clear")
+                .contains("确认编号")
+                .contains("/approve 执行一次")
+                .doesNotContain("永久记住");
 
-        GatewayReply clearReply = env.send("admin-chat", "admin-user", "/rollback clear --confirm");
-        assertThat(clearReply.getContent()).contains("deleted=1").contains("remaining=0");
+        GatewayReply clearDenied = env.send("admin-chat", "admin-user", "/deny");
+        assertThat(clearDenied.getContent()).contains("已取消 /rollback");
+
+        GatewayReply clearAlwaysPrompt = env.send("admin-chat", "admin-user", "/rollback clear");
+        assertThat(clearAlwaysPrompt.getContent()).contains("确认编号");
+        GatewayReply clearAlways = env.send("admin-chat", "admin-user", "/approve always");
+        assertThat(clearAlways.isError()).isTrue();
+        assertThat(clearAlways.getContent()).contains("不支持永久确认");
+
+        GatewayReply clearOnce = env.send("admin-chat", "admin-user", "/approve");
+        assertThat(clearOnce.getContent()).contains("deleted=1").contains("remaining=0");
+
+        env.checkpointService.createCheckpoint(
+                sourceKey, session.getSessionId(), Collections.singletonList(file));
+        GatewayReply legacyClearReply = env.send("admin-chat", "admin-user", "/rollback clear --confirm");
+        assertThat(legacyClearReply.getContent()).contains("deleted=1").contains("remaining=0");
 
         GatewayReply afterClear = env.send("admin-chat", "admin-user", "/rollback status");
         assertThat(afterClear.getContent()).contains("checkpoint_count=0");

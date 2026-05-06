@@ -21,6 +21,21 @@ public class SlashConfirmServiceTest {
         SlashConfirmService.PendingConfirm current = service.getPending("session-a");
         assertThat(current.getConfirmId()).isEqualTo(registered.getConfirmId());
         assertThat(current.getCommand()).isEqualTo("reload-mcp");
+        assertThat(current.isAllowAlways()).isTrue();
+    }
+
+    @Test
+    void shouldPreserveNonAlwaysConfirmFlagAcrossCopies() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+        SlashConfirmService.PendingConfirm registered =
+                service.register("session-a", "rollback", "clear checkpoints?", false);
+
+        SlashConfirmService.PendingConfirm pending = service.getPending("session-a");
+        SlashConfirmService.PendingConfirm resolved =
+                service.resolve("session-a", registered.getConfirmId());
+
+        assertThat(pending.isAllowAlways()).isFalse();
+        assertThat(resolved.isAllowAlways()).isFalse();
     }
 
     @Test
