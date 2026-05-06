@@ -929,6 +929,80 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardPatchToolsAgainstSymlinkEscapesBeforeWriting() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path outside = Files.createTempDirectory("jimuqu-patch-outside");
+        Path outsideFile = outside.resolve("secret.txt");
+        Files.write(outsideFile, Arrays.asList("TOKEN=old"), StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("inside.txt"), Arrays.asList("inside"), StandardCharsets.UTF_8);
+        Path link = workspace.resolve("linked");
+        assumeTrue(createDirectoryLink(link, outside));
+        SolonClawPatchTools patchTools =
+                new SolonClawPatchTools(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode replaceResult =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "replace",
+                                "linked/secret.txt",
+                                "TOKEN=old",
+                                "TOKEN=new",
+                                Boolean.FALSE,
+                                null));
+        ONode updateResult =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "patch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "*** Begin Patch\n"
+                                        + "*** Update File: linked/secret.txt\n"
+                                        + "@@ TOKEN @@\n"
+                                        + "-TOKEN=old\n"
+                                        + "+TOKEN=new\n"
+                                        + "*** End Patch"));
+        ONode addResult =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "patch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "*** Begin Patch\n"
+                                        + "*** Add File: linked/new.txt\n"
+                                        + "+TOKEN=new\n"
+                                        + "*** End Patch"));
+        ONode moveResult =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "patch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "*** Begin Patch\n"
+                                        + "*** Move File: inside.txt -> linked/moved.txt\n"
+                                        + "*** End Patch"));
+
+        assertPatchSymlinkEscapeBlocked(replaceResult);
+        assertPatchSymlinkEscapeBlocked(updateResult);
+        assertPatchSymlinkEscapeBlocked(addResult);
+        assertPatchSymlinkEscapeBlocked(moveResult);
+        assertThat(new String(Files.readAllBytes(outsideFile), StandardCharsets.UTF_8))
+                .contains("TOKEN=old");
+        assertThat(Files.exists(outside.resolve("new.txt"))).isFalse();
+        assertThat(Files.exists(outside.resolve("moved.txt"))).isFalse();
+        assertThat(new String(Files.readAllBytes(workspace.resolve("inside.txt")), StandardCharsets.UTF_8))
+                .contains("inside");
+    }
+
+    @Test
     void shouldApplyHermesToolOutputLimitsToFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
@@ -1099,6 +1173,11 @@ public class ToolRegistryExposureTest {
         }
         fileSkill.write("quoted-status.txt", longDoc.toString());
         assertThat(Files.readAllBytes(workspace.resolve("quoted-status.txt")).length).isGreaterThan(0);
+    }
+
+    private void assertPatchSymlinkEscapeBlocked(ONode result) {
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString()).contains("符号链接").contains("沙箱外部");
     }
 
     private String javaSleepCommand() {
