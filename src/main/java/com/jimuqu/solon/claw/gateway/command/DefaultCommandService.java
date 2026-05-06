@@ -2553,6 +2553,8 @@ public class DefaultCommandService implements CommandService {
                     .append(pending.getToolName())
                     .append(" reason=")
                     .append(pending.getDescription())
+                    .append(" scopes=")
+                    .append(approvalScopes(pending))
                     .append(" key=")
                     .append(pending.approvalKey())
                     .append('\n');
@@ -2563,6 +2565,13 @@ public class DefaultCommandService implements CommandService {
         buffer.append("always_approvals=")
                 .append(dangerousCommandApprovalService.listAlwaysApprovals());
         return buffer.toString();
+    }
+
+    private String approvalScopes(DangerousCommandApprovalService.PendingApproval pending) {
+        if (pending != null && pending.isPermanentApprovalAllowed()) {
+            return "once,session,always";
+        }
+        return "once,session";
     }
 
     private GatewayReply clearApprovals(SqliteAgentSession agentSession, String normalizedArgs)

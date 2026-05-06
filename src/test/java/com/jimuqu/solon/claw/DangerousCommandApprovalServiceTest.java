@@ -2373,6 +2373,7 @@ public class DangerousCommandApprovalServiceTest {
                 service.getPendingApproval(trace.session);
 
         assertThat(trace.getFinalAnswer()).contains("Security scan").contains("recursive delete");
+        assertThat(trace.getFinalAnswer()).contains("不能永久记住");
         assertThat(trace.getFinalAnswer()).doesNotContain("/approve always");
         assertThat(pending).isNotNull();
         assertThat(pending.getPatternKeys())
@@ -2437,6 +2438,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(pending).isNotNull();
         assertThat(pending.isPermanentApprovalAllowed()).isFalse();
         assertThat(extras.get("approvalAllowAlways")).isEqualTo(Boolean.FALSE);
+        assertThat(trace.getFinalAnswer()).contains("不能永久记住");
         assertThat(trace.getFinalAnswer()).contains("/approve session");
         assertThat(trace.getFinalAnswer()).doesNotContain("/approve always");
     }

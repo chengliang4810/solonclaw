@@ -107,7 +107,11 @@ public class DangerousCommandApprovalCommandTest {
                 "git reset --hard origin/main");
 
         GatewayReply list = env.send("room-queue", "user-queue", "/approve list");
-        assertThat(list.getContent()).contains("pending=2").contains("#1").contains("#2");
+        assertThat(list.getContent())
+                .contains("pending=2")
+                .contains("#1")
+                .contains("#2")
+                .contains("scopes=once,session,always");
 
         GatewayReply approved = env.send("room-queue", "user-queue", "/approve #2 session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
@@ -123,6 +127,32 @@ public class DangerousCommandApprovalCommandTest {
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 updatedAgentSession, "git_reset_hard"))
                 .isTrue();
+    }
+
+    @Test
+    void shouldListTirithPendingApprovalWithoutAlwaysScope() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-tirith-list", "user-tirith-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-tirith-list", "user-tirith-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-tirith-list:user-tirith-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "tirith:shortened_url",
+                "Security scan: shortened URL",
+                "echo hello");
+
+        GatewayReply list = env.send("room-tirith-list", "user-tirith-list", "/approve list");
+
+        assertThat(list.getContent())
+                .contains("pending=1")
+                .contains("tirith:shortened_url")
+                .contains("scopes=once,session")
+                .doesNotContain("scopes=once,session,always");
     }
 
     @Test

@@ -1574,7 +1574,8 @@ public class DangerousCommandApprovalService {
         buffer.append(redactApprovalDisplay(trimPreview(code), 2000));
         buffer.append("\n```\n\n");
         if (containsTirith(detection)) {
-            buffer.append("回复 `/approve` 执行一次，`/approve session` 记住当前会话，或 `/deny` 取消。");
+            buffer.append(
+                    "该安全扫描结果只支持本次或当前会话审批，不能永久记住。回复 `/approve` 执行一次，`/approve session` 记住当前会话，或 `/deny` 取消。");
         } else {
             buffer.append(
                     "回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
