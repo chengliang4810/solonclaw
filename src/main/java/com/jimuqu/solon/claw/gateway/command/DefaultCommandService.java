@@ -1795,6 +1795,9 @@ public class DefaultCommandService implements CommandService {
                     .append('\n')
                     .append("Next run: ")
                     .append(job.getNextRunAt() <= 0 ? "N/A" : String.valueOf(job.getNextRunAt()));
+            if (StrUtil.isNotBlank(job.getPausedReason())) {
+                buffer.append('\n').append("Paused reason: ").append(job.getPausedReason());
+            }
             Object skills = view.get("skills");
             if (skills instanceof Iterable) {
                 String text = joinIterable((Iterable<?>) skills, ", ");

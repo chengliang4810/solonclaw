@@ -356,6 +356,7 @@ public class CommandEnhancementTest {
         assertThat(allList.getContent())
                 .contains("ID: " + jobId)
                 .contains("State: paused")
+                .contains("Paused reason: maintenance window")
                 .contains("Schedule: every 2h");
 
         GatewayReply status = env.send("admin-chat", "admin-user", "/cron status");
