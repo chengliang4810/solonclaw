@@ -393,6 +393,75 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldPreferCredentialPathOverName() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        FileUtil.writeUtf8String(
+                "{}",
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "real.json"));
+        env.localSkillService.createSkill(
+                "credential-precedence-skill",
+                null,
+                "---\n"
+                        + "name: credential-precedence-skill\n"
+                        + "description: credential precedence skill\n"
+                        + "required_credential_files:\n"
+                        + "  - path: credentials/real.json\n"
+                        + "    name: credentials/wrong.json\n"
+                        + "---\n"
+                        + "# credential precedence skill\n");
+
+        SkillDescriptor descriptor =
+                env.localSkillService.viewSkill("credential-precedence-skill", null).getDescriptor();
+        Map<String, Object> credentialFiles =
+                (Map<String, Object>) descriptor.getMetadata().get("credential_files");
+        List<Object> mounts = (List<Object>) credentialFiles.get("mounts");
+        List<Object> missing = (List<Object>) credentialFiles.get("missing");
+
+        assertThat(mounts.toString()).contains("credentials/real.json");
+        assertThat(mounts.toString()).doesNotContain("credentials/wrong.json");
+        assertThat(missing).isEmpty();
+    }
+
+    @Test
+    void shouldUseCustomCredentialContainerBase() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        FileUtil.writeUtf8String(
+                "{}",
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json"));
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/oauth.json");
+
+        SkillCredentialFileService.CredentialFilePlan plan =
+                new SkillCredentialFileService(env.appConfig).configPlan("/home/user/.jimuqu-agent/");
+
+        assertThat(plan.getMounts()).hasSize(1);
+        assertThat(plan.getMounts().get(0).getContainerPath())
+                .isEqualTo("/home/user/.jimuqu-agent/credentials/oauth.json");
+    }
+
+    @Test
+    void shouldPlanStringCredentialEntries() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        FileUtil.writeUtf8String(
+                "{}",
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "direct.json"));
+
+        SkillCredentialFileService.CredentialFilePlan plan =
+                new SkillCredentialFileService(env.appConfig)
+                        .plan("credentials/direct.json", "/home/user/.jimuqu-agent");
+
+        assertThat(plan.getMounts()).hasSize(1);
+        assertThat(plan.getMounts().get(0).getRelativePath()).isEqualTo("credentials/direct.json");
+        assertThat(plan.getMounts().get(0).getContainerPath())
+                .isEqualTo("/home/user/.jimuqu-agent/credentials/direct.json");
+        assertThat(plan.getMissing()).isEmpty();
+        assertThat(plan.getRejected()).isEmpty();
+    }
+
+    @Test
     void shouldRejectCredentialSymlinkEscapingRuntimeHomeLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File credentialsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials");
