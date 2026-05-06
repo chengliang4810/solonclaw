@@ -20,25 +20,44 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "Manage scheduled cron jobs. action can be create, list, update, pause, resume, remove, run, or history. Supports per-job model, provider, and base_url pinning.")
+                    "Manage scheduled cron jobs. Use action='list' to inspect jobs before remove; never guess job IDs. action can be create/add, list, update/edit, pause, resume, remove/delete/rm, run/run_now/trigger, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
     public String cronjob(
-            @Param(name = "action", description = "create、list、update、pause、resume、remove、run、history") String action,
-            @Param(name = "job_id", description = "任务 ID", required = false) String jobId,
+            @Param(
+                            name = "action",
+                            description =
+                                    "动作：create/add、list、update/edit、pause、resume、remove/delete/rm、run/run_now/trigger、history")
+                    String action,
+            @Param(name = "job_id", description = "任务 ID；update/pause/resume/remove/run/history 必填，先 list 再使用", required = false)
+                    String jobId,
             @Param(name = "name", description = "任务名", required = false) String name,
             @Param(name = "schedule", description = "cron、every 2h、30m 或 ISO 时间", required = false) String schedule,
             @Param(name = "prompt", description = "任务提示词", required = false) String prompt,
-            @Param(name = "deliver", description = "local、origin、平台名、platform:chat_id[:thread_id]，支持字符串、数组或逗号分隔多目标", required = false) Object deliver,
+            @Param(
+                            name = "deliver",
+                            description =
+                                    "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标")
+                    Object deliver,
             @Param(name = "skill", description = "单个技能名；兼容字符串或数组", required = false) Object skill,
             @Param(name = "skills", description = "技能列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object skills,
             @Param(name = "repeat", description = "重复次数；0 表示无限", required = false) Integer repeat,
-            @Param(name = "include_disabled", description = "list 时是否包含暂停任务", required = false) Boolean includeDisabled,
+            @Param(name = "include_disabled", description = "list 时是否包含暂停任务；工具调用默认包含，传 false 可只看启用任务", required = false)
+                    Boolean includeDisabled,
             @Param(name = "wrap_response", description = "是否包装定时任务投递结果", required = false) Boolean wrapResponse,
-            @Param(name = "script", description = "runtime/scripts 下的相对脚本路径", required = false) String script,
-            @Param(name = "workdir", description = "绝对工作目录", required = false) String workdir,
-            @Param(name = "no_agent", description = "是否跳过 Agent 直接投递脚本输出", required = false) Boolean noAgent,
-            @Param(name = "context_from", description = "上游 job id 列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object contextFrom,
-            @Param(name = "depends_on", description = "上游 job id 列表别名", required = false) Object dependsOn,
-            @Param(name = "enabled_toolsets", description = "工具集列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object enabledToolsets,
+            @Param(name = "script", description = "runtime/scripts 下的相对脚本路径；update 时传空字符串清空", required = false)
+                    String script,
+            @Param(name = "workdir", description = "绝对工作目录；会注入项目上下文并设置工具 cwd，update 时传空字符串清空", required = false)
+                    String workdir,
+            @Param(
+                            name = "no_agent",
+                            description =
+                                    "是否跳过 Agent 直接投递脚本输出；true 时必须设置 script，非空 stdout 原样投递，空 stdout 静默，非零退出发送错误")
+                    Boolean noAgent,
+            @Param(name = "context_from", description = "上游 job id 列表；注入最近完成输出，update 传空数组清空", required = false)
+                    Object contextFrom,
+            @Param(name = "depends_on", description = "context_from 的别名；上游 job id 列表，update 传空数组清空", required = false)
+                    Object dependsOn,
+            @Param(name = "enabled_toolsets", description = "工具集限制列表，例如 web、terminal、file、delegation；update 传空数组清空", required = false)
+                    Object enabledToolsets,
             @Param(name = "model", description = "任务固定模型；支持字符串或 {provider, model} 对象", required = false) Object model,
             @Param(name = "provider", description = "任务固定 provider", required = false) String provider,
             @Param(name = "base_url", description = "任务固定模型 API base URL", required = false) String baseUrl,

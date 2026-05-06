@@ -22,12 +22,16 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
 import java.io.File;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
+import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.annotation.Param;
 
 public class DefaultCronSchedulerTest {
     @Test
@@ -1208,6 +1212,28 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExposeHermesCronjobSchemaGuidance() throws Exception {
+        Method method = cronjobToolMethod();
+        ToolMapping mapping = method.getAnnotation(ToolMapping.class);
+
+        assertThat(mapping.description())
+                .contains("create/add")
+                .contains("update/edit")
+                .contains("remove/delete/rm")
+                .contains("run/run_now/trigger")
+                .contains("never guess job IDs")
+                .contains("Cron jobs should not recursively schedule more cron jobs");
+        assertThat(paramDescription(method, "job_id")).contains("先 list 再使用");
+        assertThat(paramDescription(method, "deliver")).contains("省略时自动投递回当前来源");
+        assertThat(paramDescription(method, "include_disabled")).contains("默认包含");
+        assertThat(paramDescription(method, "script")).contains("传空字符串清空");
+        assertThat(paramDescription(method, "workdir")).contains("传空字符串清空");
+        assertThat(paramDescription(method, "no_agent")).contains("必须设置 script").contains("空 stdout 静默");
+        assertThat(paramDescription(method, "context_from")).contains("update 传空数组清空");
+        assertThat(paramDescription(method, "enabled_toolsets")).contains("update 传空数组清空");
+    }
+
+    @Test
     void shouldExposeCronRunHistoryThroughSchedulerAndTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -1627,6 +1653,25 @@ public class DefaultCronSchedulerTest {
             builder.append(value);
         }
         return builder.toString();
+    }
+
+    private Method cronjobToolMethod() {
+        for (Method method : CronjobTools.class.getMethods()) {
+            if ("cronjob".equals(method.getName()) && method.getAnnotation(ToolMapping.class) != null) {
+                return method;
+            }
+        }
+        throw new IllegalStateException("cronjob tool method not found");
+    }
+
+    private String paramDescription(Method method, String name) {
+        for (Parameter parameter : method.getParameters()) {
+            Param annotation = parameter.getAnnotation(Param.class);
+            if (annotation != null && name.equals(annotation.name())) {
+                return annotation.description();
+            }
+        }
+        throw new IllegalStateException("cronjob parameter not found: " + name);
     }
 
     private CronJobRecord createNoAgentScriptJob(
