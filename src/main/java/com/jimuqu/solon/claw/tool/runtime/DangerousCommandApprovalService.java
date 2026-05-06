@@ -323,17 +323,17 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_remove_item",
                                     "PowerShell recursive delete",
-                                    pattern("\\bRemove-Item\\b.*-Recurse\\b.*-Force\\b"),
+                                    pattern("\\bRemove-Item\\b(?=.*-Recurse\\b)(?=.*-Force\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_del_force",
                                     "Windows force delete",
-                                    pattern("\\bdel\\b.*\\s/[fq].*\\s/[fq]"),
+                                    pattern("\\b(?:del|erase)\\b(?=.*(?:^|\\s)/s\\b)(?=.*(?:^|\\s)/[fq]\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_rmdir_force",
                                     "Windows recursive directory delete",
-                                    pattern("\\b(rmdir|rd)\\b.*\\s/s\\b.*\\s/q\\b"),
+                                    pattern("\\b(rmdir|rd)\\b(?=.*(?:^|\\s)/s\\b)(?=.*(?:^|\\s)/q\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_format",
@@ -451,16 +451,22 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bformat\\s+[a-z]:(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "hardline_windows_delete_drive_root",
+                                    "recursive delete of Windows drive root",
+                                    pattern(
+                                            "\\b(Remove-Item|rm|rmdir|rd|del|erase)\\b(?=[^\\n]*(?:-Recurse|/s)\\b)[^\\n]*\\b[a-z]:\\\\(?:\\*|\\.)?(?:\\s|$)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "hardline_windows_delete_profile",
                                     "recursive delete of Windows user profile",
                                     pattern(
-                                            "\\b(Remove-Item|rm|rmdir|rd)\\b[^\\n]*(?:-Recurse|/s)\\b[^\\n]*(?:\\$env:USERPROFILE|%USERPROFILE%|C:\\\\Users(?:\\\\\\*|\\\\[^\\s'\"`|;&<>]+)?)(?:\\s|$)"),
+                                            "\\b(Remove-Item|rm|rmdir|rd|del|erase)\\b(?=[^\\n]*(?:-Recurse|/s)\\b)[^\\n]*(?:\\$env:USERPROFILE|%USERPROFILE%|C:\\\\Users(?:\\\\\\*|\\\\[^\\s'\"`|;&<>]+)?)(?:\\\\\\*)?(?:\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_windows_system_dir",
                                     "recursive delete of Windows system directory",
                                     pattern(
-                                            "\\b(Remove-Item|rm|rmdir|rd)\\b[^\\n]*(?:-Recurse|/s)\\b[^\\n]*(?:C:\\\\Windows|C:\\\\Program Files|C:\\\\Program Files \\(x86\\)|C:\\\\ProgramData)(?:\\\\\\*|\\s|$)"),
+                                            "\\b(Remove-Item|rm|rmdir|rd|del|erase)\\b(?=[^\\n]*(?:-Recurse|/s)\\b)[^\\n]*(?:C:\\\\Windows|C:\\\\Program Files|C:\\\\Program Files \\(x86\\)|C:\\\\ProgramData)(?:\\\\\\*)?(?:\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_windows_shutdown",

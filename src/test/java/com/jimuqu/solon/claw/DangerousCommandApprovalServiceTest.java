@@ -130,6 +130,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult killByPgrep =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kill -9 $(pgrep -f jimuqu-agent)");
+        DangerousCommandApprovalService.DetectionResult removeItemReordered =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Remove-Item .\\runtime\\cache -Force -Recurse");
+        DangerousCommandApprovalService.DetectionResult delReordered =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "del /q /s .\\runtime\\cache\\*");
+        DangerousCommandApprovalService.DetectionResult rdReordered =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "rd /q /s .\\runtime\\cache");
 
         assertThat(gatewayStop).isNotNull();
         assertThat(gatewayStop.getPatternKey()).isEqualTo("gateway_stop_restart");
@@ -139,6 +148,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(killByName.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(killByPgrep).isNotNull();
         assertThat(killByPgrep.getPatternKey()).isEqualTo("kill_pgrep_expansion");
+        assertThat(removeItemReordered).isNotNull();
+        assertThat(removeItemReordered.getPatternKey()).isEqualTo("windows_remove_item");
+        assertThat(delReordered).isNotNull();
+        assertThat(delReordered.getPatternKey()).isEqualTo("windows_del_force");
+        assertThat(rdReordered).isNotNull();
+        assertThat(rdReordered.getPatternKey()).isEqualTo("windows_rmdir_force");
     }
 
     @Test
@@ -215,6 +230,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult profileDelete =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "Remove-Item -Recurse -Force $env:USERPROFILE");
+        DangerousCommandApprovalService.DetectionResult reorderedProfileDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "Remove-Item C:\\Users\\chengliang -Force -Recurse");
+        DangerousCommandApprovalService.DetectionResult delProfileDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "del /q /s C:\\Users\\chengliang\\*");
+        DangerousCommandApprovalService.DetectionResult driveRootDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "rd /q /s C:\\");
+        DangerousCommandApprovalService.DetectionResult windowsDirDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "Remove-Item C:\\Windows -Force -Recurse");
         DangerousCommandApprovalService.DetectionResult shutdown =
                 env.dangerousCommandApprovalService.detectHardline("execute_shell", "shutdown /r /t 0");
 
@@ -222,6 +249,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
         assertThat(profileDelete).isNotNull();
         assertThat(profileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
+        assertThat(reorderedProfileDelete).isNotNull();
+        assertThat(reorderedProfileDelete.getPatternKey())
+                .isEqualTo("hardline_windows_delete_profile");
+        assertThat(delProfileDelete).isNotNull();
+        assertThat(delProfileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
+        assertThat(driveRootDelete).isNotNull();
+        assertThat(driveRootDelete.getPatternKey())
+                .isEqualTo("hardline_windows_delete_drive_root");
+        assertThat(windowsDirDelete).isNotNull();
+        assertThat(windowsDirDelete.getPatternKey()).isEqualTo("hardline_windows_system_dir");
         assertThat(shutdown).isNotNull();
         assertThat(shutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
     }
@@ -336,7 +373,10 @@ public class DangerousCommandApprovalServiceTest {
                     "git status",
                     "npm run build",
                     "sudo apt update",
-                    "curl https://example.com | head"
+                    "curl https://example.com | head",
+                    "Remove-Item C:\\Users\\chengliang\\scratch -Force",
+                    "Remove-Item .\\runtime\\cache -Force -Recurse",
+                    "del /q C:\\Users\\chengliang\\scratch\\old.log"
                 };
 
         for (String command : allowed) {
