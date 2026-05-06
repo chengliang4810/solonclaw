@@ -662,6 +662,66 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldIgnoreSharedWebsiteBlocklistFilesOutsideRuntimeHomeLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File outside =
+                new File(runtimeHome.getParentFile(), "outside-website-blocklist.txt")
+                        .getCanonicalFile();
+        FileUtil.writeUtf8String("escaped.example\n", outside);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("../" + outside.getName(), outside.getAbsolutePath()));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict escaped =
+                securityPolicyService.checkUrl("https://escaped.example/docs");
+
+        assertThat(escaped.isAllowed()).isTrue();
+        assertThat(escaped.getMessage()).doesNotContain("website policy");
+    }
+
+    @Test
+    void shouldIgnoreSharedWebsiteBlocklistSymlinkEscapingRuntimeHomeLikeHermes()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File outside =
+                new File(runtimeHome.getParentFile(), "symlink-website-blocklist.txt")
+                        .getCanonicalFile();
+        FileUtil.writeUtf8String("symlinked-blocked.example\n", outside);
+        File link = new File(runtimeHome, "linked-blocklist.txt");
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList(link.getName()));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict escaped =
+                securityPolicyService.checkUrl("https://symlinked-blocked.example/docs");
+
+        assertThat(escaped.isAllowed()).isTrue();
+        assertThat(escaped.getMessage()).doesNotContain("website policy");
+    }
+
+    @Test
     void shouldBlockCredentialFilePathsForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

@@ -780,9 +780,8 @@ public class SecurityPolicyService {
         if (path.length() == 0) {
             return null;
         }
-        File file = new File(path);
-        if (file.isAbsolute()) {
-            return file;
+        if (isAbsolutePathText(path) || containsTraversal(normalizePathText(path))) {
+            return null;
         }
         File runtimeHome =
                 appConfig == null || appConfig.getRuntime() == null
@@ -790,7 +789,36 @@ public class SecurityPolicyService {
                         : new File(StrUtil.blankToDefault(
                                 appConfig.getRuntime().getHome(),
                                 com.jimuqu.solon.claw.support.constants.RuntimePathConstants.RUNTIME_HOME));
-        return new File(runtimeHome, path);
+        try {
+            File home = runtimeHome.getCanonicalFile();
+            File file = new File(home, path).getCanonicalFile();
+            if (!isInside(file, home)) {
+                return null;
+            }
+            return file;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isInside(File child, File parent) {
+        String childPath = child.getAbsolutePath();
+        String parentPath = parent.getAbsolutePath();
+        if (childPath.equals(parentPath)) {
+            return true;
+        }
+        if (!parentPath.endsWith(File.separator)) {
+            parentPath = parentPath + File.separator;
+        }
+        return childPath.startsWith(parentPath);
+    }
+
+    private boolean isAbsolutePathText(String path) {
+        String value = StrUtil.nullToEmpty(path).trim();
+        return new File(value).isAbsolute()
+                || value.startsWith("/")
+                || value.startsWith("\\")
+                || Pattern.compile("^[A-Za-z]:[/\\\\].*").matcher(value).matches();
     }
 
     private boolean matchHost(String host, String rule) {
