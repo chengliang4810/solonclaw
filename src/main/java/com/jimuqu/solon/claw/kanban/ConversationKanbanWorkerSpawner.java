@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.IdSupport;
+import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,7 @@ public class ConversationKanbanWorkerSpawner implements KanbanWorkerSpawner {
         try {
             GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "kanban", task.getTaskId(), prompt);
             message.setSourceKeyOverride(sourceKey);
+            message.setEnabledToolsetsOverride(Collections.singletonList("kanban"));
             if (StrUtil.isNotBlank(task.getAssignee()) && !"default".equalsIgnoreCase(task.getAssignee())) {
                 message.setUserName(task.getAssignee());
             }

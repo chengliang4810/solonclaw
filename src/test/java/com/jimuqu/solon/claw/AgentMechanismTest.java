@@ -152,7 +152,7 @@ public class AgentMechanismTest {
     }
 
     @Test
-    void shouldExpandKanbanAndAllToolSelectorsCompletely() throws Exception {
+    void shouldExpandKanbanToolSelectorAndHideItFromPlainAllContext() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("planner", "看板编排 Agent");
         claimAdmin(env, "kanban-tools-room", "kanban-tools-user");
@@ -191,7 +191,8 @@ public class AgentMechanismTest {
                 env.toolRegistry.resolveEnabledToolNames(
                         "MEMORY:all-tools-room:all-tools-user", allScope);
 
-        assertThat(allNames).contains("kanban_unlink", "security_audit");
+        assertThat(allNames).contains("security_audit");
+        assertThat(allNames).doesNotContain("kanban_unlink");
     }
 
     @Test

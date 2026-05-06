@@ -385,6 +385,9 @@ public class DefaultToolRegistry implements ToolRegistry {
         List<Object> gatewayCandidates = new ArrayList<Object>();
 
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
+            if (isKanbanTool(toolName) && !isKanbanToolContext(sourceKey, agentScope)) {
+                continue;
+            }
             if (!isEnabled(sourceKey, toolName)) {
                 continue;
             }
@@ -548,6 +551,40 @@ public class DefaultToolRegistry implements ToolRegistry {
                 || ToolNameConstants.KANBAN_UNLINK.equals(toolName);
     }
 
+    private boolean isKanbanToolContext(String sourceKey, AgentRuntimeScope agentScope) {
+        if (StrUtil.isNotBlank(System.getenv("JIMUQU_KANBAN_TASK"))
+                || StrUtil.isNotBlank(System.getenv("HERMES_KANBAN_TASK"))) {
+            return true;
+        }
+        if (StrUtil.startWithIgnoreCase(StrUtil.nullToEmpty(sourceKey), "MEMORY:kanban-")) {
+            return true;
+        }
+        if (agentScope == null) {
+            return false;
+        }
+        List<String> configured = AgentRuntimePolicy.parseStringList(agentScope.getAllowedToolsJson());
+        if (configured.isEmpty()) {
+            return false;
+        }
+        return containsKanbanSelector(configured);
+    }
+
+    private boolean containsKanbanSelector(List<String> configured) {
+        for (String item : configured) {
+            String key = StrUtil.nullToEmpty(item).trim().toLowerCase(Locale.ROOT);
+            if (StrUtil.isBlank(key)) {
+                continue;
+            }
+            if ("kanban".equals(key)
+                    || "board".equals(key)
+                    || "boards".equals(key)
+                    || isKanbanTool(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public List<String> resolveEnabledToolNames(String sourceKey) {
         return resolveEnabledToolNames(sourceKey, null);
@@ -557,6 +594,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     public List<String> resolveEnabledToolNames(String sourceKey, AgentRuntimeScope agentScope) {
         List<String> result = new ArrayList<String>();
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
+            if (isKanbanTool(toolName) && !isKanbanToolContext(sourceKey, agentScope)) {
+                continue;
+            }
             if (isEnabled(sourceKey, toolName)) {
                 result.add(toolName);
             }
