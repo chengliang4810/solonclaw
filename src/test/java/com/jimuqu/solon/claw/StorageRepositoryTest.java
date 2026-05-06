@@ -3,7 +3,9 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import org.junit.jupiter.api.Test;
 
 public class StorageRepositoryTest {
@@ -52,5 +54,37 @@ public class StorageRepositoryTest {
         assertThat(clone.getParentSessionId()).isEqualTo(session.getSessionId());
         assertThat(env.sessionRepository.findBySourceAndBranch("MEMORY:room-a:user-a", "review"))
                 .isNotNull();
+    }
+
+    @Test
+    void shouldClearSessionScopedSecurityStateWhenBranching() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:secure-branch:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.getContext().put("ordinary_context", "keep-me");
+        env.dangerousCommandApprovalService.enableSessionYolo(agentSession);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.approve(
+                agentSession, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
+
+        SessionRecord clone =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:secure-branch:user", session.getSessionId(), "safe-review");
+        SqliteAgentSession clonedSession =
+                new SqliteAgentSession(clone, env.sessionRepository);
+
+        assertThat(clonedSession.getContext().get("ordinary_context")).isEqualTo("keep-me");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(clonedSession))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(clonedSession)).isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                clonedSession, "recursive_delete"))
+                .isFalse();
     }
 }

@@ -16,6 +16,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
+import org.noear.solon.flow.FlowContext;
 
 /** SQLite 会话仓储实现。 */
 @RequiredArgsConstructor
@@ -44,6 +45,12 @@ public class SqliteSessionRepository implements SessionRepository {
                     + "s.cumulative_cache_read_tokens, s.cumulative_cache_write_tokens, "
                     + "s.cumulative_total_tokens, s.last_usage_at, s.last_resolved_provider, "
                     + "s.last_resolved_model, s.created_at, s.updated_at";
+
+    private static final String CONTEXT_PENDING_APPROVAL = "_dangerous_command_pending_";
+    private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
+            "_dangerous_command_pending_queue_";
+    private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
+    private static final String CONTEXT_SESSION_YOLO = "_dangerous_command_session_yolo_";
 
     /** 数据库访问对象。 */
     private final SqliteDatabase database;
@@ -122,7 +129,7 @@ public class SqliteSessionRepository implements SessionRepository {
         clone.setTitle(source.getTitle());
         clone.setCompressedSummary(source.getCompressedSummary());
         clone.setSystemPromptSnapshot(source.getSystemPromptSnapshot());
-        clone.setAgentSnapshotJson(source.getAgentSnapshotJson());
+        clone.setAgentSnapshotJson(sanitizeAgentSnapshotForBranch(source.getAgentSnapshotJson()));
         clone.setGoalStateJson(source.getGoalStateJson());
         clone.setLastCompressionAt(source.getLastCompressionAt());
         clone.setLastCompressionInputTokens(source.getLastCompressionInputTokens());
@@ -135,6 +142,22 @@ public class SqliteSessionRepository implements SessionRepository {
         save(clone);
         bindSource(sourceKey, clone.getSessionId());
         return clone;
+    }
+
+    private String sanitizeAgentSnapshotForBranch(String snapshotJson) {
+        if (StrUtil.isBlank(snapshotJson)) {
+            return snapshotJson;
+        }
+        try {
+            FlowContext context = FlowContext.fromJson(snapshotJson);
+            context.remove(CONTEXT_SESSION_APPROVALS);
+            context.remove(CONTEXT_PENDING_APPROVAL);
+            context.remove(CONTEXT_PENDING_APPROVAL_QUEUE);
+            context.remove(CONTEXT_SESSION_YOLO);
+            return context.toJson();
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     @Override
