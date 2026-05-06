@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -171,6 +172,30 @@ public class SolonClawShellSkillTest {
         assertThat(transform.isChanged()).isTrue();
         assertThat(transform.getCommand()).isEqualTo("sudo -S -p '' true");
         assertThat(transform.getStdin()).isEqualTo("\n");
+    }
+
+    @Test
+    void shouldValidateWindowsWorkdirTextLikeHermesTerminalGuardrail() {
+        assertThat(SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project").isAllowed())
+                .isTrue();
+        assertThat(SecurityPolicyService.checkWorkdirText("C:/Users/Alice/project").isAllowed())
+                .isTrue();
+        assertThat(SecurityPolicyService.checkWorkdirText("\\\\server\\share\\project").isAllowed())
+                .isTrue();
+
+        SecurityPolicyService.FileVerdict semicolon =
+                SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project; rm -rf /");
+        SecurityPolicyService.FileVerdict subshell =
+                SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project$(whoami)");
+        SecurityPolicyService.FileVerdict newline =
+                SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project\nwhoami");
+
+        assertThat(semicolon.isAllowed()).isFalse();
+        assertThat(semicolon.getMessage()).contains(";");
+        assertThat(subshell.isAllowed()).isFalse();
+        assertThat(subshell.getMessage()).contains("$");
+        assertThat(newline.isAllowed()).isFalse();
+        assertThat(newline.getMessage()).contains("\\n");
     }
 
     @Test
