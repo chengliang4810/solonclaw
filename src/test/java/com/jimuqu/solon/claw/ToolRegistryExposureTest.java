@@ -43,6 +43,7 @@ public class ToolRegistryExposureTest {
                         "execute_shell",
                         "terminal",
                         "process",
+                        "execute_code",
                         "execute_python",
                         "execute_js",
                         "get_current_time",
@@ -80,6 +81,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("HermesPatchTools");
         assertThat(joined).contains("ShellSkill");
         assertThat(joined).contains("ProcessTools");
+        assertThat(joined).contains("SafeExecuteCodeTool");
         assertThat(joined).contains("SafePythonSkill");
         assertThat(joined).contains("SafeNodejsSkill");
         assertThat(joined).contains("SystemClockSkill");
@@ -676,6 +678,64 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldExposeHermesStyleExecuteCodeResultEnvelope() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTask().setToolOutputInlineLimit(200);
+        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from hermes_tools import json_parse, shell_quote\n"
+                                        + "print('\\u001b[31mapi_key=sk-test-secret\\u001b[0m')\n"
+                                        + "print(json_parse('{\"ok\": true}')['ok'])\n"
+                                        + "print(shell_quote('a b'))\n",
+                                Integer.valueOf(5)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(0);
+        assertThat(result.get("duration_seconds").getDouble()).isGreaterThanOrEqualTo(0.0d);
+        assertThat(result.get("output").getString())
+                .contains("api_key=***")
+                .contains("True")
+                .contains("'a b'")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("\u001b");
+    }
+
+    @Test
+    void shouldReturnHermesStyleExecuteCodeErrorsWithStderr() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "import sys\nprint('before')\nsys.stderr.write('token=secret123\\n')\nraise RuntimeError('boom')\n",
+                                Integer.valueOf(5)));
+
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("error").getString()).contains("token=***").contains("RuntimeError");
+        assertThat(result.get("output").getString())
+                .contains("before")
+                .contains("--- stderr ---")
+                .contains("token=***")
+                .doesNotContain("secret123");
+    }
+
+    @Test
     void shouldGuardFileToolsBeforeDelegatingToSolonAiSkill() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
@@ -973,5 +1033,17 @@ public class ToolRegistryExposureTest {
             return "echo api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123";
         }
         return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123'";
+    }
+
+    private boolean commandExists(String command) {
+        try {
+            Process process =
+                    new ProcessBuilder(command, "--version")
+                            .redirectErrorStream(true)
+                            .start();
+            return process.waitFor() == 0;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

@@ -76,6 +76,7 @@ public class DashboardSkillsService {
                         Arrays.asList(
                                 ToolNameConstants.EXECUTE_SHELL,
                                 ToolNameConstants.PROCESS,
+                                ToolNameConstants.EXECUTE_CODE,
                                 ToolNameConstants.EXECUTE_PYTHON,
                                 ToolNameConstants.EXECUTE_JS,
                                 ToolNameConstants.GET_CURRENT_TIME,

@@ -10,6 +10,7 @@ public interface ToolNameConstants {
     String EXECUTE_SHELL = "execute_shell";
     String TERMINAL = "terminal";
     String PROCESS = "process";
+    String EXECUTE_CODE = "execute_code";
     String EXECUTE_PYTHON = "execute_python";
     String EXECUTE_JS = "execute_js";
     String GET_CURRENT_TIME = "get_current_time";

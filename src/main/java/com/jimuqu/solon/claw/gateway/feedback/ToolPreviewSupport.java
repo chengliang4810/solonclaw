@@ -107,6 +107,7 @@ public final class ToolPreviewSupport {
             return new String[] {"dirName", "path"};
         }
         if ("execute_shell".equals(toolName)
+                || "execute_code".equals(toolName)
                 || "execute_python".equals(toolName)
                 || "execute_js".equals(toolName)) {
             return new String[] {"command", "code"};

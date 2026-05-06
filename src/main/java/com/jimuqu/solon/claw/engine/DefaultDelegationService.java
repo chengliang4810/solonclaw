@@ -47,6 +47,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SEND_MESSAGE,
                     ToolNameConstants.CRONJOB,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS);
 
@@ -60,6 +61,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.PATCH,
                     ToolNameConstants.EXECUTE_SHELL,
                     ToolNameConstants.PROCESS,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,

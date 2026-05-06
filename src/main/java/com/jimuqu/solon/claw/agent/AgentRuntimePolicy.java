@@ -23,6 +23,7 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.EXECUTE_SHELL,
                     ToolNameConstants.TERMINAL,
                     ToolNameConstants.PROCESS,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
@@ -212,6 +213,7 @@ public final class AgentRuntimePolicy {
             output.add(ToolNameConstants.EXECUTE_SHELL);
             output.add(ToolNameConstants.TERMINAL);
             output.add(ToolNameConstants.PROCESS);
+            output.add(ToolNameConstants.EXECUTE_CODE);
             output.add(ToolNameConstants.EXECUTE_PYTHON);
             output.add(ToolNameConstants.EXECUTE_JS);
             output.add(ToolNameConstants.GET_CURRENT_TIME);

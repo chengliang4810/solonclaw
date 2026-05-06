@@ -48,6 +48,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.EXECUTE_SHELL,
                     ToolNameConstants.TERMINAL,
                     ToolNameConstants.PROCESS,
+                    ToolNameConstants.EXECUTE_CODE,
                     ToolNameConstants.EXECUTE_PYTHON,
                     ToolNameConstants.EXECUTE_JS,
                     ToolNameConstants.GET_CURRENT_TIME,
@@ -361,6 +362,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);
         HermesCodeExecutionSkills.SafeNodejsSkill nodejsSkill =
                 new HermesCodeExecutionSkills.SafeNodejsSkill(sysWorkDir, securityPolicyService);
+        HermesCodeExecutionSkills.SafeExecuteCodeTool executeCodeTool =
+                new HermesCodeExecutionSkills.SafeExecuteCodeTool(
+                        sysWorkDir, defaultPythonCommand(), securityPolicyService, appConfig);
         SystemClockSkill systemClockSkill = new SystemClockSkill();
         HermesWebTools.SafeWebsearchTool websearchTool =
                 new HermesWebTools.SafeWebsearchTool(securityPolicyService);
@@ -393,6 +397,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 }
             } else if (ToolNameConstants.PROCESS.equals(toolName)) {
                 tools.add(processTools);
+            } else if (ToolNameConstants.EXECUTE_CODE.equals(toolName)) {
+                tools.add(executeCodeTool);
             } else if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
                 tools.add(pythonSkill);
             } else if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
