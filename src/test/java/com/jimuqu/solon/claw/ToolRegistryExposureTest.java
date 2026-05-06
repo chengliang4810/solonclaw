@@ -11,6 +11,9 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.util.Arrays;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -536,6 +539,45 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(() -> fileSkill.delete("~/.ssh/id_rsa"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("敏感");
+    }
+
+    @Test
+    void shouldApplyHermesToolOutputLimitsToFileReads() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("long-lines.txt"),
+                Arrays.asList(
+                        "alpha",
+                        "0123456789ABCDEFGHIJ",
+                        "charlie",
+                        "delta"),
+                StandardCharsets.UTF_8);
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig),
+                        2,
+                        10);
+
+        ONode firstPage = ONode.ofJson(fileSkill.read("long-lines.txt", 1, 99));
+
+        assertThat(firstPage.get("success").getBoolean()).isTrue();
+        assertThat(firstPage.get("limit").getInt()).isEqualTo(2);
+        assertThat(firstPage.get("total_lines").getInt()).isEqualTo(4);
+        assertThat(firstPage.get("truncated").getBoolean()).isTrue();
+        assertThat(firstPage.get("hint").getString()).contains("offset=3");
+        assertThat(firstPage.get("content").getString())
+                .contains("     1|alpha")
+                .contains("     2|0123456789... [truncated]")
+                .doesNotContain("charlie");
+
+        ONode secondPage = ONode.ofJson(fileSkill.read("long-lines.txt", 3, 2));
+
+        assertThat(secondPage.get("truncated").getBoolean()).isFalse();
+        assertThat(secondPage.get("content").getString())
+                .contains("     3|charlie")
+                .contains("     4|delta");
     }
 
     private String javaSleepCommand() {

@@ -341,7 +341,11 @@ public class DefaultToolRegistry implements ToolRegistry {
         ConfigTools configTools = new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService);
         String sysWorkDir = resolveWorkDir(agentScope);
         HermesFileReadWriteSkill fileSkill =
-                new HermesFileReadWriteSkill(sysWorkDir, securityPolicyService);
+                new HermesFileReadWriteSkill(
+                        sysWorkDir,
+                        securityPolicyService,
+                        appConfig.getTask().getToolOutputMaxLines(),
+                        appConfig.getTask().getToolOutputMaxLineLength());
         HermesPatchTools patchTools = new HermesPatchTools(sysWorkDir, securityPolicyService);
         ProcessRegistry activeProcessRegistry = resolveProcessRegistry();
         ShellSkill shellSkill =
