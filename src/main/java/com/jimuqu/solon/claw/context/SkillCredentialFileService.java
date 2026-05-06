@@ -4,7 +4,10 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,9 +16,21 @@ import java.util.Map;
 /** Hermes-style validation for skill-declared credential files. */
 public class SkillCredentialFileService {
     private static final String DEFAULT_CONTAINER_BASE = "/root/.jimuqu-agent";
+    private static final List<String> CACHE_MOUNT_DIRS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "documents",
+                            "images",
+                            "audio",
+                            "screenshots",
+                            "media",
+                            "pdf",
+                            "tool-results"));
 
     private final AppConfig appConfig;
     private final File runtimeHome;
+    private final File skillsDir;
+    private final File cacheDir;
 
     public SkillCredentialFileService(AppConfig appConfig) {
         this.appConfig = appConfig;
@@ -24,6 +39,20 @@ public class SkillCredentialFileService {
                         ? "runtime"
                         : StrUtil.blankToDefault(appConfig.getRuntime().getHome(), "runtime");
         this.runtimeHome = FileUtil.file(home).getAbsoluteFile();
+        String skills =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? new File(this.runtimeHome, "skills").getPath()
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getSkillsDir(),
+                                new File(this.runtimeHome, "skills").getPath());
+        String cache =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? new File(this.runtimeHome, "cache").getPath()
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getCacheDir(),
+                                new File(this.runtimeHome, "cache").getPath());
+        this.skillsDir = FileUtil.file(skills).getAbsoluteFile();
+        this.cacheDir = FileUtil.file(cache).getAbsoluteFile();
     }
 
     public CredentialFilePlan plan(Object rawEntries) {
@@ -40,6 +69,49 @@ public class SkillCredentialFileService {
                         ? Collections.<String>emptyList()
                         : appConfig.getTerminal().getCredentialFiles();
         return plan(new ArrayList<Object>(credentialFiles), containerBase);
+    }
+
+    public SandboxMountPlan sandboxMountPlan() {
+        return sandboxMountPlan(DEFAULT_CONTAINER_BASE);
+    }
+
+    public SandboxMountPlan sandboxMountPlan(String containerBase) {
+        String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
+        SandboxMountPlan plan = new SandboxMountPlan();
+        plan.getCredentialFiles().addAll(configPlan(base).getMounts());
+        plan.getSkillsDirectories().addAll(skillsDirectoryMounts(base));
+        plan.getCacheDirectories().addAll(cacheDirectoryMounts(base));
+        return plan;
+    }
+
+    public List<DirectoryMount> skillsDirectoryMounts(String containerBase) {
+        String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
+        if (!skillsDir.isDirectory()) {
+            return Collections.emptyList();
+        }
+        File hostDir = symlinkSafeSkillsDir(skillsDir);
+        return Collections.singletonList(
+                new DirectoryMount(
+                        hostDir.getAbsolutePath(),
+                        stripTrailingSlash(base.replace('\\', '/')) + "/skills"));
+    }
+
+    public List<DirectoryMount> cacheDirectoryMounts(String containerBase) {
+        String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
+        if (!cacheDir.isDirectory()) {
+            return Collections.emptyList();
+        }
+        List<DirectoryMount> mounts = new ArrayList<DirectoryMount>();
+        for (String name : CACHE_MOUNT_DIRS) {
+            File dir = new File(cacheDir, name);
+            if (dir.isDirectory()) {
+                mounts.add(
+                        new DirectoryMount(
+                                dir.getAbsolutePath(),
+                                stripTrailingSlash(base.replace('\\', '/')) + "/cache/" + name));
+            }
+        }
+        return mounts;
     }
 
     public CredentialFilePlan plan(Object rawEntries, String containerBase) {
@@ -95,6 +167,75 @@ public class SkillCredentialFileService {
         } catch (Exception e) {
             return CredentialFileMount.rejected(rawPath, "invalid credential file path");
         }
+    }
+
+    private File symlinkSafeSkillsDir(File source) {
+        if (!containsSymlink(source)) {
+            return source;
+        }
+        File safeRoot = new File(cacheDir, "safe-skills");
+        File safeDir = new File(safeRoot, "skills");
+        FileUtil.del(safeDir);
+        FileUtil.mkdir(safeDir);
+        copyTreeSkippingSymlinks(source, safeDir);
+        return safeDir;
+    }
+
+    private boolean containsSymlink(File root) {
+        if (root == null || !root.exists()) {
+            return false;
+        }
+        if (isSymbolicLink(root)) {
+            return true;
+        }
+        File[] children = root.listFiles();
+        if (children == null) {
+            return false;
+        }
+        for (File child : children) {
+            if (containsSymlink(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void copyTreeSkippingSymlinks(File source, File target) {
+        if (source == null || !source.exists() || isSymbolicLink(source)) {
+            return;
+        }
+        if (source.isDirectory()) {
+            FileUtil.mkdir(target);
+            File[] children = source.listFiles();
+            if (children == null) {
+                return;
+            }
+            for (File child : children) {
+                copyTreeSkippingSymlinks(child, new File(target, child.getName()));
+            }
+            return;
+        }
+        if (source.isFile()) {
+            FileUtil.mkParentDirs(target);
+            FileUtil.copy(source, target, true);
+        }
+    }
+
+    private boolean isSymbolicLink(File file) {
+        try {
+            Path path = file.toPath();
+            return Files.isSymbolicLink(path);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stripTrailingSlash(String value) {
+        String text = StrUtil.blankToDefault(value, DEFAULT_CONTAINER_BASE);
+        while (text.endsWith("/") && text.length() > 1) {
+            text = text.substring(0, text.length() - 1);
+        }
+        return text;
     }
 
     private boolean isInside(File child, File parent) {
@@ -186,6 +327,70 @@ public class SkillCredentialFileService {
             map.put("mounts", mountMaps);
             map.put("missing", new ArrayList<String>(missing));
             map.put("rejected", rejectedMaps);
+            return map;
+        }
+    }
+
+    public static class SandboxMountPlan {
+        private final List<CredentialFileMount> credentialFiles =
+                new ArrayList<CredentialFileMount>();
+        private final List<DirectoryMount> skillsDirectories = new ArrayList<DirectoryMount>();
+        private final List<DirectoryMount> cacheDirectories = new ArrayList<DirectoryMount>();
+
+        public List<CredentialFileMount> getCredentialFiles() {
+            return credentialFiles;
+        }
+
+        public List<DirectoryMount> getSkillsDirectories() {
+            return skillsDirectories;
+        }
+
+        public List<DirectoryMount> getCacheDirectories() {
+            return cacheDirectories;
+        }
+
+        public Map<String, Object> toMetadata() {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            List<Map<String, Object>> credentialMaps = new ArrayList<Map<String, Object>>();
+            for (CredentialFileMount mount : credentialFiles) {
+                credentialMaps.add(mount.toMetadata());
+            }
+            List<Map<String, Object>> skillsMaps = new ArrayList<Map<String, Object>>();
+            for (DirectoryMount mount : skillsDirectories) {
+                skillsMaps.add(mount.toMetadata());
+            }
+            List<Map<String, Object>> cacheMaps = new ArrayList<Map<String, Object>>();
+            for (DirectoryMount mount : cacheDirectories) {
+                cacheMaps.add(mount.toMetadata());
+            }
+            map.put("credential_files", credentialMaps);
+            map.put("skills_directories", skillsMaps);
+            map.put("cache_directories", cacheMaps);
+            return map;
+        }
+    }
+
+    public static class DirectoryMount {
+        private final String hostPath;
+        private final String containerPath;
+
+        public DirectoryMount(String hostPath, String containerPath) {
+            this.hostPath = hostPath;
+            this.containerPath = containerPath;
+        }
+
+        public String getHostPath() {
+            return hostPath;
+        }
+
+        public String getContainerPath() {
+            return containerPath;
+        }
+
+        private Map<String, Object> toMetadata() {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("host_path", hostPath);
+            map.put("container_path", containerPath);
             return map;
         }
     }

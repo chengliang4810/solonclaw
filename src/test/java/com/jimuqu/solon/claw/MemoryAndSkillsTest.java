@@ -282,6 +282,75 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldPlanHermesStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        FileUtil.writeUtf8String(
+                "{}",
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json"));
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/oauth.json");
+        env.localSkillService.createSkill("mount-skill", null, skill("mount-skill", "mount"));
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "media"));
+        FileUtil.writeUtf8String(
+                "cached",
+                FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "media", "upload.txt"));
+
+        SkillCredentialFileService.SandboxMountPlan plan =
+                new SkillCredentialFileService(env.appConfig).sandboxMountPlan();
+
+        assertThat(plan.getCredentialFiles()).hasSize(1);
+        assertThat(plan.getCredentialFiles().get(0).getContainerPath())
+                .isEqualTo("/root/.jimuqu-agent/credentials/oauth.json");
+        assertThat(plan.getSkillsDirectories()).hasSize(1);
+        assertThat(plan.getSkillsDirectories().get(0).getHostPath())
+                .isEqualTo(new File(env.appConfig.getRuntime().getSkillsDir()).getAbsolutePath());
+        assertThat(plan.getSkillsDirectories().get(0).getContainerPath())
+                .isEqualTo("/root/.jimuqu-agent/skills");
+        assertThat(plan.getCacheDirectories()).hasSize(1);
+        assertThat(plan.getCacheDirectories().get(0).getContainerPath())
+                .isEqualTo("/root/.jimuqu-agent/cache/media");
+        assertThat(plan.toMetadata().toString())
+                .contains("credential_files")
+                .contains("skills_directories")
+                .contains("cache_directories");
+    }
+
+    @Test
+    void shouldCreateSymlinkSafeSkillsMountLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("safe-skill", null, skill("safe-skill", "safe"));
+        File skillDir =
+                FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "safe-skill");
+        FileUtil.writeUtf8String("real", FileUtil.file(skillDir, "references", "real.txt"));
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(
+                    FileUtil.file(skillDir, "references", "secret-link.txt").toPath(),
+                    FileUtil.file(env.appConfig.getRuntime().getHome(), "secret.txt").toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+
+        if (!symlinkCreated) {
+            return;
+        }
+
+        SkillCredentialFileService.SandboxMountPlan plan =
+                new SkillCredentialFileService(env.appConfig).sandboxMountPlan();
+
+        assertThat(plan.getSkillsDirectories()).hasSize(1);
+        File safeMount = new File(plan.getSkillsDirectories().get(0).getHostPath());
+        assertThat(safeMount.getAbsolutePath())
+                .contains(new File(env.appConfig.getRuntime().getCacheDir(), "safe-skills").getPath());
+        assertThat(FileUtil.file(safeMount, "safe-skill", "references", "real.txt")).isFile();
+        assertThat(FileUtil.file(safeMount, "safe-skill", "references", "secret-link.txt"))
+                .doesNotExist();
+    }
+
+    @Test
     void shouldFilterPromptAndSkillToolsByAgentSkills() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("global-skill", null, skill("global-skill", "global"));
