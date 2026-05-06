@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -97,6 +98,9 @@ public class SecurityPolicyService {
         String raw = StrUtil.nullToEmpty(url).trim();
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
+        }
+        if (SecretRedactor.containsSecretLikeToken(raw)) {
+            return UrlVerdict.block(raw, "URL 包含疑似 API key 或 token，禁止通过 URL 发送凭据");
         }
 
         URI uri = parseUri(raw);

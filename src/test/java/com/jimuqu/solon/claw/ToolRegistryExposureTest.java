@@ -622,6 +622,15 @@ public class ToolRegistryExposureTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("blocked.example")
                 .hasMessageNotContaining("secret123");
+        assertThatThrownBy(
+                        () ->
+                                webfetch.webfetch(
+                                        "https://example.com/docs?next=sk-proj-abcdefghijklmnop",
+                                        "text",
+                                        Integer.valueOf(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("疑似 API key")
+                .hasMessageNotContaining("sk-proj-abcdefghijklmnop");
     }
 
     @Test

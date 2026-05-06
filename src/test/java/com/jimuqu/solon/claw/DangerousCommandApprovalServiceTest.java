@@ -439,6 +439,25 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockSecretLikeTokensInUrlsBeforeNetworkAccess() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "https://example.com/callback?next=sk-proj-abcdefghijklmnop",
+                        "https://example.com/callback?next=sk%2Dproj%2Dabcdefghijklmnop",
+                        "https://example.com/callback?next=github_pat_abcdefghijklmnopqrstuvwxyz");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("API key").contains("token");
+        }
+    }
+
+    @Test
     void shouldAllowToolArgsWithoutUrls() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
