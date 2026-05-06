@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -158,10 +159,26 @@ public class SolonClawShellSkillTest {
 
     @Test
     void shouldStripEightBitAnsiFromTerminalOutputLikeHermes() throws Exception {
-        assertThat(
-                        com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer.stripAnsi(
-                                "\u009B31mred\u009B0m"))
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m"))
                 .isEqualTo("red");
+    }
+
+    @Test
+    void shouldStripEcma48AnsiSequencesLikeHermes() {
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B[38:2:255:0:0mred\u001B[0m"))
+                .isEqualTo("red");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B[?1049halt\u001B[?1049l"))
+                .isEqualTo("alt");
+        assertThat(
+                        TerminalAnsiSanitizer.stripAnsi(
+                                "\u001B]8;;https://example.com\u001B\\click\u001B]8;;\u001B\\"))
+                .isEqualTo("click");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001BP+q\u001B\\done"))
+                .isEqualTo("done");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B(Achars\u001B(B"))
+                .isEqualTo("chars");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("arr[0] = arr[31]"))
+                .isEqualTo("arr[0] = arr[31]");
     }
 
     @Test
