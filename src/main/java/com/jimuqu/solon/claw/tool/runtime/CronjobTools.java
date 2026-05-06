@@ -41,7 +41,8 @@ public class CronjobTools {
             @Param(name = "model", description = "任务固定模型；支持字符串或 {provider, model} 对象", required = false) Object model,
             @Param(name = "provider", description = "任务固定 provider", required = false) String provider,
             @Param(name = "base_url", description = "任务固定模型 API base URL", required = false) String baseUrl,
-            @Param(name = "limit", description = "history 返回条数", required = false) Integer limit)
+            @Param(name = "limit", description = "history 返回条数", required = false) Integer limit,
+            @Param(name = "reason", description = "pause 时记录的暂停原因", required = false) String reason)
             throws Exception {
         try {
         String normalized = action == null ? "list" : action.trim().toLowerCase(java.util.Locale.ROOT);
@@ -110,7 +111,7 @@ public class CronjobTools {
             }
             job = cronJobService.update(jobId, updateBody);
         } else if ("pause".equals(normalized)) {
-            job = cronJobService.pause(jobId, "paused by cronjob tool");
+            job = cronJobService.pause(jobId, pauseReason(reason, "paused by cronjob tool"));
         } else if ("resume".equals(normalized)) {
             job = cronJobService.resume(jobId);
         } else if ("remove".equals(normalized)) {
@@ -175,6 +176,53 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
+                null);
+    }
+
+    public String cronjob(
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Integer limit)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                skill,
+                skills,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                limit,
                 null);
     }
 
@@ -290,6 +338,13 @@ public class CronjobTools {
         result.put("name", job.getName());
         result.put("schedule", job.getCronExpr());
         return result;
+    }
+
+    private String pauseReason(String reason, String fallback) {
+        if (reason == null || reason.trim().length() == 0) {
+            return fallback;
+        }
+        return reason.trim();
     }
 
     private String repeatDisplay(CronJobRecord job) {

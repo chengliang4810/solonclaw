@@ -344,8 +344,10 @@ public class CommandEnhancementTest {
                 .contains("Skills: blogwatcher")
                 .contains("Prompt: Check server status");
 
-        GatewayReply paused = env.send("admin-chat", "admin-user", "/cron pause " + jobId);
+        GatewayReply paused =
+                env.send("admin-chat", "admin-user", "/cron pause " + jobId + " --reason \"maintenance window\"");
         assertThat(paused.getContent()).contains("已暂停定时任务");
+        assertThat(cronJobView(env, jobId)).contains("paused_reason=maintenance window");
 
         GatewayReply defaultList = env.send("admin-chat", "admin-user", "/cron list");
         assertThat(defaultList.getContent()).contains("当前没有定时任务。").doesNotContain(jobId);

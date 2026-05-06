@@ -1561,8 +1561,14 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.ACTION_PAUSE.equalsIgnoreCase(action)) {
-            cronJobService.pause(tail, "paused by slash command");
-            return GatewayReply.ok("已暂停定时任务：" + tail);
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            if (options.positionals.isEmpty()) {
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " pause <job-id> [--reason 原因]");
+            }
+            String jobId = options.positionals.get(0);
+            String reason = StrUtil.blankToDefault(options.reason, joinTail(options.positionals, 1));
+            cronJobService.pause(jobId, StrUtil.blankToDefault(reason, "paused by slash command"));
+            return GatewayReply.ok("已暂停定时任务：" + jobId);
         }
 
         if (GatewayCommandConstants.ACTION_RESUME.equalsIgnoreCase(action)) {
@@ -1618,7 +1624,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
                 .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
-                .append("/cron pause <job-id> - 暂停定时任务\n")
+                .append("/cron pause <job-id> [--reason 原因] - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
                 .append("/cron tick - 立即执行一次 scheduler tick\n")
@@ -2045,6 +2051,8 @@ public class DefaultCommandService implements CommandService {
                 options.repeat = Integer.valueOf(tokens.get(++i));
             } else if ("--limit".equals(token) && i + 1 < tokens.size()) {
                 options.limit = Integer.valueOf(tokens.get(++i));
+            } else if ("--reason".equals(token) && i + 1 < tokens.size()) {
+                options.reason = tokens.get(++i);
             } else if ("--skill".equals(token) && i + 1 < tokens.size()) {
                 options.skills.add(tokens.get(++i));
             } else if ("--skills".equals(token) && i + 1 < tokens.size()) {
@@ -2168,6 +2176,20 @@ public class DefaultCommandService implements CommandService {
                 buffer.append(delimiter);
             }
             buffer.append(value);
+        }
+        return buffer.toString();
+    }
+
+    private String joinTail(List<String> values, int start) {
+        if (values == null || start >= values.size()) {
+            return "";
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (int i = start; i < values.size(); i++) {
+            if (buffer.length() > 0) {
+                buffer.append(' ');
+            }
+            buffer.append(values.get(i));
         }
         return buffer.toString();
     }
@@ -3151,6 +3173,7 @@ public class DefaultCommandService implements CommandService {
         private String deliver;
         private Integer repeat;
         private Integer limit;
+        private String reason;
         private final List<String> skills = new ArrayList<String>();
         private final List<String> addSkills = new ArrayList<String>();
         private final List<String> removeSkills = new ArrayList<String>();

@@ -854,7 +854,35 @@ public class DefaultCronSchedulerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                null,
+                "waiting for upstream fix");
+        Map<?, ?> pausedTool =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "list",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Boolean.TRUE,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        List<?> pausedJobs = (List<?>) pausedTool.get("jobs");
+        assertThat(((Map<?, ?>) pausedJobs.get(0)).get("paused_reason")).isEqualTo("waiting for upstream fix");
 
         Map<?, ?> defaultList =
                 (Map<?, ?>)
