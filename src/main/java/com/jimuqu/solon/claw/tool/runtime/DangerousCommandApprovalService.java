@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.nio.charset.StandardCharsets;
@@ -745,9 +746,9 @@ public class DangerousCommandApprovalService {
         Map<String, Object> extras = new LinkedHashMap<String, Object>();
         extras.put("mode", DELIVERY_MODE_APPROVAL_CARD);
         extras.put("approvalId", pending.getApprovalId());
-        extras.put("approvalCommand", pending.getCommand());
-        extras.put("approvalDescription", pending.getDescription());
-        extras.put("approvalToolName", pending.getToolName());
+        extras.put("approvalCommand", redactApprovalDisplay(pending.getCommand(), 3000));
+        extras.put("approvalDescription", redactApprovalDisplay(pending.getDescription(), 1000));
+        extras.put("approvalToolName", redactApprovalDisplay(pending.getToolName(), 200));
         return extras;
     }
 
@@ -1420,13 +1421,17 @@ public class DangerousCommandApprovalService {
         StringBuilder buffer = new StringBuilder();
         buffer.append("⚠️ 危险命令需要审批：\n");
         buffer.append("工具：").append(toolLabel(toolName)).append('\n');
-        buffer.append("原因：").append(detection.getDescription()).append("\n\n");
+        buffer.append("原因：").append(redactApprovalDisplay(detection.getDescription(), 1000)).append("\n\n");
         buffer.append("```").append(codeFence(toolName)).append('\n');
-        buffer.append(trimPreview(code));
+        buffer.append(redactApprovalDisplay(trimPreview(code), 2000));
         buffer.append("\n```\n\n");
         buffer.append(
                 "回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
         return buffer.toString();
+    }
+
+    private String redactApprovalDisplay(String value, int maxLength) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
     }
 
     private String buildHardlineMessage(String toolName, DetectionResult detection, String code) {

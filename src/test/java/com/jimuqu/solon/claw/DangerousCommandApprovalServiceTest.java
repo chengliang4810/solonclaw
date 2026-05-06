@@ -916,6 +916,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactSecretsFromFeishuApprovalCardExtrasWithoutChangingPendingCommand()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setToolName("execute_shell");
+        pending.setPatternKey("shell_command_flag");
+        pending.setDescription("remote call with Authorization: Bearer ghp_abcdefghijklmnop");
+        pending.setCommand(
+                "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz curl "
+                        + "'https://api.example.test/run?access_token=sk-proj-abcdefghijklmnopqrstuvwxyz'");
+        pending.setApprovalId("approval-secret");
+
+        Map<String, Object> extras =
+                env.dangerousCommandApprovalService.buildDeliveryExtras(
+                        PlatformType.FEISHU, pending);
+
+        assertThat(extras.get("approvalCommand").toString()).doesNotContain("sk-proj-abc");
+        assertThat(extras.get("approvalCommand").toString()).contains("OPENAI_API_KEY=***");
+        assertThat(extras.get("approvalCommand").toString()).contains("access_token=***");
+        assertThat(extras.get("approvalDescription").toString())
+                .doesNotContain("ghp_abcdefghijklmnop");
+        assertThat(pending.getCommand()).contains("sk-proj-abcdefghijklmnopqrstuvwxyz");
+    }
+
+    @Test
     void shouldExpirePendingApprovalLikeHermesGatewayTimeout() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setGatewayTimeoutSeconds(1);

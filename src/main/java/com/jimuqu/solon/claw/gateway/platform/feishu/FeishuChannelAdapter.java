@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.lark.oapi.Client;
@@ -1193,8 +1194,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 request.getChannelExtras() == null
                         ? new LinkedHashMap<String, Object>()
                         : request.getChannelExtras();
-        String command = stringValue(extras.get("approvalCommand"));
-        String description = stringValue(extras.get("approvalDescription"));
+        String command = SecretRedactor.redact(stringValue(extras.get("approvalCommand")), 3000);
+        String description =
+                SecretRedactor.redact(stringValue(extras.get("approvalDescription")), 1000);
         String approvalId = stringValue(extras.get("approvalId"));
         String preview = command;
         if (preview.length() > 3000) {
