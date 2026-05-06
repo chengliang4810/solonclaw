@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
@@ -191,6 +192,59 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldReturnHermesJsonForForegroundTerminalCommands() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        HermesShellSkill skill = new HermesShellSkill(workdir, config);
+
+        ONode success =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo terminal-json-ok",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+        ONode failed =
+                ONode.ofJson(
+                        skill.terminal(
+                                terminalExitCommand(7),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(success.get("output").getString()).contains("terminal-json-ok");
+        assertThat(success.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(success.get("error").isNull()).isTrue();
+        assertThat(success.get("exit_code_meaning").isNull()).isTrue();
+        assertThat(failed.get("exit_code").getInt()).isEqualTo(7);
+        assertThat(failed.get("error").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldReturnExitCodeMeaningForForegroundTerminalCommands() throws Exception {
+        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        HermesShellSkill skill = new HermesShellSkill(workdir, config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "test -f /definitely-not-a-jimuqu-file",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(1);
+        assertThat(result.get("error").isNull()).isTrue();
+        assertThat(result.get("exit_code_meaning").getString())
+                .isEqualTo("Condition evaluated to false (expected, not an error)");
+    }
+
+    @Test
     void shouldRejectForegroundBackgroundWrappersOnDirectShellExecution() throws Exception {
         AppConfig config = new AppConfig();
         HermesShellSkill skill =
@@ -244,5 +298,12 @@ public class HermesShellSkillTest {
             return "powershell -NoProfile -Command \"$s='head-' + ('A' * 600) + 'middle-' + ('B' * 600) + 'tail-'; [Console]::Write($s)\"";
         }
         return "printf 'head-'; head -c 600 /dev/zero | tr '\\0' 'A'; printf 'middle-'; head -c 600 /dev/zero | tr '\\0' 'B'; printf 'tail-'";
+    }
+
+    private String terminalExitCommand(int exitCode) {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "exit /b " + exitCode;
+        }
+        return "exit " + exitCode;
     }
 }

@@ -9,9 +9,12 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.sys.ShellSkill;
@@ -140,13 +143,61 @@ public class HermesShellSkill extends ShellSkill {
             if (Boolean.TRUE.equals(background)) {
                 return startBackground(command, workdir, notifyOnComplete);
             }
-            int seconds = timeoutSeconds == null ? 180 : Math.max(1, timeoutSeconds.intValue());
-            return execute(command, Integer.valueOf(seconds * 1000));
+            return runForegroundTerminal(command, timeoutSeconds, workdir);
         } catch (Exception e) {
-            return ToolResultEnvelope.error(
-                            e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
-                    .toJson();
+            return terminalError(
+                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
+    }
+
+    private String runForegroundTerminal(String command, Integer timeoutSeconds, String workdir)
+            throws Exception {
+        String commandError = validateCommand(command);
+        if (commandError != null) {
+            return terminalError(commandError);
+        }
+        HermesCodeExecutionSkills.assertSafe(
+                com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
+                command,
+                securityPolicyService);
+        int seconds = timeoutSeconds == null ? 180 : Math.max(1, timeoutSeconds.intValue());
+        int timeoutMs = seconds * 1000;
+        Integer effectiveTimeout = normalizeForegroundTimeout(Integer.valueOf(timeoutMs));
+        if (effectiveTimeout == null) {
+            return terminalError(foregroundTimeoutExceededMessage(Integer.valueOf(timeoutMs)));
+        }
+        File dir = resolveForegroundWorkdir(workdir);
+        String executableCode = rewriteCompoundBackground(command);
+        SudoTransform transform = transformSudoCommand(executableCode);
+        ForegroundResult result =
+                executeForeground(
+                        transform.isChanged() ? transform.getCommand() : executableCode,
+                        transform.getStdin(),
+                        effectiveTimeout,
+                        dir);
+        return terminalResult(command, result);
+    }
+
+    private String terminalResult(String originalCommand, ForegroundResult result) {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("output", normalizeTerminalOutput(result.getOutput()).trim());
+        map.put("exit_code", result.getExitCode());
+        map.put("error", result.getError());
+        String meaning = TerminalExitCodeSemantics.interpret(originalCommand, result.getExitCode());
+        if (meaning != null) {
+            map.put("exit_code_meaning", meaning);
+        }
+        return ONode.serialize(map);
+    }
+
+    private String terminalError(String message) {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("output", "");
+        map.put("exit_code", Integer.valueOf(-1));
+        map.put("error", StrUtil.blankToDefault(message, "Failed to execute command"));
+        map.put("status", "error");
+        map.put("success", Boolean.FALSE);
+        return ONode.serialize(map);
     }
 
     private String startBackground(String command, String workdir, Boolean notifyOnComplete)
@@ -375,6 +426,19 @@ public class HermesShellSkill extends ShellSkill {
     }
 
     private String executeWithStdin(String code, String stdin, Integer timeoutMs) {
+        ForegroundResult result = executeForeground(code, stdin, timeoutMs, workPath.toFile());
+        if (result.getError() != null) {
+            if (result.isTimedOut()) {
+                return "执行超时：运行时间超过 " + timeoutMs + " 毫秒。";
+            }
+            return result.getError();
+        }
+        String output = StrUtil.nullToEmpty(result.getOutput()).trim();
+        return output.length() == 0 ? "执行成功" : output;
+    }
+
+    private ForegroundResult executeForeground(
+            String code, String stdin, Integer timeoutMs, File directory) {
         Path tempScript = null;
         try {
             tempScript = Files.createTempFile(workPath, "_script_", extension);
@@ -384,7 +448,7 @@ public class HermesShellSkill extends ShellSkill {
                             java.util.Arrays.asList(shellCmd.split("\\s+")));
             command.add(tempScript.toAbsolutePath().toString());
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(workPath.toFile());
+            builder.directory(directory == null ? workPath.toFile() : directory);
             builder.redirectErrorStream(true);
             Process process = builder.start();
             CompletableFuture<String> outputFuture =
@@ -403,17 +467,21 @@ public class HermesShellSkill extends ShellSkill {
                 writer.flush();
                 writer.close();
             }
-            int timeout = timeoutMs == null || timeoutMs < 0 ? 120000 : timeoutMs;
+            int timeout = timeoutMs == null || timeoutMs < 0 ? 120000 : timeoutMs.intValue();
             boolean finished = process.waitFor(timeout, TimeUnit.MILLISECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return "执行超时：运行时间超过 " + timeout + " 毫秒。";
+                String output = outputFuture.get(1, TimeUnit.SECONDS);
+                return new ForegroundResult(
+                        output,
+                        Integer.valueOf(-1),
+                        "Command timed out after " + timeout + " ms",
+                        true);
             }
             String output = outputFuture.get(1, TimeUnit.SECONDS);
-            String result = StrUtil.nullToEmpty(output).trim();
-            return result.length() == 0 ? "执行成功" : result;
+            return new ForegroundResult(output, Integer.valueOf(process.exitValue()), null);
         } catch (Exception e) {
-            return "系统失败: " + e.getMessage();
+            return new ForegroundResult("", Integer.valueOf(-1), "系统失败: " + e.getMessage());
         } finally {
             if (tempScript != null) {
                 try {
@@ -465,6 +533,10 @@ public class HermesShellSkill extends ShellSkill {
             throw new IllegalArgumentException("workdir is not a directory: " + value);
         }
         return dir;
+    }
+
+    private File resolveForegroundWorkdir(String workdir) {
+        return resolveBackgroundWorkdir(workdir);
     }
 
     private String readOutput(Process process) throws Exception {
@@ -601,6 +673,40 @@ public class HermesShellSkill extends ShellSkill {
 
         public int getEnd() {
             return end;
+        }
+    }
+
+    private static class ForegroundResult {
+        private final String output;
+        private final Integer exitCode;
+        private final String error;
+        private final boolean timedOut;
+
+        private ForegroundResult(String output, Integer exitCode, String error) {
+            this(output, exitCode, error, false);
+        }
+
+        private ForegroundResult(String output, Integer exitCode, String error, boolean timedOut) {
+            this.output = output;
+            this.exitCode = exitCode;
+            this.error = error;
+            this.timedOut = timedOut;
+        }
+
+        public String getOutput() {
+            return output;
+        }
+
+        public Integer getExitCode() {
+            return exitCode;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public boolean isTimedOut() {
+            return timedOut;
         }
     }
 }
