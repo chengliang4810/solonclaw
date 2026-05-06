@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
@@ -61,5 +63,64 @@ public class GatewayCommandFlowTest {
         assertThat(Arrays.asList(helpReply.getContent().split("\\R")))
                 .isNotEmpty()
                 .allMatch(line -> line.startsWith("/") && line.contains(" - "));
+    }
+
+    @Test
+    void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-resume-a", "user-resume", "hello"));
+        env.gatewayService.handle(env.message("room-resume-b", "user-resume", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-resume-a", "user-resume", "/pairing claim-admin"));
+
+        SessionRecord sessionA =
+                env.sessionRepository.bindNewSession("MEMORY:room-resume-a:user-resume");
+        SessionRecord sessionB =
+                env.sessionRepository.bindNewSession("MEMORY:room-resume-b:user-resume");
+        SqliteAgentSession agentSessionA =
+                new SqliteAgentSession(sessionA, env.sessionRepository);
+        SqliteAgentSession agentSessionB =
+                new SqliteAgentSession(sessionB, env.sessionRepository);
+        env.dangerousCommandApprovalService.enableSessionYolo(agentSessionA);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSessionA,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.approve(
+                agentSessionA, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
+        env.dangerousCommandApprovalService.enableSessionYolo(agentSessionB);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSessionB,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard",
+                "git reset --hard origin/main");
+
+        GatewayReply resumeReply =
+                env.send("room-resume-a", "user-resume", "/resume " + sessionA.getSessionId());
+        SessionRecord resumed =
+                env.sessionRepository.getBoundSession("MEMORY:room-resume-a:user-resume");
+        SqliteAgentSession resumedSession =
+                new SqliteAgentSession(resumed, env.sessionRepository);
+        SqliteAgentSession untouchedSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.findById(sessionB.getSessionId()),
+                        env.sessionRepository);
+
+        assertThat(resumeReply.getSessionId()).isEqualTo(sessionA.getSessionId());
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(resumedSession))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(resumedSession))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                resumedSession, "recursive_delete"))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(untouchedSession))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(untouchedSession))
+                .isNotNull();
     }
 }

@@ -623,6 +623,8 @@ public class DefaultCommandService implements CommandService {
             if (session == null) {
                 return GatewayReply.error("未找到对应会话或分支：" + args);
             }
+            dangerousCommandApprovalService.clearSessionApprovals(
+                    new SqliteAgentSession(session, sessionRepository));
             sessionRepository.bindSource(message.sourceKey(), session.getSessionId());
             GatewayReply reply = GatewayReply.ok(formatResumeReply(session));
             reply.setSessionId(session.getSessionId());
