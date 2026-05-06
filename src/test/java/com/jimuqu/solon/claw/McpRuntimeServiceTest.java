@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.FunctionPrompt;
 import org.noear.solon.ai.chat.prompt.FunctionPromptDesc;
@@ -93,6 +94,38 @@ public class McpRuntimeServiceTest {
                         "mcp_local-docs_read_resource",
                         "mcp_local-docs_list_prompts",
                         "mcp_local-docs_get_prompt");
+    }
+
+    @Test
+    void shouldSanitizeMcpToolSchemasBeforeExposingThemToModel() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        SchemaEdgeMcpFactory factory = new SchemaEdgeMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        McpRuntimeService.McpToolRefreshResult refresh =
+                mcpRuntimeService.refreshLiveTools("local-docs", false);
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool tool = toolByName(provider, "mcp_local-docs_schema_edge");
+        ONode exposed = ONode.ofJson(tool.inputSchema());
+        ONode persisted =
+                ONode.ofJson(readToolsJson(env.sqliteDatabase))
+                        .get(0)
+                        .get("input_schema");
+
+        assertThat(refresh.getToolCount()).isEqualTo(1);
+        assertThat(exposed.get("properties").get("payload").get("properties").isObject()).isTrue();
+        assertThat(exposed.get("properties").get("bare").get("type").getString())
+                .isEqualTo("object");
+        assertThat(exposed.get("properties").get("maybe").get("type").getString())
+                .isEqualTo("string");
+        assertThat(exposed.get("properties").get("maybe").get("nullable").getBoolean()).isTrue();
+        assertThat(exposed.get("required").size()).isEqualTo(1);
+        assertThat(exposed.get("required").get(0).getString()).isEqualTo("payload");
+        assertThat(persisted.get("properties").get("payload").get("properties").isObject())
+                .isTrue();
     }
 
     @Test
@@ -339,5 +372,32 @@ public class McpRuntimeServiceTest {
             properties.setCommand("fake-mcp");
             return properties;
         }
+    }
+
+    private static class SchemaEdgeMcpFactory implements McpClientProviderFactory {
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            return new SchemaEdgeMcpClientProvider();
+        }
+    }
+
+    private static class SchemaEdgeMcpClientProvider extends McpClientProvider {
+        SchemaEdgeMcpClientProvider() {
+            super(FakeMcpClientProvider.properties());
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            FunctionToolDesc edge = new FunctionToolDesc("schema_edge");
+            edge.title("Schema Edge");
+            edge.description("Tool with MCP schema edge cases");
+            edge.inputSchema(
+                    "{\"type\":\"object\",\"properties\":{\"payload\":{\"type\":\"object\"},\"bare\":\"object\",\"maybe\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Maybe text\"}},\"required\":[\"payload\",\"missing\"]}");
+            edge.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
+            return Collections.<FunctionTool>singletonList(edge);
+        }
+
+        @Override
+        public void close() {}
     }
 }

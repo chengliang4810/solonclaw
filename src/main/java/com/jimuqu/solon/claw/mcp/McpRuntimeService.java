@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.mcp;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.tool.runtime.HermesToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.io.Closeable;
@@ -335,7 +336,7 @@ public class McpRuntimeService implements Closeable {
             map.put("prefixed_name", prefixedName(serverId, tool.name()));
             map.put("title", tool.title());
             map.put("description", tool.description());
-            map.put("input_schema", parse(tool.inputSchema()));
+            map.put("input_schema", parse(sanitizeInputSchema(tool.inputSchema())));
             map.put("output_schema", parse(tool.outputSchema()));
             map.put("return_direct", Boolean.valueOf(tool.returnDirect()));
             result.add(map);
@@ -357,7 +358,7 @@ public class McpRuntimeService implements Closeable {
             map.put("prefixed_name", prefixedName(config.getServerId(), tool.name()));
             map.put("title", tool.title());
             map.put("description", tool.description());
-            map.put("input_schema", tool.inputSchema());
+            map.put("input_schema", parse(sanitizeInputSchema(json(tool.inputSchema()))));
             map.put("output_schema", tool.outputSchema());
             result.add(map);
         }
@@ -538,6 +539,10 @@ public class McpRuntimeService implements Closeable {
 
     private String json(Object value) {
         return value == null ? null : ONode.serialize(value);
+    }
+
+    private String sanitizeInputSchema(String inputSchema) {
+        return HermesToolSchemaSanitizer.sanitizeSchemaJson(inputSchema);
     }
 
     private Object firstPresent(Map<String, Object> map, String... keys) {
@@ -899,7 +904,7 @@ public class McpRuntimeService implements Closeable {
                 desc.title(remote.title());
                 desc.description(remote.description());
                 desc.returnDirect(remote.returnDirect());
-                desc.inputSchema(remote.inputSchema());
+                desc.inputSchema(sanitizeInputSchema(remote.inputSchema()));
                 desc.outputSchema(remote.outputSchema());
                 desc.metaPut("mcp_server_id", config.getServerId());
                 desc.metaPut("mcp_server_name", config.getName());
