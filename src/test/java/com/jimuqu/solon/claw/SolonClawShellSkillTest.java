@@ -971,6 +971,41 @@ public class SolonClawShellSkillTest {
         assertThat(parsed.get("output").getString()).doesNotContain("missing");
     }
 
+    @Test
+    void shouldAppendSudoFailureHintForExecuteLikeHermesMessagingGuardrail() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute(echoSudoFailureCommand(), Integer.valueOf(10000));
+
+        assertThat(result)
+                .contains("sudo: a password is required")
+                .contains("SUDO_PASSWORD")
+                .contains("terminal.sudoPassword");
+    }
+
+    @Test
+    void shouldAppendSudoFailureHintForTerminalJsonOutputLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                echoNoTtySudoFailureCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(10),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("output").getString())
+                .contains("sudo: no tty present")
+                .contains("SUDO_PASSWORD")
+                .contains("terminal.sudoPassword");
+    }
+
     private String javaSleepCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return "ping -n 30 127.0.0.1 > nul";
@@ -1032,6 +1067,20 @@ public class SolonClawShellSkillTest {
             return "powershell -NoProfile -Command \"$null=[Console]::In.ReadToEnd(); Write-Output stdin-closed\"";
         }
         return "cat >/dev/null; printf 'stdin-closed\\n'";
+    }
+
+    private String echoSudoFailureCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo sudo: a password is required";
+        }
+        return "printf '%s\\n' 'sudo: a password is required'";
+    }
+
+    private String echoNoTtySudoFailureCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo sudo: no tty present and no askpass program specified";
+        }
+        return "printf '%s\\n' 'sudo: no tty present and no askpass program specified'";
     }
 
     private String printEnvCommand(String name) {

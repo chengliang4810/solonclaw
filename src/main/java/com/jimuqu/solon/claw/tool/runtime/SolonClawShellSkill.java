@@ -605,7 +605,7 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private String transformTerminalOutput(
             String command, String output, Integer exitCode, String error) {
-        String value = StrUtil.nullToEmpty(output);
+        String value = appendSudoFailureHint(StrUtil.nullToEmpty(output));
         if (outputTransformers.isEmpty()) {
             return value;
         }
@@ -620,6 +620,30 @@ public class SolonClawShellSkill extends ShellSkill {
             }
         }
         return value;
+    }
+
+    private String appendSudoFailureHint(String output) {
+        String value = StrUtil.nullToEmpty(output);
+        String normalized = value.toLowerCase(java.util.Locale.ROOT);
+        if (!isSudoPasswordFailure(normalized)) {
+            return value;
+        }
+        String hint =
+                "提示：sudo 需要密码或交互式终端。"
+                        + "如需在消息渠道或后台任务中使用 sudo，请在运行环境设置 SUDO_PASSWORD，"
+                        + "或在 dashboard 安全配置中设置 terminal.sudoPassword。";
+        if (value.contains(hint)) {
+            return value;
+        }
+        return value.length() == 0 ? hint : value + "\n\n" + hint;
+    }
+
+    private boolean isSudoPasswordFailure(String normalizedOutput) {
+        return normalizedOutput.contains("sudo: a password is required")
+                || normalizedOutput.contains("sudo: no tty present")
+                || normalizedOutput.contains("sudo: a terminal is required")
+                || normalizedOutput.contains("sudo: no password was provided")
+                || normalizedOutput.contains("sudo: a password is required to run sudo");
     }
 
     private String outputWithTimeoutNotice(ForegroundResult result) {
