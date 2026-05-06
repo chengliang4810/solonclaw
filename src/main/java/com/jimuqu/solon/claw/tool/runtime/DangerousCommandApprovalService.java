@@ -1291,6 +1291,11 @@ public class DangerousCommandApprovalService {
         if (active.size() == pending.size()) {
             return false;
         }
+        for (PendingApproval item : pending) {
+            if (item != null && isPendingExpired(item)) {
+                notifyApprovalResponse(session, item, "timeout", "");
+            }
+        }
         writePendingApprovals(session, active);
         session.updateSnapshot();
         return true;

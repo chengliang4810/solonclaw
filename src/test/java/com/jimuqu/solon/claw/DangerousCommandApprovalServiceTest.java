@@ -1358,6 +1358,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNotifyApprovalObserversWhenPendingApprovalTimesOut() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> choices = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {}
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        choices.add(event.getChoice() + ":" + event.getPrimaryPatternKey());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> expired = new LinkedHashMap<String, Object>();
+        expired.put("toolName", "execute_shell");
+        expired.put("patternKey", "recursive_delete");
+        expired.put("patternKeys", Collections.singletonList("recursive_delete"));
+        expired.put("description", "recursive delete");
+        expired.put("command", "rm -rf runtime/cache");
+        expired.put("commandHash", "hash");
+        expired.put("approvalKey", "execute_shell:recursive_delete:hash");
+        expired.put("createdAt", System.currentTimeMillis() - 10_000L);
+        expired.put("expiresAt", System.currentTimeMillis() - 1_000L);
+        trace.session.getContext().put("_dangerous_command_pending_", expired);
+
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+
+        assertThat(choices).containsExactly("timeout:recursive_delete");
+    }
+
+    @Test
     void shouldKeepMultiplePendingApprovalsLikeHermesGatewayQueue() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TestTrace trace = new TestTrace();
