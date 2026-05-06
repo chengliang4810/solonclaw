@@ -31,4 +31,7 @@ public interface CheckpointService {
 
     /** 清理当前来源键多余或失效的 checkpoint。 */
     Map<String, Object> prune(String sourceKey) throws Exception;
+
+    /** 删除当前来源键的全部 checkpoint。 */
+    Map<String, Object> clear(String sourceKey) throws Exception;
 }

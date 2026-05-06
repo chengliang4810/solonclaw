@@ -92,6 +92,16 @@ public class CommandEnhancementTest {
 
         GatewayReply pruneReply = env.send("admin-chat", "admin-user", "/rollback prune");
         assertThat(pruneReply.getContent()).contains("deleted_missing=0").contains("remaining=1");
+
+        GatewayReply clearWithoutConfirm = env.send("admin-chat", "admin-user", "/rollback clear");
+        assertThat(clearWithoutConfirm.isError()).isTrue();
+        assertThat(clearWithoutConfirm.getContent()).contains("/rollback clear --confirm");
+
+        GatewayReply clearReply = env.send("admin-chat", "admin-user", "/rollback clear --confirm");
+        assertThat(clearReply.getContent()).contains("deleted=1").contains("remaining=0");
+
+        GatewayReply afterClear = env.send("admin-chat", "admin-user", "/rollback status");
+        assertThat(afterClear.getContent()).contains("checkpoint_count=0");
     }
 
     @Test

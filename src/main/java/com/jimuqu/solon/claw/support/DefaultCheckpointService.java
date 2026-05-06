@@ -315,6 +315,24 @@ public class DefaultCheckpointService implements CheckpointService {
         return result;
     }
 
+    @Override
+    public Map<String, Object> clear(String sourceKey) throws Exception {
+        List<CheckpointRecord> all = listAll(sourceKey);
+        int deleted = 0;
+        long bytesFreed = 0L;
+        for (CheckpointRecord record : all) {
+            File dir = FileUtil.file(record.getCheckpointDir());
+            bytesFreed += dir.exists() ? FileUtil.size(dir) : 0L;
+            deleteRecord(record.getCheckpointId());
+            FileUtil.del(dir);
+            deleted++;
+        }
+        Map<String, Object> result = status(sourceKey);
+        result.put("deleted", Integer.valueOf(deleted));
+        result.put("bytes_freed", Long.valueOf(bytesFreed));
+        return result;
+    }
+
     private String skipReason(File file) throws Exception {
         String matchedPattern = matchedExcludePattern(file);
         if (matchedPattern != null) {

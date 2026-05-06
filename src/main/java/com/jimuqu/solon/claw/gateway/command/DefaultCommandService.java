@@ -799,6 +799,13 @@ public class DefaultCommandService implements CommandService {
             if ("prune".equalsIgnoreCase(args)) {
                 return GatewayReply.ok(formatCheckpointPrune(message.sourceKey()));
             }
+            if (isCheckpointClearCommand(args)) {
+                if (!hasClearCheckpointConfirmation(args)) {
+                    return GatewayReply.error(
+                            "此操作会删除当前来源的全部 checkpoint 历史。确认执行请发送：/rollback clear --confirm");
+                }
+                return GatewayReply.ok(formatCheckpointClear(message.sourceKey()));
+            }
             if ("latest".equalsIgnoreCase(args)) {
                 return GatewayReply.ok(
                         "已回滚到最近一次 checkpoint："
@@ -2862,6 +2869,34 @@ public class DefaultCommandService implements CommandService {
                 + formatBytes(asLong(result.get("bytes_freed")))
                 + "\nremaining="
                 + result.get("checkpoint_count");
+    }
+
+    private String formatCheckpointClear(String sourceKey) throws Exception {
+        Map<String, Object> result = checkpointService.clear(sourceKey);
+        return "已删除当前来源的全部 checkpoint。"
+                + "\ndeleted="
+                + result.get("deleted")
+                + "\nbytes_freed="
+                + formatBytes(asLong(result.get("bytes_freed")))
+                + "\nremaining="
+                + result.get("checkpoint_count");
+    }
+
+    private boolean isCheckpointClearCommand(String args) {
+        String first = firstToken(args);
+        return "clear".equalsIgnoreCase(first) || "clear-all".equalsIgnoreCase(first);
+    }
+
+    private boolean hasClearCheckpointConfirmation(String args) {
+        List<String> tokens = splitCommandLine(args);
+        for (String token : tokens) {
+            if ("--confirm".equalsIgnoreCase(token)
+                    || "--force".equalsIgnoreCase(token)
+                    || "-f".equalsIgnoreCase(token)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String formatTimestamp(long timestamp) {
