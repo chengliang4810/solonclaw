@@ -11,12 +11,19 @@ import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** 可配置渠道适配器基类，负责处理启用状态、连接状态和基础日志。 */
 public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapter {
+    private static final Set<String> WEAK_CREDENTIAL_PLACEHOLDERS =
+            new LinkedHashSet<String>(
+                    Arrays.asList("***", "changeme", "placeholder", "your_api_key"));
+
     /** 渠道日志器。 */
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -204,5 +211,56 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     protected void setLastError(String code, String message) {
         this.lastErrorCode = code;
         this.lastErrorMessage = message;
+    }
+
+    /** 拦截示例/占位凭据，避免已启用渠道带弱凭据反复连接外部平台。 */
+    protected boolean rejectWeakCredentials(String errorCode, CredentialField... fields) {
+        if (!isEnabled() || fields == null) {
+            return false;
+        }
+        List<String> weakFields = new ArrayList<String>();
+        for (CredentialField field : fields) {
+            if (field != null && isWeakCredentialPlaceholder(field.value)) {
+                weakFields.add(field.path);
+            }
+        }
+        if (weakFields.isEmpty()) {
+            return false;
+        }
+        channelConfig.setEnabled(false);
+        setConnected(false);
+        setSetupState("weak_credentials");
+        setMissingConfig(new String[0]);
+        setLastError(
+                StrUtil.blankToDefault(errorCode, "channel_weak_credentials"),
+                "placeholder credential: " + weakFields);
+        setDetail("disabled weak placeholder credentials: " + weakFields);
+        log.error(
+                "[{}] disabled because placeholder credentials were configured: {}",
+                platformType,
+                weakFields);
+        return true;
+    }
+
+    protected CredentialField credentialField(String path, String value) {
+        return new CredentialField(path, value);
+    }
+
+    protected static boolean isWeakCredentialPlaceholder(String value) {
+        if (StrUtil.isBlank(value)) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return WEAK_CREDENTIAL_PLACEHOLDERS.contains(normalized);
+    }
+
+    protected static class CredentialField {
+        private final String path;
+        private final String value;
+
+        private CredentialField(String path, String value) {
+            this.path = path == null ? "" : path.trim();
+            this.value = value;
+        }
     }
 }

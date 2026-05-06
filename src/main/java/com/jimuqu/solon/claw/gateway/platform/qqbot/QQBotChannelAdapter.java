@@ -59,6 +59,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("disabled");
             return false;
         }
+        if (rejectWeakCredentials(
+                "qqbot_weak_credentials",
+                credentialField("solonclaw.channels.qqbot.appId", config.getAppId()),
+                credentialField(
+                        "solonclaw.channels.qqbot.clientSecret", config.getClientSecret()))) {
+            return false;
+        }
         if (StrUtil.isBlank(config.getAppId()) || StrUtil.isBlank(config.getClientSecret())) {
             setSetupState("missing_config");
             setMissingConfig(

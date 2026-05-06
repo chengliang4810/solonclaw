@@ -68,6 +68,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("disabled");
             return false;
         }
+        if (rejectWeakCredentials(
+                "wecom_weak_credentials",
+                credentialField("solonclaw.channels.wecom.botId", config.getBotId()),
+                credentialField("solonclaw.channels.wecom.secret", config.getSecret()))) {
+            return false;
+        }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
         if (StrUtil.isBlank(config.getBotId())) {
             missing.add("solonclaw.channels.wecom.botId");

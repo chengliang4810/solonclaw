@@ -88,6 +88,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("disabled");
             return false;
         }
+        if (rejectWeakCredentials(
+                "feishu_weak_credentials",
+                credentialField("solonclaw.channels.feishu.appId", config.getAppId()),
+                credentialField("solonclaw.channels.feishu.appSecret", config.getAppSecret()),
+                credentialField("solonclaw.channels.feishu.botOpenId", config.getBotOpenId()),
+                credentialField("solonclaw.channels.feishu.botUserId", config.getBotUserId()))) {
+            return false;
+        }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
         if (StrUtil.isBlank(config.getAppId())) {
             missing.add("solonclaw.channels.feishu.appId");

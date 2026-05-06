@@ -93,6 +93,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("disabled");
             return false;
         }
+        if (rejectWeakCredentials(
+                "weixin_weak_credentials",
+                credentialField("solonclaw.channels.weixin.token", config.getToken()),
+                credentialField("solonclaw.channels.weixin.accountId", config.getAccountId()))) {
+            return false;
+        }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
         if (StrUtil.isBlank(config.getToken())) {
             missing.add("solonclaw.channels.weixin.token");

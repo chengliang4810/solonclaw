@@ -3,12 +3,19 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.qqbot.QQBotChannelAdapter;
+import com.jimuqu.solon.claw.gateway.platform.wecom.WeComChannelAdapter;
+import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.lark.oapi.core.request.EventReq;
+import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class DomesticChannelEnhancementTest {
@@ -63,6 +70,121 @@ public class DomesticChannelEnhancementTest {
         assertThat(message.getText()).contains("请总结这一段");
     }
 
+    @Test
+    void shouldDisableEnabledChannelsWithPlaceholderCredentialsAtGatewayStartup() {
+        AppConfig config = new AppConfig();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(config);
+        InMemoryChannelStateRepository channelStateRepository =
+                new InMemoryChannelStateRepository();
+
+        config.getChannels().getFeishu().setEnabled(true);
+        config.getChannels().getFeishu().setAppId("cli_real_app");
+        config.getChannels().getFeishu().setAppSecret("  ***  ");
+        assertWeakCredentialRejected(
+                new FeishuChannelAdapter(config.getChannels().getFeishu(), attachmentCacheService),
+                "feishu_weak_credentials",
+                "solonclaw.channels.feishu.appSecret");
+
+        config.getChannels().getDingtalk().setEnabled(true);
+        config.getChannels().getDingtalk().setClientId("ding_real_client");
+        config.getChannels().getDingtalk().setClientSecret("changeme");
+        config.getChannels().getDingtalk().setRobotCode("robot_real");
+        assertWeakCredentialRejected(
+                new DingTalkChannelAdapter(
+                        config.getChannels().getDingtalk(),
+                        channelStateRepository,
+                        attachmentCacheService),
+                "dingtalk_weak_credentials",
+                "solonclaw.channels.dingtalk.clientSecret");
+
+        config.getChannels().getWecom().setEnabled(true);
+        config.getChannels().getWecom().setBotId("placeholder");
+        config.getChannels().getWecom().setSecret("real_secret");
+        assertWeakCredentialRejected(
+                new WeComChannelAdapter(config.getChannels().getWecom(), attachmentCacheService),
+                "wecom_weak_credentials",
+                "solonclaw.channels.wecom.botId");
+
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setToken("your_api_key");
+        config.getChannels().getWeixin().setAccountId("wx_real");
+        assertWeakCredentialRejected(
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        channelStateRepository,
+                        attachmentCacheService),
+                "weixin_weak_credentials",
+                "solonclaw.channels.weixin.token");
+
+        config.getChannels().getQqbot().setEnabled(true);
+        config.getChannels().getQqbot().setAppId("qq_real");
+        config.getChannels().getQqbot().setClientSecret("***");
+        assertWeakCredentialRejected(
+                new QQBotChannelAdapter(config.getChannels().getQqbot(), attachmentCacheService),
+                "qqbot_weak_credentials",
+                "solonclaw.channels.qqbot.clientSecret");
+
+        config.getChannels().getYuanbao().setEnabled(true);
+        config.getChannels().getYuanbao().setAppId("yb_real");
+        config.getChannels().getYuanbao().setAppSecret("real_secret");
+        config.getChannels().getYuanbao().setBotId("placeholder");
+        assertWeakCredentialRejected(
+                new YuanbaoChannelAdapter(config.getChannels().getYuanbao()),
+                "yuanbao_weak_credentials",
+                "solonclaw.channels.yuanbao.botId");
+    }
+
+    @Test
+    void shouldKeepDisabledChannelPlaceholderCredentialsUnchecked() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getFeishu().setEnabled(false);
+        config.getChannels().getFeishu().setAppId("app");
+        config.getChannels().getFeishu().setAppSecret("***");
+        FeishuChannelAdapter adapter =
+                new FeishuChannelAdapter(
+                        config.getChannels().getFeishu(), new AttachmentCacheService(config));
+
+        assertThat(adapter.connect()).isFalse();
+
+        ChannelStatus status = adapter.statusSnapshot();
+        assertThat(status.isEnabled()).isFalse();
+        assertThat(status.getSetupState()).isEqualTo("disabled");
+        assertThat(status.getLastErrorCode()).isNull();
+    }
+
+    @Test
+    void shouldTreatEmptyCredentialsAsMissingNotWeakCredentialPlaceholders() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getFeishu().setEnabled(true);
+        config.getChannels().getFeishu().setAppId("app");
+        config.getChannels().getFeishu().setAppSecret("");
+        FeishuChannelAdapter adapter =
+                new FeishuChannelAdapter(
+                        config.getChannels().getFeishu(), new AttachmentCacheService(config));
+
+        assertThat(adapter.connect()).isFalse();
+
+        ChannelStatus status = adapter.statusSnapshot();
+        assertThat(status.isEnabled()).isTrue();
+        assertThat(status.getSetupState()).isEqualTo("missing_config");
+        assertThat(status.getLastErrorCode()).isEqualTo("feishu_missing_credentials");
+    }
+
+    private void assertWeakCredentialRejected(
+            com.jimuqu.solon.claw.core.service.ChannelAdapter adapter,
+            String expectedErrorCode,
+            String expectedField) {
+        assertThat(adapter.connect()).isFalse();
+
+        ChannelStatus status = adapter.statusSnapshot();
+        assertThat(status.isEnabled()).isFalse();
+        assertThat(status.isConnected()).isFalse();
+        assertThat(status.getSetupState()).isEqualTo("weak_credentials");
+        assertThat(status.getLastErrorCode()).isEqualTo(expectedErrorCode);
+        assertThat(status.getLastErrorMessage()).contains("placeholder credential");
+        assertThat(status.getDetail()).contains(expectedField);
+    }
+
     private static class TestQQBotAdapter extends QQBotChannelAdapter {
         private TestQQBotAdapter(AppConfig config) {
             super(config.getChannels().getQqbot(), new AttachmentCacheService(config));
@@ -90,6 +212,35 @@ public class DomesticChannelEnhancementTest {
 
         private GatewayMessage parseComment(EventReq req) {
             return toCommentGatewayMessage(req);
+        }
+    }
+
+    private static class InMemoryChannelStateRepository implements ChannelStateRepository {
+        @Override
+        public String get(
+                com.jimuqu.solon.claw.core.enums.PlatformType platform,
+                String scopeKey,
+                String stateKey) {
+            return null;
+        }
+
+        @Override
+        public void put(
+                com.jimuqu.solon.claw.core.enums.PlatformType platform,
+                String scopeKey,
+                String stateKey,
+                String stateValue) {}
+
+        @Override
+        public void delete(
+                com.jimuqu.solon.claw.core.enums.PlatformType platform,
+                String scopeKey,
+                String stateKey) {}
+
+        @Override
+        public List<StateItem> list(
+                com.jimuqu.solon.claw.core.enums.PlatformType platform, String scopeKey) {
+            return Collections.emptyList();
         }
     }
 }

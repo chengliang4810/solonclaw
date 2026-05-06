@@ -57,6 +57,13 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             setDetail("disabled");
             return false;
         }
+        if (rejectWeakCredentials(
+                "yuanbao_weak_credentials",
+                credentialField("solonclaw.channels.yuanbao.appId", config.getAppId()),
+                credentialField("solonclaw.channels.yuanbao.appSecret", config.getAppSecret()),
+                credentialField("solonclaw.channels.yuanbao.botId", config.getBotId()))) {
+            return false;
+        }
         if (StrUtil.isBlank(config.getAppId()) || StrUtil.isBlank(config.getAppSecret())) {
             setSetupState("missing_config");
             setMissingConfig(

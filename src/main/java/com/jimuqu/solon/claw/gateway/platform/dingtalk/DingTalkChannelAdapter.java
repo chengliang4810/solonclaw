@@ -135,6 +135,14 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             setSetupState("disabled");
             return false;
         }
+        if (rejectWeakCredentials(
+                "dingtalk_weak_credentials",
+                credentialField("solonclaw.channels.dingtalk.clientId", config.getClientId()),
+                credentialField(
+                        "solonclaw.channels.dingtalk.clientSecret", config.getClientSecret()),
+                credentialField("solonclaw.channels.dingtalk.robotCode", config.getRobotCode()))) {
+            return false;
+        }
         java.util.ArrayList<String> missing = new java.util.ArrayList<String>();
         if (isBlank(config.getClientId())) {
             missing.add("solonclaw.channels.dingtalk.clientId");
