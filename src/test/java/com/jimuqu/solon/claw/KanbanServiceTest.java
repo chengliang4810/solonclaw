@@ -642,6 +642,12 @@ public class KanbanServiceTest {
                 .contains("comment")
                 .contains(taskId);
         assertThat(service.handleCommand("watch comment", "tester")).contains("最近 Kanban 事件");
+        assertThat(service.handleCommand("watch --assignee alice --kinds comment --json", "tester"))
+                .contains("\"kind\":\"comment\"")
+                .contains("\"assignee\":\"alice\"")
+                .contains("\"task_id\":\"" + taskId + "\"");
+        assertThat(service.handleCommand("watch --tenant none --kinds comment --json", "tester"))
+                .doesNotContain(taskId);
 
         Map<String, Object> subscription = new LinkedHashMap<String, Object>();
         subscription.put("task_id", taskId);

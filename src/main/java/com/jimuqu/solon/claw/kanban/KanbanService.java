@@ -822,7 +822,7 @@ public class KanbanService {
             return statsCommand(rest);
         }
         if ("watch".equals(action)) {
-            return formatEventViews(watch(null, null, rest, 50), "最近 Kanban 事件");
+            return watchCommand(rest);
         }
         if ("notify-subscribe".equals(action)) {
             Map<String, Object> body = notifyBody(rest, true);
@@ -1051,6 +1051,19 @@ public class KanbanService {
             return ONode.serialize(list);
         }
         return formatDiagnostics(list);
+    }
+
+    private String watchCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        String kinds = parsed.value("kinds");
+        if (StrUtil.isBlank(kinds)) {
+            kinds = parsed.positionalText();
+        }
+        List<Map<String, Object>> list = watch(parsed.value("assignee"), parsed.value("tenant"), kinds, 50);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(list);
+        }
+        return formatEventViews(list, "最近 Kanban 事件");
     }
 
     private List<Map<String, Object>> filterDiagnosticsBySeverity(
