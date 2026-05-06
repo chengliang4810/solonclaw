@@ -387,6 +387,60 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectSkillDeclaredCredentialSymlinkEscapingRuntimeHomeLikeHermes()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File credentialsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials");
+        FileUtil.mkdir(credentialsDir);
+        File externalSecret =
+                new File(
+                        new File(env.appConfig.getRuntime().getHome()).getAbsoluteFile()
+                                .getParentFile(),
+                        "skill-secret.json");
+        FileUtil.writeUtf8String("{\"secret\":\"value\"}", externalSecret);
+        File symlink = FileUtil.file(credentialsDir, "skill-evil-link.json");
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(symlink.toPath(), externalSecret.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+
+        env.localSkillService.createSkill(
+                "credential-link-skill",
+                null,
+                "---\n"
+                        + "name: credential-link-skill\n"
+                        + "description: credential link skill\n"
+                        + "required_credential_files:\n"
+                        + "  - path: credentials/skill-evil-link.json\n"
+                        + "---\n"
+                        + "# credential link skill\n");
+
+        SkillDescriptor descriptor =
+                env.localSkillService.viewSkill("credential-link-skill", null).getDescriptor();
+        Map<String, Object> credentialFiles =
+                (Map<String, Object>) descriptor.getMetadata().get("credential_files");
+        List<Object> mounts = (List<Object>) credentialFiles.get("mounts");
+        List<Object> missing = (List<Object>) credentialFiles.get("missing");
+        List<Object> rejected = (List<Object>) credentialFiles.get("rejected");
+
+        assertThat(mounts).isEmpty();
+        assertThat(missing).isEmpty();
+        assertThat(rejected).hasSize(1);
+        assertThat(rejected.toString())
+                .contains("credentials/skill-evil-link.json")
+                .contains("escapes runtime home");
+    }
+
+    @Test
     void shouldPlanHermesStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
