@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -17,6 +18,7 @@ import org.noear.solon.annotation.Param;
 /** Hermes-compatible patch tool backed by the local workspace. */
 public class HermesPatchTools {
     private final Path rootPath;
+    private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
 
     public HermesPatchTools(String workDir) {
@@ -26,6 +28,7 @@ public class HermesPatchTools {
     public HermesPatchTools(String workDir, SecurityPolicyService securityPolicyService) {
         String dir = StrUtil.blankToDefault(workDir, ".");
         this.rootPath = Paths.get(dir).toAbsolutePath().normalize();
+        this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
         try {
             Files.createDirectories(this.rootPath);
@@ -525,7 +528,38 @@ public class HermesPatchTools {
         if (!target.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
+        assertResolvedWithinRoot(target);
         return target;
+    }
+
+    private void assertResolvedWithinRoot(Path target) {
+        Path existing = nearestExistingPath(target);
+        if (existing == null) {
+            return;
+        }
+        Path real = safeRealPath(existing);
+        if (!real.startsWith(realRootPath)) {
+            throw new SecurityException("禁止通过符号链接访问沙箱外部");
+        }
+    }
+
+    private Path nearestExistingPath(Path target) {
+        Path current = target;
+        while (current != null) {
+            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private Path safeRealPath(Path path) {
+        try {
+            return path.toRealPath();
+        } catch (Exception e) {
+            return path.toAbsolutePath().normalize();
+        }
     }
 
     private String read(Path target) throws IOException {

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.HermesPatchTools;
@@ -84,6 +85,25 @@ public class HermesPatchToolsTest {
     }
 
     @Test
+    void shouldRejectSymlinkEscapeBeforePatching() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path outside = Files.createTempDirectory("jimuqu-patch-outside");
+        Path outsideFile = outside.resolve("secret.txt");
+        Files.write(outsideFile, "TOKEN=old\n".getBytes(StandardCharsets.UTF_8));
+        Path link = dir.resolve("linked");
+        assumeTrue(createDirectoryLink(link, outside));
+        HermesPatchTools tools = new HermesPatchTools(dir.toString());
+
+        String json = tools.patch("replace", "linked/secret.txt", "old", "new", false, null);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error"))).contains("符号链接").contains("沙箱外部");
+        assertThat(new String(Files.readAllBytes(outsideFile), StandardCharsets.UTF_8))
+                .isEqualTo("TOKEN=old\n");
+    }
+
+    @Test
     void shouldBlockCredentialFilesInsidePatchToolItself() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve(".env.production");
@@ -121,5 +141,31 @@ public class HermesPatchToolsTest {
 
     private Map<?, ?> parse(String json) {
         return ONode.deserialize(json, java.util.LinkedHashMap.class);
+    }
+
+    private boolean createDirectoryLink(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+            return true;
+        } catch (Exception ignored) {
+            if (!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                return false;
+            }
+            try {
+                Process process =
+                        new ProcessBuilder(
+                                        "cmd",
+                                        "/c",
+                                        "mklink",
+                                        "/J",
+                                        link.toString(),
+                                        target.toString())
+                                .redirectErrorStream(true)
+                                .start();
+                return process.waitFor() == 0 && Files.exists(link);
+            } catch (Exception ignoredAgain) {
+                return false;
+            }
+        }
     }
 }

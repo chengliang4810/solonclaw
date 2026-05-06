@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.HermesCodeExecutionSkills;
@@ -542,6 +543,31 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardFileToolsAgainstSymlinkEscapesBeforeDelegating() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path outside = Files.createTempDirectory("jimuqu-file-outside");
+        Path outsideFile = outside.resolve("secret.txt");
+        Files.write(outsideFile, Arrays.asList("TOKEN=old"), StandardCharsets.UTF_8);
+        Path link = workspace.resolve("linked");
+        assumeTrue(createDirectoryLink(link, outside));
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode readResult = ONode.ofJson(fileSkill.read("linked/secret.txt"));
+        assertThat(readResult.get("success").getBoolean()).isFalse();
+        assertThat(readResult.get("error").getString()).contains("符号链接").contains("沙箱外部");
+        assertThatThrownBy(() -> fileSkill.write("linked/secret.txt", "TOKEN=new"))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("符号链接")
+                .hasMessageContaining("沙箱外部");
+        assertThat(new String(Files.readAllBytes(outsideFile), StandardCharsets.UTF_8))
+                .contains("TOKEN=old");
+    }
+
+    @Test
     void shouldApplyHermesToolOutputLimitsToFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
@@ -585,6 +611,32 @@ public class ToolRegistryExposureTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private boolean createDirectoryLink(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+            return true;
+        } catch (Exception ignored) {
+            if (!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                return false;
+            }
+            try {
+                Process process =
+                        new ProcessBuilder(
+                                        "cmd",
+                                        "/c",
+                                        "mklink",
+                                        "/J",
+                                        link.toString(),
+                                        target.toString())
+                                .redirectErrorStream(true)
+                                .start();
+                return process.waitFor() == 0 && Files.exists(link);
+            } catch (Exception ignoredAgain) {
+                return false;
+            }
+        }
     }
 
     private String stdinEchoCommand() {

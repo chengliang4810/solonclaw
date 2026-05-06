@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     private static final int DEFAULT_READ_LIMIT = 500;
 
     private final Path rootPath;
+    private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
     private final int maxLines;
     private final int maxLineLength;
@@ -38,6 +40,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
             int maxLineLength) {
         super(workDir);
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
+        this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
         this.maxLines = Math.max(1, maxLines);
         this.maxLineLength = Math.max(1, maxLineLength);
@@ -47,6 +50,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     @ToolMapping(name = "file_write", description = "写入文本到文件。会自动创建不存在的目录。")
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
         assertSafe(ToolNameConstants.FILE_WRITE, fileName);
+        assertContained(fileName);
         return super.write(fileName, content);
     }
 
@@ -80,6 +84,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     @ToolMapping(name = "file_list", description = "列出指定目录下的文件和子目录。如果不指定目录，则列出根目录。")
     public String list(@Param(value = "dirName", required = false) String dirName) {
         assertSafe(ToolNameConstants.FILE_LIST, dirName);
+        assertContained(dirName);
         return super.list(dirName);
     }
 
@@ -87,6 +92,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     @ToolMapping(name = "file_delete", description = "删除指定文件或空目录。")
     public String delete(@Param("fileName") String fileName) {
         assertSafe(ToolNameConstants.FILE_DELETE, fileName);
+        assertContained(fileName);
         return super.delete(fileName);
     }
 
@@ -208,6 +214,44 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
+        assertResolvedWithinRoot(path);
         return path;
+    }
+
+    private void assertContained(String name) {
+        if (StrUtil.isBlank(name)) {
+            return;
+        }
+        resolvePath(name);
+    }
+
+    private void assertResolvedWithinRoot(Path target) {
+        Path existing = nearestExistingPath(target);
+        if (existing == null) {
+            return;
+        }
+        Path real = safeRealPath(existing);
+        if (!real.startsWith(realRootPath)) {
+            throw new SecurityException("禁止通过符号链接访问沙箱外部");
+        }
+    }
+
+    private Path nearestExistingPath(Path target) {
+        Path current = target;
+        while (current != null) {
+            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private Path safeRealPath(Path path) {
+        try {
+            return path.toRealPath();
+        } catch (Exception e) {
+            return path.toAbsolutePath().normalize();
+        }
     }
 }
