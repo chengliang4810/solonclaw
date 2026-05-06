@@ -42,6 +42,7 @@ public class ProcessRegistry {
             builder.directory(workDir);
         }
         builder.redirectErrorStream(true);
+        SubprocessEnvironmentSanitizer.sanitize(builder.environment());
         Process process = builder.start();
         String id = "proc_" + IdSupport.newId();
         ManagedProcess managed =

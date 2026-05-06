@@ -815,6 +815,19 @@ public class SolonClawShellSkillTest {
         assertThat(result.length()).isLessThan(500);
     }
 
+    @Test
+    void shouldPreserveSafePathForForegroundTerminalEnvLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.terminal(printEnvCommand("PATH"), false, 5, null, false);
+        ONode parsed = ONode.ofJson(result);
+
+        assertThat(parsed.get("output").getString()).isNotBlank();
+        assertThat(parsed.get("output").getString()).doesNotContain("missing");
+    }
+
     private String javaSleepCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return "ping -n 30 127.0.0.1 > nul";
@@ -876,6 +889,19 @@ public class SolonClawShellSkillTest {
             return "powershell -NoProfile -Command \"$null=[Console]::In.ReadToEnd(); Write-Output stdin-closed\"";
         }
         return "cat >/dev/null; printf 'stdin-closed\\n'";
+    }
+
+    private String printEnvCommand(String name) {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "@echo off\r\npowershell -NoProfile -Command \"$v=[Environment]::GetEnvironmentVariable('"
+                    + name
+                    + "'); if ([string]::IsNullOrEmpty($v)) { 'missing' } else { $v }\"";
+        }
+        return "if [ -z \"${"
+                + name
+                + "+x}\" ]; then printf 'missing\\n'; else printf '%s\\n' \"$"
+                + name
+                + "\"; fi";
     }
 
     private String repeat(String value, int count) {

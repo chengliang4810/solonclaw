@@ -34,15 +34,6 @@ public class SolonClawCodeExecutionSkills {
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
     private static final int MAX_STDERR_CHARS = 10000;
-    private static final String[] SAFE_ENV_PREFIXES =
-            new String[] {
-                "PATH", "HOME", "USER", "USERNAME", "USERPROFILE", "LANG", "LC_", "TERM",
-                "TMPDIR", "TMP", "TEMP", "SHELL", "LOGNAME", "XDG_", "PYTHONPATH",
-                "VIRTUAL_ENV", "CONDA", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT"
-            };
-    private static final String[] SECRET_ENV_SUBSTRINGS =
-            new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
-
     private SolonClawCodeExecutionSkills() {}
 
     public static class SafeExecuteCodeTool {
@@ -227,17 +218,7 @@ public class SolonClawCodeExecutionSkills {
         }
 
         private void configureSandboxEnvironment(Map<String, String> env, Path staging) {
-            Map<String, String> raw = new LinkedHashMap<String, String>(env);
-            env.clear();
-            for (Map.Entry<String, String> entry : raw.entrySet()) {
-                String name = entry.getKey();
-                if (isSecretEnvName(name)) {
-                    continue;
-                }
-                if (isSafeEnvName(name)) {
-                    env.put(name, entry.getValue());
-                }
-            }
+            SubprocessEnvironmentSanitizer.sanitize(env);
             String existingPythonPath = env.get("PYTHONPATH");
             env.put(
                     "PYTHONPATH",
@@ -246,26 +227,6 @@ public class SolonClawCodeExecutionSkills {
                             : staging.toString() + File.pathSeparator + existingPythonPath);
             env.put("PYTHONIOENCODING", "UTF-8");
             env.put("PYTHONDONTWRITEBYTECODE", "1");
-        }
-
-        private boolean isSafeEnvName(String name) {
-            String value = StrUtil.nullToEmpty(name);
-            for (String prefix : SAFE_ENV_PREFIXES) {
-                if (value.startsWith(prefix)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private boolean isSecretEnvName(String name) {
-            String upper = StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT);
-            for (String marker : SECRET_ENV_SUBSTRINGS) {
-                if (upper.contains(marker)) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         private int normalizeTimeout(Integer timeoutSeconds) {
