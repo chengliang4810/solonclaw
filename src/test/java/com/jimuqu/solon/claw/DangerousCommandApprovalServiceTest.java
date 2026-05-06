@@ -125,21 +125,65 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
+        DangerousCommandApprovalService.DetectionResult envHomeSshWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat key >> $env:HOME/.ssh/authorized_keys");
+        DangerousCommandApprovalService.DetectionResult envUserProfileSshWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat key >> $env:USERPROFILE\\.ssh\\authorized_keys");
+        DangerousCommandApprovalService.DetectionResult percentUserProfileSshWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat key >> %USERPROFILE%\\.ssh\\authorized_keys");
+        DangerousCommandApprovalService.DetectionResult customHomeEnvTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo x | tee $JIMUQU_HOME/.env");
+        DangerousCommandApprovalService.DetectionResult quotedCustomHomeEnvTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo x | tee \"$JIMUQU_HOME/.env\"");
         DangerousCommandApprovalService.DetectionResult envWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat secrets > .env.production");
+        DangerousCommandApprovalService.DetectionResult absoluteEnvWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat /opt/data/.env.local > /opt/data/.env");
         DangerousCommandApprovalService.DetectionResult configMove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "mv config.tmp config.yml");
+        DangerousCommandApprovalService.DetectionResult nestedConfigMove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mv tmp/generated.yaml config/config.yaml");
+        DangerousCommandApprovalService.DetectionResult installEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "install -m 600 template.env .env.production");
+        DangerousCommandApprovalService.DetectionResult configSourceCopy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp config.yaml backup.yaml");
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(shellRc).isNotNull();
         assertThat(shellRc.getPatternKey()).isEqualTo("sensitive_tee");
+        assertThat(envHomeSshWrite).isNotNull();
+        assertThat(envHomeSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(envUserProfileSshWrite).isNotNull();
+        assertThat(envUserProfileSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(percentUserProfileSshWrite).isNotNull();
+        assertThat(percentUserProfileSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(customHomeEnvTee).isNotNull();
+        assertThat(customHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
+        assertThat(quotedCustomHomeEnvTee).isNotNull();
+        assertThat(quotedCustomHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
         assertThat(envWrite).isNotNull();
         assertThat(envWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(absoluteEnvWrite).isNotNull();
+        assertThat(absoluteEnvWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(configMove).isNotNull();
         assertThat(configMove.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+        assertThat(nestedConfigMove).isNotNull();
+        assertThat(nestedConfigMove.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+        assertThat(installEnv).isNotNull();
+        assertThat(installEnv.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+        assertThat(configSourceCopy).isNull();
     }
 
     @Test

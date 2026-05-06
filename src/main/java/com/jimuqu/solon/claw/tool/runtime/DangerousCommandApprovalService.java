@@ -44,11 +44,33 @@ public class DangerousCommandApprovalService {
             "_dangerous_command_pending_queue_";
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
 
+    private static final String PATH_SEPARATOR = "[\\\\/]";
+    private static final String HOME_PATH_PREFIX =
+            "(?:~|\\$home|\\$\\{home\\}|\\$env:home|\\$env:userprofile|%userprofile%|%homepath%)";
+    private static final String AGENT_HOME_PATH_PREFIX =
+            "(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%|"
+                    + "\\$hermes_home|\\$\\{hermes_home\\}|\\$env:hermes_home|%hermes_home%)";
     private static final String SENSITIVE_WRITE_TARGET =
-            "(?:/etc/|/dev/sd|(?:~|\\$home|\\$\\{home\\})/\\.ssh(?:/|$)|"
-                    + "(?:~|\\$home|\\$\\{home\\})/\\.(?:bashrc|zshrc|profile|bash_profile|zprofile)\\b|"
-                    + "(?:~|\\$home|\\$\\{home\\})/\\.(?:netrc|pgpass|npmrc|pypirc)\\b|"
-                    + "(?:~/.jimuqu-agent/|~/.hermes/|(?:\\$home|\\$\\{home\\})/\\.jimuqu-agent/|(?:\\$home|\\$\\{home\\})/\\.hermes/|(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$hermes_home|\\$\\{hermes_home\\})/)\\.env\\b)";
+            "(?:/etc/|/dev/sd|"
+                    + HOME_PATH_PREFIX
+                    + PATH_SEPARATOR
+                    + "\\.ssh(?:"
+                    + PATH_SEPARATOR
+                    + "|$)|"
+                    + HOME_PATH_PREFIX
+                    + PATH_SEPARATOR
+                    + "\\.(?:bashrc|zshrc|profile|bash_profile|zprofile)\\b|"
+                    + HOME_PATH_PREFIX
+                    + PATH_SEPARATOR
+                    + "\\.(?:netrc|pgpass|npmrc|pypirc)\\b|"
+                    + HOME_PATH_PREFIX
+                    + PATH_SEPARATOR
+                    + "\\.(?:jimuqu-agent|hermes)"
+                    + PATH_SEPARATOR
+                    + "\\.env\\b|"
+                    + AGENT_HOME_PATH_PREFIX
+                    + PATH_SEPARATOR
+                    + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
             "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|config\\.ya?ml))";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
