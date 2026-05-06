@@ -501,6 +501,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_STEER,
                         GatewayCommandConstants.COMMAND_REASONING,
                         GatewayCommandConstants.COMMAND_STOP,
+                        GatewayCommandConstants.COMMAND_YOLO,
                         GatewayCommandConstants.COMMAND_PERSONALITY,
                         GatewayCommandConstants.COMMAND_VERSION,
                         GatewayCommandConstants.COMMAND_MODEL,
@@ -686,6 +687,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_STOP.equals(command)) {
             return handleStop(message);
+        }
+
+        if (GatewayCommandConstants.COMMAND_YOLO.equals(command)) {
+            return handleYolo(message);
         }
 
         if (GatewayCommandConstants.COMMAND_PERSONALITY.equals(command)) {
@@ -989,6 +994,20 @@ public class DefaultCommandService implements CommandService {
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
         }
+        return reply;
+    }
+
+    private GatewayReply handleYolo(GatewayMessage message) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        boolean enabled = dangerousCommandApprovalService.toggleSessionYolo(agentSession);
+        GatewayReply reply =
+                GatewayReply.ok(
+                        enabled
+                                ? "YOLO 已开启：当前会话会自动批准可恢复的危险命令；硬阻断命令仍会被拒绝。"
+                                : "YOLO 已关闭：当前会话恢复危险命令审批。");
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
         return reply;
     }
 
@@ -3002,6 +3021,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(GatewayCommandConstants.SLASH_QUEUE + " <prompt>", "将提示排到当前任务之后执行"),
                         helpLine(GatewayCommandConstants.SLASH_STEER + " <prompt>", "向运行中任务注入修正；空闲时按普通提示执行"),
                         helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"),
+                        helpLine(GatewayCommandConstants.SLASH_YOLO, "切换当前会话的危险命令自动批准模式"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_PERSONALITY + " [name|none]",
                                 "查看或切换人格"),

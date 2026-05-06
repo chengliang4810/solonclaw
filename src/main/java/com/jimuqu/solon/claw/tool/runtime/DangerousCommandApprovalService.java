@@ -43,6 +43,7 @@ public class DangerousCommandApprovalService {
     private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
             "_dangerous_command_pending_queue_";
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
+    private static final String CONTEXT_SESSION_YOLO = "_dangerous_command_session_yolo_";
 
     private static final String PATH_SEPARATOR = "[\\\\/]";
     private static final String HOME_PATH_PREFIX =
@@ -861,7 +862,24 @@ public class DangerousCommandApprovalService {
         session.getContext().remove(CONTEXT_SESSION_APPROVALS);
         session.getContext().remove(CONTEXT_PENDING_APPROVAL);
         session.getContext().remove(CONTEXT_PENDING_APPROVAL_QUEUE);
+        session.getContext().remove(CONTEXT_SESSION_YOLO);
         session.updateSnapshot();
+    }
+
+    public boolean enableSessionYolo(AgentSession session) throws Exception {
+        return setSessionYolo(session, true);
+    }
+
+    public boolean disableSessionYolo(AgentSession session) throws Exception {
+        return setSessionYolo(session, false);
+    }
+
+    public boolean toggleSessionYolo(AgentSession session) throws Exception {
+        return setSessionYolo(session, !isSessionYoloEnabled(session));
+    }
+
+    public boolean isSessionYoloEnabled(AgentSession session) {
+        return session != null && truthy(session.getContext().get(CONTEXT_SESSION_YOLO));
     }
 
     public void clearAlwaysApprovals() throws Exception {
@@ -939,7 +957,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        if (isCompatibilityYoloModeEnabled()) {
+        if (isCompatibilityYoloModeEnabled() || isSessionYoloEnabled(trace.getSession())) {
             persistTraceSnapshot(trace);
             return null;
         }
@@ -1246,6 +1264,33 @@ public class DangerousCommandApprovalService {
 
     private boolean isCompatibilityYoloModeEnabled() {
         String value = StrUtil.nullToEmpty(hermesYoloModeEnv()).trim();
+        return "true".equalsIgnoreCase(value)
+                || "1".equals(value)
+                || "yes".equalsIgnoreCase(value)
+                || "on".equalsIgnoreCase(value);
+    }
+
+    private boolean setSessionYolo(AgentSession session, boolean enabled) throws Exception {
+        if (session == null) {
+            return false;
+        }
+        if (enabled) {
+            session.getContext().put(CONTEXT_SESSION_YOLO, Boolean.TRUE);
+        } else {
+            session.getContext().remove(CONTEXT_SESSION_YOLO);
+        }
+        session.updateSnapshot();
+        return enabled;
+    }
+
+    private boolean truthy(Object raw) {
+        if (raw == null) {
+            return false;
+        }
+        if (raw instanceof Boolean) {
+            return ((Boolean) raw).booleanValue();
+        }
+        String value = String.valueOf(raw).trim();
         return "true".equalsIgnoreCase(value)
                 || "1".equals(value)
                 || "yes".equalsIgnoreCase(value)

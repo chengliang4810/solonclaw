@@ -215,4 +215,44 @@ public class DangerousCommandApprovalCommandTest {
         assertThat(reply.getContent()).contains("待审批的危险命令");
         assertThat(reply.getContent()).doesNotContain("???");
     }
+
+    @Test
+    void shouldToggleYoloOnlyForCurrentSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-yolo-a", "user-yolo", "hello"));
+        env.gatewayService.handle(env.message("room-yolo-b", "user-yolo", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-yolo-a", "user-yolo", "/pairing claim-admin"));
+
+        SessionRecord sessionA = env.sessionRepository.bindNewSession("MEMORY:room-yolo-a:user-yolo");
+        SessionRecord sessionB = env.sessionRepository.bindNewSession("MEMORY:room-yolo-b:user-yolo");
+
+        GatewayReply enabled = env.send("room-yolo-a", "user-yolo", "/yolo");
+
+        SessionRecord updatedA =
+                env.sessionRepository.getBoundSession("MEMORY:room-yolo-a:user-yolo");
+        SessionRecord updatedB =
+                env.sessionRepository.getBoundSession("MEMORY:room-yolo-b:user-yolo");
+        SqliteAgentSession agentSessionA =
+                new SqliteAgentSession(updatedA, env.sessionRepository);
+        SqliteAgentSession agentSessionB =
+                new SqliteAgentSession(updatedB, env.sessionRepository);
+
+        assertThat(enabled.getContent()).contains("YOLO 已开启");
+        assertThat(updatedA.getSessionId()).isEqualTo(sessionA.getSessionId());
+        assertThat(updatedB.getSessionId()).isEqualTo(sessionB.getSessionId());
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionA))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+                .isFalse();
+
+        GatewayReply disabled = env.send("room-yolo-a", "user-yolo", "/yolo");
+        SessionRecord disabledA =
+                env.sessionRepository.getBoundSession("MEMORY:room-yolo-a:user-yolo");
+        assertThat(disabled.getContent()).contains("YOLO 已关闭");
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                                new SqliteAgentSession(disabledA, env.sessionRepository)))
+                .isFalse();
+    }
 }

@@ -2549,6 +2549,24 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBypassNonHardlineDangerousCommandWhenSessionYoloIsEnabled()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        boolean enabled = env.dangerousCommandApprovalService.enableSessionYolo(trace.session);
+        env.dangerousCommandApprovalService.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(enabled).isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(trace.session))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+    }
+
+    @Test
     void shouldKeepHardlineBlockedWhenHermesYoloModeIsEnabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
