@@ -666,6 +666,24 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockCloudMetadataHostnamesEvenWhenPrivateUrlsAreAllowed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "http://metadata.google.internal/computeMetadata/v1/",
+                        "http://metadata.goog/computeMetadata/v1/");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("元数据");
+        }
+    }
+
+    @Test
     void shouldBlockAwsIpv6MetadataEvenWhenPrivateUrlsAreAllowed() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -877,6 +895,20 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(privateUrl.isAllowed()).isTrue();
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldFailClosedForDnsFailuresEvenWhenPrivateUrlsAreAllowed() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService =
+                new FailingDnsSecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://nonexistent.example.com");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("DNS").contains("nonexistent.example.com");
     }
 
     @Test
@@ -2420,6 +2452,18 @@ public class DangerousCommandApprovalServiceTest {
         @Override
         protected InetAddress[] resolveHost(String host) throws Exception {
             return new InetAddress[] {InetAddress.getByName(ip)};
+        }
+    }
+
+    private static class FailingDnsSecurityPolicyService extends SecurityPolicyService {
+        private FailingDnsSecurityPolicyService(
+                com.jimuqu.solon.claw.config.AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            throw new java.net.UnknownHostException(host);
         }
     }
 
