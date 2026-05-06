@@ -36,6 +36,8 @@ public interface KanbanRepository {
 
     void linkTasks(String parentId, String childId) throws Exception;
 
+    boolean unlinkTasks(String parentId, String childId) throws Exception;
+
     List<KanbanTaskRecord> listParents(String taskId) throws Exception;
 
     List<KanbanTaskRecord> listChildren(String taskId) throws Exception;

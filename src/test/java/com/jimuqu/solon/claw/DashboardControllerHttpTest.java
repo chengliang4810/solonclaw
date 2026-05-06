@@ -271,6 +271,7 @@ public class DashboardControllerHttpTest {
 
         HttpResult checkMcp = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
         assertThat(checkMcp.status).isEqualTo(200);
+        assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
         assertThat(checkMcp.body).contains("\"tool_changed_notification\":true");
         assertThat(checkMcp.body).contains("\"schema_sanitizer\":\"snack4\"");
 
@@ -288,6 +289,7 @@ public class DashboardControllerHttpTest {
 
         HttpResult changedMcp = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
         assertThat(changedMcp.status).isEqualTo(200);
+        assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
 
         HttpResult mcpList = request("GET", "/api/hermes/mcp", null, token);
@@ -484,6 +486,31 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(moveTask.status).isEqualTo(200);
         assertThat(moveTask.body).contains("\"status\":\"ready\"");
+
+        HttpResult createChildTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks",
+                        "{\"title\":\"Kanban child\",\"assignee\":\"local\",\"status\":\"todo\"}",
+                        token);
+        assertThat(createChildTask.status).isEqualTo(200);
+        String childTaskId = ONode.ofJson(createChildTask.body).get("data").get("id").getString();
+        HttpResult linkTask =
+                request(
+                        "POST",
+                        "/api/kanban/links",
+                        "{\"parent_id\":\"" + taskId + "\",\"child_id\":\"" + childTaskId + "\"}",
+                        token);
+        assertThat(linkTask.status).isEqualTo(200);
+        assertThat(linkTask.body).contains(taskId).contains(childTaskId).contains("parents");
+        HttpResult unlinkTask =
+                request(
+                        "POST",
+                        "/api/kanban/links/remove",
+                        "{\"parent_id\":\"" + taskId + "\",\"child_id\":\"" + childTaskId + "\"}",
+                        token);
+        assertThat(unlinkTask.status).isEqualTo(200);
+        assertThat(unlinkTask.body).contains(childTaskId).contains("unlinked");
 
         HttpResult claimTask =
                 request(

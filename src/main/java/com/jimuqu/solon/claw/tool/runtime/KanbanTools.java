@@ -224,6 +224,28 @@ public class KanbanTools {
         }
     }
 
+    @ToolMapping(
+            name = "kanban_unlink",
+            description = "Remove an existing parent-child dependency edge between two Kanban tasks.")
+    public String kanbanUnlink(
+            @Param(name = "parent_id", description = "Parent task id.") String parentId,
+            @Param(name = "child_id", description = "Child task id.") String childId) {
+        if (StrUtil.hasBlank(parentId, childId)) {
+            return error("both parent_id and child_id are required");
+        }
+        try {
+            Map<String, Object> child = kanbanService.unlink(parentId, childId);
+            return ToolResultEnvelope.ok("Unlinked Kanban tasks")
+                    .data("parent_id", parentId)
+                    .data("child_id", childId)
+                    .data("child", child)
+                    .preview(parentId + " -/-> " + childId)
+                    .toJson();
+        } catch (Exception e) {
+            return error("kanban_unlink: " + e.getMessage());
+        }
+    }
+
     private String defaultTaskId(String taskId) {
         if (StrUtil.isNotBlank(taskId)) {
             return taskId.trim();

@@ -286,6 +286,18 @@ public class KanbanServiceTest {
                 .hasMessageContaining("cannot link to itself");
         assertThatThrownBy(() -> service.link(childId, parentId))
                 .hasMessageContaining("dependency cycle");
+
+        Map<String, Object> unlinked = service.unlink(parentId, childId);
+        assertThat(String.valueOf(unlinked.get("parents"))).doesNotContain(parentId);
+        assertThat(String.valueOf(unlinked.get("events"))).contains("unlinked").contains(parentId);
+        assertThat(String.valueOf(service.task(parentId).get("children"))).doesNotContain(childId);
+        assertThat(unlinked.get("status")).isEqualTo("ready");
+        assertThat(service.handleCommand("link " + parentId + " " + childId, "tester"))
+                .contains("已添加依赖");
+        assertThat(service.handleCommand("unlink " + parentId + " " + childId, "tester"))
+                .contains("已移除依赖");
+        assertThatThrownBy(() -> service.unlink(parentId, childId))
+                .hasMessageContaining("dependency link not found");
     }
 
     @Test

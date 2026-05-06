@@ -41,6 +41,10 @@ public class KanbanToolsTest {
         assertThat(link).contains("\"success\":true").contains(childId).contains(reviewId);
         assertThat(String.valueOf(service.task(reviewId).get("parents"))).contains(childId).contains("子任务");
         assertThat(tools.kanbanLink(reviewId, childId)).contains("\"success\":false").contains("dependency cycle");
+        String unlink = tools.kanbanUnlink(childId, reviewId);
+        assertThat(unlink).contains("\"success\":true").contains(childId).contains(reviewId);
+        assertThat(String.valueOf(service.task(reviewId).get("parents"))).doesNotContain(childId);
+        assertThat(tools.kanbanUnlink(childId, reviewId)).contains("\"success\":false").contains("not found");
 
         String comment = tools.kanbanComment(parentId, "交接信息", "worker");
         assertThat(comment).contains("\"success\":true").contains("交接信息");

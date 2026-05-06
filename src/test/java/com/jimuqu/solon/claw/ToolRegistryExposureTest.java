@@ -58,6 +58,7 @@ public class ToolRegistryExposureTest {
                         "kanban_comment",
                         "kanban_create",
                         "kanban_link",
+                        "kanban_unlink",
                         "agent_manage",
                         "skills_list",
                         "skill_view",

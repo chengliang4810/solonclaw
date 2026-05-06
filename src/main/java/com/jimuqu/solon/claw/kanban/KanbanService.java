@@ -250,6 +250,26 @@ public class KanbanService {
         return task(child);
     }
 
+    public Map<String, Object> unlink(String parentId, String childId) throws Exception {
+        String parent = requireArg(parentId, "kanban_unlink parent_id");
+        String child = requireArg(childId, "kanban_unlink child_id");
+        KanbanTaskRecord parentTask = requireTask(parent);
+        KanbanTaskRecord childTask = requireTask(child);
+        if (!StrUtil.equals(parentTask.getBoardSlug(), childTask.getBoardSlug())) {
+            throw new IllegalArgumentException(
+                    "Kanban tasks must be on the same board: " + parent + " -> " + child);
+        }
+        if (!repository.unlinkTasks(parent, child)) {
+            throw new IllegalArgumentException("Kanban dependency link not found: " + parent + " -> " + child);
+        }
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("parent_id", parent);
+        payload.put("child_id", child);
+        addEvent(child, "unlinked", payload);
+        repository.recomputeReady(childTask.getBoardSlug());
+        return task(child);
+    }
+
     public Map<String, Object> status(String taskId, String status, String result) throws Exception {
         return status(taskId, status, result, null, null);
     }
@@ -646,6 +666,20 @@ public class KanbanService {
             }
             assign(tokens[0], tokens[1]);
             return "已分配任务：" + tokens[0] + " -> " + tokens[1];
+        }
+        if ("link".equals(action) || "unlink".equals(action)) {
+            String[] tokens = rest.split("\\s+", 3);
+            if (tokens.length < 2) {
+                return "link".equals(action)
+                        ? "用法：/kanban link <parent-id> <child-id>"
+                        : "用法：/kanban unlink <parent-id> <child-id>";
+            }
+            if ("link".equals(action)) {
+                link(tokens[0], tokens[1]);
+                return "已添加依赖：" + tokens[0] + " -> " + tokens[1];
+            }
+            unlink(tokens[0], tokens[1]);
+            return "已移除依赖：" + tokens[0] + " -> " + tokens[1];
         }
         if ("reclaim".equals(action)) {
             String[] tokens = rest.split("\\s+", 2);
@@ -1147,6 +1181,8 @@ public class KanbanService {
                         "/kanban reclaim <task-id> [reason] - 收回运行中的任务",
                         "/kanban reassign <task-id> <assignee> [--reclaim] - 重新分配任务",
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",
+                        "/kanban link <parent-id> <child-id> - 添加任务依赖",
+                        "/kanban unlink <parent-id> <child-id> - 移除任务依赖",
                         "/kanban runs <task-id> - 查看任务执行历史",
                         "/kanban events <task-id> - 查看任务执行流水",
                         "/kanban context <task-id> - 输出 worker 上下文",

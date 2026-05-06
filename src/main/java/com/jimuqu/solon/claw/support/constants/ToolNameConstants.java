@@ -40,6 +40,7 @@ public interface ToolNameConstants {
     String KANBAN_COMMENT = "kanban_comment";
     String KANBAN_CREATE = "kanban_create";
     String KANBAN_LINK = "kanban_link";
+    String KANBAN_UNLINK = "kanban_unlink";
     String CONFIG_GET = "config_get";
     String CONFIG_SET = "config_set";
     String CONFIG_SET_SECRET = "config_set_secret";

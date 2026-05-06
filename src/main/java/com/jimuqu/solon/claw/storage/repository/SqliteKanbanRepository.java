@@ -375,6 +375,26 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public boolean unlinkTasks(String parentId, String childId) throws Exception {
+        if (StrUtil.hasBlank(parentId, childId)) {
+            return false;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "delete from kanban_task_links where parent_id = ? and child_id = ?");
+            statement.setString(1, parentId);
+            statement.setString(2, childId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public boolean renameBoard(String slug, String name) throws Exception {
         String normalized = normalizeBoard(slug);
         if (StrUtil.isBlank(name)) {

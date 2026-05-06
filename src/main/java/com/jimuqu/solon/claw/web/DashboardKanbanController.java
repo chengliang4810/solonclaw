@@ -74,6 +74,16 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.updateTask(taskId, body(context)));
     }
 
+    @Mapping(value = "/api/kanban/links", method = MethodType.POST)
+    public Map<String, Object> link(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.link(body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/links/remove", method = MethodType.POST)
+    public Map<String, Object> unlink(Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.unlink(body(context)));
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/status", method = MethodType.POST)
     public Map<String, Object> status(String taskId, Context context) throws Exception {
         return DashboardResponse.ok(kanbanService.status(taskId, body(context)));

@@ -60,6 +60,14 @@ public class DashboardKanbanService {
         return kanbanService.updateTask(taskId, body);
     }
 
+    public Map<String, Object> link(Map<String, Object> body) throws Exception {
+        return kanbanService.link(text(body, "parent_id"), text(body, "child_id"));
+    }
+
+    public Map<String, Object> unlink(Map<String, Object> body) throws Exception {
+        return kanbanService.unlink(text(body, "parent_id"), text(body, "child_id"));
+    }
+
     public Map<String, Object> status(String taskId, Map<String, Object> body) throws Exception {
         return kanbanService.status(
                 taskId,
@@ -190,5 +198,10 @@ public class DashboardKanbanService {
 
     public Map<String, Object> delete(String taskId) throws Exception {
         return kanbanService.delete(taskId);
+    }
+
+    private String text(Map<String, Object> body, String key) {
+        Object value = body == null ? null : body.get(key);
+        return value == null ? null : String.valueOf(value);
     }
 }
