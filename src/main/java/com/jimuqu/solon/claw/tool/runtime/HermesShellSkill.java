@@ -98,9 +98,10 @@ public class HermesShellSkill extends ShellSkill {
         if (effectiveTimeout == null) {
             return foregroundTimeoutExceededMessage(timeout);
         }
-        SudoTransform transform = transformSudoCommand(code);
+        String executableCode = rewriteCompoundBackground(code);
+        SudoTransform transform = transformSudoCommand(executableCode);
         if (!transform.isChanged()) {
-            return normalizeTerminalOutput(super.execute(code, effectiveTimeout));
+            return normalizeTerminalOutput(super.execute(executableCode, effectiveTimeout));
         }
         return normalizeTerminalOutput(
                 executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout));
@@ -185,6 +186,10 @@ public class HermesShellSkill extends ShellSkill {
             return "Invalid terminal command: expected non-empty string.";
         }
         return null;
+    }
+
+    public String rewriteCompoundBackground(String command) {
+        return ProcessRegistry.rewriteCompoundBackground(command);
     }
 
     public SudoTransform transformSudoCommand(String command) {

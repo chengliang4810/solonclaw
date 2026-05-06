@@ -127,6 +127,18 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldApplyHermesCompoundBackgroundRewriteBeforeForegroundExecution() throws Exception {
+        AppConfig config = new AppConfig();
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(skill.rewriteCompoundBackground("echo ready && python -m http.server 8000 &"))
+                .isEqualTo("echo ready && { python -m http.server 8000 & }");
+        assertThat(skill.rewriteCompoundBackground("echo ready && { python -m http.server 8000 & }"))
+                .isEqualTo("echo ready && { python -m http.server 8000 & }");
+    }
+
+    @Test
     void shouldStartHermesTerminalBackgroundProcessInRegistry() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
