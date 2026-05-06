@@ -220,6 +220,47 @@ public class McpRuntimeServiceTest {
         assertThat(factory.provider.remoteCallCount).isEqualTo(0);
     }
 
+    @Test
+    void shouldReturnStructuredReauthResultWhenMcpToolReportsAuthFailure() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        RecoveringMcpFactory factory = new RecoveringMcpFactory("auth");
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool docsFetch = toolByName(provider, "mcp_local-docs_docs_fetch");
+
+        Object raw = docsFetch.handle(Collections.<String, Object>emptyMap());
+        ONode result = ONode.ofJson(String.valueOf(raw));
+
+        assertThat(result.get("needs_reauth").getBoolean()).isTrue();
+        assertThat(result.get("server").getString()).isEqualTo("local-docs");
+        assertThat(result.get("operation").getString()).isEqualTo("docs_fetch");
+        assertThat(factory.createCount).isEqualTo(1);
+    }
+
+    @Test
+    void shouldReconnectAndRetryMcpToolAfterTransportSessionFailure() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        RecoveringMcpFactory factory = new RecoveringMcpFactory("transport");
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool docsFetch = toolByName(provider, "mcp_local-docs_docs_fetch");
+
+        Object raw = docsFetch.handle(Collections.<String, Object>emptyMap());
+
+        assertThat(String.valueOf(raw)).contains("recovered");
+        assertThat(factory.createCount).isEqualTo(2);
+        assertThat(factory.first.closed).isTrue();
+        assertThat(factory.second.remoteCallCount).isEqualTo(1);
+    }
+
     private void saveMcpServer(AppConfig appConfig, SqliteDatabase database) throws Exception {
         saveMcpServer(appConfig, database, null);
     }
@@ -399,5 +440,67 @@ public class McpRuntimeServiceTest {
 
         @Override
         public void close() {}
+    }
+
+    private static class RecoveringMcpFactory implements McpClientProviderFactory {
+        private final String mode;
+        private int createCount;
+        private RecoveringMcpClientProvider first;
+        private RecoveringMcpClientProvider second;
+
+        private RecoveringMcpFactory(String mode) {
+            this.mode = mode;
+        }
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            createCount++;
+            RecoveringMcpClientProvider provider =
+                    new RecoveringMcpClientProvider(mode, createCount);
+            if (createCount == 1) {
+                first = provider;
+            } else if (createCount == 2) {
+                second = provider;
+            }
+            return provider;
+        }
+    }
+
+    private static class RecoveringMcpClientProvider extends McpClientProvider {
+        private final String mode;
+        private final int generation;
+        private int remoteCallCount;
+        private boolean closed;
+
+        private RecoveringMcpClientProvider(String mode, int generation) {
+            super(FakeMcpClientProvider.properties());
+            this.mode = mode;
+            this.generation = generation;
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            FunctionToolDesc fetch = new FunctionToolDesc("docs_fetch");
+            fetch.title("Docs Fetch");
+            fetch.description("Fetch docs");
+            fetch.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            fetch.doHandle(
+                    args -> {
+                        remoteCallCount++;
+                        if ("auth".equals(mode)) {
+                            throw new IllegalStateException("HTTP 401 unauthorized");
+                        }
+                        if ("transport".equals(mode) && generation == 1) {
+                            throw new IllegalStateException("Session terminated");
+                        }
+                        return Collections.singletonMap("content", "recovered");
+                    });
+            return Collections.<FunctionTool>singletonList(fetch);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
     }
 }

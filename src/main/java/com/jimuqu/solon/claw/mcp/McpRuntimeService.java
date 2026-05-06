@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.mcp;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.HermesToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -609,12 +610,12 @@ public class McpRuntimeService implements Closeable {
         return StrUtil.isBlank(toolsJson) ? 0 : 1;
     }
 
-    private String safeError(Exception e) {
+    private String safeError(Throwable e) {
         String message = e == null ? "" : String.valueOf(e.getMessage());
         if (StrUtil.isBlank(message) && e != null) {
             message = e.getClass().getSimpleName();
         }
-        return message.length() > 500 ? message.substring(0, 500) : message;
+        return SecretRedactor.redact(message, 500);
     }
 
     private static String prefixedName(String serverId, String toolName) {
@@ -888,7 +889,7 @@ public class McpRuntimeService implements Closeable {
 
     private class PrefixedMcpToolProvider implements ToolProvider {
         private final McpServerConfig config;
-        private final McpClientProvider provider;
+        private McpClientProvider provider;
 
         private PrefixedMcpToolProvider(McpServerConfig config, McpClientProvider provider) {
             this.config = config;
@@ -912,7 +913,7 @@ public class McpRuntimeService implements Closeable {
                 desc.doHandle(
                         args -> {
                             assertSafeRemoteTool(remote.name(), args);
-                            return remote.call(args);
+                            return callRemoteToolWithRecovery(remote.name(), args);
                         });
                 result.add(desc);
             }
@@ -984,12 +985,19 @@ public class McpRuntimeService implements Closeable {
         }
 
         private String listResourcesJson() {
-            List<Map<String, Object>> resources = new ArrayList<Map<String, Object>>();
-            appendResourceMaps(resources, provider.getResources(), false);
-            appendResourceMaps(resources, provider.getResourceTemplates(), true);
-            Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("resources", resources);
-            return json(result);
+            return callWithRecovery(
+                    "list_resources",
+                    new RecoverableCall<String>() {
+                        @Override
+                        public String call(McpClientProvider activeProvider) {
+                            List<Map<String, Object>> resources = new ArrayList<Map<String, Object>>();
+                            appendResourceMaps(resources, activeProvider.getResources(), false);
+                            appendResourceMaps(resources, activeProvider.getResourceTemplates(), true);
+                            Map<String, Object> result = new LinkedHashMap<String, Object>();
+                            result.put("resources", resources);
+                            return json(result);
+                        }
+                    });
         }
 
         private void appendResourceMaps(
@@ -1019,47 +1027,230 @@ public class McpRuntimeService implements Closeable {
                 throw new IllegalArgumentException("MCP resource uri is required.");
             }
             assertSafeResourceUri(uri);
-            ResourcePack pack = provider.readResource(uri);
-            Map<String, Object> result = new LinkedHashMap<String, Object>();
-            List<Map<String, Object>> resources = new ArrayList<Map<String, Object>>();
-            if (pack != null) {
-                for (ResourceBlock block : pack.getResources()) {
-                    Map<String, Object> map = new LinkedHashMap<String, Object>();
-                    map.put("content", block.getContent());
-                    map.put("mime_type", block.getMimeType());
-                    if (block.metas() != null && !block.metas().isEmpty()) {
-                        map.put("meta", block.metas());
-                    }
-                    resources.add(map);
-                }
-                if (pack.metas() != null && !pack.metas().isEmpty()) {
-                    result.put("meta", pack.metas());
-                }
-            }
-            result.put("result", pack == null ? null : pack.getContent());
-            result.put("resources", resources);
-            return json(result);
+            return callWithRecovery(
+                    "read_resource",
+                    new RecoverableCall<String>() {
+                        @Override
+                        public String call(McpClientProvider activeProvider) throws Throwable {
+                            ResourcePack pack = activeProvider.readResource(uri);
+                            Map<String, Object> result = new LinkedHashMap<String, Object>();
+                            List<Map<String, Object>> resources = new ArrayList<Map<String, Object>>();
+                            if (pack != null) {
+                                for (ResourceBlock block : pack.getResources()) {
+                                    Map<String, Object> map = new LinkedHashMap<String, Object>();
+                                    map.put("content", block.getContent());
+                                    map.put("mime_type", block.getMimeType());
+                                    if (block.metas() != null && !block.metas().isEmpty()) {
+                                        map.put("meta", block.metas());
+                                    }
+                                    resources.add(map);
+                                }
+                                if (pack.metas() != null && !pack.metas().isEmpty()) {
+                                    result.put("meta", pack.metas());
+                                }
+                            }
+                            result.put("result", pack == null ? null : pack.getContent());
+                            result.put("resources", resources);
+                            return json(result);
+                        }
+                    });
         }
 
         private String listPromptsJson() {
-            Collection<FunctionPrompt> prompts = provider.getPrompts();
-            List<Map<String, Object>> promptMaps = new ArrayList<Map<String, Object>>();
-            if (prompts != null) {
-                for (FunctionPrompt prompt : prompts) {
-                    Map<String, Object> map = new LinkedHashMap<String, Object>();
-                    map.put("name", prompt.name());
-                    map.put("title", prompt.title());
-                    map.put("description", prompt.description());
-                    map.put("arguments", promptArguments(prompt.params()));
-                    if (prompt.meta() != null && !prompt.meta().isEmpty()) {
-                        map.put("meta", prompt.meta());
-                    }
-                    promptMaps.add(map);
+            return callWithRecovery(
+                    "list_prompts",
+                    new RecoverableCall<String>() {
+                        @Override
+                        public String call(McpClientProvider activeProvider) {
+                            Collection<FunctionPrompt> prompts = activeProvider.getPrompts();
+                            List<Map<String, Object>> promptMaps = new ArrayList<Map<String, Object>>();
+                            if (prompts != null) {
+                                for (FunctionPrompt prompt : prompts) {
+                                    Map<String, Object> map = new LinkedHashMap<String, Object>();
+                                    map.put("name", prompt.name());
+                                    map.put("title", prompt.title());
+                                    map.put("description", prompt.description());
+                                    map.put("arguments", promptArguments(prompt.params()));
+                                    if (prompt.meta() != null && !prompt.meta().isEmpty()) {
+                                        map.put("meta", prompt.meta());
+                                    }
+                                    promptMaps.add(map);
+                                }
+                            }
+                            Map<String, Object> result = new LinkedHashMap<String, Object>();
+                            result.put("prompts", promptMaps);
+                            return json(result);
+                        }
+                    });
+        }
+
+        private String getPromptJson(final String name, final Map<String, Object> args) {
+            if (StrUtil.isBlank(name)) {
+                throw new IllegalArgumentException("MCP prompt name is required.");
+            }
+            return callWithRecovery(
+                    "get_prompt",
+                    new RecoverableCall<String>() {
+                        @Override
+                        public String call(McpClientProvider activeProvider) throws Throwable {
+                            Prompt prompt = activeProvider.getPrompt(name, args);
+                            Map<String, Object> result = new LinkedHashMap<String, Object>();
+                            List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
+                            if (prompt != null) {
+                                for (ChatMessage message : prompt.getMessages()) {
+                                    Map<String, Object> map = new LinkedHashMap<String, Object>();
+                                    map.put("role", message.getRole() == null ? null : message.getRole().name());
+                                    map.put("content", message.getContent());
+                                    if (message.getMetadata() != null && !message.getMetadata().isEmpty()) {
+                                        map.put("metadata", message.getMetadata());
+                                    }
+                                    messages.add(map);
+                                }
+                                if (prompt.attrs() != null && !prompt.attrs().isEmpty()) {
+                                    result.put("meta", prompt.attrs());
+                                }
+                            }
+                            result.put("messages", messages);
+                            return json(result);
+                        }
+                    });
+        }
+
+        private Object callRemoteToolWithRecovery(final String remoteToolName, final Map<String, Object> args) {
+            return callWithRecovery(
+                    remoteToolName,
+                    new RecoverableCall<Object>() {
+                        @Override
+                        public Object call(McpClientProvider activeProvider) throws Throwable {
+                            FunctionTool tool = findRemoteTool(activeProvider, remoteToolName);
+                            if (tool == null) {
+                                throw new IllegalStateException(
+                                        "MCP tool not found after reconnect: " + remoteToolName);
+                            }
+                            return tool.call(args);
+                        }
+                    });
+        }
+
+        private FunctionTool findRemoteTool(McpClientProvider activeProvider, String remoteToolName) {
+            Collection<FunctionTool> tools = filteredTools(config, activeProvider.getTools());
+            if (tools == null) {
+                return null;
+            }
+            for (FunctionTool tool : tools) {
+                if (tool != null && remoteToolName.equals(tool.name())) {
+                    return tool;
                 }
             }
+            return null;
+        }
+
+        private <T> T callWithRecovery(String operation, RecoverableCall<T> call) {
+            try {
+                return call.call(provider);
+            } catch (Throwable first) {
+                if (isAuthError(first)) {
+                    @SuppressWarnings("unchecked")
+                    T value = (T) authFailureJson(operation, first);
+                    return value;
+                }
+                if (!isRecoverableTransportError(first)) {
+                    throwUnchecked(first);
+                }
+                McpClientProvider reconnected = reconnectProvider();
+                try {
+                    return call.call(reconnected);
+                } catch (Throwable second) {
+                    if (isAuthError(second)) {
+                        @SuppressWarnings("unchecked")
+                        T value = (T) authFailureJson(operation, second);
+                        return value;
+                    }
+                    throwUnchecked(second);
+                }
+            }
+            throw new IllegalStateException("unreachable");
+        }
+
+        private McpClientProvider reconnectProvider() {
+            closeProvider(config.getServerId());
+            McpServerConfig latest;
+            try {
+                latest = loadServer(config.getServerId());
+            } catch (Exception e) {
+                latest = config;
+            }
+            provider = providerFor(latest);
+            return provider;
+        }
+
+        private boolean isAuthError(Throwable error) {
+            Throwable current = error;
+            while (current != null) {
+                String type = current.getClass().getName().toLowerCase(Locale.ROOT);
+                String message = StrUtil.nullToEmpty(current.getMessage()).toLowerCase(Locale.ROOT);
+                if (type.contains("oauth")
+                        || type.contains("unauthorized")
+                        || type.contains("auth")
+                        || message.contains("401")
+                        || message.contains("unauthorized")
+                        || message.contains("invalid_token")
+                        || message.contains("token expired")
+                        || message.contains("requires re-auth")
+                        || message.contains("requires reauth")) {
+                    return true;
+                }
+                current = current.getCause();
+            }
+            return false;
+        }
+
+        private boolean isRecoverableTransportError(Throwable error) {
+            Throwable current = error;
+            while (current != null) {
+                String message = StrUtil.nullToEmpty(current.getMessage()).toLowerCase(Locale.ROOT);
+                String type = current.getClass().getName().toLowerCase(Locale.ROOT);
+                if (message.contains("session terminated")
+                        || message.contains("session expired")
+                        || message.contains("transport")
+                        || message.contains("connection reset")
+                        || message.contains("connection closed")
+                        || message.contains("broken pipe")
+                        || message.contains("stream closed")
+                        || type.contains("transport")) {
+                    return true;
+                }
+                current = current.getCause();
+            }
+            return false;
+        }
+
+        private String authFailureJson(String operation, Throwable error) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("prompts", promptMaps);
+            result.put("success", Boolean.FALSE);
+            result.put("status", "error");
+            result.put("needs_reauth", Boolean.TRUE);
+            result.put("server", config.getServerId());
+            result.put("server_name", config.getName());
+            result.put("operation", operation);
+            result.put(
+                    "error",
+                    "MCP server requires re-authentication. Use the dashboard MCP OAuth flow or /reload-mcp after credentials are refreshed.");
+            String detail = safeError(error);
+            if (StrUtil.isNotBlank(detail)) {
+                result.put("detail", detail);
+            }
             return json(result);
+        }
+
+        private void throwUnchecked(Throwable error) {
+            if (error instanceof RuntimeException) {
+                throw (RuntimeException) error;
+            }
+            if (error instanceof Error) {
+                throw (Error) error;
+            }
+            throw new IllegalStateException(error);
         }
 
         private List<Map<String, Object>> promptArguments(Collection<ParamDesc> params) {
@@ -1077,31 +1268,6 @@ public class McpRuntimeService implements Closeable {
                 result.add(map);
             }
             return result;
-        }
-
-        private String getPromptJson(String name, Map<String, Object> args) throws Throwable {
-            if (StrUtil.isBlank(name)) {
-                throw new IllegalArgumentException("MCP prompt name is required.");
-            }
-            Prompt prompt = provider.getPrompt(name, args);
-            Map<String, Object> result = new LinkedHashMap<String, Object>();
-            List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
-            if (prompt != null) {
-                for (ChatMessage message : prompt.getMessages()) {
-                    Map<String, Object> map = new LinkedHashMap<String, Object>();
-                    map.put("role", message.getRole() == null ? null : message.getRole().name());
-                    map.put("content", message.getContent());
-                    if (message.getMetadata() != null && !message.getMetadata().isEmpty()) {
-                        map.put("metadata", message.getMetadata());
-                    }
-                    messages.add(map);
-                }
-                if (prompt.attrs() != null && !prompt.attrs().isEmpty()) {
-                    result.put("meta", prompt.attrs());
-                }
-            }
-            result.put("messages", messages);
-            return json(result);
         }
 
         private String firstArgText(Map<String, Object> args, String key) {
@@ -1281,5 +1447,9 @@ public class McpRuntimeService implements Closeable {
         public String toString() {
             return "McpToolProvider(" + config.getServerId() + ")";
         }
+    }
+
+    private interface RecoverableCall<T> {
+        T call(McpClientProvider provider) throws Throwable;
     }
 }
