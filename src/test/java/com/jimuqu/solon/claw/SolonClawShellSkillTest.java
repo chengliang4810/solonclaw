@@ -212,6 +212,15 @@ public class SolonClawShellSkillTest {
                 .isEqualTo("A && B || { C & }");
         assertThat(skill.rewriteCompoundBackground("A && B &\nfalse || C &"))
                 .isEqualTo("A && { B & }\nfalse || { C & }");
+        assertThat(
+                        skill.rewriteCompoundBackground(
+                                "cd /home/exedev && python3 -m http.server 8000 &>/dev/null &\n"
+                                        + "sleep 1\n"
+                                        + "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/"))
+                .isEqualTo(
+                        "cd /home/exedev && { python3 -m http.server 8000 &>/dev/null & }\n"
+                                + "sleep 1\n"
+                                + "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/");
         assertThat(skill.rewriteCompoundBackground("   A && B &"))
                 .isEqualTo("   A && { B & }");
         assertThat(skill.rewriteCompoundBackground("A\t&&\tB\t&"))
