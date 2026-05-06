@@ -354,9 +354,21 @@ public class SolonClawShellSkillTest {
         assertThat(skill.rewriteCompoundBackground("A && B")).isEqualTo("A && B");
         assertThat(skill.rewriteCompoundBackground("A && B\nC &")).isEqualTo("A && B\nC &");
         assertThat(skill.rewriteCompoundBackground("A && B; C &")).isEqualTo("A && B; C &");
+        assertThat(skill.rewriteCompoundBackground("cd /tmp; start-server &"))
+                .isEqualTo("cd /tmp; start-server &");
         assertThat(skill.rewriteCompoundBackground("A && B | C &")).isEqualTo("A && B | C &");
+        assertThat(skill.rewriteCompoundBackground("&")).isEqualTo("&");
         assertThat(skill.rewriteCompoundBackground("")).isEqualTo("");
         assertThat(skill.rewriteCompoundBackground("   \n\t")).isEqualTo("   \n\t");
+    }
+
+    @Test
+    void shouldNotCrashOnMalformedCompoundBackgroundInput() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(skill.rewriteCompoundBackground("A && &")).isNotNull();
     }
 
     @Test
