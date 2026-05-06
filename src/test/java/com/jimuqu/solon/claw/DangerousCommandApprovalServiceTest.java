@@ -72,6 +72,28 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNotFlagSafeRmFilenamesLikeHermesApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "rm readme.txt",
+                        "rm requirements.txt",
+                        "rm report.csv",
+                        "rm results.json",
+                        "rm robots.txt",
+                        "rm run.sh",
+                        "rm -f readme.txt",
+                        "rm -v readme.txt");
+
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNull();
+        }
+    }
+
+    @Test
     void shouldDetectShellLineContinuationDangerousCommandVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
