@@ -1744,6 +1744,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalId")).isEqualTo("approval-123");
         assertThat(extras.get("mode"))
                 .isEqualTo(DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        assertThat(extras.get("approvalAllowAlways")).isEqualTo(Boolean.TRUE);
         assertThat(extras.get("approvalCommand")).isEqualTo("rm -rf runtime/cache");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isEqualTo("/approve approval-123 always");
@@ -2075,9 +2076,42 @@ public class DangerousCommandApprovalServiceTest {
                 service.getPendingApproval(trace.session);
 
         assertThat(trace.getFinalAnswer()).contains("Security scan").contains("recursive delete");
+        assertThat(trace.getFinalAnswer()).doesNotContain("/approve always");
         assertThat(pending).isNotNull();
         assertThat(pending.getPatternKeys())
                 .containsExactly("tirith:homograph_url", "recursive_delete");
+    }
+
+    @Test
+    void shouldHidePermanentApprovalCardChoiceForTirithFindings() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("shortened_url", "MEDIUM", "Short URL", "")),
+                                "shortened URL"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "echo hello");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+        Map<String, Object> extras = service.buildDeliveryExtras(PlatformType.FEISHU, pending);
+
+        assertThat(pending).isNotNull();
+        assertThat(pending.isPermanentApprovalAllowed()).isFalse();
+        assertThat(extras.get("approvalAllowAlways")).isEqualTo(Boolean.FALSE);
+        assertThat(trace.getFinalAnswer()).contains("/approve session");
+        assertThat(trace.getFinalAnswer()).doesNotContain("/approve always");
     }
 
     @Test

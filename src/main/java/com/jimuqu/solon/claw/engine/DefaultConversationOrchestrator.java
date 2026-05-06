@@ -552,8 +552,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         buffer.append("原因：")
                 .append(StrUtil.blankToDefault(pending.getDescription(), "危险命令"))
                 .append("\n\n");
-        buffer.append(
-                "请先回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
+        if (pending.isPermanentApprovalAllowed()) {
+            buffer.append(
+                    "请先回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
+        } else {
+            buffer.append("请先回复 `/approve` 执行一次，`/approve session` 记住当前会话，或 `/deny` 取消。");
+        }
         return buffer.toString();
     }
 

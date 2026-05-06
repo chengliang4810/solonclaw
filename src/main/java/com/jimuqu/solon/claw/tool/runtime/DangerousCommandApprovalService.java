@@ -809,6 +809,7 @@ public class DangerousCommandApprovalService {
         extras.put("approvalCommand", redactApprovalDisplay(pending.getCommand(), 3000));
         extras.put("approvalDescription", redactApprovalDisplay(pending.getDescription(), 1000));
         extras.put("approvalToolName", redactApprovalDisplay(pending.getToolName(), 200));
+        extras.put("approvalAllowAlways", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
         return extras;
     }
 
@@ -1530,8 +1531,12 @@ public class DangerousCommandApprovalService {
         buffer.append("```").append(codeFence(toolName)).append('\n');
         buffer.append(redactApprovalDisplay(trimPreview(code), 2000));
         buffer.append("\n```\n\n");
-        buffer.append(
-                "回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
+        if (containsTirith(detection)) {
+            buffer.append("回复 `/approve` 执行一次，`/approve session` 记住当前会话，或 `/deny` 取消。");
+        } else {
+            buffer.append(
+                    "回复 `/approve` 执行一次，`/approve session` 记住当前会话，`/approve always` 永久记住，或 `/deny` 取消。");
+        }
         return buffer.toString();
     }
 
@@ -2073,6 +2078,15 @@ public class DangerousCommandApprovalService {
                 values.add(patternKey.trim());
             }
             return values;
+        }
+
+        public boolean isPermanentApprovalAllowed() {
+            for (String patternKey : effectivePatternKeys()) {
+                if (StrUtil.nullToEmpty(patternKey).startsWith("tirith:")) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
