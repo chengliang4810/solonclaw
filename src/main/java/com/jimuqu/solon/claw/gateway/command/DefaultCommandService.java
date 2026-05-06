@@ -1552,7 +1552,9 @@ public class DefaultCommandService implements CommandService {
         if ("edit".equals(action)) {
             action = GatewayCommandConstants.ACTION_UPDATE;
         }
-        if ("rm".equals(action) || GatewayCommandConstants.ACTION_REMOVE.equals(action)) {
+        if ("rm".equals(action)
+                || GatewayCommandConstants.ACTION_REMOVE.equals(action)
+                || GatewayCommandConstants.ACTION_DELETE.equals(action)) {
             action = GatewayCommandConstants.ACTION_DELETE;
         }
 
@@ -2056,8 +2058,8 @@ public class DefaultCommandService implements CommandService {
         if (options.repeat != null) {
             body.put("repeat", options.repeat);
         }
-        putIfNotBlank(body, "script", options.script);
-        putIfNotBlank(body, "workdir", options.workdir);
+        putCronStringOption(body, "script", options.script);
+        putCronStringOption(body, "workdir", options.workdir);
         putIfNotBlank(body, "context_from", options.contextFrom);
         putIfNotBlank(body, "depends_on", options.dependsOn);
         putIfNotBlank(body, "enabled_toolsets", options.enabledToolsets);
@@ -2175,15 +2177,18 @@ public class DefaultCommandService implements CommandService {
         boolean quoted = false;
         char quote = 0;
         boolean escaping = false;
+        boolean tokenStarted = false;
         for (int i = 0; i < raw.length(); i++) {
             char ch = raw.charAt(i);
             if (escaping) {
                 current.append(ch);
                 escaping = false;
+                tokenStarted = true;
                 continue;
             }
             if (ch == '\\') {
                 escaping = true;
+                tokenStarted = true;
                 continue;
             }
             if (quoted) {
@@ -2191,27 +2196,31 @@ public class DefaultCommandService implements CommandService {
                     quoted = false;
                 } else {
                     current.append(ch);
+                    tokenStarted = true;
                 }
                 continue;
             }
             if (ch == '"' || ch == '\'') {
                 quoted = true;
                 quote = ch;
+                tokenStarted = true;
                 continue;
             }
             if (Character.isWhitespace(ch)) {
-                if (current.length() > 0) {
+                if (tokenStarted) {
                     tokens.add(current.toString());
                     current.setLength(0);
+                    tokenStarted = false;
                 }
             } else {
                 current.append(ch);
+                tokenStarted = true;
             }
         }
         if (escaping) {
             current.append('\\');
         }
-        if (current.length() > 0) {
+        if (tokenStarted) {
             tokens.add(current.toString());
         }
         return tokens;
@@ -2257,6 +2266,12 @@ public class DefaultCommandService implements CommandService {
 
     private void putIfNotBlank(Map<String, Object> body, String key, String value) {
         if (StrUtil.isNotBlank(value)) {
+            body.put(key, value.trim());
+        }
+    }
+
+    private void putCronStringOption(Map<String, Object> body, String key, String value) {
+        if (value != null) {
             body.put(key, value.trim());
         }
     }

@@ -335,11 +335,44 @@ public class CommandEnhancementTest {
                 .contains("context_from=[]")
                 .contains("enabled_toolsets=[]");
 
+        GatewayReply retuned =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --script collect.py --workdir \"" + runtimeHome + "\"");
+        assertThat(retuned.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("script=collect.py")
+                .contains("workdir=" + runtimeHome);
+
+        GatewayReply clearedWithHermesEmptyValues =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --script \"\" --workdir \"\"");
+        assertThat(clearedWithHermesEmptyValues.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("script=null").contains("workdir=null");
+
         GatewayReply invalidNoAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent");
         assertThat(invalidNoAgent.getContent()).contains("no_agent requires script");
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]");
+    }
+
+    @Test
+    void shouldSupportHermesCronDeleteAlias() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Delete alias check\"");
+        String jobId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .get(0)
+                        .getJobId();
+
+        GatewayReply deleted = env.send("admin-chat", "admin-user", "/cron delete " + jobId);
+
+        assertThat(deleted.getContent()).contains("已删除定时任务：" + jobId);
+        assertThat(env.cronJobRepository.findById(jobId)).isNull();
     }
 
     @Test
