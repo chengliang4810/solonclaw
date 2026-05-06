@@ -1041,6 +1041,43 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBypassNonHardlineDangerousCommandWhenHermesYoloModeIsEnabled()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new YoloDangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        "1");
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+    }
+
+    @Test
+    void shouldKeepHardlineBlockedWhenHermesYoloModeIsEnabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new YoloDangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        "true");
+        DangerousCommandApprovalService.DetectionResult hardline =
+                service.detectHardline("execute_shell", "sudo reboot");
+
+        assertThat(hardline).isNotNull();
+        assertThat(hardline.isHardline()).isTrue();
+        assertThat(hardline.getDescription()).contains("shutdown");
+    }
+
+    @Test
     void shouldNotSmartApproveTirithFindings() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("smart");
@@ -1143,6 +1180,26 @@ public class DangerousCommandApprovalServiceTest {
         public TirithSecurityService.ScanResult checkCommandSecurityForTool(
                 String toolName, String command) {
             return result;
+        }
+    }
+
+    private static class YoloDangerousCommandApprovalService
+            extends DangerousCommandApprovalService {
+        private final String yoloMode;
+
+        private YoloDangerousCommandApprovalService(
+                com.jimuqu.solon.claw.core.repository.GlobalSettingRepository
+                        globalSettingRepository,
+                com.jimuqu.solon.claw.config.AppConfig appConfig,
+                SecurityPolicyService securityPolicyService,
+                String yoloMode) {
+            super(globalSettingRepository, appConfig, securityPolicyService, null);
+            this.yoloMode = yoloMode;
+        }
+
+        @Override
+        protected String hermesYoloModeEnv() {
+            return yoloMode;
         }
     }
 

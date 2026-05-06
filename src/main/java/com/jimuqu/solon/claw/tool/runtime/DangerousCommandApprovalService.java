@@ -874,6 +874,11 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
+        if (isHermesYoloModeEnabled()) {
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         String approvalMode = approvalMode();
         if ("off".equals(approvalMode)) {
             persistTraceSnapshot(trace);
@@ -1128,6 +1133,18 @@ public class DangerousCommandApprovalService {
             return mode;
         }
         return "on";
+    }
+
+    protected String hermesYoloModeEnv() {
+        return System.getenv("HERMES_YOLO_MODE");
+    }
+
+    private boolean isHermesYoloModeEnabled() {
+        String value = StrUtil.nullToEmpty(hermesYoloModeEnv()).trim();
+        return "true".equalsIgnoreCase(value)
+                || "1".equals(value)
+                || "yes".equalsIgnoreCase(value)
+                || "on".equalsIgnoreCase(value);
     }
 
     public String cronApprovalMode() {
