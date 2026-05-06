@@ -880,6 +880,65 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldMatchHermesAllowPrivateUrlToggleForNonMetadataInternalRanges()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        List<String> allowedResolvedIps =
+                Arrays.asList(
+                        "100.100.100.100",
+                        "198.18.23.183",
+                        "127.0.0.1",
+                        "fe80::1",
+                        "fd12::1",
+                        "ff02::1");
+
+        for (String ip : allowedResolvedIps) {
+            SecurityPolicyService securityPolicyService =
+                    new FixedDnsSecurityPolicyService(env.appConfig, ip);
+            SecurityPolicyService.UrlVerdict verdict =
+                    securityPolicyService.checkUrl("https://internal.example/resource");
+            assertThat(verdict.isAllowed()).as("expected %s to be allowed", ip).isTrue();
+        }
+    }
+
+    @Test
+    void shouldStillBlockMetadataRangesWhenPrivateUrlsAreAllowedLikeHermes()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        List<String> blockedResolvedIps =
+                Arrays.asList(
+                        "169.254.42.99",
+                        "169.254.169.254",
+                        "169.254.170.2",
+                        "169.254.169.253",
+                        "100.100.100.200",
+                        "fd00:ec2::254");
+
+        for (String ip : blockedResolvedIps) {
+            SecurityPolicyService securityPolicyService =
+                    new FixedDnsSecurityPolicyService(env.appConfig, ip);
+            SecurityPolicyService.UrlVerdict verdict =
+                    securityPolicyService.checkUrl("https://metadata-probe.example/resource");
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", ip).isFalse();
+            assertThat(verdict.getMessage()).contains("元数据");
+        }
+    }
+
+    @Test
+    void shouldAllowNonCgnatHundredDotPublicRangeLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "100.0.0.1");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://public-hundred.example/resource");
+
+        assertThat(verdict.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeHermesUrlSafety()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

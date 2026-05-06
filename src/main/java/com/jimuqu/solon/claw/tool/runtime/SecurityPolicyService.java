@@ -236,9 +236,7 @@ public class SecurityPolicyService {
             InetAddress[] addresses = resolveHost(host);
             for (InetAddress address : addresses) {
                 String ip = address.getHostAddress();
-                if (isAlwaysBlockedIp(ip)
-                        || address.isLinkLocalAddress()
-                        || isAlwaysBlockedAddress(address)) {
+                if (isAlwaysBlockedIp(ip) || isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
                 if (!allowPrivate
