@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.support.IdSupport;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +15,8 @@ import org.noear.snack4.ONode;
 /** Hermes-style large tool result persistence. */
 public class ToolResultStorageService {
     private static final String TOOL_RESULTS_DIR = "tool-results";
+    private static final String PERSISTED_OUTPUT_TAG = "<persisted-output>";
+    private static final String PERSISTED_OUTPUT_CLOSING_TAG = "</persisted-output>";
     private static final Set<String> PINNED_INLINE_TOOLS =
             Collections.unmodifiableSet(
                     new HashSet<String>(java.util.Arrays.asList("file_read", "read_file")));
@@ -85,6 +86,10 @@ public class ToolResultStorageService {
         stored.setPreview(content);
         stored.setSizeBytes(content.getBytes(StandardCharsets.UTF_8).length);
         stored.setTruncated(false);
+        if (looksLikePersistedOutputBlock(content)) {
+            describePersistedOutputBlock(content, stored);
+            return stored;
+        }
         if (StrUtil.isBlank(content) || !content.trim().startsWith("{")) {
             return stored;
         }
@@ -128,19 +133,109 @@ public class ToolResultStorageService {
 
     private String buildEnvelope(String toolName, String raw, String ref, long sizeBytes) {
         String preview = preview(raw, previewLength);
-        ToolResultEnvelope envelope =
-                ToolResultEnvelope.ok("Tool result was too large and has been summarized.")
-                        .metadata("tool", StrUtil.blankToDefault(toolName, "unknown"))
-                        .preview(preview)
-                        .resultRef(ref)
-                        .size(sizeBytes)
-                        .truncated(true)
-                        .data(
-                                "instruction",
-                                StrUtil.isBlank(ref)
-                                        ? "Full output could not be saved; use the preview only."
-                                        : "Use read_file with result_ref to inspect the full output.");
-        return envelope.toJson();
+        StringBuilder message = new StringBuilder();
+        message.append(PERSISTED_OUTPUT_TAG).append('\n');
+        message.append("This tool result was too large (")
+                .append(sizeBytes)
+                .append(" bytes).").append('\n');
+        if (StrUtil.isBlank(ref)) {
+            message.append("Full output could not be saved; use the preview only.").append('\n');
+        } else {
+            message.append("Full output saved to: ").append(ref).append('\n');
+            message.append(
+                            "Use the file_read/read_file tool with offset and limit to access specific sections of this output.")
+                    .append('\n');
+        }
+        message.append("Tool: ").append(StrUtil.blankToDefault(toolName, "unknown")).append('\n');
+        message.append('\n')
+                .append("Preview (first ")
+                .append(preview.length())
+                .append(" chars):")
+                .append('\n')
+                .append(preview);
+        if (raw.length() > preview.length()) {
+            message.append("\n...");
+        }
+        message.append('\n').append(PERSISTED_OUTPUT_CLOSING_TAG);
+        return message.toString();
+    }
+
+    private static boolean looksLikePersistedOutputBlock(String content) {
+        String trimmed = StrUtil.nullToEmpty(content).trim();
+        return trimmed.startsWith(PERSISTED_OUTPUT_TAG)
+                && trimmed.contains(PERSISTED_OUTPUT_CLOSING_TAG);
+    }
+
+    private static void describePersistedOutputBlock(String content, StoredResult stored) {
+        stored.setTruncated(true);
+        stored.setResultRef(lineValue(content, "Full output saved to:"));
+        Long size = firstNumberBetween(content, "too large (", " bytes");
+        if (size != null) {
+            stored.setSizeBytes(size.longValue());
+        }
+        String preview = previewFromPersistedOutputBlock(content);
+        if (preview != null) {
+            stored.setPreview(preview);
+        }
+    }
+
+    private static String lineValue(String content, String prefix) {
+        String[] lines = StrUtil.nullToEmpty(content).split("\\r?\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith(prefix)) {
+                return trimmed.substring(prefix.length()).trim();
+            }
+        }
+        return null;
+    }
+
+    private static Long firstNumberBetween(String content, String left, String right) {
+        String raw = StrUtil.nullToEmpty(content);
+        int start = raw.indexOf(left);
+        if (start < 0) {
+            return null;
+        }
+        start += left.length();
+        int end = raw.indexOf(right, start);
+        if (end <= start) {
+            return null;
+        }
+        String digits = raw.substring(start, end).replaceAll("[^0-9]", "");
+        if (StrUtil.isBlank(digits)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(digits);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String previewFromPersistedOutputBlock(String content) {
+        String marker = " chars):";
+        int markerIndex = StrUtil.nullToEmpty(content).indexOf(marker);
+        if (markerIndex < 0) {
+            return null;
+        }
+        int start = markerIndex + marker.length();
+        if (start < content.length() && content.charAt(start) == '\r') {
+            start++;
+        }
+        if (start < content.length() && content.charAt(start) == '\n') {
+            start++;
+        }
+        int end = content.indexOf(PERSISTED_OUTPUT_CLOSING_TAG, start);
+        if (end < 0) {
+            end = content.length();
+        }
+        String preview = content.substring(start, end);
+        if (preview.endsWith("\n...")) {
+            preview = preview.substring(0, preview.length() - 4);
+        } else if (preview.endsWith("\r\n...")) {
+            preview = preview.substring(0, preview.length() - 5);
+        }
+        return preview.trim();
     }
 
     private boolean isPinnedInline(String toolName) {

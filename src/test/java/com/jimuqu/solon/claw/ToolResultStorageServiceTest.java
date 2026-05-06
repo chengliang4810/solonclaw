@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.react.ReActTrace;
 
 public class ToolResultStorageServiceTest {
@@ -29,19 +28,19 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
-    void shouldPersistLargeToolResultAndReturnEnvelope() throws Exception {
+    void shouldPersistLargeToolResultAndReturnHermesBlock() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 256, 200000, 300);
         String large = repeat("line\n", 200);
 
         ToolResultStorageService.StoredResult result =
                 service.observe("execute_shell", large, "run-1", "call-1");
-        ONode node = ONode.ofJson(result.getObservation());
 
-        assertThat(node.get("status").getString()).isEqualTo("success");
-        assertThat(node.get("truncated").getBoolean()).isTrue();
-        assertThat(node.get("metadata").get("tool").getString()).isEqualTo("execute_shell");
-        String ref = node.get("result_ref").getString();
+        assertThat(result.getObservation()).startsWith("<persisted-output>");
+        assertThat(result.getObservation()).contains("Full output saved to:");
+        assertThat(result.getObservation()).contains("Use the file_read/read_file tool with offset and limit");
+        assertThat(result.getObservation()).contains("Tool: execute_shell");
+        String ref = result.getResultRef();
         assertThat(ref).isNotBlank();
         assertThat(new File(ref).getCanonicalPath())
                 .startsWith(new File(tempDir, "tool-results").getCanonicalPath());
@@ -56,13 +55,27 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldDescribeLegacyJsonEnvelope() {
+        String json =
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old preview\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";
+
+        ToolResultStorageService.StoredResult described =
+                ToolResultStorageService.describeObservation(json);
+
+        assertThat(described.getPreview()).isEqualTo("old preview");
+        assertThat(described.getResultRef()).isEqualTo("/tmp/result.txt");
+        assertThat(described.getSizeBytes()).isEqualTo(42L);
+        assertThat(described.isTruncated()).isTrue();
+    }
+
+    @Test
     void shouldSanitizePathSegmentsWhenPersistingResult() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 10, 200000, 300);
 
         ToolResultStorageService.StoredResult result =
                 service.observe("shell", repeat("x", 400), "..\\evil/../run", "..\\call");
-        String ref = ONode.ofJson(result.getObservation()).get("result_ref").getString();
+        String ref = result.getResultRef();
 
         assertThat(ref).isNotBlank();
         assertThat(new File(ref).getCanonicalPath())
@@ -80,9 +93,10 @@ public class ToolResultStorageServiceTest {
 
         interceptor.onObservation(trace, "webfetch", trace.getLastObservation(), 5L);
 
-        ONode node = ONode.ofJson(trace.getLastObservation());
-        assertThat(node.get("truncated").getBoolean()).isTrue();
-        assertThat(node.get("result_ref").getString()).isNotBlank();
+        ToolResultStorageService.StoredResult described =
+                ToolResultStorageService.describeObservation(trace.getLastObservation());
+        assertThat(described.isTruncated()).isTrue();
+        assertThat(described.getResultRef()).isNotBlank();
     }
 
     @Test
@@ -112,7 +126,7 @@ public class ToolResultStorageServiceTest {
 
         assertThat(first.getObservation()).isEqualTo(medium);
         assertThat(second.isTruncated()).isTrue();
-        assertThat(ONode.ofJson(second.getObservation()).get("result_ref").getString()).isNotBlank();
+        assertThat(second.getResultRef()).isNotBlank();
     }
 
     @Test
@@ -128,7 +142,7 @@ public class ToolResultStorageServiceTest {
 
         ToolResultStorageService.StoredResult result =
                 service.observe("execute_shell", repeat("w", 400), "run-workspace", "call-1");
-        String ref = ONode.ofJson(result.getObservation()).get("result_ref").getString();
+        String ref = result.getResultRef();
 
         assertThat(new File(ref).getCanonicalPath())
                 .startsWith(new File(workspace, ".jimuqu/tool-results").getCanonicalPath());
