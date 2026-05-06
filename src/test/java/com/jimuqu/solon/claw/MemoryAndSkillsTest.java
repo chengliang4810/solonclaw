@@ -282,6 +282,42 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldRejectCredentialSymlinkEscapingRuntimeHomeLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File credentialsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials");
+        FileUtil.mkdir(credentialsDir);
+        File externalSecret =
+                new File(
+                        new File(env.appConfig.getRuntime().getHome()).getAbsoluteFile().getParentFile(),
+                        "secret.json");
+        FileUtil.writeUtf8String("{\"secret\":\"value\"}", externalSecret);
+        File symlink = FileUtil.file(credentialsDir, "evil-link.json");
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(symlink.toPath(), externalSecret.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/evil-link.json");
+        SkillCredentialFileService.CredentialFilePlan plan =
+                new SkillCredentialFileService(env.appConfig).configPlan();
+
+        assertThat(plan.getMounts()).isEmpty();
+        assertThat(plan.getMissing()).isEmpty();
+        assertThat(plan.getRejected()).hasSize(1);
+        assertThat(plan.getRejected().get(0).getRelativePath())
+                .isEqualTo("credentials/evil-link.json");
+        assertThat(plan.getRejected().get(0).getReason()).contains("escapes runtime home");
+    }
+
+    @Test
     void shouldPlanHermesStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
