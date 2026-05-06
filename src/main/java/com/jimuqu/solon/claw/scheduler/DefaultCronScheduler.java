@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.scheduler;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
@@ -11,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
@@ -66,6 +68,7 @@ public class DefaultCronScheduler {
     private final GatewayPolicyRepository gatewayPolicyRepository;
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
     private final AttachmentCacheService attachmentCacheService;
+    private final LocalSkillService localSkillService;
     private ScheduledExecutorService executorService;
 
     public DefaultCronScheduler(
@@ -82,6 +85,7 @@ public class DefaultCronScheduler {
                 conversationOrchestrator,
                 deliveryService,
                 gatewayPolicyRepository,
+                null,
                 null,
                 null);
     }
@@ -102,6 +106,7 @@ public class DefaultCronScheduler {
                 deliveryService,
                 gatewayPolicyRepository,
                 dangerousCommandApprovalService,
+                null,
                 null);
     }
 
@@ -114,6 +119,28 @@ public class DefaultCronScheduler {
             GatewayPolicyRepository gatewayPolicyRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AttachmentCacheService attachmentCacheService) {
+        this(
+                appConfig,
+                cronJobRepository,
+                cronJobService,
+                conversationOrchestrator,
+                deliveryService,
+                gatewayPolicyRepository,
+                dangerousCommandApprovalService,
+                attachmentCacheService,
+                null);
+    }
+
+    public DefaultCronScheduler(
+            AppConfig appConfig,
+            CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AttachmentCacheService attachmentCacheService,
+            LocalSkillService localSkillService) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
         this.cronJobService = cronJobService;
@@ -122,6 +149,7 @@ public class DefaultCronScheduler {
         this.gatewayPolicyRepository = gatewayPolicyRepository;
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.attachmentCacheService = attachmentCacheService;
+        this.localSkillService = localSkillService;
     }
 
     public void start() {
@@ -724,7 +752,7 @@ public class DefaultCronScheduler {
         List<String> skills =
                 view.containsKey("skills") ? (List<String>) view.get("skills") : new ArrayList<String>();
         if (!skills.isEmpty()) {
-            prompt.append("请先加载并遵循这些技能：").append(skills).append("\n\n");
+            prompt.append(loadSkillPromptParts(job, skills));
         }
         Object contextFrom = view.get("context_from");
         if (contextFrom instanceof Iterable) {
@@ -741,6 +769,70 @@ public class DefaultCronScheduler {
         }
         prompt.append(StrUtil.nullToEmpty(job.getPrompt()));
         return prompt.toString();
+    }
+
+    private String loadSkillPromptParts(CronJobRecord job, List<String> skills) {
+        if (localSkillService == null) {
+            return "请先加载并遵循这些技能：" + skills + "\n\n";
+        }
+        StringBuilder parts = new StringBuilder();
+        List<String> skipped = new ArrayList<String>();
+        for (String skill : skills) {
+            if (StrUtil.isBlank(skill)) {
+                continue;
+            }
+            try {
+                SkillView view = localSkillService.viewSkill(skill.trim(), null);
+                if (parts.length() > 0) {
+                    parts.append("\n\n");
+                }
+                parts.append("[IMPORTANT: The user has invoked the \"")
+                        .append(skill.trim())
+                        .append("\" skill for this scheduled job. Follow its instructions.]\n\n")
+                        .append(StrUtil.nullToEmpty(view.getContent()).trim());
+                bumpSkillLoad(skill.trim());
+            } catch (Exception e) {
+                skipped.add(skill.trim());
+                log.warn(
+                        "Cron job '{}' referenced missing skill '{}': {}",
+                        StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                        skill,
+                        e.getMessage());
+            }
+        }
+        if (!skipped.isEmpty()) {
+            parts.insert(
+                    0,
+                    "[IMPORTANT: The following skill(s) were listed for this scheduled job but could not be found and were skipped: "
+                            + joinNames(skipped)
+                            + ". Start your response with a brief notice so the user is aware.]\n\n");
+        }
+        if (parts.length() == 0) {
+            return "";
+        }
+        return parts.append("\n\n").toString();
+    }
+
+    private void bumpSkillLoad(String skill) {
+        try {
+            localSkillService.bumpUsage(skill, "load");
+        } catch (Exception e) {
+            log.debug("Cron job failed to bump skill usage for '{}'", skill, e);
+        }
+    }
+
+    private String joinNames(List<String> values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (StrUtil.isBlank(value)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            builder.append(value.trim());
+        }
+        return builder.toString();
     }
 
     private String truncateContextFromOutput(String output) {

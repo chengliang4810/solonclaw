@@ -1574,6 +1574,45 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldLoadCronBoundSkillContentAndRecordUsage() throws Exception {
+        RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.localSkillService.createSkill(
+                "cron-skill", null, skillContent("cron-skill", "Always include the cron skill marker."));
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "skill-bound");
+        body.put("schedule", "30m");
+        body.put("prompt", "Use the loaded skill.");
+        body.put("skills", "cron-skill,missing-skill");
+        CronJobRecord job = service.create("MEMORY:skill-cron:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        env.localSkillService);
+        scheduler.tick();
+
+        assertThat(gateway.userMessage)
+                .contains("Always include the cron skill marker.")
+                .contains("missing-skill")
+                .contains("Use the loaded skill.");
+        String curatorState =
+                FileUtil.readUtf8String(
+                        FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), ".curator_state"));
+        assertThat(curatorState).contains("cron-skill").contains("loadCount");
+    }
+
+    @Test
     void shouldBlockCredentialCronWorkdirOnCreateAndUpdate() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File sshDir = FileUtil.file(env.appConfig.getRuntime().getHome(), ".ssh");
@@ -1743,6 +1782,10 @@ public class DefaultCronSchedulerTest {
         body.put("prompt", "cron prompt");
         body.put("skills", skills);
         return body;
+    }
+
+    private String skillContent(String name, String body) {
+        return "---\nname: " + name + "\ndescription: cron skill\n---\n\n# " + name + "\n" + body + "\n";
     }
 
     private void assertBlockedCronPrompt(CronJobService service, String prompt, String marker) {

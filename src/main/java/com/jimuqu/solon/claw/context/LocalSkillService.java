@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.noear.snack4.ONode;
 
 /** 本地技能目录服务，支持 Hermes 风格分类目录与渐进披露读取。 */
 public class LocalSkillService implements SkillCatalogService {
@@ -243,6 +244,37 @@ public class LocalSkillService implements SkillCatalogService {
         view.setContent(FileUtil.readUtf8String(target));
         view.setLinkedFiles(new ArrayList<String>(descriptor.getLinkedFiles()));
         return view;
+    }
+
+    public synchronized void bumpUsage(String nameOrPath, String kind) {
+        try {
+            SkillDescriptor descriptor = findDescriptor(nameOrPath);
+            if (descriptor == null) {
+                return;
+            }
+            File stateFile = FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state");
+            Map<String, Object> state = readMap(stateFile);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> skills =
+                    state.get("skills") instanceof Map
+                            ? (Map<String, Object>) state.get("skills")
+                            : new LinkedHashMap<String, Object>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> record =
+                    skills.get(descriptor.canonicalName()) instanceof Map
+                            ? (Map<String, Object>) skills.get(descriptor.canonicalName())
+                            : new LinkedHashMap<String, Object>();
+            String counter =
+                    "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind)) ? "callCount" : "loadCount";
+            record.put(counter, Long.valueOf(asLong(record.get(counter)) + 1L));
+            record.put("lastActivityAt", Long.valueOf(System.currentTimeMillis()));
+            skills.put(descriptor.canonicalName(), record);
+            state.put("skills", skills);
+            FileUtil.mkParentDirs(stateFile);
+            FileUtil.writeUtf8String(ONode.serialize(state), stateFile);
+        } catch (Exception ignored) {
+            // Usage counters are advisory for curator decisions and must not break skill loading.
+        }
     }
 
     @Override
@@ -614,6 +646,32 @@ public class LocalSkillService implements SkillCatalogService {
         }
         String text = value == null ? "" : String.valueOf(value).trim();
         return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readMap(File file) {
+        if (file == null || !file.isFile()) {
+            return new LinkedHashMap<String, Object>();
+        }
+        try {
+            Object parsed = ONode.deserialize(FileUtil.readUtf8String(file), Object.class);
+            if (parsed instanceof Map) {
+                return (Map<String, Object>) parsed;
+            }
+        } catch (Exception ignored) {
+        }
+        return new LinkedHashMap<String, Object>();
+    }
+
+    private long asLong(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     /** 解析技能目录。 */

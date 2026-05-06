@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -35,7 +36,8 @@ public class SchedulerConfiguration {
             DeliveryService deliveryService,
             GatewayPolicyRepository gatewayPolicyRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
-            AttachmentCacheService attachmentCacheService) {
+            AttachmentCacheService attachmentCacheService,
+            LocalSkillService localSkillService) {
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         appConfig,
@@ -45,7 +47,8 @@ public class SchedulerConfiguration {
                         deliveryService,
                         gatewayPolicyRepository,
                         dangerousCommandApprovalService,
-                        attachmentCacheService);
+                        attachmentCacheService,
+                        localSkillService);
         scheduler.start();
         return scheduler;
     }
