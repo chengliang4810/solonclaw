@@ -272,6 +272,13 @@ public class DefaultCronScheduler {
             if (job == null) {
                 continue;
             }
+            if (recoverMissingNextRun(job, now)) {
+                if (job.getNextRunAt() > now) {
+                    continue;
+                }
+            } else if (job.getNextRunAt() <= 0L) {
+                continue;
+            }
             if (shouldFastForwardMissedRun(job, now)) {
                 long next = CronSupport.nextRunAt(job.getCronExpr(), now);
                 if (next > now) {
@@ -287,6 +294,53 @@ public class DefaultCronScheduler {
             result.add(job);
         }
         return result;
+    }
+
+    private boolean recoverMissingNextRun(CronJobRecord job, long now) throws Exception {
+        if (job.getNextRunAt() > 0L) {
+            return true;
+        }
+        if (isRecurring(job)) {
+            long next = CronSupport.nextRunAt(job.getCronExpr(), now);
+            if (next > 0L) {
+                cronJobRepository.markRun(job.getJobId(), job.getLastRunAt(), next);
+                job.setNextRunAt(next);
+                log.info(
+                        "Cron job had no next_run_at and was recovered: jobId={}, nextRunAt={}",
+                        job.getJobId(),
+                        Long.valueOf(next));
+                return true;
+            }
+            return false;
+        }
+        Long runAt = recoverableOneShotRunAt(job, now);
+        if (runAt == null) {
+            return false;
+        }
+        cronJobRepository.markRun(job.getJobId(), job.getLastRunAt(), runAt.longValue());
+        job.setNextRunAt(runAt.longValue());
+        log.info(
+                "Cron one-shot job had no next_run_at and was recovered: jobId={}, nextRunAt={}",
+                job.getJobId(),
+                runAt);
+        return true;
+    }
+
+    private Long recoverableOneShotRunAt(CronJobRecord job, long now) {
+        if (job.getLastRunAt() > 0L) {
+            return null;
+        }
+        Long absoluteRunAt = CronSupport.absoluteRunAt(job.getCronExpr());
+        long runAt =
+                absoluteRunAt == null
+                        ? job.getCreatedAt() + oneShotDurationMillis(job.getCronExpr())
+                        : absoluteRunAt.longValue();
+        return runAt >= now - 120000L ? Long.valueOf(runAt) : null;
+    }
+
+    private long oneShotDurationMillis(String schedule) {
+        Integer minutes = CronSupport.intervalMinutes(schedule);
+        return Math.max(60000L, minutes == null ? 60000L : minutes.intValue() * 60000L);
     }
 
     private boolean shouldFastForwardMissedRun(CronJobRecord job, long now) {

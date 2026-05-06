@@ -1423,6 +1423,90 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldRecoverRecentOneShotWithoutNextRunAndExecute() throws Exception {
+        RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        long now = System.currentTimeMillis();
+        CronJobRecord job = job("job-oneshot-recover", "MEMORY:oneshot-room:user");
+        job.setCronExpr("1m");
+        job.setCreatedAt(now - 90000L);
+        job.setNextRunAt(0L);
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById("job-oneshot-recover");
+        assertThat(gateway.toolObjectsText).isNotBlank();
+        assertThat(updated.getLastRunAt()).isGreaterThanOrEqualTo(now);
+        assertThat(updated.getStatus()).isEqualTo("COMPLETED");
+        assertThat(env.cronJobRepository.listRuns("job-oneshot-recover", 5)).hasSize(1);
+    }
+
+    @Test
+    void shouldNotRecoverStaleOneShotWithoutNextRun() throws Exception {
+        RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        long now = System.currentTimeMillis();
+        CronJobRecord job = job("job-oneshot-stale", "MEMORY:oneshot-stale:user");
+        job.setCronExpr("1m");
+        job.setCreatedAt(now - 10L * 60L * 1000L);
+        job.setNextRunAt(0L);
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById("job-oneshot-stale");
+        assertThat(gateway.toolObjectsText).isNull();
+        assertThat(updated.getLastRunAt()).isEqualTo(0L);
+        assertThat(updated.getNextRunAt()).isEqualTo(0L);
+        assertThat(env.cronJobRepository.listRuns("job-oneshot-stale", 5)).isEmpty();
+    }
+
+    @Test
+    void shouldRecoverRecurringJobWithoutNextRunWithoutImmediateExecution() throws Exception {
+        RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        long now = System.currentTimeMillis();
+        CronJobRecord job = job("job-recurring-recover", "MEMORY:recurring-room:user");
+        job.setCronExpr("every 1h");
+        job.setNextRunAt(0L);
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById("job-recurring-recover");
+        assertThat(gateway.toolObjectsText).isNull();
+        assertThat(updated.getLastRunAt()).isEqualTo(0L);
+        assertThat(updated.getNextRunAt()).isGreaterThan(now);
+        assertThat(updated.getStatus()).isEqualTo("ACTIVE");
+        assertThat(env.cronJobRepository.listRuns("job-recurring-recover", 5)).isEmpty();
+    }
+
+    @Test
     void shouldRunManualTriggeredRecurringJobEvenWhenNextRunWasFuture() throws Exception {
         RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);

@@ -135,7 +135,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from cron_jobs where status = 'ACTIVE' and next_run_at <= ? order by next_run_at asc");
+                            "select * from cron_jobs where status = 'ACTIVE' and (next_run_at <= ? or next_run_at is null or next_run_at = 0) order by next_run_at asc");
             statement.setLong(1, nowEpochMillis);
             ResultSet resultSet = statement.executeQuery();
             try {
