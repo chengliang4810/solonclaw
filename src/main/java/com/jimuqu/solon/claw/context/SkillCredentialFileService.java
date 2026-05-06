@@ -85,15 +85,22 @@ public class SkillCredentialFileService {
     }
 
     public List<DirectoryMount> skillsDirectoryMounts(String containerBase) {
-        String base = StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE);
-        if (!skillsDir.isDirectory()) {
-            return Collections.emptyList();
+        String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
+                .replace('\\', '/'));
+        List<DirectoryMount> mounts = new ArrayList<DirectoryMount>();
+        if (skillsDir.isDirectory()) {
+            File hostDir = symlinkSafeSkillsDir(skillsDir, "skills");
+            mounts.add(new DirectoryMount(hostDir.getAbsolutePath(), base + "/skills"));
         }
-        File hostDir = symlinkSafeSkillsDir(skillsDir);
-        return Collections.singletonList(
-                new DirectoryMount(
-                        hostDir.getAbsolutePath(),
-                        stripTrailingSlash(base.replace('\\', '/')) + "/skills"));
+        List<File> externalDirs = externalSkillsDirs();
+        for (int i = 0; i < externalDirs.size(); i++) {
+            File externalDir = externalDirs.get(i);
+            File hostDir = symlinkSafeSkillsDir(externalDir, "external-skills-" + i);
+            mounts.add(
+                    new DirectoryMount(
+                            hostDir.getAbsolutePath(), base + "/external_skills/" + i));
+        }
+        return mounts;
     }
 
     public List<FileMount> iterSkillsFiles() {
@@ -104,10 +111,17 @@ public class SkillCredentialFileService {
         String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
                 .replace('\\', '/'));
         List<FileMount> files = new ArrayList<FileMount>();
-        if (!skillsDir.isDirectory() || isSymbolicLink(skillsDir)) {
-            return files;
+        if (skillsDir.isDirectory() && !isSymbolicLink(skillsDir)) {
+            collectFiles(skillsDir, skillsDir, base + "/skills", files);
         }
-        collectFiles(skillsDir, skillsDir, base + "/skills", files);
+        List<File> externalDirs = externalSkillsDirs();
+        for (int i = 0; i < externalDirs.size(); i++) {
+            File externalDir = externalDirs.get(i);
+            if (!externalDir.isDirectory() || isSymbolicLink(externalDir)) {
+                continue;
+            }
+            collectFiles(externalDir, externalDir, base + "/external_skills/" + i, files);
+        }
         return files;
     }
 
@@ -205,16 +219,104 @@ public class SkillCredentialFileService {
         }
     }
 
-    private File symlinkSafeSkillsDir(File source) {
+    private File symlinkSafeSkillsDir(File source, String safeName) {
         if (!containsSymlink(source)) {
             return source;
         }
         File safeRoot = new File(cacheDir, "safe-skills");
-        File safeDir = new File(safeRoot, "skills");
+        File safeDir = new File(safeRoot, safeName);
         FileUtil.del(safeDir);
         FileUtil.mkdir(safeDir);
         copyTreeSkippingSymlinks(source, safeDir);
         return safeDir;
+    }
+
+    private List<File> externalSkillsDirs() {
+        List<String> configured =
+                appConfig == null || appConfig.getSkills() == null
+                        ? Collections.<String>emptyList()
+                        : appConfig.getSkills().getExternalDirs();
+        if (configured == null || configured.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<File> dirs = new ArrayList<File>();
+        Map<String, Boolean> seen = new LinkedHashMap<String, Boolean>();
+        File localSkills = canonicalOrAbsolute(skillsDir);
+        for (String entry : configured) {
+            String text = StrUtil.nullToEmpty(entry).trim();
+            if (text.length() == 0) {
+                continue;
+            }
+            File candidate = resolveExternalSkillsDir(text);
+            File resolved = canonicalOrAbsolute(candidate);
+            if (!resolved.isDirectory()) {
+                continue;
+            }
+            if (isSameFile(resolved, localSkills)) {
+                continue;
+            }
+            String key = resolved.getAbsolutePath();
+            if (seen.containsKey(key)) {
+                continue;
+            }
+            seen.put(key, Boolean.TRUE);
+            dirs.add(resolved);
+        }
+        return dirs;
+    }
+
+    private File resolveExternalSkillsDir(String rawPath) {
+        String expanded = expandPathVariables(rawPath);
+        File file = FileUtil.file(expanded);
+        if (!file.isAbsolute()) {
+            file = FileUtil.file(runtimeHome, expanded);
+        }
+        return file.getAbsoluteFile();
+    }
+
+    private String expandPathVariables(String rawPath) {
+        String value = StrUtil.nullToEmpty(rawPath).trim();
+        if (value.equals("~")) {
+            value = System.getProperty("user.home", "") + File.separator;
+        } else if (value.startsWith("~/") || value.startsWith("~\\")) {
+            value = System.getProperty("user.home", "") + value.substring(1);
+        }
+        value = expandEnvironmentVariables(value);
+        return value;
+    }
+
+    private String expandEnvironmentVariables(String value) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < value.length(); ) {
+            char ch = value.charAt(i);
+            if (ch == '$' && i + 1 < value.length() && value.charAt(i + 1) == '{') {
+                int end = value.indexOf('}', i + 2);
+                if (end > i) {
+                    String name = value.substring(i + 2, end);
+                    String replacement = System.getenv(name);
+                    result.append(replacement == null ? value.substring(i, end + 1) : replacement);
+                    i = end + 1;
+                    continue;
+                }
+            }
+            result.append(ch);
+            i++;
+        }
+        return result.toString();
+    }
+
+    private File canonicalOrAbsolute(File file) {
+        try {
+            return file.getCanonicalFile();
+        } catch (Exception ignored) {
+            return file.getAbsoluteFile();
+        }
+    }
+
+    private boolean isSameFile(File left, File right) {
+        return left != null
+                && right != null
+                && left.getAbsolutePath().equals(right.getAbsolutePath());
     }
 
     private boolean containsSymlink(File root) {

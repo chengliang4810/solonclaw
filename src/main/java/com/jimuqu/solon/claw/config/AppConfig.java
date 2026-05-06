@@ -57,6 +57,9 @@ public class AppConfig {
     /** 技能后台维护配置。 */
     private CuratorConfig curator = new CuratorConfig();
 
+    /** 技能目录配置。 */
+    private SkillsConfig skills = new SkillsConfig();
+
     /** 文件快照与回滚配置。 */
     private RollbackConfig rollback = new RollbackConfig();
 
@@ -313,6 +316,22 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.skills.curator.archiveAfterDays",
                                         90)));
+        config.getSkills()
+                .setExternalDirs(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.skills.externalDirs",
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "solonclaw.skills.external_dirs",
+                                                readRaw(
+                                                        props,
+                                                        overrides,
+                                                        "skills.external_dirs",
+                                                        "")))));
 
         config.getRollback()
                 .setEnabled(
@@ -1390,6 +1409,7 @@ public class AppConfig {
         copyCompression(other.getCompression());
         copyLearning(other.getLearning());
         copyCurator(other.getCurator());
+        copySkills(other.getSkills());
         copyRollback(other.getRollback());
         copyDisplay(other.getDisplay());
         copyReact(other.getReact());
@@ -1514,6 +1534,10 @@ public class AppConfig {
         this.curator.setMinIdleHours(other.getMinIdleHours());
         this.curator.setStaleAfterDays(other.getStaleAfterDays());
         this.curator.setArchiveAfterDays(other.getArchiveAfterDays());
+    }
+
+    private void copySkills(SkillsConfig other) {
+        this.skills.setExternalDirs(new ArrayList<String>(other.getExternalDirs()));
     }
 
     private void copyRollback(RollbackConfig other) {
@@ -2650,6 +2674,15 @@ public class AppConfig {
 
         /** 多久未使用后归档。 */
         private int archiveAfterDays = 90;
+    }
+
+    /** 技能目录配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class SkillsConfig {
+        /** 对齐 Hermes skills.external_dirs，额外只读技能目录清单。 */
+        private List<String> externalDirs = new ArrayList<String>();
     }
 
     /** 文件快照与回滚配置。 */

@@ -352,6 +352,70 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldMountExternalSkillsDirsLikeHermesCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("local-skill", null, skill("local-skill", "local"));
+        File externalDir =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "team-skills");
+        FileUtil.mkdir(externalDir);
+        FileUtil.writeUtf8String(
+                skill("external-skill", "external"),
+                FileUtil.file(externalDir, "external-skill", "SKILL.md"));
+        env.appConfig.getSkills().getExternalDirs().add("external/team-skills");
+        env.appConfig.getSkills().getExternalDirs().add(externalDir.getAbsolutePath());
+        env.appConfig.getSkills().getExternalDirs().add(env.appConfig.getRuntime().getSkillsDir());
+        env.appConfig.getSkills().getExternalDirs().add("external/missing");
+
+        SkillCredentialFileService service = new SkillCredentialFileService(env.appConfig);
+        List<SkillCredentialFileService.DirectoryMount> mounts =
+                service.skillsDirectoryMounts("/container/base");
+
+        assertThat(mounts).hasSize(2);
+        assertThat(mounts.get(0).getContainerPath()).isEqualTo("/container/base/skills");
+        assertThat(mounts.get(1).getHostPath()).isEqualTo(externalDir.getCanonicalPath());
+        assertThat(mounts.get(1).getContainerPath())
+                .isEqualTo("/container/base/external_skills/0");
+    }
+
+    @Test
+    void shouldIterateExternalSkillsFilesSkippingSymlinksLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File externalDir =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "iter-skills");
+        File externalSkillDir = FileUtil.file(externalDir, "docs", "external-iter");
+        FileUtil.mkdir(externalSkillDir);
+        FileUtil.writeUtf8String(skill("external-iter", "external"), FileUtil.file(externalSkillDir, "SKILL.md"));
+        FileUtil.writeUtf8String("run", FileUtil.file(externalSkillDir, "scripts", "run.ps1"));
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(
+                    FileUtil.file(externalSkillDir, "scripts", "secret-link.txt").toPath(),
+                    FileUtil.file(env.appConfig.getRuntime().getHome(), "secret.txt").toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        env.appConfig.getSkills().getExternalDirs().add(externalDir.getAbsolutePath());
+
+        SkillCredentialFileService service = new SkillCredentialFileService(env.appConfig);
+        List<SkillCredentialFileService.FileMount> skillFiles = service.iterSkillsFiles();
+        List<String> skillContainerPaths = new java.util.ArrayList<String>();
+        for (SkillCredentialFileService.FileMount mount : skillFiles) {
+            skillContainerPaths.add(mount.getContainerPath());
+        }
+
+        assertThat(skillContainerPaths)
+                .contains(
+                        "/root/.jimuqu-agent/external_skills/0/docs/external-iter/SKILL.md",
+                        "/root/.jimuqu-agent/external_skills/0/docs/external-iter/scripts/run.ps1");
+        if (symlinkCreated) {
+            assertThat(skillContainerPaths.toString()).doesNotContain("secret-link.txt");
+        }
+    }
+
+    @Test
     void shouldResolveLegacyCacheDirectoriesLikeHermesCredentialFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File documentCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "document_cache");

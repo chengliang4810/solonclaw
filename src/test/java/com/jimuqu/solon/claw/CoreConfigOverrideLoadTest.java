@@ -49,6 +49,9 @@ public class CoreConfigOverrideLoadTest {
                         + "      - credentials/oauth.json\n"
                         + "    sudoPassword: runtime-pass\n"
                         + "    writeSafeRoot: D:/workspace/runtime\n"
+                        + "  skills:\n"
+                        + "    externalDirs:\n"
+                        + "      - external/team-skills\n"
                         + "  mcp:\n"
                         + "    enabled: true\n"
                         + "  security:\n"
@@ -130,6 +133,7 @@ public class CoreConfigOverrideLoadTest {
                 .containsExactly("credentials/oauth.json");
         assertThat(config.getTerminal().getSudoPassword()).isEqualTo("runtime-pass");
         assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/runtime");
+        assertThat(config.getSkills().getExternalDirs()).containsExactly("external/team-skills");
         assertThat(config.getMcp().isEnabled()).isTrue();
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
@@ -218,6 +222,26 @@ public class CoreConfigOverrideLoadTest {
 
         assertThat(config.getTerminal().getCredentialFiles())
                 .containsExactly("credentials/hermes-token.json");
+    }
+
+    @Test
+    void shouldLoadHermesExternalSkillsDirsAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-external-skills").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "skills:\n"
+                        + "  external_dirs:\n"
+                        + "    - external/team-skills\n"
+                        + "    - D:/shared/skills\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSkills().getExternalDirs())
+                .containsExactly("external/team-skills", "D:/shared/skills");
     }
 
     @Test
