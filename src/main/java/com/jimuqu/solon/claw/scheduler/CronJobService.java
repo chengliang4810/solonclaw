@@ -184,9 +184,9 @@ public class CronJobService {
                             body.get("provider"),
                             body.get("base_url"),
                             body.get("baseUrl"),
-                            record.getModel(),
-                            record.getProvider(),
-                            record.getBaseUrl());
+                            defaultModelValue(body, record),
+                            defaultProviderValue(body, record),
+                            defaultBaseUrlValue(body, record));
             applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
         }
         if (body.containsKey("wrap_response") || body.containsKey("wrapResponse")) {
@@ -616,6 +616,18 @@ public class CronJobService {
                                 ? firstString(modelObject, "base_url", "baseUrl", "api_url", "apiUrl")
                                 : defaultBaseUrl;
         return new ModelOverride(model, provider, baseUrl);
+    }
+
+    private String defaultModelValue(Map<String, Object> body, CronJobRecord record) {
+        return body.containsKey("model") ? null : record.getModel();
+    }
+
+    private String defaultProviderValue(Map<String, Object> body, CronJobRecord record) {
+        return body.containsKey("provider") ? null : record.getProvider();
+    }
+
+    private String defaultBaseUrlValue(Map<String, Object> body, CronJobRecord record) {
+        return body.containsKey("base_url") || body.containsKey("baseUrl") ? null : record.getBaseUrl();
     }
 
     private Map<?, ?> objectMap(Object value) {

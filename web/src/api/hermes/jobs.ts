@@ -12,6 +12,13 @@ export interface Job {
   provider: string | null
   base_url: string | null
   script: string | null
+  workdir: string | null
+  no_agent: boolean
+  context_from: string[]
+  enabled_toolsets: string[]
+  wrap_response: boolean
+  deliver_chat_id: string | null
+  deliver_thread_id: string | null
   schedule: string | { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string }
   schedule_display: string
   repeat: string | { times: number | null; completed: number }
@@ -41,6 +48,15 @@ export interface CreateJobRequest {
   deliver?: string
   skills?: string[]
   repeat?: number
+  wrap_response?: boolean
+  script?: string
+  workdir?: string
+  no_agent?: boolean
+  context_from?: string[]
+  enabled_toolsets?: string[]
+  model?: string
+  provider?: string
+  base_url?: string
 }
 
 export interface UpdateJobRequest {
@@ -52,6 +68,15 @@ export interface UpdateJobRequest {
   skill?: string
   repeat?: number
   enabled?: boolean
+  wrap_response?: boolean
+  script?: string | null
+  workdir?: string | null
+  no_agent?: boolean
+  context_from?: string[]
+  enabled_toolsets?: string[]
+  model?: string | null
+  provider?: string | null
+  base_url?: string | null
 }
 
 interface DashboardJob {
@@ -66,6 +91,13 @@ interface DashboardJob {
   provider?: string | null
   base_url?: string | null
   script?: string | null
+  workdir?: string | null
+  no_agent?: boolean
+  context_from?: string[]
+  enabled_toolsets?: string[]
+  wrap_response?: boolean
+  deliver_chat_id?: string | null
+  deliver_thread_id?: string | null
   repeat?: string | { times: number | null; completed: number }
   schedule: { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string }
   schedule_display: string
@@ -96,6 +128,13 @@ function mapJob(job: DashboardJob): Job {
     provider: job.provider || null,
     base_url: job.base_url || null,
     script: job.script || null,
+    workdir: job.workdir || null,
+    no_agent: Boolean(job.no_agent),
+    context_from: job.context_from || [],
+    enabled_toolsets: job.enabled_toolsets || [],
+    wrap_response: job.wrap_response !== false,
+    deliver_chat_id: job.deliver_chat_id || null,
+    deliver_thread_id: job.deliver_thread_id || null,
     schedule: job.schedule,
     schedule_display: job.schedule_display || job.schedule.display,
     repeat: job.repeat || 'forever',
@@ -142,6 +181,15 @@ export async function createJob(data: CreateJobRequest): Promise<Job> {
       deliver: data.deliver || 'local',
       skills: data.skills || [],
       repeat: data.repeat,
+      wrap_response: data.wrap_response,
+      script: data.script,
+      workdir: data.workdir,
+      no_agent: data.no_agent,
+      context_from: data.context_from,
+      enabled_toolsets: data.enabled_toolsets,
+      model: data.model,
+      provider: data.provider,
+      base_url: data.base_url,
     }),
   })
   return mapJob(job)
@@ -159,6 +207,15 @@ export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<
       skill: data.skill,
       repeat: data.repeat,
       enabled: data.enabled,
+      wrap_response: data.wrap_response,
+      script: data.script,
+      workdir: data.workdir,
+      no_agent: data.no_agent,
+      context_from: data.context_from,
+      enabled_toolsets: data.enabled_toolsets,
+      model: data.model,
+      provider: data.provider,
+      base_url: data.base_url,
     }),
   })
   return mapJob(job)

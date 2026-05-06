@@ -657,6 +657,15 @@ public class DefaultCronSchedulerTest {
         assertThat(topLevelUpdated.getModel()).isEqualTo("object-model");
         assertThat(topLevelUpdated.getBaseUrl()).isEqualTo("https://api.top.example");
 
+        Map<String, Object> clearModelPin = new LinkedHashMap<String, Object>();
+        clearModelPin.put("model", "");
+        clearModelPin.put("provider", "");
+        clearModelPin.put("base_url", "");
+        CronJobRecord cleared = service.update(objectModel.getJobId(), clearModelPin);
+        assertThat(cleared.getProvider()).isNull();
+        assertThat(cleared.getModel()).isNull();
+        assertThat(cleared.getBaseUrl()).isNull();
+
         Map<String, Object> unsafe = new LinkedHashMap<String, Object>();
         unsafe.put("name", "unsafe");
         unsafe.put("schedule", "30m");

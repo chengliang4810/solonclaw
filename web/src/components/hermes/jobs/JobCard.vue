@@ -41,6 +41,17 @@ const formatTime = (t?: string | null) => {
   return new Date(t).toLocaleString()
 }
 
+const jobBadges = computed(() => {
+  const badges: string[] = []
+  if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
+  if (props.job.script) badges.push(t('jobs.badge.script'))
+  if (props.job.skills?.length) badges.push(t('jobs.badge.skills', { count: props.job.skills.length }))
+  if (props.job.context_from?.length) badges.push(t('jobs.badge.context', { count: props.job.context_from.length }))
+  if (props.job.enabled_toolsets?.length) badges.push(t('jobs.badge.toolsets', { count: props.job.enabled_toolsets.length }))
+  if (props.job.model) badges.push(props.job.provider ? `${props.job.provider}:${props.job.model}` : props.job.model)
+  return badges
+})
+
 async function handlePause() {
   try {
     await jobsStore.pauseJob(jobId.value)
@@ -113,6 +124,12 @@ async function handleDelete() {
           <template v-if="typeof job.repeat === 'string'">{{ job.repeat }}</template>
           <template v-else>{{ job.repeat.completed }} / {{ job.repeat.times ?? '∞' }}</template>
         </span>
+      </div>
+      <div v-if="jobBadges.length" class="job-badges">
+        <span v-for="badge in jobBadges" :key="badge" class="job-badge">{{ badge }}</span>
+      </div>
+      <div v-if="job.last_error || job.last_delivery_error" class="error-line">
+        {{ job.last_error || job.last_delivery_error }}
       </div>
     </div>
 
@@ -211,6 +228,7 @@ async function handleDelete() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .info-label {
@@ -221,6 +239,9 @@ async function handleDelete() {
 .info-value {
   font-size: 12px;
   color: $text-secondary;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .run-status {
@@ -235,6 +256,32 @@ async function handleDelete() {
 .mono {
   font-family: $font-code;
   font-size: 12px;
+}
+
+.job-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.job-badge {
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 1px 6px;
+  border-radius: 6px;
+  color: $text-secondary;
+  background: $bg-card;
+  border: 1px solid $border-light;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.error-line {
+  color: $error;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .card-actions {

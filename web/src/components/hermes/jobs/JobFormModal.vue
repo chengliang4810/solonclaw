@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { NModal, NForm, NFormItem, NInput, NButton, NSelect, NInputNumber, useMessage } from 'naive-ui'
+import { NModal, NForm, NFormItem, NInput, NButton, NSelect, NInputNumber, NSwitch, useMessage } from 'naive-ui'
 import { useJobsStore } from '@/stores/hermes/jobs'
 import { useI18n } from 'vue-i18n'
 
@@ -27,6 +27,16 @@ const formData = ref({
   prompt: '',
   deliver: 'origin',
   repeat_times: null as number | null,
+  skills_text: '',
+  wrap_response: true,
+  script: '',
+  workdir: '',
+  no_agent: false,
+  context_from_text: '',
+  enabled_toolsets_text: '',
+  provider: '',
+  model: '',
+  base_url: '',
 })
 
 const presetValue = ref<string | null>(null)
@@ -43,16 +53,19 @@ const schedulePresets = computed(() => [
   { label: t('jobs.presetEveryMonth'), value: '0 9 1 * *' },
 ])
 
-const targetOptions = computed(() => [
-  { label: t('jobs.origin'), value: 'origin' },
-  { label: t('jobs.local'), value: 'local' },
-])
-
 const originalSchedule = ref<{ kind: string; raw?: string; expr?: string; display: string } | null>(null)
 
 function editableScheduleValue(schedule: any, fallback: string) {
   if (!schedule || typeof schedule === 'string') return schedule || fallback
   return schedule.raw || schedule.expr || schedule.display || fallback
+}
+
+function splitCsv(value: string) {
+  return value.split(',').map(item => item.trim()).filter(Boolean)
+}
+
+function joinCsv(value?: string[] | null) {
+  return (value || []).join(', ')
 }
 
 onMounted(async () => {
@@ -66,6 +79,16 @@ onMounted(async () => {
         prompt: job.prompt,
         deliver: job.deliver || 'origin',
         repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),
+        skills_text: joinCsv(job.skills),
+        wrap_response: job.wrap_response,
+        script: job.script || '',
+        workdir: job.workdir || '',
+        no_agent: job.no_agent,
+        context_from_text: joinCsv(job.context_from),
+        enabled_toolsets_text: joinCsv(job.enabled_toolsets),
+        provider: job.provider || '',
+        model: job.model || '',
+        base_url: job.base_url || '',
       }
       if (typeof job.schedule === 'object' && job.schedule) {
         originalSchedule.value = job.schedule
@@ -85,19 +108,47 @@ async function handleSave() {
     message.warning(t('jobs.scheduleRequired'))
     return
   }
+  if (formData.value.no_agent && !formData.value.script.trim()) {
+    message.warning(t('jobs.scriptRequiredForNoAgent'))
+    return
+  }
+  if (!formData.value.no_agent && !formData.value.prompt.trim() && splitCsv(formData.value.skills_text).length === 0) {
+    message.warning(t('jobs.promptOrSkillRequired'))
+    return
+  }
 
   loading.value = true
   try {
-    const payload = {
+    const skills = splitCsv(formData.value.skills_text)
+    const contextFrom = splitCsv(formData.value.context_from_text)
+    const enabledToolsets = splitCsv(formData.value.enabled_toolsets_text)
+    const payload: any = {
       name: formData.value.name,
       schedule: formData.value.schedule,
       prompt: formData.value.prompt,
       deliver: formData.value.deliver,
       repeat: formData.value.repeat_times ?? undefined,
+      skills,
+      wrap_response: formData.value.wrap_response,
+      no_agent: formData.value.no_agent,
+      context_from: contextFrom,
+      enabled_toolsets: enabledToolsets,
+    }
+    const nullableFields = [
+      ['script', formData.value.script],
+      ['workdir', formData.value.workdir],
+      ['provider', formData.value.provider],
+      ['model', formData.value.model],
+      ['base_url', formData.value.base_url],
+    ]
+    for (const [key, raw] of nullableFields) {
+      const value = String(raw).trim()
+      if (value) payload[key] = value
+      else if (isEdit.value) payload[key] = null
     }
 
     if (isEdit.value && originalSchedule.value) {
-      (payload as any).schedule = {
+      payload.schedule = {
         kind: originalSchedule.value.kind,
         expr: formData.value.schedule,
         display: formData.value.schedule,
@@ -130,7 +181,7 @@ function handleClose() {
     v-model:show="showModal"
     preset="card"
     :title="isEdit ? t('jobs.editJob') : t('jobs.createJob')"
-    :style="{ width: 'min(520px, calc(100vw - 32px))' }"
+    :style="{ width: 'min(760px, calc(100vw - 32px))' }"
     :mask-closable="!loading"
     @after-leave="emit('close')"
   >
@@ -160,7 +211,23 @@ function handleClose() {
         />
       </NFormItem>
 
-      <NFormItem :label="t('jobs.prompt')" required>
+      <div class="form-grid">
+        <NFormItem :label="t('jobs.skills')">
+          <NInput
+            v-model:value="formData.skills_text"
+            :placeholder="t('jobs.skillsPlaceholder')"
+          />
+        </NFormItem>
+
+        <NFormItem :label="t('jobs.deliverTarget')">
+          <NInput
+            v-model:value="formData.deliver"
+            :placeholder="t('jobs.deliverPlaceholder')"
+          />
+        </NFormItem>
+      </div>
+
+      <NFormItem :label="t('jobs.prompt')" :required="!formData.no_agent">
         <NInput
           v-model:value="formData.prompt"
           type="textarea"
@@ -171,22 +238,69 @@ function handleClose() {
         />
       </NFormItem>
 
-      <NFormItem :label="t('jobs.deliverTarget')">
-        <NSelect
-          v-model:value="formData.deliver"
-          :options="targetOptions"
+      <div class="form-grid">
+        <NFormItem :label="t('jobs.repeatCount')">
+          <NInputNumber
+            v-model:value="formData.repeat_times"
+            :min="1"
+            :placeholder="t('jobs.repeatPlaceholder')"
+            clearable
+            style="width: 100%"
+          />
+        </NFormItem>
+
+        <NFormItem :label="t('jobs.wrapResponse')">
+          <NSwitch v-model:value="formData.wrap_response" />
+        </NFormItem>
+      </div>
+
+      <div class="form-grid">
+        <NFormItem :label="t('jobs.script')">
+          <NInput
+            v-model:value="formData.script"
+            :placeholder="t('jobs.scriptPlaceholder')"
+          />
+        </NFormItem>
+
+        <NFormItem :label="t('jobs.noAgent')">
+          <NSwitch v-model:value="formData.no_agent" />
+        </NFormItem>
+      </div>
+
+      <NFormItem :label="t('jobs.workdir')">
+        <NInput
+          v-model:value="formData.workdir"
+          :placeholder="t('jobs.workdirPlaceholder')"
         />
       </NFormItem>
 
-      <NFormItem :label="t('jobs.repeatCount')">
-        <NInputNumber
-          v-model:value="formData.repeat_times"
-          :min="1"
-          :placeholder="t('jobs.repeatPlaceholder')"
-          clearable
-          style="width: 100%"
-        />
-      </NFormItem>
+      <div class="form-grid">
+        <NFormItem :label="t('jobs.contextFrom')">
+          <NInput
+            v-model:value="formData.context_from_text"
+            :placeholder="t('jobs.contextFromPlaceholder')"
+          />
+        </NFormItem>
+
+        <NFormItem :label="t('jobs.enabledToolsets')">
+          <NInput
+            v-model:value="formData.enabled_toolsets_text"
+            :placeholder="t('jobs.enabledToolsetsPlaceholder')"
+          />
+        </NFormItem>
+      </div>
+
+      <div class="form-grid three">
+        <NFormItem :label="t('jobs.provider')">
+          <NInput v-model:value="formData.provider" :placeholder="t('jobs.providerPlaceholder')" />
+        </NFormItem>
+        <NFormItem :label="t('jobs.model')">
+          <NInput v-model:value="formData.model" :placeholder="t('jobs.modelPlaceholder')" />
+        </NFormItem>
+        <NFormItem :label="t('jobs.baseUrl')">
+          <NInput v-model:value="formData.base_url" :placeholder="t('jobs.baseUrlPlaceholder')" />
+        </NFormItem>
+      </div>
     </NForm>
 
     <template #footer>
@@ -205,5 +319,22 @@ function handleClose() {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+
+  &.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .form-grid,
+  .form-grid.three {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
