@@ -159,6 +159,23 @@ solonclaw:
     enabled: true
     # 每个来源保留的最大 checkpoint 数。
     maxCheckpointsPerSource: 20
+    # 单个文件超过此大小时不进入 checkpoint，避免快照目录膨胀。
+    maxFileSizeMb: 10
+    # checkpoint 默认排除构建产物、依赖目录、大二进制和密钥文件；可按需追加或覆盖。
+    excludePatterns:
+      - node_modules/
+      - dist/
+      - build/
+      - target/
+      - .git/
+      - .worktrees/
+      - "*.jar"
+      - "*.class"
+      - "*.mp4"
+      - "*.zip"
+      - ".env"
+      - ".env.*"
+      - "*.log"
 
   # 中间态显示配置。
   display:

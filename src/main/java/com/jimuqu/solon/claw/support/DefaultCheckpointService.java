@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
@@ -46,19 +47,34 @@ public class DefaultCheckpointService implements CheckpointService {
         manifest.set("sourceKey", sourceKey);
         manifest.set("sessionId", sessionId);
         manifest.getOrNew("files").asArray();
+        manifest.getOrNew("skipped").asArray();
 
         int index = 0;
         for (File file : files) {
             if (file == null) {
                 continue;
             }
+            File canonical = file.getCanonicalFile();
+            String skipReason = skipReason(canonical);
+            if (skipReason != null) {
+                ONode skipped = new ONode().asObject();
+                skipped.set("path", canonical.getAbsolutePath());
+                skipped.set("reason", skipReason);
+                skipped.set("exists", canonical.exists());
+                if (canonical.exists() && canonical.isFile()) {
+                    skipped.set("sizeBytes", canonical.length());
+                }
+                manifest.get("skipped").add(skipped);
+                continue;
+            }
             ONode item = new ONode().asObject();
-            item.set("path", file.getAbsolutePath());
-            item.set("exists", file.exists());
-            if (file.exists()) {
+            item.set("path", canonical.getAbsolutePath());
+            item.set("exists", canonical.exists());
+            if (canonical.exists()) {
                 File snapshotFile = FileUtil.file(rootDir, "file-" + index + ".bak");
-                FileUtil.copy(file, snapshotFile, true);
+                FileUtil.copy(canonical, snapshotFile, true);
                 item.set("snapshot", snapshotFile.getAbsolutePath());
+                item.set("sizeBytes", canonical.length());
             }
             manifest.get("files").add(item);
             index++;
@@ -208,7 +224,21 @@ public class DefaultCheckpointService implements CheckpointService {
             file.put("path", item.get("path").getString());
             file.put("exists", item.get("exists").getBoolean());
             file.put("snapshot", item.get("snapshot").getString());
+            file.put("size_bytes", item.get("sizeBytes").getLong());
             files.add(file);
+        }
+        List<Map<String, Object>> skipped = new ArrayList<Map<String, Object>>();
+        ONode skippedNode = manifest.get("skipped");
+        if (skippedNode != null && skippedNode.isArray()) {
+            for (int i = 0; i < skippedNode.size(); i++) {
+                ONode item = skippedNode.get(i);
+                Map<String, Object> skippedFile = new LinkedHashMap<String, Object>();
+                skippedFile.put("path", item.get("path").getString());
+                skippedFile.put("reason", item.get("reason").getString());
+                skippedFile.put("exists", item.get("exists").getBoolean());
+                skippedFile.put("size_bytes", item.get("sizeBytes").getLong());
+                skipped.add(skippedFile);
+            }
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -218,7 +248,102 @@ public class DefaultCheckpointService implements CheckpointService {
         result.put("created_at", record.getCreatedAt());
         result.put("restored_at", record.getRestoredAt());
         result.put("files", files);
+        result.put("skipped", skipped);
         return result;
+    }
+
+    private String skipReason(File file) throws Exception {
+        String matchedPattern = matchedExcludePattern(file);
+        if (matchedPattern != null) {
+            return "excluded:" + matchedPattern;
+        }
+        if (file.exists() && file.isFile()) {
+            int maxMb = appConfig.getRollback().getMaxFileSizeMb();
+            long maxBytes = Math.max(1L, maxMb) * 1024L * 1024L;
+            if (file.length() > maxBytes) {
+                return "too_large:" + maxMb + "mb";
+            }
+        }
+        return null;
+    }
+
+    private String matchedExcludePattern(File file) throws Exception {
+        List<String> patterns = appConfig.getRollback().getExcludePatterns();
+        if (patterns == null || patterns.isEmpty()) {
+            return null;
+        }
+        String absolute = normalizePath(file.getCanonicalPath());
+        String userDir = normalizePath(new File(System.getProperty("user.dir")).getCanonicalPath());
+        String runtime = normalizePath(new File(appConfig.getRuntime().getHome()).getCanonicalPath());
+        String projectRelative = relativize(userDir, absolute);
+        String runtimeRelative = relativize(runtime, absolute);
+        String name = file.getName();
+        for (String raw : patterns) {
+            String pattern = raw == null ? "" : raw.trim();
+            if (pattern.length() == 0) {
+                continue;
+            }
+            String normalized = normalizePath(pattern);
+            if (matchesPattern(normalized, name)
+                    || matchesPathPattern(normalized, projectRelative)
+                    || matchesPathPattern(normalized, runtimeRelative)
+                    || matchesPathPattern(normalized, absolute)) {
+                return pattern;
+            }
+        }
+        return null;
+    }
+
+    private boolean matchesPathPattern(String pattern, String path) {
+        if (path == null || path.length() == 0) {
+            return false;
+        }
+        if (pattern.endsWith("/")) {
+            String dir = pattern.substring(0, pattern.length() - 1);
+            return path.equals(dir) || path.startsWith(dir + "/") || path.contains("/" + dir + "/");
+        }
+        if (matchesPattern(pattern, path)) {
+            return true;
+        }
+        return path.endsWith("/" + pattern);
+    }
+
+    private boolean matchesPattern(String pattern, String value) {
+        String regex = globToRegex(pattern);
+        return value.toLowerCase(Locale.ROOT).matches(regex);
+    }
+
+    private String globToRegex(String pattern) {
+        StringBuilder regex = new StringBuilder();
+        regex.append("(?i)^");
+        for (int i = 0; i < pattern.length(); i++) {
+            char ch = pattern.charAt(i);
+            if (ch == '*') {
+                regex.append(".*");
+            } else if (ch == '?') {
+                regex.append('.');
+            } else if ("\\.[]{}()+-^$|".indexOf(ch) >= 0) {
+                regex.append('\\').append(ch);
+            } else {
+                regex.append(ch);
+            }
+        }
+        regex.append('$');
+        return regex.toString();
+    }
+
+    private String normalizePath(String path) {
+        return path == null ? "" : path.replace('\\', '/');
+    }
+
+    private String relativize(String root, String path) {
+        if (root == null || root.length() == 0 || path == null || path.length() == 0) {
+            return null;
+        }
+        if (path.equals(root)) {
+            return "";
+        }
+        return path.startsWith(root + "/") ? path.substring(root.length() + 1) : null;
     }
 
     /** 保存 checkpoint 记录。 */

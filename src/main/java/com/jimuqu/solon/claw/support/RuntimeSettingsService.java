@@ -73,6 +73,8 @@ public class RuntimeSettingsService {
                     "agent.heartbeat.intervalMinutes",
                     "rollback.enabled",
                     "rollback.maxCheckpointsPerSource",
+                    "rollback.maxFileSizeMb",
+                    "rollback.excludePatterns",
                     "react.maxSteps",
                     "react.retryMax",
                     "react.retryDelayMs",
@@ -425,6 +427,7 @@ public class RuntimeSettingsService {
                 || "learning.toolCallThreshold".equals(key)
                 || "agent.heartbeat.intervalMinutes".equals(key)
                 || "rollback.maxCheckpointsPerSource".equals(key)
+                || "rollback.maxFileSizeMb".equals(key)
                 || "react.maxSteps".equals(key)
                 || "react.retryMax".equals(key)
                 || "react.retryDelayMs".equals(key)
@@ -469,6 +472,7 @@ public class RuntimeSettingsService {
                 || "security.website_blocklist.domains".equals(key)
                 || "security.website_blocklist.shared_files".equals(key)
                 || "terminal.credentialFiles".equals(key)
+                || "rollback.excludePatterns".equals(key)
                 || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();
             if (value.length() == 0) {

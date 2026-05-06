@@ -345,6 +345,22 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.rollback.maxCheckpointsPerSource",
                                         CheckpointConstants.DEFAULT_MAX_CHECKPOINTS_PER_SOURCE)));
+        config.getRollback()
+                .setMaxFileSizeMb(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.rollback.maxFileSizeMb",
+                                        CheckpointConstants.DEFAULT_MAX_FILE_SIZE_MB)));
+        config.getRollback()
+                .setExcludePatterns(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.rollback.excludePatterns",
+                                        config.getRollback().getExcludePatterns())));
 
         config.getDisplay()
                 .setToolProgress(
@@ -1543,6 +1559,8 @@ public class AppConfig {
     private void copyRollback(RollbackConfig other) {
         this.rollback.setEnabled(other.isEnabled());
         this.rollback.setMaxCheckpointsPerSource(other.getMaxCheckpointsPerSource());
+        this.rollback.setMaxFileSizeMb(other.getMaxFileSizeMb());
+        this.rollback.setExcludePatterns(new ArrayList<String>(other.getExcludePatterns()));
     }
 
     private void copyDisplay(DisplayConfig other) {
@@ -2696,6 +2714,64 @@ public class AppConfig {
         /** 单来源键保留的最大 checkpoint 数。 */
         private int maxCheckpointsPerSource =
                 CheckpointConstants.DEFAULT_MAX_CHECKPOINTS_PER_SOURCE;
+
+        /** 单文件快照大小上限，单位 MB。 */
+        private int maxFileSizeMb = CheckpointConstants.DEFAULT_MAX_FILE_SIZE_MB;
+
+        /** Hermes v2 风格的默认排除模式，避免 checkpoint 膨胀或保存密钥。 */
+        private List<String> excludePatterns =
+                new ArrayList<String>(
+                        Arrays.asList(
+                                "node_modules/",
+                                "dist/",
+                                "build/",
+                                "target/",
+                                "out/",
+                                ".next/",
+                                ".nuxt/",
+                                "__pycache__/",
+                                "*.pyc",
+                                "*.pyo",
+                                ".cache/",
+                                ".pytest_cache/",
+                                ".mypy_cache/",
+                                ".ruff_cache/",
+                                "coverage/",
+                                ".coverage",
+                                ".venv/",
+                                "venv/",
+                                "env/",
+                                ".git/",
+                                ".hg/",
+                                ".svn/",
+                                ".worktrees/",
+                                "*.so",
+                                "*.dylib",
+                                "*.dll",
+                                "*.o",
+                                "*.a",
+                                "*.jar",
+                                "*.class",
+                                "*.exe",
+                                "*.obj",
+                                "*.mp4",
+                                "*.mov",
+                                "*.mkv",
+                                "*.webm",
+                                "*.zip",
+                                "*.tar",
+                                "*.tar.gz",
+                                "*.tgz",
+                                "*.7z",
+                                "*.rar",
+                                "*.iso",
+                                ".env",
+                                ".env.*",
+                                ".env.local",
+                                ".env.*.local",
+                                ".DS_Store",
+                                "Thumbs.db",
+                                "*.log"));
     }
 
     /** 最终回复运行态 footer 配置。 */

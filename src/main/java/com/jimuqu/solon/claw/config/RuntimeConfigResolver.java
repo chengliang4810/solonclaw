@@ -408,6 +408,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.skills.curator.archiveAfterDays",
                 "solonclaw.rollback.enabled",
                 "solonclaw.rollback.maxCheckpointsPerSource",
+                "solonclaw.rollback.maxFileSizeMb",
+                "solonclaw.rollback.excludePatterns",
                 "solonclaw.display.toolProgress",
                 "solonclaw.display.showReasoning",
                 "solonclaw.display.resumeDisplay",

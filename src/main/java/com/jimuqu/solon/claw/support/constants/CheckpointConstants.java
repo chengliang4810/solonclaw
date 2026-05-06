@@ -10,4 +10,7 @@ public interface CheckpointConstants {
 
     /** 默认每个来源键保留的 checkpoint 数。 */
     int DEFAULT_MAX_CHECKPOINTS_PER_SOURCE = 20;
+
+    /** 默认单文件快照上限，单位 MB。 */
+    int DEFAULT_MAX_FILE_SIZE_MB = 10;
 }
