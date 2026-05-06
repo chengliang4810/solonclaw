@@ -260,6 +260,8 @@ solonclaw:
   task:
     # 运行中收到新消息时的处理策略：queue 排队、steer 注入当前 run、interrupt 打断重跑、reject 拒绝。
     busyPolicy: interrupt
+    # /restart 等待运行中任务自然完成的最长时间，单位秒；0 表示不等待，立即让服务管理器重启。
+    restartDrainTimeoutSeconds: 180
     # 单个工具输出超过该字节数时写入 runtime/cache/tool-results，只把预览和 result_ref 放回上下文。
     toolOutputInlineLimit: 50000
     # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。

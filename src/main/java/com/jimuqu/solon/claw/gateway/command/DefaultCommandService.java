@@ -32,6 +32,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.kanban.KanbanService;
@@ -125,6 +126,7 @@ public class DefaultCommandService implements CommandService {
     private final SessionArtifactService sessionArtifactService;
     private final SlashConfirmService slashConfirmService;
     private final DefaultCronScheduler cronScheduler;
+    private final GatewayRestartCoordinator gatewayRestartCoordinator;
 
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -453,6 +455,64 @@ public class DefaultCommandService implements CommandService {
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler cronScheduler) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -482,6 +542,8 @@ public class DefaultCommandService implements CommandService {
                 sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
         this.slashConfirmService = new SlashConfirmService(globalSettingRepository);
         this.cronScheduler = cronScheduler;
+        this.gatewayRestartCoordinator =
+                gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;
     }
 
     /** 判断当前命令是否由默认命令服务承接。 */
@@ -499,6 +561,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_BUSY,
                         GatewayCommandConstants.COMMAND_QUEUE,
                         GatewayCommandConstants.COMMAND_STEER,
+                        GatewayCommandConstants.COMMAND_RESTART,
                         GatewayCommandConstants.COMMAND_REASONING,
                         GatewayCommandConstants.COMMAND_STOP,
                         GatewayCommandConstants.COMMAND_YOLO,
@@ -677,6 +740,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_STEER.equals(command)) {
             return handleSteer(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_RESTART.equals(command)) {
+            return handleRestart(message);
         }
 
         if (GatewayCommandConstants.COMMAND_REASONING.equals(command)) {
@@ -992,6 +1059,44 @@ public class DefaultCommandService implements CommandService {
 
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         GatewayReply reply = GatewayReply.ok(buffer.toString());
+        if (session != null) {
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+        }
+        return reply;
+    }
+
+    private GatewayReply handleRestart(GatewayMessage message) throws Exception {
+        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
+        int activeRuns =
+                agentRunControlService == null ? 0 : agentRunControlService.runningRunCount();
+        GatewayRestartCoordinator.RestartRequest request =
+                gatewayRestartCoordinator.requestRestartDrain(message.sourceKey(), activeRuns);
+        StringBuilder buffer = new StringBuilder();
+        if (!request.isFirstRequest()) {
+            buffer.append("网关重启已在进行中");
+            if (activeRuns > 0) {
+                buffer.append("，仍有 ").append(activeRuns).append(" 个任务等待 drain。");
+            } else {
+                buffer.append("。");
+            }
+        } else if (activeRuns > 0) {
+            buffer.append("网关将重启，正在等待 ")
+                    .append(activeRuns)
+                    .append(" 个运行中任务完成；最长等待 ")
+                    .append(request.getDrainTimeoutSeconds())
+                    .append(" 秒。");
+        } else {
+            buffer.append("网关将立即重启。");
+        }
+        buffer.append("\n如果 60 秒内没有收到恢复通知，请在控制台检查 java -jar 或 Docker 进程。");
+
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("restart_requested", Boolean.TRUE);
+        reply.getRuntimeMetadata().put("restart_first_request", Boolean.valueOf(request.isFirstRequest()));
+        reply.getRuntimeMetadata().put("restart_active_runs", Integer.valueOf(activeRuns));
+        reply.getRuntimeMetadata()
+                .put("restart_drain_timeout_seconds", Integer.valueOf(request.getDrainTimeoutSeconds()));
         if (session != null) {
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
@@ -3022,6 +3127,7 @@ public class DefaultCommandService implements CommandService {
                                 "查看或切换运行中输入策略"),
                         helpLine(GatewayCommandConstants.SLASH_QUEUE + " <prompt>", "将提示排到当前任务之后执行"),
                         helpLine(GatewayCommandConstants.SLASH_STEER + " <prompt>", "向运行中任务注入修正；空闲时按普通提示执行"),
+                        helpLine(GatewayCommandConstants.SLASH_RESTART, "等待运行中任务 drain 后重启网关"),
                         helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"),
                         helpLine(GatewayCommandConstants.SLASH_YOLO, "切换当前会话的危险命令自动批准模式"),
                         helpLine(

@@ -51,6 +51,7 @@ import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
+import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
@@ -127,6 +128,7 @@ public class TestEnvironment {
     public final SqliteDatabase sqliteDatabase;
     public final CommandService commandService;
     public final KanbanService kanbanService;
+    public final GatewayRestartCoordinator gatewayRestartCoordinator;
 
     public static TestEnvironment withFakeLlm() throws Exception {
         return create(new FakeLlmGateway());
@@ -336,6 +338,16 @@ public class TestEnvironment {
                         localSkillService,
                         checkpointService,
                         llmGateway);
+        GatewayRestartCoordinator gatewayRestartCoordinator =
+                new GatewayRestartCoordinator(
+                        config,
+                        agentRunSupervisor,
+                        new GatewayRestartCoordinator.RestartExitHandler() {
+                            @Override
+                            public void restartAfterDrain(boolean timedOut) {
+                                // Tests assert coordinator state without exiting the JVM.
+                            }
+                        });
         CommandService commandService =
                 new DefaultCommandService(
                         sessionRepository,
@@ -362,7 +374,9 @@ public class TestEnvironment {
                         kanbanService,
                         dashboardMcpService,
                         goalService,
-                        new SessionArtifactService(config));
+                        new SessionArtifactService(config),
+                        null,
+                        gatewayRestartCoordinator);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,
@@ -401,7 +415,8 @@ public class TestEnvironment {
                 refreshService,
                 database,
                 commandService,
-                kanbanService);
+                kanbanService,
+                gatewayRestartCoordinator);
     }
 
     public GatewayMessage message(String chatId, String userId, String text) {

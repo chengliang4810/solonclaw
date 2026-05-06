@@ -36,6 +36,7 @@ public class CoreConfigOverrideLoadTest {
                         + "    toolPreviewLength: 1600\n"
                         + "  task:\n"
                         + "    busyPolicy: steer\n"
+                        + "    restartDrainTimeoutSeconds: 240\n"
                         + "    staleAfterMinutes: 45\n"
                         + "    subagentMaxConcurrency: 5\n"
                         + "    subagentMaxDepth: 2\n"
@@ -123,6 +124,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTrace().getMaxAttempts()).isEqualTo(4);
         assertThat(config.getTrace().getToolPreviewLength()).isEqualTo(1600);
         assertThat(config.getTask().getBusyPolicy()).isEqualTo("steer");
+        assertThat(config.getTask().getRestartDrainTimeoutSeconds()).isEqualTo(240);
         assertThat(config.getTask().getStaleAfterMinutes()).isEqualTo(45);
         assertThat(config.getTask().getSubagentMaxConcurrency()).isEqualTo(5);
         assertThat(config.getTask().getSubagentMaxDepth()).isEqualTo(2);

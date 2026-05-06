@@ -37,6 +37,7 @@ import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
+import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -149,6 +150,12 @@ public class GatewayConfiguration {
         return new GoalService(sessionRepository);
     }
 
+    @Bean(destroyMethod = "shutdown")
+    public GatewayRestartCoordinator gatewayRestartCoordinator(
+            AppConfig appConfig, AgentRunControlService agentRunControlService) {
+        return new GatewayRestartCoordinator(appConfig, agentRunControlService);
+    }
+
     @Bean
     public CommandService commandService(
             SessionRepository sessionRepository,
@@ -176,7 +183,8 @@ public class GatewayConfiguration {
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
-            DefaultCronScheduler defaultCronScheduler) {
+            DefaultCronScheduler defaultCronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -203,7 +211,8 @@ public class GatewayConfiguration {
                 dashboardMcpService,
                 goalService,
                 sessionArtifactService,
-                defaultCronScheduler);
+                defaultCronScheduler,
+                gatewayRestartCoordinator);
     }
 
     @Bean

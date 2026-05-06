@@ -578,6 +578,7 @@ public class AcpStdioServer {
         addCommand(commands, "skills", "管理本地技能与 Skills Hub");
         addCommand(commands, "reload-mcp", "重新加载 MCP 工具");
         addCommand(commands, "busy", "查看或切换运行中输入策略");
+        addCommand(commands, "restart", "等待运行中任务 drain 后重启网关");
         addCommand(commands, "goal", "设置跨轮长目标并自动继续");
         addCommand(commands, "recap", "显示恢复会话用的紧凑历史摘要");
         addCommand(commands, "trajectory", "导出 Hermes-style trajectory JSON");

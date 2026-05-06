@@ -1194,6 +1194,16 @@ public class AppConfig {
                                 readString(
                                         props, overrides, "solonclaw.task.busyPolicy", "interrupt")));
         config.getTask()
+                .setRestartDrainTimeoutSeconds(
+                        Math.max(
+                                0,
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.restartDrainTimeoutSeconds",
+                                                180))));
+        config.getTask()
                 .setStaleAfterMinutes(
                         resolveInt(
                                 readInt(props, overrides, "solonclaw.task.staleAfterMinutes", 60)));
@@ -1741,6 +1751,7 @@ public class AppConfig {
 
     private void copyTask(TaskConfig other) {
         this.task.setBusyPolicy(other.getBusyPolicy());
+        this.task.setRestartDrainTimeoutSeconds(other.getRestartDrainTimeoutSeconds());
         this.task.setStaleAfterMinutes(other.getStaleAfterMinutes());
         this.task.setSubagentMaxConcurrency(other.getSubagentMaxConcurrency());
         this.task.setSubagentMaxDepth(other.getSubagentMaxDepth());
@@ -3063,6 +3074,9 @@ public class AppConfig {
     public static class TaskConfig {
         /** 同一会话 busy 时的默认策略：queue / interrupt / steer / reject。 */
         private String busyPolicy = "interrupt";
+
+        /** /restart 等待运行中任务 drain 的最长时间，单位秒；0 表示立即重启。 */
+        private int restartDrainTimeoutSeconds = 180;
 
         /** stale run 判定窗口，单位分钟。 */
         private int staleAfterMinutes = 60;

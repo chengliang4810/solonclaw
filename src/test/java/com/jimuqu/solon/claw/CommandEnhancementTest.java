@@ -133,6 +133,32 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldRequestGracefulGatewayRestartDrain() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.appConfig.getTask().setRestartDrainTimeoutSeconds(180);
+
+        GatewayReply restart = env.send("admin-chat", "admin-user", "/restart");
+
+        assertThat(restart.getContent()).contains("网关将立即重启").contains("60 秒");
+        assertThat(restart.getRuntimeMetadata())
+                .containsEntry("restart_requested", Boolean.TRUE)
+                .containsEntry("restart_first_request", Boolean.TRUE)
+                .containsEntry("restart_active_runs", 0)
+                .containsEntry("restart_drain_timeout_seconds", 180);
+        assertThat(env.gatewayRestartCoordinator.isRestartRequested()).isTrue();
+        assertThat(env.gatewayRestartCoordinator.getRequesterSourceKey())
+                .isEqualTo("MEMORY:admin-chat:admin-user");
+
+        GatewayReply repeated = env.send("admin-chat", "admin-user", "/restart");
+        assertThat(repeated.getContent()).contains("网关重启已在进行中");
+        assertThat(repeated.getRuntimeMetadata()).containsEntry("restart_first_request", Boolean.FALSE);
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/restart").contains("drain");
+    }
+
+    @Test
     void shouldSupportExplicitQueueAndSteerCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

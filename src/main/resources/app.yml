@@ -75,6 +75,7 @@ solonclaw.react.summarizationMaxTokens: 32000
 
 # 运行中输入策略
 solonclaw.task.busyPolicy: interrupt
+solonclaw.task.restartDrainTimeoutSeconds: 180
 solonclaw.task.toolOutputInlineLimit: 4000
 solonclaw.task.toolOutputTurnBudget: 200000
 

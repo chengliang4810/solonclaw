@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -89,6 +90,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         return AgentRunStopResult.stopped(
                 handle.runId, handle.sessionId, interruptSent, handle.startedAt);
+    }
+
+    @Override
+    public int stopAllRunningRuns() {
+        int stopped = 0;
+        for (String sourceKey : new ArrayList<String>(runningRuns.keySet())) {
+            if (stop(sourceKey).isActiveRun()) {
+                stopped++;
+            }
+        }
+        return stopped;
     }
 
     @Override
@@ -325,6 +337,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
     @Override
     public boolean hasRunningRuns() {
         return !runningRuns.isEmpty();
+    }
+
+    @Override
+    public int runningRunCount() {
+        return runningRuns.size();
     }
 
     @Override

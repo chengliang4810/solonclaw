@@ -18,6 +18,16 @@ public interface AgentRunControlService {
         return false;
     }
 
+    /** Number of currently active source runs. */
+    default int runningRunCount() {
+        return hasRunningRuns() ? 1 : 0;
+    }
+
+    /** Request cancellation of every currently active run. */
+    default int stopAllRunningRuns() {
+        return 0;
+    }
+
     /** Last time any run finished. A zero value means no completed run is known. */
     default long lastRunFinishedAt() {
         return 0L;

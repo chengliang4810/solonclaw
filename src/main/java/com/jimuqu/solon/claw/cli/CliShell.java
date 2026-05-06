@@ -19,7 +19,7 @@ public class CliShell {
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
-                "/kanban", "/deny", "/stop", "/compress", "/rollback", "/version",
+                "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
                 "/platforms", "/exit", "/quit"
             };
 

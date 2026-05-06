@@ -23,7 +23,7 @@ public class TuiShell {
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
-                "/kanban", "/stop", "/compress", "/rollback", "/version", "/exit"
+                "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/exit"
             };
 
     private final CliRuntime cliRuntime;
