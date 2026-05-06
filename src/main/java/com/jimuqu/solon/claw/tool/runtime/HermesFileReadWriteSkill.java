@@ -31,12 +31,13 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     private final SecurityPolicyService securityPolicyService;
     private final int maxLines;
     private final int maxLineLength;
+    private final HermesFileStateTracker fileStateTracker;
     private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
     private ReadKey lastReadKey;
     private int consecutiveReadCount;
 
     public HermesFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
-        this(workDir, securityPolicyService, 2000, 2000);
+        this(workDir, securityPolicyService, 2000, 2000, new HermesFileStateTracker());
     }
 
     public HermesFileReadWriteSkill(
@@ -44,12 +45,22 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
             SecurityPolicyService securityPolicyService,
             int maxLines,
             int maxLineLength) {
+        this(workDir, securityPolicyService, maxLines, maxLineLength, new HermesFileStateTracker());
+    }
+
+    public HermesFileReadWriteSkill(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            int maxLines,
+            int maxLineLength,
+            HermesFileStateTracker fileStateTracker) {
         super(workDir);
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
         this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
         this.maxLines = Math.max(1, maxLines);
         this.maxLineLength = Math.max(1, maxLineLength);
+        this.fileStateTracker = fileStateTracker == null ? new HermesFileStateTracker() : fileStateTracker;
     }
 
     @Override
@@ -57,9 +68,18 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
         assertSafe(ToolNameConstants.FILE_WRITE, fileName);
         assertNotInternalFileStatusContent(content);
-        assertContained(fileName);
+        Path target = resolvePath(fileName);
+        String staleWarning = fileStateTracker.checkStaleness(fileName, target);
         String result = super.write(fileName, content);
         clearReadDedup(fileName);
+        fileStateTracker.recordWrite(target);
+        if (StrUtil.isNotBlank(staleWarning)) {
+            ToolResultEnvelope envelope =
+                    StrUtil.startWith(result, "写入失败")
+                            ? ToolResultEnvelope.error(result)
+                            : ToolResultEnvelope.ok(result);
+            return envelope.data("path", fileName).data("_warning", staleWarning).toJson();
+        }
         return result;
     }
 
@@ -176,6 +196,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
             boolean truncated = totalLines > endLine;
             String content = SecretRedactor.redact(joinLines(selected));
             ReadStatus readStatus = recordRead(fileName, readKey, targetFile);
+            fileStateTracker.recordRead(target);
             if (readStatus.blocked) {
                 return ToolResultEnvelope.error(readStatus.message)
                         .data("path", fileName)

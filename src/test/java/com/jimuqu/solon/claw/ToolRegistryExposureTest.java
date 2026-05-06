@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.HermesCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.HermesFileReadWriteSkill;
+import com.jimuqu.solon.claw.tool.runtime.HermesFileStateTracker;
+import com.jimuqu.solon.claw.tool.runtime.HermesPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.HermesWebTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -815,6 +818,74 @@ public class ToolRegistryExposureTest {
 
         assertThat(changed.get("success").getBoolean()).isTrue();
         assertThat(changed.get("content").getString()).contains("delta");
+    }
+
+    @Test
+    void shouldWarnButNotBlockWhenWritingStaleReadFileLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path file = workspace.resolve("stale-write.txt");
+        Files.write(file, Arrays.asList("alpha"), StandardCharsets.UTF_8);
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode read = ONode.ofJson(fileSkill.read("stale-write.txt", 1, 2));
+        Files.write(file, Arrays.asList("external"), StandardCharsets.UTF_8);
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 5000L));
+        ONode staleWrite = ONode.ofJson(fileSkill.write("stale-write.txt", "agent\n"));
+        String plainWrite = fileSkill.write("stale-write.txt", "agent2\n");
+
+        assertThat(read.get("success").getBoolean()).isTrue();
+        assertThat(staleWrite.get("success").getBoolean()).isTrue();
+        assertThat(staleWrite.get("_warning").getString())
+                .contains("was modified since you last read")
+                .contains("stale-write.txt");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8)).contains("agent2");
+        assertThat(plainWrite).contains("文件保存成功").doesNotContain("_warning");
+    }
+
+    @Test
+    void shouldWarnWhenPatchingStaleReadFileLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path file = workspace.resolve("stale-patch.txt");
+        Files.write(file, Arrays.asList("alpha", "bravo"), StandardCharsets.UTF_8);
+        HermesFileStateTracker tracker = new HermesFileStateTracker();
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig),
+                        2000,
+                        2000,
+                        tracker);
+        HermesPatchTools patchTools =
+                new HermesPatchTools(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig),
+                        tracker);
+
+        ONode read = ONode.ofJson(fileSkill.read("stale-patch.txt", 1, 2));
+        Files.write(file, Arrays.asList("external", "bravo"), StandardCharsets.UTF_8);
+        Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis() + 5000L));
+        ONode patched =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "replace",
+                                "stale-patch.txt",
+                                "external",
+                                "agent",
+                                Boolean.FALSE,
+                                null));
+
+        assertThat(read.get("success").getBoolean()).isTrue();
+        assertThat(patched.get("success").getBoolean()).isTrue();
+        assertThat(patched.get("_warning").getString())
+                .contains("was modified since you last read")
+                .contains("stale-patch.txt");
+        assertThat(patched.get("warnings").size()).isEqualTo(1);
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8)).contains("agent");
     }
 
     @Test

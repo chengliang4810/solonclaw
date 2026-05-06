@@ -20,16 +20,25 @@ public class HermesPatchTools {
     private final Path rootPath;
     private final Path realRootPath;
     private final SecurityPolicyService securityPolicyService;
+    private final HermesFileStateTracker fileStateTracker;
 
     public HermesPatchTools(String workDir) {
         this(workDir, null);
     }
 
     public HermesPatchTools(String workDir, SecurityPolicyService securityPolicyService) {
+        this(workDir, securityPolicyService, new HermesFileStateTracker());
+    }
+
+    public HermesPatchTools(
+            String workDir,
+            SecurityPolicyService securityPolicyService,
+            HermesFileStateTracker fileStateTracker) {
         String dir = StrUtil.blankToDefault(workDir, ".");
         this.rootPath = Paths.get(dir).toAbsolutePath().normalize();
         this.realRootPath = safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
+        this.fileStateTracker = fileStateTracker == null ? new HermesFileStateTracker() : fileStateTracker;
         try {
             Files.createDirectories(this.rootPath);
         } catch (IOException ignored) {
@@ -99,6 +108,7 @@ public class HermesPatchTools {
         if (!Files.exists(target) || Files.isDirectory(target)) {
             return PatchResult.error("Cannot read file: " + filePath);
         }
+        String staleWarning = fileStateTracker.checkStaleness(filePath, target);
         String content = read(target);
         List<Integer> matches = findMatches(content, oldString);
         if (matches.isEmpty()) {
@@ -115,10 +125,12 @@ public class HermesPatchTools {
 
         String updated = replaceMatches(content, oldString, newString, matches);
         write(target, updated);
+        fileStateTracker.recordWrite(target);
 
         PatchResult result = PatchResult.success();
         result.filesModified.add(normalizePath(filePath));
         result.diff = simpleDiff(normalizePath(filePath), content, updated);
+        result.addWarning(staleWarning);
         return result;
     }
 
@@ -330,19 +342,25 @@ public class HermesPatchTools {
         if ("add".equals(operation.type)) {
             String content = collectAddContent(operation);
             write(target, content);
+            fileStateTracker.recordWrite(target);
             result.filesCreated.add(normalizePath(operation.filePath));
             diff.append(simpleDiff(normalizePath(operation.filePath), "", content));
         } else if ("delete".equals(operation.type)) {
+            result.addWarning(fileStateTracker.checkStaleness(operation.filePath, target));
             String old = read(target);
             Files.delete(target);
+            fileStateTracker.recordWrite(target);
             result.filesDeleted.add(normalizePath(operation.filePath));
             diff.append(simpleDiff(normalizePath(operation.filePath), old, ""));
         } else if ("move".equals(operation.type)) {
+            result.addWarning(fileStateTracker.checkStaleness(operation.filePath, target));
             Path destination = resolvePath(operation.newPath);
             if (destination.getParent() != null) {
                 Files.createDirectories(destination.getParent());
             }
             Files.move(target, destination, StandardCopyOption.ATOMIC_MOVE);
+            fileStateTracker.recordWrite(target);
+            fileStateTracker.recordWrite(destination);
             result.filesModified.add(normalizePath(operation.filePath) + " -> " + normalizePath(operation.newPath));
             diff.append("# Moved: ")
                     .append(normalizePath(operation.filePath))
@@ -350,6 +368,7 @@ public class HermesPatchTools {
                     .append(normalizePath(operation.newPath))
                     .append('\n');
         } else if ("update".equals(operation.type)) {
+            result.addWarning(fileStateTracker.checkStaleness(operation.filePath, target));
             String old = read(target);
             ApplyResult applied = applyHunks(old, operation.hunks);
             if (!applied.success) {
@@ -359,10 +378,13 @@ public class HermesPatchTools {
                 Path destination = resolvePath(operation.newPath);
                 write(destination, applied.content);
                 Files.delete(target);
+                fileStateTracker.recordWrite(target);
+                fileStateTracker.recordWrite(destination);
                 result.filesModified.add(normalizePath(operation.filePath) + " -> " + normalizePath(operation.newPath));
                 diff.append(simpleDiff(normalizePath(operation.newPath), old, applied.content));
             } else {
                 write(target, applied.content);
+                fileStateTracker.recordWrite(target);
                 result.filesModified.add(normalizePath(operation.filePath));
                 diff.append(simpleDiff(normalizePath(operation.filePath), old, applied.content));
             }
@@ -612,6 +634,8 @@ public class HermesPatchTools {
         public boolean success;
         public String error;
         public String diff;
+        public String _warning;
+        public List<String> warnings = new ArrayList<String>();
         public List<String> files_modified = new ArrayList<String>();
         public List<String> files_created = new ArrayList<String>();
         public List<String> files_deleted = new ArrayList<String>();
@@ -631,6 +655,18 @@ public class HermesPatchTools {
             result.success = false;
             result.error = StrUtil.blankToDefault(error, "patch failed");
             return result;
+        }
+
+        private void addWarning(String warning) {
+            if (StrUtil.isBlank(warning)) {
+                return;
+            }
+            warnings.add(warning);
+            if (StrUtil.isBlank(_warning)) {
+                _warning = warning;
+            } else {
+                _warning = _warning + "\n" + warning;
+            }
         }
     }
 
