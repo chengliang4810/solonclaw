@@ -46,6 +46,7 @@ import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
+import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -71,6 +72,11 @@ public class ToolConfiguration {
     @Bean
     public ToolResultTransformService toolResultTransformService() {
         return new ToolResultTransformService();
+    }
+
+    @Bean
+    public ToolCallLoopGuardrailService toolCallLoopGuardrailService(AppConfig appConfig) {
+        return new ToolCallLoopGuardrailService(appConfig);
     }
 
     @Bean
@@ -199,13 +205,15 @@ public class ToolConfiguration {
             SessionRepository sessionRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             LlmProviderService llmProviderService,
-            ToolResultTransformService toolResultTransformService) {
+            ToolResultTransformService toolResultTransformService,
+            ToolCallLoopGuardrailService toolCallLoopGuardrailService) {
         return new SolonAiLlmGateway(
                 appConfig,
                 sessionRepository,
                 dangerousCommandApprovalService,
                 llmProviderService,
-                toolResultTransformService);
+                toolResultTransformService,
+                toolCallLoopGuardrailService);
     }
 
     @Bean

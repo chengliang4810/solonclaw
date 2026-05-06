@@ -84,6 +84,14 @@ public class RuntimeSettingsService {
                     "react.summarizationEnabled",
                     "react.summarizationMaxMessages",
                     "react.summarizationMaxTokens",
+                    "react.toolLoopWarningsEnabled",
+                    "react.toolLoopHardStopEnabled",
+                    "react.toolLoopExactFailureWarnAfter",
+                    "react.toolLoopExactFailureBlockAfter",
+                    "react.toolLoopSameToolFailureWarnAfter",
+                    "react.toolLoopSameToolFailureHaltAfter",
+                    "react.toolLoopNoProgressWarnAfter",
+                    "react.toolLoopNoProgressBlockAfter",
                     "gateway.allowedUsers",
                     "gateway.allowAllUsers",
                     "gateway.injectionSecret",
@@ -439,6 +447,12 @@ public class RuntimeSettingsService {
                 || "react.delegateRetryDelayMs".equals(key)
                 || "react.summarizationMaxMessages".equals(key)
                 || "react.summarizationMaxTokens".equals(key)
+                || "react.toolLoopExactFailureWarnAfter".equals(key)
+                || "react.toolLoopExactFailureBlockAfter".equals(key)
+                || "react.toolLoopSameToolFailureWarnAfter".equals(key)
+                || "react.toolLoopSameToolFailureHaltAfter".equals(key)
+                || "react.toolLoopNoProgressWarnAfter".equals(key)
+                || "react.toolLoopNoProgressBlockAfter".equals(key)
                 || "compression.protectHeadMessages".equals(key)
                 || "skills.curator.intervalHours".equals(key)
                 || "skills.curator.staleAfterDays".equals(key)
@@ -455,7 +469,9 @@ public class RuntimeSettingsService {
                 || "terminal.maxForegroundTimeoutSeconds".equals(key)) {
             return Integer.valueOf(value);
         }
-        if ("react.summarizationEnabled".equals(key)) {
+        if ("react.summarizationEnabled".equals(key)
+                || "react.toolLoopWarningsEnabled".equals(key)
+                || "react.toolLoopHardStopEnabled".equals(key)) {
             return "true".equalsIgnoreCase(value)
                     || "1".equals(value)
                     || "yes".equalsIgnoreCase(value);

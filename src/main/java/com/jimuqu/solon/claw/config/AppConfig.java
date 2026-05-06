@@ -1054,6 +1054,126 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.react.summarizationMaxTokens",
                                         32000)));
+        config.getReact()
+                .setToolLoopWarningsEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopWarningsEnabled",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.warnings_enabled",
+                                                true))));
+        config.getReact()
+                .setToolLoopHardStopEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopHardStopEnabled",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.hard_stop_enabled",
+                                                false))));
+        config.getReact()
+                .setToolLoopExactFailureWarnAfter(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopExactFailureWarnAfter",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.warn_after.exact_failure",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_loop_guardrails.exact_failure_warn_after",
+                                                        2)))));
+        config.getReact()
+                .setToolLoopExactFailureBlockAfter(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopExactFailureBlockAfter",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.hard_stop_after.exact_failure",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_loop_guardrails.exact_failure_block_after",
+                                                        5)))));
+        config.getReact()
+                .setToolLoopSameToolFailureWarnAfter(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopSameToolFailureWarnAfter",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.warn_after.same_tool_failure",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_loop_guardrails.same_tool_failure_warn_after",
+                                                        3)))));
+        config.getReact()
+                .setToolLoopSameToolFailureHaltAfter(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopSameToolFailureHaltAfter",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.hard_stop_after.same_tool_failure",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_loop_guardrails.same_tool_failure_halt_after",
+                                                        8)))));
+        config.getReact()
+                .setToolLoopNoProgressWarnAfter(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopNoProgressWarnAfter",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.warn_after.idempotent_no_progress",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_loop_guardrails.no_progress_warn_after",
+                                                        2)))));
+        config.getReact()
+                .setToolLoopNoProgressBlockAfter(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.react.toolLoopNoProgressBlockAfter",
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "tool_loop_guardrails.hard_stop_after.idempotent_no_progress",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_loop_guardrails.no_progress_block_after",
+                                                        5)))));
         config.getTrace()
                 .setRetentionDays(
                         resolveInt(readInt(props, overrides, "solonclaw.trace.retentionDays", 14)));
@@ -1585,6 +1705,14 @@ public class AppConfig {
         this.react.setSummarizationEnabled(other.isSummarizationEnabled());
         this.react.setSummarizationMaxMessages(other.getSummarizationMaxMessages());
         this.react.setSummarizationMaxTokens(other.getSummarizationMaxTokens());
+        this.react.setToolLoopWarningsEnabled(other.isToolLoopWarningsEnabled());
+        this.react.setToolLoopHardStopEnabled(other.isToolLoopHardStopEnabled());
+        this.react.setToolLoopExactFailureWarnAfter(other.getToolLoopExactFailureWarnAfter());
+        this.react.setToolLoopExactFailureBlockAfter(other.getToolLoopExactFailureBlockAfter());
+        this.react.setToolLoopSameToolFailureWarnAfter(other.getToolLoopSameToolFailureWarnAfter());
+        this.react.setToolLoopSameToolFailureHaltAfter(other.getToolLoopSameToolFailureHaltAfter());
+        this.react.setToolLoopNoProgressWarnAfter(other.getToolLoopNoProgressWarnAfter());
+        this.react.setToolLoopNoProgressBlockAfter(other.getToolLoopNoProgressBlockAfter());
     }
 
     private void copyTrace(TraceConfig other) {
@@ -2870,6 +2998,30 @@ public class AppConfig {
 
         /** ReAct 摘要守卫触发的 token 阈值。 */
         private int summarizationMaxTokens = 32000;
+
+        /** 是否启用重复工具调用软提醒。 */
+        private boolean toolLoopWarningsEnabled = true;
+
+        /** 是否启用重复工具调用硬停。 */
+        private boolean toolLoopHardStopEnabled = false;
+
+        /** 相同参数失败达到该次数后提醒。 */
+        private int toolLoopExactFailureWarnAfter = 2;
+
+        /** 相同参数失败达到该次数后，在硬停模式下阻断下一次执行。 */
+        private int toolLoopExactFailureBlockAfter = 5;
+
+        /** 同一工具连续失败达到该次数后提醒。 */
+        private int toolLoopSameToolFailureWarnAfter = 3;
+
+        /** 同一工具连续失败达到该次数后，在硬停模式下终止本轮。 */
+        private int toolLoopSameToolFailureHaltAfter = 8;
+
+        /** 只读工具相同结果达到该次数后提醒。 */
+        private int toolLoopNoProgressWarnAfter = 2;
+
+        /** 只读工具相同结果达到该次数后，在硬停模式下阻断下一次执行。 */
+        private int toolLoopNoProgressBlockAfter = 5;
     }
 
     @Getter

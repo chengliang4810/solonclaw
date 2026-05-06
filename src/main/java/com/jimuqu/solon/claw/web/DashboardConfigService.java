@@ -240,6 +240,54 @@ public class DashboardConfigService {
                         "ReAct 摘要触发 token 阈值"));
         addField(
                 new FieldDefinition(
+                        "react.toolLoopWarningsEnabled",
+                        "boolean",
+                        "security",
+                        "启用重复工具调用软提醒"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopHardStopEnabled",
+                        "boolean",
+                        "security",
+                        "启用重复工具调用硬停"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopExactFailureWarnAfter",
+                        "number",
+                        "security",
+                        "相同参数失败提醒阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopExactFailureBlockAfter",
+                        "number",
+                        "security",
+                        "相同参数失败硬停阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopSameToolFailureWarnAfter",
+                        "number",
+                        "security",
+                        "同一工具失败提醒阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopSameToolFailureHaltAfter",
+                        "number",
+                        "security",
+                        "同一工具失败硬停阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopNoProgressWarnAfter",
+                        "number",
+                        "security",
+                        "只读工具无进展提醒阈值"));
+        addField(
+                new FieldDefinition(
+                        "react.toolLoopNoProgressBlockAfter",
+                        "number",
+                        "security",
+                        "只读工具无进展硬停阈值"));
+        addField(
+                new FieldDefinition(
                         "agent.personalities.helpful.description",
                         "string",
                         "agent",

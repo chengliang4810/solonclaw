@@ -239,6 +239,22 @@ solonclaw:
     summarizationMaxMessages: 40
     # ReAct 摘要守卫触发的 token 阈值。
     summarizationMaxTokens: 32000
+    # 是否启用重复工具调用软提醒。默认只提醒，不阻断工具执行。
+    toolLoopWarningsEnabled: true
+    # 是否启用重复工具调用硬停。开启后，相同失败或只读无进展达到阈值会停止本轮。
+    toolLoopHardStopEnabled: false
+    # 相同工具和相同参数连续失败达到该次数后，在工具结果中追加提醒。
+    toolLoopExactFailureWarnAfter: 2
+    # 相同工具和相同参数连续失败达到该次数后，硬停模式下阻断下一次执行。
+    toolLoopExactFailureBlockAfter: 5
+    # 同一工具连续失败达到该次数后，在工具结果中追加提醒。
+    toolLoopSameToolFailureWarnAfter: 3
+    # 同一工具连续失败达到该次数后，硬停模式下终止本轮。
+    toolLoopSameToolFailureHaltAfter: 8
+    # 只读工具相同参数连续返回相同结果达到该次数后，在工具结果中追加提醒。
+    toolLoopNoProgressWarnAfter: 2
+    # 只读工具相同参数连续返回相同结果达到该次数后，硬停模式下阻断下一次执行。
+    toolLoopNoProgressBlockAfter: 5
 
   # 任务运行策略配置。
   task:
