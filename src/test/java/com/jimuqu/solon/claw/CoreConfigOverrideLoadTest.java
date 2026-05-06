@@ -52,6 +52,8 @@ public class CoreConfigOverrideLoadTest {
                         + "      - TENOR_API_KEY\n"
                         + "    sudoPassword: runtime-pass\n"
                         + "    writeSafeRoot: D:/workspace/runtime\n"
+                        + "    foregroundMaxRetries: 4\n"
+                        + "    foregroundRetryBaseDelaySeconds: 1\n"
                         + "  skills:\n"
                         + "    externalDirs:\n"
                         + "      - external/team-skills\n"
@@ -138,6 +140,8 @@ public class CoreConfigOverrideLoadTest {
                 .containsExactly("credentials/oauth.json");
         assertThat(config.getTerminal().getSudoPassword()).isEqualTo("runtime-pass");
         assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/runtime");
+        assertThat(config.getTerminal().getForegroundMaxRetries()).isEqualTo(4);
+        assertThat(config.getTerminal().getForegroundRetryBaseDelaySeconds()).isEqualTo(1);
         assertThat(config.getSkills().getExternalDirs()).containsExactly("external/team-skills");
         assertThat(config.getMcp().isEnabled()).isTrue();
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();

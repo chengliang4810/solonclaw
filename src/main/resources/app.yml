@@ -84,6 +84,8 @@ solonclaw.terminal.credentialFiles:
 solonclaw.terminal.sudoPassword:
 solonclaw.terminal.writeSafeRoot:
 solonclaw.terminal.maxForegroundTimeoutSeconds: 600
+solonclaw.terminal.foregroundMaxRetries: 3
+solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2
 
 # 安全策略
 solonclaw.security.allowPrivateUrls: false

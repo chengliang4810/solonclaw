@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
+import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.file.Files;
@@ -612,6 +613,54 @@ public class SolonClawShellSkillTest {
         assertThat(success.get("exit_code_meaning").isNull()).isTrue();
         assertThat(failed.get("exit_code").getInt()).isEqualTo(7);
         assertThat(failed.get("error").isNull()).isTrue();
+    }
+
+    @Test
+    void shouldRetryForegroundTerminalExecutionFailuresLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setForegroundMaxRetries(3);
+        config.getTerminal().setForegroundRetryBaseDelaySeconds(0);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(
+                        workdir,
+                        new File(workdir, "missing-shell").getAbsolutePath(),
+                        ".sh",
+                        config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo never-runs",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("retry_count").getInt()).isEqualTo(3);
+        assertThat(result.get("error").getString()).contains("系统失败");
+    }
+
+    @Test
+    void shouldNotRetryForegroundTerminalCommandExitCodes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setForegroundMaxRetries(3);
+        config.getTerminal().setForegroundRetryBaseDelaySeconds(0);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                terminalExitCommand(7),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(7);
+        assertThat(result.get("retry_count").isNull()).isTrue();
     }
 
     @Test

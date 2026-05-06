@@ -115,7 +115,9 @@ public class RuntimeSettingsService {
                     "terminal.envPassthrough",
                     "terminal.sudoPassword",
                     "terminal.writeSafeRoot",
-                    "terminal.maxForegroundTimeoutSeconds");
+                    "terminal.maxForegroundTimeoutSeconds",
+                    "terminal.foregroundMaxRetries",
+                    "terminal.foregroundRetryBaseDelaySeconds");
 
     private static final List<String> CHANNEL_KEY_SUFFIX_WHITELIST =
             Arrays.asList(
@@ -467,7 +469,9 @@ public class RuntimeSettingsService {
                 || "security.tirithTimeoutSeconds".equals(key)
                 || "approvals.timeoutSeconds".equals(key)
                 || "approvals.gatewayTimeoutSeconds".equals(key)
-                || "terminal.maxForegroundTimeoutSeconds".equals(key)) {
+                || "terminal.maxForegroundTimeoutSeconds".equals(key)
+                || "terminal.foregroundMaxRetries".equals(key)
+                || "terminal.foregroundRetryBaseDelaySeconds".equals(key)) {
             return Integer.valueOf(value);
         }
         if ("react.summarizationEnabled".equals(key)

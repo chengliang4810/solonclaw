@@ -1526,6 +1526,34 @@ public class AppConfig {
                                                         "terminal.max_foreground_timeout",
                                                         600))),
                                 600));
+        config.getTerminal()
+                .setForegroundMaxRetries(
+                        Math.max(
+                                0,
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.terminal.foregroundMaxRetries",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.foreground_max_retries",
+                                                        3)))));
+        config.getTerminal()
+                .setForegroundRetryBaseDelaySeconds(
+                        Math.max(
+                                0,
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.terminal.foregroundRetryBaseDelaySeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.foreground_retry_base_delay",
+                                                        2)))));
 
         config.normalizePaths();
         syncRuntimeConfigExample(config.getRuntime().getHome());
@@ -1768,6 +1796,8 @@ public class AppConfig {
         this.terminal.setSudoPassword(other.getSudoPassword());
         this.terminal.setWriteSafeRoot(other.getWriteSafeRoot());
         this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
+        this.terminal.setForegroundMaxRetries(other.getForegroundMaxRetries());
+        this.terminal.setForegroundRetryBaseDelaySeconds(other.getForegroundRetryBaseDelaySeconds());
     }
 
     private void copySecurity(SecurityConfig other) {
@@ -3121,6 +3151,12 @@ public class AppConfig {
 
         /** 对齐 Hermes TERMINAL_MAX_FOREGROUND_TIMEOUT；单位秒。 */
         private int maxForegroundTimeoutSeconds = 600;
+
+        /** 对齐 Hermes foreground terminal transient failure retry count。 */
+        private int foregroundMaxRetries = 3;
+
+        /** 前台 terminal 执行异常重试的指数退避基准，单位秒；默认 2 秒，即 2/4/8。 */
+        private int foregroundRetryBaseDelaySeconds = 2;
     }
 
     @Getter

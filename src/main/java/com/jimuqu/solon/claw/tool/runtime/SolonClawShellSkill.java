@@ -262,7 +262,7 @@ public class SolonClawShellSkill extends ShellSkill {
         String executableCode = rewriteCompoundBackground(command);
         SudoTransform transform = transformSudoCommand(executableCode);
         ForegroundResult result =
-                executeForeground(
+                executeForegroundWithRetry(
                         transform.isChanged() ? transform.getCommand() : executableCode,
                         transform.getStdin(),
                         effectiveTimeout,
@@ -281,6 +281,9 @@ public class SolonClawShellSkill extends ShellSkill {
         map.put("output", normalizeTerminalOutput(output).trim());
         map.put("exit_code", result.getExitCode());
         map.put("error", result.getError());
+        if (result.getRetryCount() > 0) {
+            map.put("retry_count", Integer.valueOf(result.getRetryCount()));
+        }
         String meaning = TerminalExitCodeSemantics.interpret(originalCommand, result.getExitCode());
         if (meaning != null) {
             map.put("exit_code_meaning", meaning);
@@ -672,6 +675,56 @@ public class SolonClawShellSkill extends ShellSkill {
         return output + "\n" + message;
     }
 
+    private ForegroundResult executeForegroundWithRetry(
+            String code, String stdin, Integer timeoutMs, File directory) {
+        int maxRetries = resolveForegroundMaxRetries();
+        int retryDelaySeconds = resolveForegroundRetryBaseDelaySeconds();
+        ForegroundResult result = null;
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            result = executeForeground(code, stdin, timeoutMs, directory);
+            if (!shouldRetryForegroundExecution(result) || attempt >= maxRetries) {
+                return result.withRetryCount(attempt);
+            }
+            sleepBeforeRetry(retryDelaySeconds, attempt + 1);
+        }
+        return result == null ? new ForegroundResult("", Integer.valueOf(-1), "系统失败") : result;
+    }
+
+    private boolean shouldRetryForegroundExecution(ForegroundResult result) {
+        if (result == null || result.isTimedOut()) {
+            return false;
+        }
+        return result.getExitCode() != null
+                && result.getExitCode().intValue() == -1
+                && StrUtil.isNotBlank(result.getError());
+    }
+
+    private int resolveForegroundMaxRetries() {
+        if (appConfig == null || appConfig.getTerminal() == null) {
+            return 3;
+        }
+        return Math.max(0, appConfig.getTerminal().getForegroundMaxRetries());
+    }
+
+    private int resolveForegroundRetryBaseDelaySeconds() {
+        if (appConfig == null || appConfig.getTerminal() == null) {
+            return 2;
+        }
+        return Math.max(0, appConfig.getTerminal().getForegroundRetryBaseDelaySeconds());
+    }
+
+    private void sleepBeforeRetry(int baseDelaySeconds, int retryAttempt) {
+        if (baseDelaySeconds <= 0) {
+            return;
+        }
+        long delayMs = (long) baseDelaySeconds * 1000L * (1L << Math.max(0, retryAttempt - 1));
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private ForegroundResult executeForeground(
             String code, String stdin, Integer timeoutMs, File directory) {
         Path tempScript = null;
@@ -990,16 +1043,23 @@ public class SolonClawShellSkill extends ShellSkill {
         private final Integer exitCode;
         private final String error;
         private final boolean timedOut;
+        private final int retryCount;
 
         private ForegroundResult(String output, Integer exitCode, String error) {
-            this(output, exitCode, error, false);
+            this(output, exitCode, error, false, 0);
         }
 
         private ForegroundResult(String output, Integer exitCode, String error, boolean timedOut) {
+            this(output, exitCode, error, timedOut, 0);
+        }
+
+        private ForegroundResult(
+                String output, Integer exitCode, String error, boolean timedOut, int retryCount) {
             this.output = output;
             this.exitCode = exitCode;
             this.error = error;
             this.timedOut = timedOut;
+            this.retryCount = retryCount;
         }
 
         public String getOutput() {
@@ -1016,6 +1076,14 @@ public class SolonClawShellSkill extends ShellSkill {
 
         public boolean isTimedOut() {
             return timedOut;
+        }
+
+        public int getRetryCount() {
+            return retryCount;
+        }
+
+        public ForegroundResult withRetryCount(int retryCount) {
+            return new ForegroundResult(output, exitCode, error, timedOut, Math.max(0, retryCount));
         }
     }
 }
