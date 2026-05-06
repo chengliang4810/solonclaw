@@ -1081,11 +1081,7 @@ public class AppConfig {
         config.getSecurity()
                 .setAllowPrivateUrls(
                         resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.security.allowPrivateUrls",
-                                        false)));
+                                readAllowPrivateUrls(props, overrides)));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setEnabled(
@@ -2016,6 +2012,34 @@ public class AppConfig {
                     || "yes".equalsIgnoreCase(text);
         }
         return props.getBool(key, defaultValue);
+    }
+
+    private static boolean readAllowPrivateUrls(Props props, Map<String, Object> overrides) {
+        String env = StrUtil.nullToEmpty(System.getenv("HERMES_ALLOW_PRIVATE_URLS")).trim();
+        if (env.length() > 0) {
+            return parseBooleanText(env, false);
+        }
+        return readBoolean(
+                props,
+                overrides,
+                "solonclaw.security.allowPrivateUrls",
+                readBoolean(
+                        props,
+                        overrides,
+                        "solonclaw.security.allow_private_urls",
+                        readBoolean(
+                                props,
+                                overrides,
+                                "security.allow_private_urls",
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.browser.allow_private_urls",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "browser.allow_private_urls",
+                                                false)))));
     }
 
     private static void applyProviderConfiguration(

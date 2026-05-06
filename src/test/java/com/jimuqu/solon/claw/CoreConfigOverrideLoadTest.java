@@ -243,4 +243,38 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
                 .containsExactly("community-blocklist.txt");
     }
+
+    @Test
+    void shouldLoadHermesAllowPrivateUrlsAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-private-url-policy").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  allow_private_urls: true\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
+    }
+
+    @Test
+    void shouldLoadHermesBrowserAllowPrivateUrlsFallback() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-browser-private-url").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "browser:\n"
+                        + "  allow_private_urls: true\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
+    }
 }

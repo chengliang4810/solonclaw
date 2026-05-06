@@ -23,6 +23,8 @@ import org.yaml.snakeyaml.Yaml;
 public class DashboardConfigService {
     private static final List<String> PASSTHROUGH_PREFIXES =
             Arrays.asList("channels.wecom.groups.", "security.website_blocklist.");
+    private static final List<String> PASSTHROUGH_KEYS =
+            Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");
     private static final Object WRITE_LOCK = new Object();
 
     private final AppConfig appConfig;
@@ -809,6 +811,9 @@ public class DashboardConfigService {
     }
 
     private boolean isSupportedPassthroughKey(String key) {
+        if (PASSTHROUGH_KEYS.contains(key)) {
+            return true;
+        }
         for (String prefix : PASSTHROUGH_PREFIXES) {
             if (key != null && key.startsWith(prefix)) {
                 return true;
@@ -898,6 +903,9 @@ public class DashboardConfigService {
         }
         for (String prefix : PASSTHROUGH_PREFIXES) {
             removeNestedPrefix(jimuqu, prefix);
+        }
+        for (String key : PASSTHROUGH_KEYS) {
+            removeNestedValue(jimuqu, key);
         }
     }
 

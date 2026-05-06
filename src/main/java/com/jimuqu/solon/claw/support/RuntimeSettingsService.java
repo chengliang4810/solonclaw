@@ -80,6 +80,8 @@ public class RuntimeSettingsService {
                     "gateway.injectionSecret",
                     "gateway.injectionMaxBodyBytes",
                     "gateway.injectionReplayWindowSeconds",
+                    "security.allow_private_urls",
+                    "browser.allow_private_urls",
                     "security.tirithEnabled",
                     "security.tirithPath",
                     "security.tirithTimeoutSeconds",
@@ -401,6 +403,8 @@ public class RuntimeSettingsService {
                 || "rollback.enabled".equals(key)
                 || "skills.curator.enabled".equals(key)
                 || "gateway.allowAllUsers".equals(key)
+                || "security.allow_private_urls".equals(key)
+                || "browser.allow_private_urls".equals(key)
                 || "security.tirithEnabled".equals(key)
                 || "security.tirithFailOpen".equals(key)
                 || "security.website_blocklist.enabled".equals(key)

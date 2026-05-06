@@ -95,6 +95,22 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldUpdateHermesAllowPrivateUrlRuntimeKeysWithoutReconnectingChannels()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("security.allow_private_urls", "true");
+
+        assertThat(env.appConfig.getSecurity().isAllowPrivateUrls()).isTrue();
+        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("allow_private_urls: true");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
     void shouldRefreshDirectConfigFileChangesAfterValidation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.writeUtf8String(
