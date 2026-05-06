@@ -29,6 +29,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.ChatRole;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class CommandEnhancementTest {
     @Test
@@ -435,6 +437,18 @@ public class CommandEnhancementTest {
                 .contains("tools=1")
                 .contains("changed_servers=[]")
                 .contains("unchanged_servers=[local-docs]");
+
+        SessionRecord reloadedSession =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        List<ChatMessage> reloadedMessages =
+                com.jimuqu.solon.claw.support.MessageSupport.loadMessages(reloadedSession.getNdjson());
+        ChatMessage reloadNotice = reloadedMessages.get(reloadedMessages.size() - 1);
+        assertThat(reloadNotice.getRole()).isEqualTo(ChatRole.USER);
+        assertThat(reloadNotice.getContent())
+                .contains("[IMPORTANT: MCP servers have been reloaded.")
+                .contains("Reconnected servers: [local-docs]")
+                .contains("1 MCP tool(s) now available")
+                .contains("The tool list for this conversation has been updated accordingly.");
 
         assertThat(mcpService.check("local-docs").get("tool_changed_notification")).isEqualTo(false);
 

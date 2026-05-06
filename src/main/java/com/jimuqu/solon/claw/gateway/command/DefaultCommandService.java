@@ -63,6 +63,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 默认 slash 命令实现，统一承接 Hermes 风格的会话控制命令。 */
 public class DefaultCommandService implements CommandService {
@@ -1197,7 +1198,7 @@ public class DefaultCommandService implements CommandService {
         if (StrUtil.isBlank(action)) {
             if (!appConfig.getApprovals().isMcpReloadConfirm()
                     || slashConfirmService.isAlwaysConfirmed(GatewayCommandConstants.COMMAND_RELOAD_MCP)) {
-                return executeReloadMcp(false);
+                return executeReloadMcp(message, false);
             }
             SlashConfirmService.PendingConfirm confirm =
                     slashConfirmService.register(
@@ -1214,7 +1215,7 @@ public class DefaultCommandService implements CommandService {
             slashConfirmService.addAlwaysConfirmed(GatewayCommandConstants.COMMAND_RELOAD_MCP);
             persistMcpReloadConfirm(false);
         }
-        return executeReloadMcp("always".equalsIgnoreCase(action));
+        return executeReloadMcp(message, "always".equalsIgnoreCase(action));
     }
 
     private GatewayReply handleSlashConfirmChoice(
@@ -1241,7 +1242,7 @@ public class DefaultCommandService implements CommandService {
             }
         }
         if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(pending.getCommand())) {
-            return executeReloadMcp(SlashConfirmService.CHOICE_ALWAYS.equals(choice));
+            return executeReloadMcp(message, SlashConfirmService.CHOICE_ALWAYS.equals(choice));
         }
         return GatewayReply.error("Unsupported slash confirm command: /" + pending.getCommand());
     }
@@ -1297,11 +1298,12 @@ public class DefaultCommandService implements CommandService {
                 + "\n回复 /approve 执行一次，/approve always 或 /always 执行并永久记住，/deny 或 /cancel 取消。";
     }
 
-    private GatewayReply executeReloadMcp(boolean savedAlways) throws Exception {
+    private GatewayReply executeReloadMcp(GatewayMessage message, boolean savedAlways) throws Exception {
         if (dashboardMcpService == null) {
             return GatewayReply.error("MCP registry is not available in this runtime.");
         }
         DashboardMcpService.McpReloadResult result = dashboardMcpService.reloadAll();
+        appendReloadMcpHistoryNotice(message, result);
         StringBuilder buffer = new StringBuilder();
         buffer.append("MCP reload completed: ");
         buffer.append(result.isEnabled() ? "enabled" : "disabled");
@@ -1312,6 +1314,50 @@ public class DefaultCommandService implements CommandService {
             buffer.append("\n已永久确认 /reload-mcp，后续将直接执行。");
         }
         return GatewayReply.ok(buffer.toString());
+    }
+
+    private void appendReloadMcpHistoryNotice(
+            GatewayMessage message, DashboardMcpService.McpReloadResult result) {
+        if (message == null || result == null) {
+            return;
+        }
+        try {
+            SessionRecord session = requireSession(message.sourceKey());
+            if (session == null) {
+                return;
+            }
+            List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+            messages.add(
+                    ChatMessage.ofUser(
+                            reloadMcpHistoryNotice(
+                                    result.getChangedServers(),
+                                    result.getUnchangedServers(),
+                                    result.getToolCount())));
+            session.setNdjson(MessageSupport.toNdjson(messages));
+            session.setUpdatedAt(System.currentTimeMillis());
+            sessionRepository.save(session);
+        } catch (Exception ignored) {
+            // Reload should succeed even if the best-effort history note cannot be saved.
+        }
+    }
+
+    private String reloadMcpHistoryNotice(
+            List<String> changedServers, List<String> unchangedServers, int toolCount) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("[IMPORTANT: MCP servers have been reloaded. ");
+        if (changedServers != null && !changedServers.isEmpty()) {
+            buffer.append("Changed servers: ").append(changedServers).append(". ");
+        }
+        if (unchangedServers != null && !unchangedServers.isEmpty()) {
+            buffer.append("Reconnected servers: ").append(unchangedServers).append(". ");
+        }
+        if (toolCount > 0) {
+            buffer.append(toolCount).append(" MCP tool(s) now available. ");
+        } else {
+            buffer.append("No MCP tools available. ");
+        }
+        buffer.append("The tool list for this conversation has been updated accordingly.]");
+        return buffer.toString();
     }
 
     private void persistMcpReloadConfirm(boolean confirmRequired) {

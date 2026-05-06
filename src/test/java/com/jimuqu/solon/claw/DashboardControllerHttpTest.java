@@ -18,7 +18,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.crypto.Mac;
@@ -406,8 +408,10 @@ public class DashboardControllerHttpTest {
             assertThat(refreshOAuth.body).contains("\"has_access_token\":true");
             assertThat(refreshOAuth.body).doesNotContain("token-secret-2");
             assertThat(refreshOAuth.body).doesNotContain("refresh-secret-2");
-            assertThat(tokenEndpoint.lastForm.get("grant_type")).isEqualTo("refresh_token");
-            assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo("refresh-secret-1");
+            Map<String, String> firstRefreshForm =
+                    tokenEndpoint.firstFormByRefreshToken("refresh-secret-1");
+            assertThat(firstRefreshForm).isNotNull();
+            assertThat(firstRefreshForm.get("grant_type")).isEqualTo("refresh_token");
             String refreshedToken = tokenEndpoint.lastIssuedRefreshToken();
             assertThat(refreshedToken).isNotBlank();
             assertThat(refreshedToken).isNotEqualTo("refresh-secret-1");
@@ -1111,6 +1115,7 @@ public class DashboardControllerHttpTest {
         private final HttpServer server;
         private final int port;
         private volatile Map<String, String> lastForm = new LinkedHashMap<String, String>();
+        private final List<Map<String, String>> forms = new CopyOnWriteArrayList<Map<String, String>>();
         private volatile int refreshCount;
         private volatile String issuedRefreshToken;
 
@@ -1138,6 +1143,7 @@ public class DashboardControllerHttpTest {
         private void handle(HttpExchange exchange) throws java.io.IOException {
             byte[] body = readBytes(exchange);
             lastForm = parseForm(new String(body, StandardCharsets.UTF_8));
+            forms.add(new LinkedHashMap<String, String>(lastForm));
             String grantType = lastForm.get("grant_type");
             String responseJson;
             if ("refresh_token".equals(grantType)) {
@@ -1168,6 +1174,16 @@ public class DashboardControllerHttpTest {
 
         private String lastIssuedRefreshToken() {
             return issuedRefreshToken;
+        }
+
+        private Map<String, String> firstFormByRefreshToken(String refreshToken) {
+            for (Map<String, String> form : forms) {
+                if ("refresh_token".equals(form.get("grant_type"))
+                        && refreshToken.equals(form.get("refresh_token"))) {
+                    return form;
+                }
+            }
+            return null;
         }
 
         private static byte[] readBytes(HttpExchange exchange) throws java.io.IOException {
