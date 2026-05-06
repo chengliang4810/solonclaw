@@ -36,6 +36,7 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.ScanResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillBrowseResult;
@@ -122,6 +123,7 @@ public class DefaultCommandService implements CommandService {
     private final GoalService goalService;
     private final SessionArtifactService sessionArtifactService;
     private final SlashConfirmService slashConfirmService;
+    private final DefaultCronScheduler cronScheduler;
 
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -394,6 +396,62 @@ public class DefaultCommandService implements CommandService {
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
             SessionArtifactService sessionArtifactService) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -422,6 +480,7 @@ public class DefaultCommandService implements CommandService {
         this.sessionArtifactService =
                 sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
         this.slashConfirmService = new SlashConfirmService(globalSettingRepository);
+        this.cronScheduler = cronScheduler;
     }
 
     /** 判断当前命令是否由默认命令服务承接。 */
@@ -1458,6 +1517,19 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(overview ? cronOverview(listText) : listText);
         }
 
+        if ("status".equals(action)) {
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            return GatewayReply.ok(formatCronStatus(message.sourceKey(), options.all));
+        }
+
+        if ("tick".equals(action)) {
+            if (cronScheduler == null) {
+                return GatewayReply.error("当前运行环境未启用 Cron scheduler，无法手动 tick。");
+            }
+            cronScheduler.tick();
+            return GatewayReply.ok(formatCronStatus(message.sourceKey(), true));
+        }
+
         if ("history".equals(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
@@ -1516,14 +1588,19 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
-            cronJobService.trigger(tail);
+            cronJobService.require(tail);
+            if (cronScheduler == null) {
+                cronJobService.trigger(tail);
+                return GatewayReply.ok("已标记定时任务将在下一次 tick 执行：" + tail);
+            }
+            cronScheduler.runNow(tail);
             return GatewayReply.ok("已执行定时任务：" + tail);
         }
 
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|add|edit|pause|resume|remove|run|history]");
+                        + " [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]");
     }
 
     private String cronOverview(String listText) {
@@ -1532,6 +1609,7 @@ public class DefaultCommandService implements CommandService {
                 .append("命令：\n")
                 .append("/cron list - 查看启用中的定时任务\n")
                 .append("/cron list --all - 查看全部定时任务，包括已暂停任务\n")
+                .append("/cron status [--all] - 查看任务计数、到期任务、最近失败与下次运行\n")
                 .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
                 .append("/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
                 .append("/cron edit <job-id> --skill blogwatcher --skill maps - 替换绑定技能\n")
@@ -1543,11 +1621,116 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron pause <job-id> - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
+                .append("/cron tick - 立即执行一次 scheduler tick\n")
                 .append("/cron history <job-id> [--limit 20] - 查看执行历史\n")
                 .append("/cron remove <job-id> - 删除定时任务\n")
                 .append('\n')
                 .append(listText);
         return buffer.toString();
+    }
+
+    private String formatCronStatus(String sourceKey, boolean all) throws Exception {
+        List<CronJobRecord> jobs = all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
+        long now = System.currentTimeMillis();
+        int active = 0;
+        int paused = 0;
+        int completed = 0;
+        int due = 0;
+        int failed = 0;
+        int deliveryErrors = 0;
+        long nextRunAt = 0L;
+        CronJobRecord nextJob = null;
+        List<CronJobRecord> recentProblems = new ArrayList<CronJobRecord>();
+        for (CronJobRecord job : jobs) {
+            String state = cronState(job);
+            if ("paused".equals(state)) {
+                paused++;
+            } else if ("completed".equals(state)) {
+                completed++;
+            } else {
+                active++;
+                if (job.getNextRunAt() > 0L && job.getNextRunAt() <= now) {
+                    due++;
+                }
+                if (job.getNextRunAt() > 0L && (nextRunAt <= 0L || job.getNextRunAt() < nextRunAt)) {
+                    nextRunAt = job.getNextRunAt();
+                    nextJob = job;
+                }
+            }
+            if (StrUtil.isNotBlank(job.getLastStatus())
+                    && !"ok".equalsIgnoreCase(job.getLastStatus())) {
+                failed++;
+                addRecentProblem(recentProblems, job);
+            }
+            if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
+                deliveryErrors++;
+                addRecentProblem(recentProblems, job);
+            }
+        }
+
+        StringBuilder buffer = new StringBuilder("Cron 状态");
+        buffer.append('\n').append("范围：").append(all ? "全部任务" : "当前会话");
+        buffer.append('\n').append("总数：").append(jobs.size());
+        buffer.append('\n')
+                .append("状态：active=")
+                .append(active)
+                .append(", paused=")
+                .append(paused)
+                .append(", completed=")
+                .append(completed);
+        buffer.append('\n').append("已到期：").append(due);
+        buffer.append('\n').append("最近失败：").append(failed);
+        buffer.append('\n').append("最近投递错误：").append(deliveryErrors);
+        if (nextJob == null) {
+            buffer.append('\n').append("下次运行：N/A");
+        } else {
+            buffer.append('\n')
+                    .append("下次运行：")
+                    .append(formatTimestamp(nextRunAt))
+                    .append(" ")
+                    .append(nextJob.getJobId())
+                    .append(" ")
+                    .append(StrUtil.blankToDefault(nextJob.getName(), ""));
+        }
+        if (!recentProblems.isEmpty()) {
+            buffer.append('\n').append("问题任务：");
+            for (CronJobRecord job : recentProblems) {
+                buffer.append('\n')
+                        .append("- ")
+                        .append(job.getJobId())
+                        .append(" ")
+                        .append(StrUtil.blankToDefault(job.getName(), ""))
+                        .append(" status=")
+                        .append(StrUtil.blankToDefault(job.getLastStatus(), "ok"));
+                if (StrUtil.isNotBlank(job.getLastError())) {
+                    buffer.append(" error=").append(StrUtil.maxLength(job.getLastError(), 120));
+                }
+                if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
+                    buffer.append(" delivery=").append(StrUtil.maxLength(job.getLastDeliveryError(), 120));
+                }
+            }
+        }
+        return buffer.toString();
+    }
+
+    private String cronState(CronJobRecord job) {
+        if (job == null) {
+            return "scheduled";
+        }
+        if ("PAUSED".equalsIgnoreCase(job.getStatus())) {
+            return "paused";
+        }
+        if ("COMPLETED".equalsIgnoreCase(job.getStatus())) {
+            return "completed";
+        }
+        return "scheduled";
+    }
+
+    private void addRecentProblem(List<CronJobRecord> records, CronJobRecord job) {
+        if (job == null || records.contains(job) || records.size() >= 5) {
+            return;
+        }
+        records.add(job);
     }
 
     private String formatCronHistory(String jobId, List<CronJobRunRecord> runs) {
@@ -2748,7 +2931,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|add|edit|pause|resume|remove|run|history]",
+                                        + " [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN

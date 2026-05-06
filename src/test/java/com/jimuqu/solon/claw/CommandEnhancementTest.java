@@ -324,7 +324,7 @@ public class CommandEnhancementTest {
         assertThat(invalidNoAgent.getContent()).contains("no_agent requires script");
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
-        assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history]");
+        assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]");
     }
 
     @Test
@@ -356,10 +356,20 @@ public class CommandEnhancementTest {
                 .contains("State: paused")
                 .contains("Schedule: every 2h");
 
+        GatewayReply status = env.send("admin-chat", "admin-user", "/cron status");
+        assertThat(status.getContent())
+                .contains("Cron 状态")
+                .contains("范围：当前会话")
+                .contains("总数：1")
+                .contains("active=0")
+                .contains("paused=1")
+                .contains("已到期：0");
+
         GatewayReply overview = env.send("admin-chat", "admin-user", "/cron");
         assertThat(overview.getContent())
                 .contains("Cron 定时任务")
                 .contains("/cron list --all")
+                .contains("/cron status [--all]")
                 .contains("/cron history <job-id>")
                 .contains("当前没有定时任务。");
     }
