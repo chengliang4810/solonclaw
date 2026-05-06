@@ -683,6 +683,35 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromFileReadContent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("project-config.txt"),
+                Arrays.asList(
+                        "public=true",
+                        "api_key=sk-test-secret",
+                        "callback=https://user:pass@example.com/?token=secret123"),
+                StandardCharsets.UTF_8);
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode result = ONode.ofJson(fileSkill.read("project-config.txt"));
+        String content = result.get("content").getString();
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(content)
+                .contains("public=true")
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("secret123")
+                .doesNotContain("user:pass");
+    }
+
+    @Test
     void shouldGuardFileToolsAgainstSymlinkEscapesBeforeDelegating() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();

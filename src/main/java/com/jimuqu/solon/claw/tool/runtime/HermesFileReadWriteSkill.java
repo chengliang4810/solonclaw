@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.BufferedReader;
 import java.io.File;
@@ -158,7 +159,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
                 }
             }
             boolean truncated = totalLines > endLine;
-            String content = joinLines(selected);
+            String content = SecretRedactor.redact(joinLines(selected));
             ToolResultEnvelope envelope =
                     ToolResultEnvelope.ok("文件读取完成：" + fileName)
                             .data("path", fileName)
