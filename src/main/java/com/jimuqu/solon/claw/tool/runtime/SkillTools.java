@@ -9,18 +9,20 @@ import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
 /** Hermes 风格 skills 工具集合。 */
-@RequiredArgsConstructor
 public class SkillTools {
     /** 本地技能目录服务。 */
     private final LocalSkillService localSkillService;
@@ -37,12 +39,39 @@ public class SkillTools {
     /** 当前运行冻结的 Agent scope。 */
     private final AgentRuntimeScope agentScope;
 
+    /** 定时任务服务；用于技能归档后迁移 cron 绑定。 */
+    private final CronJobService cronJobService;
+
     public SkillTools(
             LocalSkillService localSkillService,
             CheckpointService checkpointService,
             SessionRepository sessionRepository,
             String sourceKey) {
-        this(localSkillService, checkpointService, sessionRepository, sourceKey, null);
+        this(localSkillService, checkpointService, sessionRepository, sourceKey, null, null);
+    }
+
+    public SkillTools(
+            LocalSkillService localSkillService,
+            CheckpointService checkpointService,
+            SessionRepository sessionRepository,
+            String sourceKey,
+            AgentRuntimeScope agentScope) {
+        this(localSkillService, checkpointService, sessionRepository, sourceKey, agentScope, null);
+    }
+
+    public SkillTools(
+            LocalSkillService localSkillService,
+            CheckpointService checkpointService,
+            SessionRepository sessionRepository,
+            String sourceKey,
+            AgentRuntimeScope agentScope,
+            CronJobService cronJobService) {
+        this.localSkillService = localSkillService;
+        this.checkpointService = checkpointService;
+        this.sessionRepository = sessionRepository;
+        this.sourceKey = sourceKey;
+        this.agentScope = agentScope;
+        this.cronJobService = cronJobService;
     }
 
     @ToolMapping(
@@ -98,7 +127,12 @@ public class SkillTools {
                     String newText,
             @Param(name = "filePath", description = "支持文件相对路径", required = false) String filePath,
             @Param(name = "fileContent", description = "write_file 时写入的内容", required = false)
-                    String fileContent)
+                    String fileContent,
+            @Param(
+                            name = "absorbed_into",
+                            description = "delete 时可选；传入合并后的 umbrella 技能名会迁移 cron 绑定，空字符串表示仅剪枝",
+                            required = false)
+                    String absorbedInto)
             throws Exception {
         try {
             if (SkillConstants.ACTION_CREATE.equalsIgnoreCase(action)) {
@@ -117,7 +151,8 @@ public class SkillTools {
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.deleteSkill(name);
+                String result = localSkillService.deleteSkill(name);
+                return result + rewriteCronSkillRefsAfterDelete(name, absorbedInto);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
@@ -131,6 +166,19 @@ public class SkillTools {
         } catch (Exception e) {
             return toolError(e.getMessage());
         }
+    }
+
+    public String skillManage(
+            String action,
+            String name,
+            String category,
+            String content,
+            String oldText,
+            String newText,
+            String filePath,
+            String fileContent)
+            throws Exception {
+        return skillManage(action, name, category, content, oldText, newText, filePath, fileContent, null);
     }
 
     /** 收集技能目录中的全部文件，用于 checkpoint。 */
@@ -221,10 +269,34 @@ public class SkillTools {
                 @Param(name = "filePath", description = "支持文件相对路径", required = false)
                         String filePath,
                 @Param(name = "fileContent", description = "write_file 时写入的内容", required = false)
-                        String fileContent)
+                        String fileContent,
+                @Param(
+                                name = "absorbed_into",
+                                description = "delete 时可选；传入合并后的 umbrella 技能名会迁移 cron 绑定，空字符串表示仅剪枝",
+                                required = false)
+                        String absorbedInto)
                 throws Exception {
             return delegate.skillManage(
-                    action, name, category, content, oldText, newText, filePath, fileContent);
+                    action, name, category, content, oldText, newText, filePath, fileContent, absorbedInto);
+        }
+    }
+
+    private String rewriteCronSkillRefsAfterDelete(String name, String absorbedInto) {
+        if (cronJobService == null || StrUtil.isBlank(name)) {
+            return "";
+        }
+        try {
+            Map<String, String> consolidated = new LinkedHashMap<String, String>();
+            List<String> pruned = new ArrayList<String>();
+            if (StrUtil.isNotBlank(absorbedInto)) {
+                consolidated.put(name.trim(), absorbedInto.trim());
+            } else {
+                pruned.add(name.trim());
+            }
+            Map<String, Object> report = cronJobService.rewriteSkillRefs(consolidated, pruned);
+            return "\nCron skill refs rewritten: " + report.get("jobs_updated");
+        } catch (Exception e) {
+            return "\nCron skill refs rewrite failed: " + StrUtil.nullToDefault(e.getMessage(), "unknown error");
         }
     }
 }

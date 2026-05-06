@@ -268,6 +268,67 @@ public class CronJobService {
         return cronJobRepository.listRuns(jobId, limit);
     }
 
+    public Map<String, Object> rewriteSkillRefs(
+            Map<String, String> consolidated, List<String> pruned) throws Exception {
+        Map<String, String> consolidatedMap = normalizedMap(consolidated);
+        List<String> prunedList = normalizedList(pruned);
+        for (String key : consolidatedMap.keySet()) {
+            prunedList.remove(key);
+        }
+        if (consolidatedMap.isEmpty() && prunedList.isEmpty()) {
+            Map<String, Object> empty = new LinkedHashMap<String, Object>();
+            empty.put("rewrites", new ArrayList<Map<String, Object>>());
+            empty.put("jobs_updated", Integer.valueOf(0));
+            empty.put("jobs_scanned", Integer.valueOf(0));
+            return empty;
+        }
+
+        List<CronJobRecord> jobs = cronJobRepository.listAll();
+        List<Map<String, Object>> rewrites = new ArrayList<Map<String, Object>>();
+        for (CronJobRecord job : jobs) {
+            List<String> before = parseList(job.getSkillsJson());
+            if (before.isEmpty()) {
+                continue;
+            }
+            List<String> after = new ArrayList<String>();
+            Map<String, String> mapped = new LinkedHashMap<String, String>();
+            List<String> dropped = new ArrayList<String>();
+            for (String skill : before) {
+                String target = consolidatedMap.get(skill);
+                if (StrUtil.isNotBlank(target)) {
+                    mapped.put(skill, target);
+                    if (!after.contains(target)) {
+                        after.add(target);
+                    }
+                } else if (prunedList.contains(skill)) {
+                    dropped.add(skill);
+                } else if (!after.contains(skill)) {
+                    after.add(skill);
+                }
+            }
+            if (mapped.isEmpty() && dropped.isEmpty()) {
+                continue;
+            }
+            job.setSkillsJson(json(after));
+            cronJobRepository.update(job);
+
+            Map<String, Object> entry = new LinkedHashMap<String, Object>();
+            entry.put("job_id", job.getJobId());
+            entry.put("job_name", StrUtil.blankToDefault(job.getName(), job.getJobId()));
+            entry.put("before", before);
+            entry.put("after", after);
+            entry.put("mapped", mapped);
+            entry.put("dropped", dropped);
+            rewrites.add(entry);
+        }
+
+        Map<String, Object> report = new LinkedHashMap<String, Object>();
+        report.put("rewrites", rewrites);
+        report.put("jobs_updated", Integer.valueOf(rewrites.size()));
+        report.put("jobs_scanned", Integer.valueOf(jobs.size()));
+        return report;
+    }
+
     public Map<String, Object> runToView(CronJobRunRecord record) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("run_id", record.getRunId());
@@ -693,6 +754,32 @@ public class CronJobService {
         List<String> result = stringList(body.get("skills"));
         for (String item : stringList(body.get("skill"))) {
             addString(result, item);
+        }
+        return result;
+    }
+
+    private Map<String, String> normalizedMap(Map<String, String> values) {
+        Map<String, String> result = new LinkedHashMap<String, String>();
+        if (values == null) {
+            return result;
+        }
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            String key = normalizeBlank(entry.getKey());
+            String value = normalizeBlank(entry.getValue());
+            if (StrUtil.isNotBlank(key) && StrUtil.isNotBlank(value)) {
+                result.put(key, value);
+            }
+        }
+        return result;
+    }
+
+    private List<String> normalizedList(List<String> values) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            addString(result, value);
         }
         return result;
     }

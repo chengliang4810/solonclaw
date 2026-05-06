@@ -6,6 +6,7 @@ import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
@@ -13,6 +14,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -823,6 +825,46 @@ public class MemoryAndSkillsTest {
         assertThat(listed).contains("agent-only").doesNotContain("global-skill");
         assertThat(viewed).contains("agent local");
         assertThat(hidden).contains("\"success\":false").contains("Skill not found");
+    }
+
+    @Test
+    void shouldRewriteCronSkillRefsWhenSkillManageDeletesWithAbsorbedInto() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("legacy-skill", null, skill("legacy-skill", "legacy"));
+        env.localSkillService.createSkill("umbrella-skill", null, skill("umbrella-skill", "umbrella"));
+        CronJobService cronJobService = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new java.util.LinkedHashMap<String, Object>();
+        body.put("name", "skill-ref-job");
+        body.put("schedule", "30m");
+        body.put("prompt", "run with skill");
+        body.put("skills", "legacy-skill,keep-skill");
+        CronJobRecord job = cronJobService.create("MEMORY:room:user", body);
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:room:user",
+                        null,
+                        cronJobService);
+
+        String result =
+                tools.skillManage(
+                        "delete",
+                        "legacy-skill",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "umbrella-skill");
+
+        assertThat(result).contains("Deleted skill: legacy-skill");
+        assertThat(result).contains("Cron skill refs rewritten: 1");
+        assertThat(cronJobService.toView(env.cronJobRepository.findById(job.getJobId())).get("skills"))
+                .asList()
+                .containsExactly("umbrella-skill", "keep-skill");
     }
 
     @Test

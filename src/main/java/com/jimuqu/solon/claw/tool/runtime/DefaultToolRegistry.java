@@ -331,7 +331,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                         checkpointService,
                         sessionRepository,
                         sourceKey,
-                        agentScope);
+                        agentScope,
+                        cronJobService);
         SkillHubTools skillHubTools = new SkillHubTools(skillHubService);
         MessagingTools messagingTools =
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
