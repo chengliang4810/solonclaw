@@ -206,11 +206,53 @@ public class MemoryAndSkillsTest {
 
         String missingSkill = tools.skillView("missing-skill", null);
         String invalidPath = tools.skillView("demo-skill", "../outside.txt");
+        String nestedTraversal = tools.skillView("demo-skill", "references/../../../.env");
 
         assertThat(missingSkill).contains("\"success\":false");
         assertThat(missingSkill).contains("Skill not found");
         assertThat(invalidPath).contains("\"success\":false");
         assertThat(invalidPath).contains("Invalid skill file path");
+        assertThat(nestedTraversal).contains("\"success\":false");
+        assertThat(nestedTraversal).contains("Invalid skill file path");
+        assertThat(nestedTraversal).doesNotContain("SECRET_API_KEY");
+    }
+
+    @Test
+    void shouldBlockSkillViewSymlinkEscapesWithoutLeakingContent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("link-skill", null, skill("link-skill", "demo"));
+        File outsideSecret =
+                FileUtil.file(
+                        new File(env.appConfig.getRuntime().getSkillsDir()).getParentFile(),
+                        "outside-skill-secret.txt");
+        FileUtil.writeUtf8String("SECRET_API_KEY=sk-do-not-leak", outsideSecret);
+        File skillDir = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "link-skill");
+        File link = FileUtil.file(skillDir, "references", "secret-link.txt");
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(link.toPath(), outsideSecret.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:room:user");
+
+        String result = tools.skillView("link-skill", "references/secret-link.txt");
+
+        assertThat(result).contains("\"success\":false");
+        assertThat(result).contains("outside skill directory");
+        assertThat(result).doesNotContain("sk-do-not-leak");
+        assertThat(result).doesNotContain("SECRET_API_KEY");
     }
 
     @Test

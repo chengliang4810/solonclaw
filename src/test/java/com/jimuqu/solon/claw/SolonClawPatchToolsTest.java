@@ -271,6 +271,28 @@ public class SolonClawPatchToolsTest {
                 .isEqualTo("destination\n");
     }
 
+    @Test
+    void shouldRejectMoveFileWithoutDestinationWithoutPartialWrites() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path source = dir.resolve("source.txt");
+        Files.write(source, "alpha\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Move File: source.txt\n"
+                        + "*** End Patch";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("Patch validation failed")
+                .contains("missing destination path");
+        assertThat(new String(Files.readAllBytes(source), StandardCharsets.UTF_8))
+                .isEqualTo("alpha\n");
+    }
+
     private Map<?, ?> parse(String json) {
         return ONode.deserialize(json, java.util.LinkedHashMap.class);
     }

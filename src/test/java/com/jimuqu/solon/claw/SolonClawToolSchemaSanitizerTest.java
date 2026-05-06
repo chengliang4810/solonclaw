@@ -28,12 +28,14 @@ public class SolonClawToolSchemaSanitizerTest {
         ONode root =
                 ONode.ofJson(
                         SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
-                                "{\"type\":\"object\",\"properties\":{\"payload\":\"object\",\"name\":{\"type\":[\"string\",\"null\"]}}}"));
+                                "{\"type\":\"object\",\"properties\":{\"payload\":\"object\",\"label\":\"string\",\"name\":{\"type\":[\"string\",\"null\"]}}}"));
 
         ONode payload = root.get("properties").get("payload");
+        ONode label = root.get("properties").get("label");
         ONode name = root.get("properties").get("name");
         assertThat(payload.get("type").getString()).isEqualTo("object");
         assertThat(payload.get("properties").isObject()).isTrue();
+        assertThat(label.get("type").getString()).isEqualTo("string");
         assertThat(name.get("type").getString()).isEqualTo("string");
         assertThat(name.get("nullable").getBoolean()).isTrue();
     }
