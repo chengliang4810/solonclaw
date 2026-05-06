@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.HermesCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.HermesFileReadWriteSkill;
+import com.jimuqu.solon.claw.tool.runtime.HermesShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.HermesWebTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -145,6 +146,45 @@ public class ToolRegistryExposureTest {
         ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(String.valueOf(listed.get("processes"))).contains("output_preview").contains("uptime_seconds");
+    }
+
+    @Test
+    void shouldReturnCleanErrorsForInvalidTerminalCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        HermesShellSkill shell =
+                new HermesShellSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        env.processRegistry);
+
+        ONode executeNull = ONode.ofJson(shell.execute(null, Integer.valueOf(1000)));
+        ONode terminalNull =
+                ONode.ofJson(
+                        shell.terminal(
+                                null,
+                                Boolean.FALSE,
+                                Integer.valueOf(1),
+                                env.appConfig.getRuntime().getHome(),
+                                Boolean.FALSE));
+        ONode backgroundNull =
+                ONode.ofJson(
+                        shell.terminal(
+                                null,
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                env.appConfig.getRuntime().getHome(),
+                                Boolean.TRUE));
+
+        assertThat(executeNull.get("success").getBoolean()).isFalse();
+        assertThat(executeNull.get("status").getString()).isEqualTo("error");
+        assertThat(executeNull.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(executeNull.get("error").getString()).contains("expected string").contains("null");
+        assertThat(terminalNull.get("success").getBoolean()).isFalse();
+        assertThat(terminalNull.get("error").getString()).contains("expected string").contains("null");
+        assertThat(backgroundNull.get("success").getBoolean()).isFalse();
+        assertThat(backgroundNull.get("background").getBoolean()).isTrue();
+        assertThat(env.processRegistry.runningCount()).isZero();
     }
 
     @Test

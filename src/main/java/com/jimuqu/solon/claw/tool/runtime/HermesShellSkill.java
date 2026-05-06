@@ -84,6 +84,12 @@ public class HermesShellSkill extends ShellSkill {
             @Param("code") String code,
             @Param(name = "timeout", required = false, defaultValue = "180000", description = "可选超时时间，单位为毫秒")
                     Integer timeout) {
+        String commandError = validateCommand(code);
+        if (commandError != null) {
+            return ToolResultEnvelope.error(commandError)
+                    .data("exit_code", Integer.valueOf(-1))
+                    .toJson();
+        }
         HermesCodeExecutionSkills.assertSafe(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 code,
@@ -144,6 +150,13 @@ public class HermesShellSkill extends ShellSkill {
 
     private String startBackground(String command, String workdir, Boolean notifyOnComplete)
             throws Exception {
+        String commandError = validateCommand(command);
+        if (commandError != null) {
+            return ToolResultEnvelope.error(commandError)
+                    .data("exit_code", Integer.valueOf(-1))
+                    .data("background", Boolean.TRUE)
+                    .toJson();
+        }
         HermesCodeExecutionSkills.assertSafe(
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
@@ -162,6 +175,16 @@ public class HermesShellSkill extends ShellSkill {
                 .data("output_preview", managed.outputPreview(1000))
                 .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
                 .toJson();
+    }
+
+    private String validateCommand(String command) {
+        if (command == null) {
+            return "Invalid terminal command: expected string, got null.";
+        }
+        if (StrUtil.isBlank(command)) {
+            return "Invalid terminal command: expected non-empty string.";
+        }
+        return null;
     }
 
     public SudoTransform transformSudoCommand(String command) {
