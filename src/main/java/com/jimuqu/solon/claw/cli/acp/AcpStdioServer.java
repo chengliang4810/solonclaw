@@ -4,7 +4,12 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,7 +28,9 @@ import org.noear.snack4.ONode;
 public class AcpStdioServer {
     private final CliRuntime cliRuntime;
     private final AcpSessionManager sessionManager;
+    private final SessionRepository sessionRepository;
     private final DashboardMcpService mcpService;
+    private final DangerousCommandApprovalService dangerousCommandApprovalService;
     private final InputStream input;
     private final OutputStream output;
 
@@ -39,11 +46,25 @@ public class AcpStdioServer {
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
             DashboardMcpService mcpService) {
-        this(cliRuntime, sessionRepository, mcpService, System.in, System.out);
+        this(cliRuntime, sessionRepository, mcpService, null, System.in, System.out);
+    }
+
+    public AcpStdioServer(
+            CliRuntime cliRuntime,
+            SessionRepository sessionRepository,
+            DashboardMcpService mcpService,
+            DangerousCommandApprovalService dangerousCommandApprovalService) {
+        this(
+                cliRuntime,
+                sessionRepository,
+                mcpService,
+                dangerousCommandApprovalService,
+                System.in,
+                System.out);
     }
 
     public AcpStdioServer(CliRuntime cliRuntime, InputStream input, OutputStream output) {
-        this(cliRuntime, null, null, input, output);
+        this(cliRuntime, null, null, null, input, output);
     }
 
     public AcpStdioServer(
@@ -52,9 +73,21 @@ public class AcpStdioServer {
             DashboardMcpService mcpService,
             InputStream input,
             OutputStream output) {
+        this(cliRuntime, sessionRepository, mcpService, null, input, output);
+    }
+
+    public AcpStdioServer(
+            CliRuntime cliRuntime,
+            SessionRepository sessionRepository,
+            DashboardMcpService mcpService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            InputStream input,
+            OutputStream output) {
         this.cliRuntime = cliRuntime;
+        this.sessionRepository = sessionRepository;
         this.sessionManager = new AcpSessionManager(cliRuntime, sessionRepository);
         this.mcpService = mcpService;
+        this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.input = input;
         this.output = output;
     }
@@ -136,6 +169,12 @@ public class AcpStdioServer {
         }
         if ("session/prompt".equals(method) || "prompt".equals(method)) {
             return prompt(params);
+        }
+        if ("permissions/list_open".equals(method) || "permissions_list_open".equals(method)) {
+            return permissionsListOpen(params);
+        }
+        if ("permissions/respond".equals(method) || "permissions_respond".equals(method)) {
+            return permissionsRespond(params);
         }
         throw new IllegalArgumentException("Unsupported ACP method: " + method);
     }
@@ -370,6 +409,147 @@ public class AcpStdioServer {
         result.put("config_options", state.getConfigOptions());
         result.put("configOptions", state.getConfigOptions());
         return result;
+    }
+
+    private Map<String, Object> permissionsListOpen(ONode params) throws Exception {
+        AcpSessionManager.AcpSessionState state =
+                sessionManager.require(readSessionId(params));
+        List<DangerousCommandApprovalService.PendingApproval> pending =
+                dangerousCommandApprovalService == null
+                        ? new ArrayList<DangerousCommandApprovalService.PendingApproval>()
+                        : dangerousCommandApprovalService.listPendingApprovals(agentSession(state));
+
+        List<Map<String, Object>> permissions = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < pending.size(); i++) {
+            permissions.add(permissionItem(pending.get(i), i + 1));
+        }
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("session_id", state.getSessionId());
+        result.put("sessionId", state.getSessionId());
+        result.put("permissions", permissions);
+        result.put("pending", permissions);
+        result.put("count", permissions.size());
+        return result;
+    }
+
+    private Map<String, Object> permissionsRespond(ONode params) throws Exception {
+        AcpSessionManager.AcpSessionState state =
+                sessionManager.require(readSessionId(params));
+        String selector =
+                read(
+                        params,
+                        "id",
+                        read(params, "permission_id", read(params, "approval_id", read(params, "approvalId", ""))));
+        String outcome =
+                StrUtil.nullToEmpty(
+                                read(
+                                        params,
+                                        "outcome",
+                                        read(params, "choice", read(params, "decision", ""))))
+                        .trim()
+                        .toLowerCase();
+        String command = approvalCommand(selector, outcome);
+        GatewayReply reply = cliRuntime.send(state.getSessionId(), command, ConversationEventSink.noop());
+        sessionManager.refresh(state);
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", reply != null && !reply.isError());
+        result.put("session_id", state.getSessionId());
+        result.put("sessionId", state.getSessionId());
+        result.put("id", selector);
+        result.put("outcome", normalizedPermissionOutcome(outcome));
+        result.put("message", reply == null ? "" : StrUtil.nullToEmpty(reply.getContent()));
+        result.put("content", contentBlocks(reply == null ? "" : reply.getContent()));
+        return result;
+    }
+
+    private Map<String, Object> permissionItem(
+            DangerousCommandApprovalService.PendingApproval pending, int index) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        String id = StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
+        item.put("id", id);
+        item.put("approval_id", pending.getApprovalId());
+        item.put("approvalId", pending.getApprovalId());
+        item.put("index", Integer.valueOf(index));
+        item.put("tool_name", pending.getToolName());
+        item.put("toolName", pending.getToolName());
+        item.put("command", SecretRedactor.redact(pending.getCommand(), 3000));
+        item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
+        item.put("pattern_key", pending.getPatternKey());
+        item.put("patternKey", pending.getPatternKey());
+        item.put("pattern_keys", pending.effectivePatternKeys());
+        item.put("patternKeys", pending.effectivePatternKeys());
+        item.put("approval_key", pending.approvalKey());
+        item.put("approvalKey", pending.approvalKey());
+        item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
+        item.put("expiresAt", Long.valueOf(pending.getExpiresAt()));
+        item.put("options", permissionOptions(pending));
+        return item;
+    }
+
+    private List<Map<String, Object>> permissionOptions(
+            DangerousCommandApprovalService.PendingApproval pending) {
+        List<Map<String, Object>> options = new ArrayList<Map<String, Object>>();
+        addPermissionOption(options, "allow_once", "allow_once", "Allow once");
+        addPermissionOption(options, "allow_session", "allow_session", "Allow for session");
+        if (pending == null || pending.isPermanentApprovalAllowed()) {
+            addPermissionOption(options, "allow_always", "allow_always", "Allow always");
+        }
+        addPermissionOption(options, "deny", "reject_once", "Deny");
+        return options;
+    }
+
+    private void addPermissionOption(
+            List<Map<String, Object>> options, String id, String kind, String name) {
+        Map<String, Object> option = new LinkedHashMap<String, Object>();
+        option.put("id", id);
+        option.put("option_id", id);
+        option.put("optionId", id);
+        option.put("kind", kind);
+        option.put("name", name);
+        options.add(option);
+    }
+
+    private String approvalCommand(String selector, String outcome) {
+        String normalized = normalizedPermissionOutcome(outcome);
+        String target = StrUtil.blankToDefault(selector, "").trim();
+        if ("deny".equals(normalized)) {
+            return StrUtil.isBlank(target) ? "/deny" : "/deny " + target;
+        }
+        if ("always".equals(normalized)) {
+            return StrUtil.isBlank(target) ? "/approve always" : "/approve " + target + " always";
+        }
+        if ("session".equals(normalized)) {
+            return StrUtil.isBlank(target) ? "/approve session" : "/approve " + target + " session";
+        }
+        return StrUtil.isBlank(target) ? "/approve" : "/approve " + target;
+    }
+
+    private String normalizedPermissionOutcome(String outcome) {
+        String value = StrUtil.nullToEmpty(outcome).trim().toLowerCase();
+        if ("allow_always".equals(value) || "always".equals(value)) {
+            return "always";
+        }
+        if ("allow_session".equals(value) || "session".equals(value)) {
+            return "session";
+        }
+        if ("allow_once".equals(value) || "allow".equals(value) || "once".equals(value)) {
+            return "once";
+        }
+        return "deny";
+    }
+
+    private SqliteAgentSession agentSession(AcpSessionManager.AcpSessionState state)
+            throws Exception {
+        if (sessionRepository == null) {
+            throw new IllegalStateException("ACP session repository is required for permissions");
+        }
+        SessionRecord record = sessionRepository.findById(state.getSessionId());
+        if (record == null) {
+            throw new IllegalArgumentException("ACP session not found: " + state.getSessionId());
+        }
+        return new SqliteAgentSession(record, sessionRepository);
     }
 
     private Map<String, Object> implementation(String name, String title) {

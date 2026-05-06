@@ -120,7 +120,8 @@ public class AcpStdioServerTest {
                 new AcpStdioServer(
                         new CliRuntime(env.commandService, env.conversationOrchestrator),
                         env.sessionRepository,
-                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
 
         String sessionId = extractSessionId(newAcpSession(server, 30));
 
@@ -287,6 +288,122 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldExposeAndResolveDangerousApprovalThroughAcpPermissionsBridge()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
+
+        String sessionId = extractSessionId(newAcpSession(server, 24));
+        SessionRecord session = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession agentSession =
+                new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete with token=sk-proj-abcdefghijklmnopqrstuvwxyz",
+                "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz rm -rf runtime/cache");
+
+        String listed =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":25,\"method\":\"permissions/list_open\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\"}}");
+
+        assertThat(listed)
+                .contains("\"id\":25")
+                .contains("\"count\":1")
+                .contains("\"allow_once\"")
+                .contains("\"allow_session\"")
+                .contains("\"allow_always\"")
+                .contains("OPENAI_API_KEY=***")
+                .contains("token=***")
+                .doesNotContain("sk-proj-abcdefghijklmnopqrstuvwxyz");
+        String approvalId = extractJsonString(listed, "approval_id");
+
+        String responded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":26,\"method\":\"permissions/respond\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"id\":\""
+                                + approvalId
+                                + "\",\"outcome\":\"allow_session\"}}");
+
+        SessionRecord updated = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(responded)
+                .contains("\"id\":26")
+                .contains("\"ok\":true")
+                .contains("\"outcome\":\"session\"")
+                .contains("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isTrue();
+    }
+
+    @Test
+    void shouldDenyDangerousApprovalThroughAcpPermissionsBridge() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
+
+        String sessionId = extractSessionId(newAcpSession(server, 27));
+        SessionRecord session = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession agentSession =
+                new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        String listed =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":28,\"method\":\"permissions_list_open\",\"params\":{\"sessionId\":\""
+                                + sessionId
+                                + "\"}}");
+        String approvalId = extractJsonString(listed, "approval_id");
+
+        String denied =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":29,\"method\":\"permissions_respond\",\"params\":{\"sessionId\":\""
+                                + sessionId
+                                + "\",\"permission_id\":\""
+                                + approvalId
+                                + "\",\"outcome\":\"reject_once\"}}");
+
+        SessionRecord updated = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(denied)
+                .contains("\"id\":29")
+                .contains("\"ok\":true")
+                .contains("\"outcome\":\"deny\"");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isFalse();
+    }
+
+    @Test
     void shouldKeepRequestIdOnDispatchError() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =
@@ -372,7 +489,14 @@ public class AcpStdioServerTest {
     }
 
     private String extractSessionId(String json) {
+        return extractJsonString(json, "session_id");
+    }
+
+    private String extractJsonString(String json, String key) {
         String marker = "\"session_id\":\"";
+        if (!"session_id".equals(key)) {
+            marker = "\"" + key + "\":\"";
+        }
         int start = json.indexOf(marker);
         assertThat(start).isGreaterThanOrEqualTo(0);
         int valueStart = start + marker.length();
