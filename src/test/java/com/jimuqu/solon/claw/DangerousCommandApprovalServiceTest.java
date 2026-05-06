@@ -1401,6 +1401,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockConfiguredTerminalCredentialFilesForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> relativeArgs = new LinkedHashMap<String, Object>();
+        relativeArgs.put("fileName", "credentials/oauth.json");
+        Map<String, Object> absoluteArgs = new LinkedHashMap<String, Object>();
+        absoluteArgs.put(
+                "fileName",
+                new File(env.appConfig.getRuntime().getHome(), "credentials/oauth.json")
+                        .getAbsolutePath());
+        Map<String, Object> nestedArgs = new LinkedHashMap<String, Object>();
+        nestedArgs.put("fileName", "project/credentials/oauth.json");
+        Map<String, Object> siblingArgs = new LinkedHashMap<String, Object>();
+        siblingArgs.put("fileName", "credentials/oauth-notes.md");
+
+        SecurityPolicyService.FileVerdict relative =
+                securityPolicyService.checkFileToolArgs("file_read", relativeArgs);
+        SecurityPolicyService.FileVerdict absolute =
+                securityPolicyService.checkFileToolArgs("file_write", absoluteArgs);
+        SecurityPolicyService.FileVerdict nested =
+                securityPolicyService.checkFileToolArgs("file_read", nestedArgs);
+        SecurityPolicyService.FileVerdict sibling =
+                securityPolicyService.checkFileToolArgs("file_read", siblingArgs);
+
+        assertThat(relative.isAllowed()).isFalse();
+        assertThat(relative.getMessage()).contains("凭据");
+        assertThat(absolute.isAllowed()).isFalse();
+        assertThat(absolute.getMessage()).contains("凭据");
+        assertThat(nested.isAllowed()).isFalse();
+        assertThat(nested.getMessage()).contains("凭据");
+        assertThat(sibling.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockHermesDevicePathsThatCanHangFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

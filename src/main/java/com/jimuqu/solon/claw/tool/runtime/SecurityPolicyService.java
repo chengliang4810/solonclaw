@@ -671,7 +671,74 @@ public class SecurityPolicyService {
         if (CREDENTIAL_FILE_NAMES.contains(fileName)) {
             return true;
         }
-        return fileName.startsWith(".env.") && !".env.example".equals(fileName);
+        if (fileName.startsWith(".env.") && !".env.example".equals(fileName)) {
+            return true;
+        }
+        return matchesConfiguredCredentialPath(normalized, path);
+    }
+
+    private boolean matchesConfiguredCredentialPath(String normalized, String strippedPath) {
+        if (appConfig == null || appConfig.getTerminal() == null) {
+            return false;
+        }
+        List<String> credentialFiles = appConfig.getTerminal().getCredentialFiles();
+        if (credentialFiles == null || credentialFiles.isEmpty()) {
+            return false;
+        }
+        for (String configured : credentialFiles) {
+            String configuredPath = normalizeConfiguredCredentialPath(configured);
+            if (StrUtil.isBlank(configuredPath)) {
+                continue;
+            }
+            if (matchesConfiguredCredentialPath(normalized, strippedPath, configuredPath)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesConfiguredCredentialPath(
+            String normalized, String strippedPath, String configuredPath) {
+        if (normalized.equals(configuredPath) || strippedPath.equals(configuredPath)) {
+            return true;
+        }
+        String runtimePath = normalizeRuntimeFilePath(configuredPath);
+        if (StrUtil.isNotBlank(runtimePath)
+                && (normalized.equals(runtimePath) || strippedPath.equals(runtimePath))) {
+            return true;
+        }
+        return normalized.endsWith("/" + configuredPath) || strippedPath.endsWith("/" + configuredPath);
+    }
+
+    private String normalizeConfiguredCredentialPath(String rawPath) {
+        String value = normalizePathText(expandUserHome(StrUtil.nullToEmpty(rawPath).trim()));
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        if (containsTraversal(value)) {
+            return "";
+        }
+        if (isAbsolutePathText(value)) {
+            return value;
+        }
+        return stripKnownPrefix(value);
+    }
+
+    private String normalizeRuntimeFilePath(String relativePath) {
+        if (StrUtil.isBlank(relativePath) || isAbsolutePathText(relativePath)) {
+            return "";
+        }
+        try {
+            if (appConfig == null || appConfig.getRuntime() == null) {
+                return "";
+            }
+            Path path = Paths.get(appConfig.getRuntime().getHome(), relativePath)
+                    .toAbsolutePath()
+                    .normalize();
+            return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private boolean matchesWriteDeniedPath(String normalized) {

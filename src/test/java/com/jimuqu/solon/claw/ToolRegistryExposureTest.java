@@ -1125,6 +1125,46 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardFileAndPatchToolsAgainstConfiguredCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path credentialDir = workspace.resolve("credentials");
+        Files.createDirectories(credentialDir);
+        Path credentialFile = credentialDir.resolve("oauth.json");
+        Files.write(credentialFile, Arrays.asList("{\"token\":\"old\"}"), StandardCharsets.UTF_8);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(), securityPolicyService);
+        SolonClawPatchTools patchTools =
+                new SolonClawPatchTools(
+                        env.appConfig.getRuntime().getHome(), securityPolicyService);
+
+        ONode patchResult =
+                ONode.ofJson(
+                        patchTools.patch(
+                                "replace",
+                                "credentials/oauth.json",
+                                "old",
+                                "new",
+                                Boolean.FALSE,
+                                null));
+
+        assertThatThrownBy(() -> fileSkill.read("credentials/oauth.json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("凭据");
+        assertThatThrownBy(() -> fileSkill.write("credentials/oauth.json", "{\"token\":\"new\"}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("凭据");
+        assertThat(patchResult.get("success").getBoolean()).isFalse();
+        assertThat(patchResult.get("error").getString()).contains("凭据");
+        assertThat(new String(Files.readAllBytes(credentialFile), StandardCharsets.UTF_8))
+                .contains("old")
+                .doesNotContain("new");
+    }
+
+    @Test
     void shouldApplyHermesToolOutputLimitsToFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
