@@ -611,6 +611,14 @@ public class KanbanServiceTest {
         assertThat(service.handleCommand("diagnostics " + taskId, "tester"))
                 .contains("Kanban 诊断")
                 .contains("spawn_failed");
+        assertThat(service.handleCommand("diagnostics --task " + taskId + " --json", "tester"))
+                .contains("\"task_id\":\"" + taskId + "\"")
+                .contains("\"severity\":\"warning\"")
+                .contains("\"kind\":\"spawn_failed\"");
+        assertThat(service.handleCommand("diagnostics --severity warning --json", "tester"))
+                .contains("\"kind\":\"spawn_failed\"");
+        assertThat(service.handleCommand("diagnostics --severity error --json", "tester"))
+                .doesNotContain("spawn_failed");
     }
 
     @Test

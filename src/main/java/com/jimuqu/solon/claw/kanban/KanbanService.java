@@ -816,7 +816,7 @@ public class KanbanService {
             return String.valueOf(ctx.get("worker_context"));
         }
         if ("diagnostics".equals(action) || "diag".equals(action)) {
-            return formatDiagnostics(diagnostics(rest));
+            return diagnosticsCommand(rest);
         }
         if ("stats".equals(action)) {
             return statsCommand(rest);
@@ -1036,6 +1036,50 @@ public class KanbanService {
             return ONode.serialize(list);
         }
         return formatAssignees(list);
+    }
+
+    private String diagnosticsCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        String taskId = parsed.value("task");
+        if (StrUtil.isBlank(taskId)) {
+            taskId = parsed.positionalText();
+        }
+        List<Map<String, Object>> list =
+                filterDiagnosticsBySeverity(
+                        diagnostics(StrUtil.blankToDefault(taskId, null)), parsed.value("severity"));
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(list);
+        }
+        return formatDiagnostics(list);
+    }
+
+    private List<Map<String, Object>> filterDiagnosticsBySeverity(
+            List<Map<String, Object>> diagnostics, String minimumSeverity) {
+        if (StrUtil.isBlank(minimumSeverity)) {
+            return diagnostics;
+        }
+        int threshold = severityRank(minimumSeverity);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (Map<String, Object> diagnostic : diagnostics) {
+            if (severityRank(String.valueOf(diagnostic.get("severity"))) >= threshold) {
+                result.add(diagnostic);
+            }
+        }
+        return result;
+    }
+
+    private int severityRank(String severity) {
+        String value = StrUtil.nullToEmpty(severity).trim().toLowerCase(Locale.ROOT);
+        if ("critical".equals(value)) {
+            return 3;
+        }
+        if ("error".equals(value)) {
+            return 2;
+        }
+        if ("warning".equals(value)) {
+            return 1;
+        }
+        throw new IllegalArgumentException("severity must be warning, error, or critical");
     }
 
     private String normalizeAssigneeOption(String assignee) {
