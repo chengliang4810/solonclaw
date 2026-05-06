@@ -177,10 +177,35 @@ public class HermesShellSkillTest {
         assertThat(result).contains("执行超时");
     }
 
+    @Test
+    void shouldApplyHermesForegroundOutputByteLimit() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTask().setToolOutputInlineLimit(300);
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute(javaLongOutputCommand(), 10000);
+
+        assertThat(result)
+                .contains("head-")
+                .contains("tail-")
+                .contains("OUTPUT TRUNCATED")
+                .contains("chars omitted");
+        assertThat(result).doesNotContain("middle-");
+        assertThat(result.length()).isLessThan(500);
+    }
+
     private String javaSleepCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private String javaLongOutputCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "powershell -NoProfile -Command \"$s='head-' + ('A' * 600) + 'middle-' + ('B' * 600) + 'tail-'; [Console]::Write($s)\"";
+        }
+        return "printf 'head-'; head -c 600 /dev/zero | tr '\\0' 'A'; printf 'middle-'; head -c 600 /dev/zero | tr '\\0' 'B'; printf 'tail-'";
     }
 }

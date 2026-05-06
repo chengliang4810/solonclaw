@@ -11,12 +11,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.sys.ShellSkill;
 
 /** Solon AI ShellSkill wrapper with Hermes-style terminal safeguards. */
 public class HermesShellSkill extends ShellSkill {
+    private static final Pattern ANSI_CONTROL_SEQUENCE =
+            Pattern.compile(
+                    "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|[\\u0080-\\u009F]");
     private final AppConfig appConfig;
     private final SecurityPolicyService securityPolicyService;
     private final ProcessRegistry processRegistry;
@@ -90,9 +94,10 @@ public class HermesShellSkill extends ShellSkill {
         }
         SudoTransform transform = transformSudoCommand(code);
         if (!transform.isChanged()) {
-            return super.execute(code, effectiveTimeout);
+            return normalizeTerminalOutput(super.execute(code, effectiveTimeout));
         }
-        return executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout);
+        return normalizeTerminalOutput(
+                executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout));
     }
 
     @ToolMapping(
@@ -445,6 +450,32 @@ public class HermesShellSkill extends ShellSkill {
             }
         }
         return buffer.toString();
+    }
+
+    private String normalizeTerminalOutput(String output) {
+        String value = StrUtil.nullToEmpty(output);
+        int maxOutputChars = resolveMaxOutputChars();
+        if (value.length() > maxOutputChars) {
+            int headChars = Math.max(1, (int) (maxOutputChars * 0.4));
+            int tailChars = Math.max(1, maxOutputChars - headChars);
+            int omitted = Math.max(0, value.length() - headChars - tailChars);
+            String notice =
+                    "\n\n... [OUTPUT TRUNCATED - "
+                            + omitted
+                            + " chars omitted out of "
+                            + value.length()
+                            + " total] ...\n\n";
+            value = value.substring(0, headChars) + notice + value.substring(value.length() - tailChars);
+        }
+        return ANSI_CONTROL_SEQUENCE.matcher(value).replaceAll("");
+    }
+
+    private int resolveMaxOutputChars() {
+        int value = 50000;
+        if (appConfig != null && appConfig.getTask() != null) {
+            value = appConfig.getTask().getToolOutputInlineLimit();
+        }
+        return Math.max(256, value);
     }
 
     private static String defaultShellCmd() {
