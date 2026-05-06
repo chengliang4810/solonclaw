@@ -118,11 +118,28 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null));
         assertThat(waited.get("success").getBoolean()).isTrue();
+        assertThat(waited.get("status").getString()).isEqualTo("exited");
         assertThat(waited.get("exited").getBoolean()).isTrue();
         assertThat(waited.get("output").getString()).contains("jimuqu-process-ok");
 
+        ONode polled =
+                ONode.ofJson(
+                        tools.process(
+                                "poll",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+        assertThat(polled.get("status").getString()).isEqualTo("exited");
+        assertThat(polled.get("output_preview").getString()).contains("jimuqu-process-ok");
+        assertThat(polled.get("uptime_seconds").getLong()).isGreaterThanOrEqualTo(0L);
+
         ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         assertThat(listed.get("count").getInt()).isGreaterThanOrEqualTo(1);
+        assertThat(String.valueOf(listed.get("processes"))).contains("output_preview").contains("uptime_seconds");
     }
 
     @Test
@@ -204,6 +221,58 @@ public class ToolRegistryExposureTest {
         assertThat(env.processRegistry.runningCount()).isEqualTo(1);
         assertThat(env.processRegistry.stop(started.get("session_id").getString())).isTrue();
         assertThat(env.processRegistry.runningCount()).isZero();
+    }
+
+    @Test
+    void shouldReturnHermesKillStatusesForManagedProcesses() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                javaSleepCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+
+        ONode killed =
+                ONode.ofJson(
+                        tools.process(
+                                "kill",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(killed.get("success").getBoolean()).isTrue();
+        assertThat(killed.get("status").getString()).isEqualTo("killed");
+        assertThat(killed.get("stopped").getBoolean()).isTrue();
+
+        ONode killedAgain =
+                ONode.ofJson(
+                        tools.process(
+                                "kill",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(killedAgain.get("status").getString()).isEqualTo("already_exited");
+        assertThat(killedAgain.get("exit_code").isNull()).isFalse();
     }
 
     @Test
@@ -323,6 +392,19 @@ public class ToolRegistryExposureTest {
                                 null));
         assertThat(waited.get("success").getBoolean()).isTrue();
         assertThat(waited.get("output").getString()).contains("alpha-beta");
+
+        ONode writeAfterExit =
+                ONode.ofJson(
+                        tools.process(
+                                "write",
+                                null,
+                                sessionId,
+                                null,
+                                "late",
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(writeAfterExit.get("status").getString()).isEqualTo("already_exited");
     }
 
     @Test

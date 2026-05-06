@@ -101,9 +101,12 @@ public class ProcessTools {
             }
             return ToolResultEnvelope.error("Unsupported process action: " + action).toJson();
         } catch (Exception e) {
-            return ToolResultEnvelope.error(
-                            e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
-                    .toJson();
+            String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            ToolResultEnvelope envelope = ToolResultEnvelope.error(message);
+            if (message.startsWith("Unknown process session_id:")) {
+                envelope.data("status", "not_found");
+            }
+            return envelope.toJson();
         }
     }
 
@@ -119,6 +122,9 @@ public class ProcessTools {
                 .data("pid", managed.getPid())
                 .data("command", managed.getCommand())
                 .data("cwd", managed.getCwd())
+                .data("status", managed.isExited() ? "exited" : "running")
+                .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
+                .data("output_preview", stripAnsi(managed.outputPreview(1000)))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
@@ -176,18 +182,23 @@ public class ProcessTools {
 
     private String poll(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
+        String output = stripAnsi(managed.outputPreview(1000));
         return ToolResultEnvelope.ok(
                         managed.isExited()
                                 ? "后台进程已结束：" + managed.getId()
                                 : "后台进程仍在运行：" + managed.getId())
                 .data("session_id", managed.getId())
+                .data("command", managed.getCommand())
+                .data("status", managed.isExited() ? "exited" : "running")
                 .data("pid", managed.getPid())
+                .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
+                .data("output_preview", output)
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("running", Boolean.valueOf(!managed.isExited()))
                 .data("exit_code", managed.getExitCode())
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
-                .data("output", managed.getOutput())
-                .preview(managed.getOutput())
+                .data("output", output)
+                .preview(output)
                 .truncated(managed.isTruncated())
                 .toJson();
     }
@@ -225,21 +236,30 @@ public class ProcessTools {
 
     private String stop(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
-        boolean stopped = processRegistry.stop(managed.getId());
-        return ToolResultEnvelope.ok(stopped ? "后台进程已停止：" + managed.getId() : "后台进程未停止")
+        ProcessRegistry.StopResult stopResult = processRegistry.stopDetailed(managed.getId());
+        String output = stripAnsi(managed.outputPreview(1000));
+        return ToolResultEnvelope.ok(
+                        stopResult.isStopped()
+                                ? "后台进程已停止：" + managed.getId()
+                                : "后台进程未停止：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("stopped", Boolean.valueOf(stopped))
+                .data("status", stopResult.getStatus())
+                .data("stopped", Boolean.valueOf(stopResult.isStopped()))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
-                .data("output", managed.getOutput())
-                .preview(managed.getOutput())
+                .data("output", output)
+                .data("output_preview", output)
+                .preview(output)
                 .truncated(managed.isTruncated())
                 .toJson();
     }
 
     private String write(String sessionId, String data, boolean appendNewline) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
+        if (managed.isExited()) {
+            return alreadyExited(managed);
+        }
         String payload = StrUtil.nullToEmpty(data);
         if (appendNewline) {
             payload = payload + "\n";
@@ -248,6 +268,8 @@ public class ProcessTools {
         return ToolResultEnvelope.ok(
                         appendNewline ? "已向后台进程提交输入：" + managed.getId() : "已写入后台进程 stdin：" + managed.getId())
                 .data("session_id", managed.getId())
+                .data("status", "ok")
+                .data("bytes_written", Integer.valueOf(payload.length()))
                 .data("written", Integer.valueOf(payload.length()))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .toJson();
@@ -255,11 +277,27 @@ public class ProcessTools {
 
     private String close(String sessionId) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
+        if (managed.isExited()) {
+            return alreadyExited(managed);
+        }
         processRegistry.closeStdin(managed.getId());
         return ToolResultEnvelope.ok("后台进程 stdin 已关闭：" + managed.getId())
                 .data("session_id", managed.getId())
+                .data("status", "ok")
+                .data("message", "stdin closed")
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("exited", Boolean.valueOf(managed.isExited()))
+                .toJson();
+    }
+
+    private String alreadyExited(ProcessRegistry.ManagedProcess managed) {
+        return ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
+                .data("session_id", managed.getId())
+                .data("status", "already_exited")
+                .data("error", "Process has already finished")
+                .data("exit_code", managed.getExitCode())
+                .data("exited", Boolean.valueOf(true))
+                .data("running", Boolean.valueOf(false))
                 .toJson();
     }
 

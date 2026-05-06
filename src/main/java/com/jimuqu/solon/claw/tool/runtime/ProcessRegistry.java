@@ -6,11 +6,14 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 /** Hermes 风格的受管后台进程注册表。 */
@@ -82,12 +85,21 @@ public class ProcessRegistry {
     }
 
     public boolean stop(String id) {
+        StopResult result = stopDetailed(id);
+        return result.isStopped() || "already_exited".equals(result.getStatus());
+    }
+
+    public StopResult stopDetailed(String id) {
         ManagedProcess managed = processes.get(id);
         if (managed == null) {
-            return false;
+            return new StopResult("not_found", false, null, null);
+        }
+        managed.refreshExitState();
+        if (managed.isExited()) {
+            return new StopResult("already_exited", false, managed.getId(), managed.getExitCode());
         }
         managed.stop();
-        return true;
+        return new StopResult("killed", true, managed.getId(), managed.getExitCode());
     }
 
     public boolean writeStdin(String id, String data) throws Exception {
@@ -311,10 +323,14 @@ public class ProcessRegistry {
             map.put("cwd", cwd);
             map.put("pid", pid);
             map.put("started_at", Long.valueOf(startedAt));
+            map.put("started_at_iso", isoLocal(startedAt));
+            map.put("uptime_seconds", Long.valueOf(uptimeSeconds()));
+            map.put("status", exited ? "exited" : "running");
             map.put("exited", Boolean.valueOf(exited));
             map.put("running", Boolean.valueOf(!exited));
             map.put("exit_code", exitCode);
             map.put("output", getOutput());
+            map.put("output_preview", outputPreview(200));
             map.put("truncated", Boolean.valueOf(truncated));
             map.put("stdin_closed", Boolean.valueOf(isStdinClosed()));
             return map;
@@ -344,6 +360,18 @@ public class ProcessRegistry {
             return startedAt;
         }
 
+        public long uptimeSeconds() {
+            return Math.max(0L, (System.currentTimeMillis() - startedAt) / 1000L);
+        }
+
+        public synchronized String outputPreview(int maxChars) {
+            String value = output.toString();
+            if (value.length() <= maxChars) {
+                return value;
+            }
+            return value.substring(value.length() - maxChars);
+        }
+
         public synchronized boolean isExited() {
             refreshExitState();
             return exited;
@@ -364,6 +392,42 @@ public class ProcessRegistry {
 
         public synchronized boolean isStdinClosed() {
             return stdinClosed;
+        }
+
+        private static String isoLocal(long timestamp) {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+            format.setTimeZone(TimeZone.getDefault());
+            return format.format(new Date(timestamp));
+        }
+    }
+
+    public static class StopResult {
+        private final String status;
+        private final boolean stopped;
+        private final String sessionId;
+        private final Integer exitCode;
+
+        StopResult(String status, boolean stopped, String sessionId, Integer exitCode) {
+            this.status = status;
+            this.stopped = stopped;
+            this.sessionId = sessionId;
+            this.exitCode = exitCode;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public boolean isStopped() {
+            return stopped;
+        }
+
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public Integer getExitCode() {
+            return exitCode;
         }
     }
 }
