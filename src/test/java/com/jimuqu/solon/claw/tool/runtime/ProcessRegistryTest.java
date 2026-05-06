@@ -1,10 +1,25 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import org.junit.jupiter.api.Test;
 
 public class ProcessRegistryTest {
+    @Test
+    void shouldRejectNullAndBlankBackgroundCommandsBeforeShellLaunch() {
+        ProcessRegistry registry = new ProcessRegistry();
+
+        assertThatThrownBy(() -> registry.start(null, new File(".")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("expected string")
+                .hasMessageContaining("null");
+        assertThatThrownBy(() -> registry.start("  ", new File(".")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("expected non-empty string");
+    }
+
     @Test
     void shouldRewriteCompoundBackgroundTailLikeHermes() {
         assertThat(

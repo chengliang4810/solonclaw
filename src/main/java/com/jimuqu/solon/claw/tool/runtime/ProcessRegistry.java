@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
@@ -33,6 +34,7 @@ public class ProcessRegistry {
     }
 
     public ManagedProcess start(String command, File workDir) throws Exception {
+        validateCommand(command);
         String executableCommand = isWindows() ? command : rewriteCompoundBackground(command);
         List<String> shellCommand = shellCommand(executableCommand);
         ProcessBuilder builder = new ProcessBuilder(shellCommand);
@@ -54,6 +56,17 @@ public class ProcessRegistry {
         processes.put(id, managed);
         managed.startReader();
         return managed;
+    }
+
+    private static void validateCommand(String command) {
+        if (command == null) {
+            throw new IllegalArgumentException(
+                    "Invalid terminal command: expected string, got NoneType/null.");
+        }
+        if (StrUtil.isBlank(command)) {
+            throw new IllegalArgumentException(
+                    "Invalid terminal command: expected non-empty string.");
+        }
     }
 
     public Map<String, ManagedProcess> snapshot() {
