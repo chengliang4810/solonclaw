@@ -699,7 +699,7 @@ public class DefaultCronSchedulerTest {
 
         String createdJson =
                 tools.cronjob(
-                        "create",
+                        "add",
                         null,
                         "tool-job",
                         "30m",
@@ -922,7 +922,7 @@ public class DefaultCronSchedulerTest {
                 (Map<?, ?>)
                         ONode.ofJson(
                                         tools.cronjob(
-                                                "update",
+                                                "edit",
                                                 "missing-job",
                                                 null,
                                                 null,

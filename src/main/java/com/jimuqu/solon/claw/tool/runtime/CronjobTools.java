@@ -45,6 +45,12 @@ public class CronjobTools {
             throws Exception {
         try {
         String normalized = action == null ? "list" : action.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("add".equals(normalized)) {
+            normalized = "create";
+        }
+        if ("edit".equals(normalized)) {
+            normalized = "update";
+        }
         if ("delete".equals(normalized) || "rm".equals(normalized)) {
             normalized = "remove";
         }
