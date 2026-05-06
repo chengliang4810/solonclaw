@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.ai.rag.Document;
 import org.noear.solon.ai.skills.sys.NodejsSkill;
 import org.noear.solon.ai.skills.sys.PythonSkill;
 
@@ -57,12 +58,30 @@ public class HermesCodeExecutionSkills {
         private final HermesFileReadWriteSkill fileSkill;
         private final HermesPatchTools patchTools;
         private final HermesShellSkill shellSkill;
+        private final HermesWebTools.SafeWebsearchTool websearchTool;
+        private final HermesWebTools.SafeWebfetchTool webfetchTool;
 
         public SafeExecuteCodeTool(
                 String workDir,
                 String pythonCommand,
                 SecurityPolicyService securityPolicyService,
                 AppConfig appConfig) {
+            this(
+                    workDir,
+                    pythonCommand,
+                    securityPolicyService,
+                    appConfig,
+                    null,
+                    null);
+        }
+
+        SafeExecuteCodeTool(
+                String workDir,
+                String pythonCommand,
+                SecurityPolicyService securityPolicyService,
+                AppConfig appConfig,
+                HermesWebTools.SafeWebsearchTool websearchTool,
+                HermesWebTools.SafeWebfetchTool webfetchTool) {
             this.workDir = checkedWorkDir(workDir);
             this.pythonCommand = StrUtil.blankToDefault(pythonCommand, defaultPythonCommand());
             this.securityPolicyService = securityPolicyService;
@@ -82,12 +101,20 @@ public class HermesCodeExecutionSkills {
                             appConfig,
                             securityPolicyService,
                             new ProcessRegistry());
+            this.websearchTool =
+                    websearchTool == null
+                            ? new HermesWebTools.SafeWebsearchTool(securityPolicyService)
+                            : websearchTool;
+            this.webfetchTool =
+                    webfetchTool == null
+                            ? new HermesWebTools.SafeWebfetchTool(securityPolicyService)
+                            : webfetchTool;
         }
 
         @ToolMapping(
                 name = "execute_code",
                 description =
-                        "Run a Python script and return a Hermes-style JSON result. Use normal tools for single tool calls; execute_code is for multi-step local processing. Current Java runtime does not expose Hermes RPC tool stubs yet.")
+                        "Run a Python script and return a Hermes-style JSON result. The hermes_tools module exposes web_search, web_extract, read_file, write_file, search_files, patch and terminal for multi-step local processing.")
         public String executeCode(
                 @Param(
                                 name = "code",
@@ -346,8 +373,8 @@ public class HermesCodeExecutionSkills {
                             + "def _unavailable(name):\n"
                             + "    raise RuntimeError(name + ' is not available in jimuqu-agent execute_code yet. Use normal tool calls instead.')\n"
                             + "\n"
-                            + "def web_search(*args, **kwargs): return _unavailable('web_search')\n"
-                            + "def web_extract(*args, **kwargs): return _unavailable('web_extract')\n"
+                            + "def web_search(query, limit=5): return _call('web_search', {'query': query, 'limit': limit})\n"
+                            + "def web_extract(urls): return _call('web_extract', {'urls': urls})\n"
                             + "def read_file(path, offset=1, limit=500): return _call('read_file', {'path': path, 'offset': offset, 'limit': limit})\n"
                             + "def write_file(path, content): return _call('write_file', {'path': path, 'content': content})\n"
                             + "def search_files(pattern, target='content', path='.', file_glob=None, limit=50, offset=0, output_mode='content', context=0): return _call('search_files', {'pattern': pattern, 'target': target, 'path': path, 'file_glob': file_glob, 'limit': limit, 'offset': offset, 'output_mode': output_mode, 'context': context})\n"
@@ -454,11 +481,17 @@ public class HermesCodeExecutionSkills {
                 if ("search_files".equals(toolName)) {
                     return ONode.serialize(searchFiles(args));
                 }
+                if ("web_search".equals(toolName)) {
+                    return ONode.serialize(webSearch(args));
+                }
+                if ("web_extract".equals(toolName)) {
+                    return ONode.serialize(webExtract(args));
+                }
                 return ONode.serialize(
                         errorMap(
                                 "Tool '"
                                         + toolName
-                                        + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, write_file"));
+                                        + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, web_extract, web_search, write_file"));
             } catch (Exception e) {
                 return ONode.serialize(errorMap(e.getMessage()));
             }
@@ -546,6 +579,117 @@ public class HermesCodeExecutionSkills {
             result.put("offset", Integer.valueOf(offset));
             result.put("limit", Integer.valueOf(limit));
             return result;
+        }
+
+        private Map<String, Object> webSearch(Map<String, Object> args) throws Exception {
+            String query = getString(args, "query", "");
+            int limit = Math.max(1, Math.min(getInt(args, "limit", 5), 20));
+            if (StrUtil.isBlank(query)) {
+                return errorMap("query is required");
+            }
+            Document doc =
+                    websearchTool.websearch(
+                            query,
+                            Integer.valueOf(limit),
+                            "fallback",
+                            "auto",
+                            Integer.valueOf(maxStdoutChars()));
+            Map<String, Object> result = normalizeWebSearchDocument(doc, query, limit);
+            result.put("status", "success");
+            result.put("success", Boolean.TRUE);
+            return result;
+        }
+
+        private Map<String, Object> webExtract(Map<String, Object> args) throws Exception {
+            Object rawUrls = args == null ? null : args.get("urls");
+            List<String> urls = stringList(rawUrls);
+            if (urls.isEmpty()) {
+                return errorMap("urls is required");
+            }
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+            for (String url : urls) {
+                Map<String, Object> item = new LinkedHashMap<String, Object>();
+                item.put("url", url);
+                try {
+                    Document doc = webfetchTool.webfetch(url, "markdown", Integer.valueOf(120));
+                    item.put("title", StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
+                    item.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
+                    item.put("error", null);
+                } catch (Exception e) {
+                    item.put("title", url);
+                    item.put("content", "");
+                    item.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                }
+                items.add(item);
+            }
+            result.put("results", items);
+            result.put("status", "success");
+            result.put("success", Boolean.TRUE);
+            return result;
+        }
+
+        private Map<String, Object> normalizeWebSearchDocument(Document doc, String query, int limit) {
+            String content = doc == null ? "" : StrUtil.nullToEmpty(doc.getContent());
+            try {
+                Object parsed = ONode.deserialize(content, Object.class);
+                Map<String, Object> parsedMap = castMap(parsed);
+                if (!parsedMap.isEmpty()) {
+                    List<Map<String, Object>> web = extractWebResults(parsedMap, limit);
+                    if (!web.isEmpty()) {
+                        return webSearchResult(web);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("url", doc == null ? "" : StrUtil.nullToEmpty(doc.getUrl()));
+            item.put("title", doc == null ? "Web search: " + query : StrUtil.blankToDefault(doc.getTitle(), "Web search: " + query));
+            item.put("description", content);
+            web.add(item);
+            return webSearchResult(web);
+        }
+
+        private Map<String, Object> webSearchResult(List<Map<String, Object>> web) {
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("web", web);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("data", data);
+            return result;
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<Map<String, Object>> extractWebResults(Map<String, Object> parsed, int limit) {
+            Object raw = null;
+            Object data = parsed.get("data");
+            if (data instanceof Map) {
+                raw = ((Map<String, Object>) data).get("web");
+            }
+            if (raw == null) {
+                raw = parsed.get("web");
+            }
+            if (raw == null) {
+                raw = parsed.get("results");
+            }
+            List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
+            if (raw instanceof List) {
+                for (Object value : (List<Object>) raw) {
+                    if (web.size() >= limit) {
+                        break;
+                    }
+                    Map<String, Object> one = castMap(value);
+                    if (one.isEmpty()) {
+                        continue;
+                    }
+                    Map<String, Object> item = new LinkedHashMap<String, Object>();
+                    item.put("url", firstString(one, "url", "link"));
+                    item.put("title", firstString(one, "title", "name"));
+                    item.put("description", firstString(one, "description", "snippet", "content", "text"));
+                    web.add(item);
+                }
+            }
+            return web;
         }
 
         private void assertSearchPathSafe(String path) {
@@ -716,6 +860,45 @@ public class HermesCodeExecutionSkills {
                 return defaultValue;
             }
             return Boolean.parseBoolean(String.valueOf(value));
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<String> stringList(Object value) {
+            List<String> result = new ArrayList<String>();
+            if (value instanceof List) {
+                for (Object item : (List<Object>) value) {
+                    if (item != null && StrUtil.isNotBlank(String.valueOf(item))) {
+                        result.add(String.valueOf(item));
+                    }
+                }
+                return result;
+            }
+            if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+                result.add(String.valueOf(value));
+            }
+            return result;
+        }
+
+        private String firstString(Map<String, Object> map, String key1, String key2) {
+            String value = getString(map, key1, null);
+            return StrUtil.isBlank(value) ? getString(map, key2, "") : value;
+        }
+
+        private String firstString(
+                Map<String, Object> map, String key1, String key2, String key3, String key4) {
+            String value = getString(map, key1, null);
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+            value = getString(map, key2, null);
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+            value = getString(map, key3, null);
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+            return getString(map, key4, "");
         }
 
         private void deleteQuietly(Path path) {
