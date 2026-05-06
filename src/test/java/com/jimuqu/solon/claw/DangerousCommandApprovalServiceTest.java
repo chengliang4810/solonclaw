@@ -1400,6 +1400,126 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNotifyApprovalObserversForRequestAndResponseLikeHermesHooks() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        null);
+        final List<String> events = new java.util.ArrayList<String>();
+        service.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        events.add(
+                                "request:"
+                                        + event.getSessionId()
+                                        + ":"
+                                        + event.getToolName()
+                                        + ":"
+                                        + event.getPrimaryPatternKey()
+                                        + ":"
+                                        + event.getCommand());
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        events.add(
+                                "response:"
+                                        + event.getChoice()
+                                        + ":"
+                                        + event.getApprover()
+                                        + ":"
+                                        + event.getPrimaryPatternKey());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+        assertThat(service.approve(trace.session, DangerousCommandApprovalService.ApprovalScope.ONCE, "tester"))
+                .isTrue();
+
+        assertThat(events)
+                .containsExactly(
+                        "request:tirith-test:execute_shell:recursive_delete:rm -rf runtime/cache",
+                        "response:once:tester:recursive_delete");
+    }
+
+    @Test
+    void shouldNotifyApprovalObserversForDenyResponse() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> choices = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        choices.add("request");
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        choices.add(event.getChoice());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(env.dangerousCommandApprovalService.reject(trace.session, "tester")).isTrue();
+
+        assertThat(choices).containsExactly("request", "deny");
+    }
+
+    @Test
+    void shouldIgnoreApprovalObserverFailures() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        throw new IllegalStateException("observer failed");
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        throw new IllegalStateException("observer failed");
+                    }
+                });
+        TestTrace trace = new TestTrace();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.SESSION,
+                                "tester"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "recursive_delete"))
+                .isTrue();
+    }
+
+    @Test
     void shouldAllowWhenTirithScanIsDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setTirithEnabled(false);

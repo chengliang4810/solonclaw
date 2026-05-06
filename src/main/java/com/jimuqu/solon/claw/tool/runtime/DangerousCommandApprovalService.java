@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.AgentSession;
@@ -480,6 +481,8 @@ public class DangerousCommandApprovalService {
     private final AppConfig appConfig;
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
+    private final List<ApprovalObserver> approvalObservers =
+            new CopyOnWriteArrayList<ApprovalObserver>();
     private SmartApprovalJudge smartApprovalJudge;
 
     public DangerousCommandApprovalService(GlobalSettingRepository globalSettingRepository) {
@@ -512,6 +515,18 @@ public class DangerousCommandApprovalService {
 
     public void setSmartApprovalJudge(SmartApprovalJudge smartApprovalJudge) {
         this.smartApprovalJudge = smartApprovalJudge;
+    }
+
+    public void addApprovalObserver(ApprovalObserver observer) {
+        if (observer != null && !approvalObservers.contains(observer)) {
+            approvalObservers.add(observer);
+        }
+    }
+
+    public void removeApprovalObserver(ApprovalObserver observer) {
+        if (observer != null) {
+            approvalObservers.remove(observer);
+        }
     }
 
     public HITLInterceptor buildInterceptor() {
@@ -629,6 +644,7 @@ public class DangerousCommandApprovalService {
         HITL.approve(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
         session.updateSnapshot();
+        notifyApprovalResponse(session, pending, scope == null ? "once" : scope.name().toLowerCase(Locale.ROOT), approver);
         return true;
     }
 
@@ -647,8 +663,10 @@ public class DangerousCommandApprovalService {
         detection.setPatternKeys(Collections.singletonList(patternKey));
         detection.setDescription(description);
         detection.setNormalizedCode(normalize(command));
-        storePendingMap(session, createPendingMap(toolName, detection, command));
+        Map<String, Object> pendingMap = createPendingMap(toolName, detection, command);
+        storePendingMap(session, pendingMap);
         session.updateSnapshot();
+        notifyApprovalRequest(session, toPendingApproval(pendingMap));
     }
 
     public boolean reject(AgentSession session, String approver) {
@@ -669,6 +687,7 @@ public class DangerousCommandApprovalService {
         HITL.reject(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
         session.updateSnapshot();
+        notifyApprovalResponse(session, pending, "deny", approver);
         return true;
     }
 
@@ -924,8 +943,10 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        storePendingMap(trace.getSession(), createPendingMap(toolName, detection, code));
+        Map<String, Object> pendingMap = createPendingMap(toolName, detection, code);
+        storePendingMap(trace.getSession(), pendingMap);
         persistTraceSnapshot(trace);
+        notifyApprovalRequest(trace.getSession(), toPendingApproval(pendingMap));
         return buildPendingMessage(toolName, detection, code);
     }
 
@@ -1122,6 +1143,44 @@ public class DangerousCommandApprovalService {
         if (trace != null && trace.getSession() != null) {
             trace.getSession().updateSnapshot();
         }
+    }
+
+    private void notifyApprovalRequest(AgentSession session, PendingApproval pending) {
+        if (pending == null || approvalObservers.isEmpty()) {
+            return;
+        }
+        ApprovalRequestEvent event = new ApprovalRequestEvent(sessionId(session), pending);
+        for (ApprovalObserver observer : approvalObservers) {
+            try {
+                observer.onApprovalRequest(event);
+            } catch (Exception ignored) {
+                // Observer hooks must never affect the safety-critical approval flow.
+            }
+        }
+    }
+
+    private void notifyApprovalResponse(
+            AgentSession session, PendingApproval pending, String choice, String approver) {
+        if (pending == null || approvalObservers.isEmpty()) {
+            return;
+        }
+        ApprovalResponseEvent event =
+                new ApprovalResponseEvent(
+                        sessionId(session), pending, StrUtil.nullToEmpty(choice), approver);
+        for (ApprovalObserver observer : approvalObservers) {
+            try {
+                observer.onApprovalResponse(event);
+            } catch (Exception ignored) {
+                // Observer hooks must never affect the safety-critical approval flow.
+            }
+        }
+    }
+
+    private String sessionId(AgentSession session) {
+        if (session == null) {
+            return "";
+        }
+        return StrUtil.nullToEmpty(session.getSessionId());
     }
 
     public String approvalMode() {
@@ -2040,6 +2099,73 @@ public class DangerousCommandApprovalService {
     private static class SecretPreview {
         private static String safeUrl(String url) {
             return com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(url);
+        }
+    }
+
+    public interface ApprovalObserver {
+        void onApprovalRequest(ApprovalRequestEvent event);
+
+        void onApprovalResponse(ApprovalResponseEvent event);
+    }
+
+    public static class ApprovalRequestEvent {
+        private final String sessionId;
+        private final PendingApproval pendingApproval;
+
+        private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
+            this.sessionId = StrUtil.nullToEmpty(sessionId);
+            this.pendingApproval = pendingApproval;
+        }
+
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public PendingApproval getPendingApproval() {
+            return pendingApproval;
+        }
+
+        public String getToolName() {
+            return pendingApproval == null ? "" : StrUtil.nullToEmpty(pendingApproval.getToolName());
+        }
+
+        public String getCommand() {
+            return pendingApproval == null ? "" : StrUtil.nullToEmpty(pendingApproval.getCommand());
+        }
+
+        public String getDescription() {
+            return pendingApproval == null ? "" : StrUtil.nullToEmpty(pendingApproval.getDescription());
+        }
+
+        public List<String> getPatternKeys() {
+            return pendingApproval == null
+                    ? Collections.<String>emptyList()
+                    : pendingApproval.effectivePatternKeys();
+        }
+
+        public String getPrimaryPatternKey() {
+            List<String> keys = getPatternKeys();
+            return keys.isEmpty() ? "" : keys.get(0);
+        }
+    }
+
+    public static class ApprovalResponseEvent extends ApprovalRequestEvent {
+        private final String choice;
+        private final String approver;
+
+        private ApprovalResponseEvent(
+                String sessionId, PendingApproval pendingApproval, String choice, String approver) {
+            super(sessionId, pendingApproval);
+            this.choice = StrUtil.nullToEmpty(choice);
+            this.approver = StrUtil.nullToEmpty(approver);
+        }
+
+        public String getChoice() {
+            return choice;
+        }
+
+        public String getApprover() {
+            return approver;
         }
     }
 
