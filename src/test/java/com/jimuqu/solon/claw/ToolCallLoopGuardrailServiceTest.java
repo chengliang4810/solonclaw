@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import cn.hutool.core.io.FileUtil;
 import java.io.File;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,33 @@ public class ToolCallLoopGuardrailServiceTest {
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
         assertThat(trace.getLastObservation()).contains("repeated_exact_failure_block");
+    }
+
+    @Test
+    void shouldHashCanonicalNestedArgsWithoutLeakingRawArgsInGuardrailMetadata() {
+        AppConfig config = new AppConfig();
+        config.getReact().setToolLoopHardStopEnabled(true);
+        config.getReact().setToolLoopExactFailureWarnAfter(2);
+        config.getReact().setToolLoopExactFailureBlockAfter(2);
+        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(config).buildInterceptor();
+        ReActTrace trace = newTrace();
+        Map<String, Object> firstArgs = nestedArgs(false);
+        Map<String, Object> reorderedArgs = nestedArgs(true);
+
+        runFailedCall(interceptor, trace, "web_search", firstArgs);
+        runFailedCall(interceptor, trace, "web_search", reorderedArgs);
+        interceptor.onAction(trace, "web_search", reorderedArgs);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getLastObservation()).contains("args_hash").contains("repeated_exact_failure_block");
+        assertThat(trace.getLastObservation())
+                .doesNotContain("secret-token-value")
+                .doesNotContain("☤")
+                .doesNotContain("β");
+        assertThat(trace.getFinalAnswer())
+                .doesNotContain("secret-token-value")
+                .doesNotContain("☤")
+                .doesNotContain("β");
     }
 
     @Test
@@ -150,6 +178,28 @@ public class ToolCallLoopGuardrailServiceTest {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put(key, value);
         return args;
+    }
+
+    private Map<String, Object> nestedArgs(boolean reordered) {
+        Map<String, Object> root = new LinkedHashMap<String, Object>();
+        Map<String, Object> inner = new LinkedHashMap<String, Object>();
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        if (reordered) {
+            inner.put("x", "secret-token-value");
+            inner.put("y", Integer.valueOf(2));
+            item.put("a", Integer.valueOf(1));
+            item.put("β", "☤");
+            root.put("a", inner);
+            root.put("z", Arrays.<Object>asList(item));
+        } else {
+            item.put("β", "☤");
+            item.put("a", Integer.valueOf(1));
+            inner.put("y", Integer.valueOf(2));
+            inner.put("x", "secret-token-value");
+            root.put("z", Arrays.<Object>asList(item));
+            root.put("a", inner);
+        }
+        return root;
     }
 
     private ReActTrace newTrace() {
