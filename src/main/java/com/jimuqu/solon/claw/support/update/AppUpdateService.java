@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
-import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.util.ArrayList;
@@ -429,16 +428,9 @@ public class AppUpdateService {
             return null;
         }
         try {
-            URI uri = URI.create(proxyUrl);
-            String host = uri.getHost();
-            int port = uri.getPort();
-            if (StrUtil.isBlank(host) || port <= 0) {
-                setLastError("更新代理地址无效: " + proxyUrl);
-                return null;
-            }
-            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, port));
+            return ProxyUrlSupport.parseProxy(proxyUrl);
         } catch (Exception e) {
-            setLastError("更新代理地址解析失败: " + proxyUrl);
+            setLastError("更新代理地址解析失败: " + SecretRedactor.maskUrl(proxyUrl) + "，" + e.getMessage());
             return null;
         }
     }
