@@ -65,6 +65,8 @@ public class AttachmentAwareConversationTest {
         assertThat(llmGateway.lastUserMessage).contains("[attachments]");
         assertThat(llmGateway.lastUserMessage).contains("kind=image");
         assertThat(llmGateway.lastUserMessage).contains("originalName=diagram.png");
+        assertThat(llmGateway.lastUserMessage).contains("localPath=diagram.png");
+        assertThat(llmGateway.lastUserMessage).doesNotContain("D:\\temp");
         assertThat(llmGateway.lastUserMessage).contains("fromQuote=true");
         assertThat(llmGateway.lastUserMessage).contains("transcribedText=客户说先别发版");
 
@@ -104,6 +106,46 @@ public class AttachmentAwareConversationTest {
                                         PlatformType.MEMORY, link.toFile(), "file", false, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outside media cache");
+    }
+
+    @Test
+    void shouldRedactSensitiveAttachmentPathsBeforeLlmInput() throws Exception {
+        CapturingLlmGateway llmGateway = new CapturingLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llmGateway);
+        env.appConfig.getGateway().setAllowAllUsers(true);
+        File mediaDir = new AttachmentCacheService(env.appConfig).platformDir(PlatformType.MEMORY);
+        File cached = new File(mediaDir, "safe-report.pdf");
+
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "room-sensitive", "user-1", "看附件");
+        message.setAttachments(new ArrayList<MessageAttachment>());
+        message.getAttachments()
+                .add(
+                        attachment(
+                                "file",
+                                "safe-report.pdf",
+                                "application/pdf",
+                                cached.getAbsolutePath(),
+                                false,
+                                null));
+        message.getAttachments()
+                .add(
+                        attachment(
+                                "file",
+                                "id_rsa",
+                                "text/plain",
+                                "C:\\Users\\chengliang\\.ssh\\id_rsa",
+                                false,
+                                null));
+
+        env.conversationOrchestrator.handleIncoming(message);
+
+        assertThat(llmGateway.lastUserMessage).contains("localPath=safe-report.pdf");
+        assertThat(llmGateway.lastUserMessage).contains("[redacted-sensitive-name]");
+        assertThat(llmGateway.lastUserMessage).contains("[redacted-sensitive-path]");
+        assertThat(llmGateway.lastUserMessage).doesNotContain(env.appConfig.getRuntime().getHome());
+        assertThat(llmGateway.lastUserMessage).doesNotContain(".ssh");
+        assertThat(llmGateway.lastUserMessage).doesNotContain("C:\\Users\\chengliang");
     }
 
     private MessageAttachment attachment(

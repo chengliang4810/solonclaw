@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.util.List;
+import java.util.Locale;
 
 /** 入站附件提示组装辅助类。 */
 public final class MessageAttachmentSupport {
@@ -26,11 +27,11 @@ public final class MessageAttachmentSupport {
         for (MessageAttachment attachment : message.getAttachments()) {
             buffer.append("\n- kind=").append(StrUtil.blankToDefault(attachment.getKind(), "file"));
             buffer.append(", originalName=")
-                    .append(StrUtil.blankToDefault(attachment.getOriginalName(), ""));
+                    .append(safeAttachmentName(attachment.getOriginalName()));
             buffer.append(", mimeType=")
-                    .append(StrUtil.blankToDefault(attachment.getMimeType(), ""));
+                    .append(safeInline(attachment.getMimeType()));
             buffer.append(", localPath=")
-                    .append(StrUtil.blankToDefault(attachment.getLocalPath(), ""));
+                    .append(safeAttachmentPath(attachment.getLocalPath()));
             buffer.append(", fromQuote=").append(attachment.isFromQuote());
             if (StrUtil.isNotBlank(attachment.getTranscribedText())) {
                 buffer.append(", transcribedText=")
@@ -48,6 +49,79 @@ public final class MessageAttachmentSupport {
     }
 
     private static String safeInline(String text) {
-        return StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
+        String value = StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
+        return value.length() > 300 ? value.substring(0, 300) : value;
+    }
+
+    private static String safeAttachmentName(String name) {
+        String value = safeInline(name);
+        if (isSensitiveFileName(value)) {
+            return "[redacted-sensitive-name]";
+        }
+        return value;
+    }
+
+    private static String safeAttachmentPath(String localPath) {
+        String value = safeInline(localPath);
+        if (value.length() == 0) {
+            return "";
+        }
+        String normalized = value.replace('\\', '/');
+        if (containsSensitivePath(normalized)) {
+            return "[redacted-sensitive-path]";
+        }
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        int slash = normalized.lastIndexOf('/');
+        String name = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+        int drive = name.indexOf(':');
+        if (drive >= 0) {
+            name = name.substring(drive + 1);
+        }
+        if (StrUtil.isBlank(name)) {
+            return "[redacted-path]";
+        }
+        if (isSensitiveFileName(name)) {
+            return "[redacted-sensitive-path]";
+        }
+        return name;
+    }
+
+    private static boolean containsSensitivePath(String value) {
+        String lower = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
+        return lower.contains("/.ssh/")
+                || lower.contains("/.aws/")
+                || lower.contains("/.gnupg/")
+                || lower.contains("/.kube/")
+                || lower.contains("/.docker/")
+                || lower.contains("/.azure/")
+                || lower.contains("/.config/gh/")
+                || lower.endsWith("/.ssh")
+                || lower.endsWith("/.aws")
+                || lower.endsWith("/.gnupg")
+                || lower.endsWith("/.kube")
+                || lower.endsWith("/.docker")
+                || lower.endsWith("/.azure")
+                || lower.endsWith("/.config/gh");
+    }
+
+    private static boolean isSensitiveFileName(String value) {
+        String name = StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT).trim();
+        return ".env".equals(name)
+                || name.startsWith(".env.")
+                || ".netrc".equals(name)
+                || ".pgpass".equals(name)
+                || ".npmrc".equals(name)
+                || ".pypirc".equals(name)
+                || "authorized_keys".equals(name)
+                || "id_rsa".equals(name)
+                || "id_ed25519".equals(name)
+                || "credentials".equals(name)
+                || "credentials.json".equals(name)
+                || ".credentials.json".equals(name)
+                || ".anthropic_oauth.json".equals(name)
+                || "oauth_creds.json".equals(name)
+                || "application_default_credentials.json".equals(name);
     }
 }
