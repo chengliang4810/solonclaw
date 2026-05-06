@@ -783,6 +783,58 @@ public class DefaultCronSchedulerTest {
                 null,
                 null);
 
+        Map<?, ?> arrayPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-array-payload",
+                                                "30m",
+                                                "array payload prompt",
+                                                java.util.Arrays.asList("origin", "MEMORY:array-room"),
+                                                java.util.Collections.singletonList("watcher"),
+                                                java.util.Arrays.asList("reporter", "watcher"),
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                java.util.Collections.singletonList(jobId),
+                                                java.util.Arrays.asList("web", "file"),
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> arrayJob = (Map<?, ?>) arrayPayload.get("job");
+        String arrayJobId = String.valueOf(arrayPayload.get("job_id"));
+        assertThat(arrayPayload.get("deliver")).isEqualTo("origin,MEMORY:array-room");
+        assertThat(arrayPayload.get("skill")).isEqualTo("reporter");
+        assertThat(arrayPayload.get("skills")).isEqualTo(java.util.Arrays.asList("reporter", "watcher"));
+        assertThat(arrayJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(jobId));
+        assertThat(arrayJob.get("enabled_toolsets")).isEqualTo(java.util.Arrays.asList("web", "file"));
+        tools.cronjob(
+                "remove",
+                arrayJobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
         tools.cronjob(
                 "pause",
                 jobId,
