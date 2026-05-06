@@ -6,11 +6,13 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
+import java.net.IDN;
 import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -127,7 +129,7 @@ public class SecurityPolicyService {
             Pattern.compile("^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
-                    "(?i)(https?://[^\\s)>'\"]+|(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}(?::\\d+)?/[^\\s)>'\"]*)");
+                    "(?iu)(https?://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*)");
 
     private final AppConfig appConfig;
 
@@ -136,7 +138,7 @@ public class SecurityPolicyService {
     }
 
     public UrlVerdict checkUrl(String url) {
-        String raw = StrUtil.nullToEmpty(url).trim();
+        String raw = normalizeUrlText(url);
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
         }
@@ -171,7 +173,7 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "仅允许 http/https URL");
         }
 
-        String host = normalizeHost(uri.getHost());
+        String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
             return UrlVerdict.block(raw, "URL 缺少主机名");
         }
@@ -374,7 +376,7 @@ public class SecurityPolicyService {
         if (raw == null) {
             return;
         }
-        String text = String.valueOf(raw);
+        String text = normalizeUrlText(String.valueOf(raw));
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             urls.add(matcher.group());
@@ -800,13 +802,13 @@ public class SecurityPolicyService {
     }
 
     private String normalizeRule(String raw) {
-        String value = StrUtil.nullToEmpty(raw).trim().toLowerCase(Locale.ROOT);
+        String value = normalizeUrlText(raw).toLowerCase(Locale.ROOT);
         if (value.length() == 0 || value.startsWith("#")) {
             return "";
         }
         if (value.contains("://")) {
             URI uri = parseUri(value);
-            value = uri == null ? value : StrUtil.nullToEmpty(uri.getHost());
+            value = uri == null ? value : extractUriHost(uri);
         }
         int slash = value.indexOf('/');
         if (slash >= 0) {
@@ -817,7 +819,7 @@ public class SecurityPolicyService {
     }
 
     private String extractSchemelessHost(String raw) {
-        String value = StrUtil.nullToEmpty(raw).trim();
+        String value = normalizeUrlText(raw);
         if (value.contains("://")) {
             return "";
         }
@@ -852,15 +854,61 @@ public class SecurityPolicyService {
         }
     }
 
+    private String extractUriHost(URI uri) {
+        if (uri == null) {
+            return "";
+        }
+        String host = normalizeHost(uri.getHost());
+        if (StrUtil.isNotBlank(host)) {
+            return host;
+        }
+        String authority = StrUtil.nullToEmpty(uri.getRawAuthority());
+        if (authority.length() == 0) {
+            authority = StrUtil.nullToEmpty(uri.getAuthority());
+        }
+        authority = normalizeUrlText(authority);
+        int at = authority.lastIndexOf('@');
+        if (at >= 0) {
+            authority = authority.substring(at + 1);
+        }
+        if (authority.startsWith("[") && authority.contains("]")) {
+            return normalizeHost(authority.substring(0, authority.indexOf(']') + 1));
+        }
+        int colon = authority.lastIndexOf(':');
+        if (colon > 0 && authority.indexOf(':') == colon) {
+            authority = authority.substring(0, colon);
+        }
+        return normalizeHost(authority);
+    }
+
+    private String normalizeUrlText(String raw) {
+        return Normalizer.normalize(StrUtil.nullToEmpty(raw), Normalizer.Form.NFKC).trim();
+    }
+
     private String normalizeHost(String host) {
-        String value = StrUtil.nullToEmpty(host).trim().toLowerCase(Locale.ROOT);
+        String value = normalizeUrlText(host).toLowerCase(Locale.ROOT);
         if (value.startsWith("[") && value.endsWith("]") && value.length() > 2) {
             value = value.substring(1, value.length() - 1);
         }
         while (value.endsWith(".")) {
             value = value.substring(0, value.length() - 1);
         }
+        value = toAsciiHost(value);
         return value;
+    }
+
+    private String toAsciiHost(String host) {
+        if (StrUtil.isBlank(host) || host.indexOf(':') >= 0) {
+            return host;
+        }
+        if (host.startsWith("*.")) {
+            return "*." + toAsciiHost(host.substring(2));
+        }
+        try {
+            return IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
+        } catch (Exception ignored) {
+            return host;
+        }
     }
 
     private boolean isAlwaysBlockedIp(String ip) {

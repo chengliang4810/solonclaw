@@ -581,6 +581,37 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNormalizeUnicodeHostsBeforeWebsitePolicyChecks() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("example.com", "例え.テスト", "*.wild.テスト"));
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict fullwidth =
+                securityPolicyService.checkUrl("https://ｅxample.com/path");
+        SecurityPolicyService.UrlVerdict idn =
+                securityPolicyService.checkUrl("https://例え.テスト/path");
+        SecurityPolicyService.UrlVerdict wildcard =
+                securityPolicyService.checkUrl("https://api.wild.テスト/path");
+        Map<String, Object> schemelessArgs = new LinkedHashMap<String, Object>();
+        schemelessArgs.put("query", "read www.ｅxample.com/docs");
+        SecurityPolicyService.UrlVerdict schemeless =
+                securityPolicyService.checkToolArgs("websearch", schemelessArgs);
+
+        assertThat(fullwidth.isAllowed()).isFalse();
+        assertThat(fullwidth.getMessage()).contains("example.com");
+        assertThat(idn.isAllowed()).isFalse();
+        assertThat(idn.getMessage()).contains("xn--r8jz45g.xn--zckzah");
+        assertThat(wildcard.isAllowed()).isFalse();
+        assertThat(wildcard.getMessage()).contains("*.wild.xn--zckzah");
+        assertThat(schemeless.isAllowed()).isFalse();
+        assertThat(schemeless.getMessage()).contains("example.com");
+    }
+
+    @Test
     void shouldApplySharedWebsiteBlocklistFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File shared = new File(env.appConfig.getRuntime().getHome(), "blocked-sites.txt");
