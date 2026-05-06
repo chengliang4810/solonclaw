@@ -246,6 +246,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult absoluteEnvWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat /opt/data/.env.local > /opt/data/.env");
+        DangerousCommandApprovalService.DetectionResult absoluteEnvCopy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp /opt/data/.env.local /opt/data/.env");
         DangerousCommandApprovalService.DetectionResult configMove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "mv config.tmp config.yml");
@@ -258,6 +261,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult configSourceCopy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cp config.yaml backup.yaml");
+        DangerousCommandApprovalService.DetectionResult localDotenvTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printenv | tee .env.local");
+        DangerousCommandApprovalService.DetectionResult dotenvSourceRedirect =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat .env > backup.txt");
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
@@ -277,6 +286,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(envWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(absoluteEnvWrite).isNotNull();
         assertThat(absoluteEnvWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(absoluteEnvCopy).isNotNull();
+        assertThat(absoluteEnvCopy.getPatternKey()).isEqualTo("copy_into_project_sensitive");
         assertThat(configMove).isNotNull();
         assertThat(configMove.getPatternKey()).isEqualTo("copy_into_project_sensitive");
         assertThat(nestedConfigMove).isNotNull();
@@ -284,6 +295,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(installEnv).isNotNull();
         assertThat(installEnv.getPatternKey()).isEqualTo("copy_into_project_sensitive");
         assertThat(configSourceCopy).isNull();
+        assertThat(localDotenvTee).isNotNull();
+        assertThat(localDotenvTee.getPatternKey()).isEqualTo("project_sensitive_tee");
+        assertThat(dotenvSourceRedirect).isNull();
     }
 
     @Test
@@ -2142,6 +2156,43 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(afterApprove.get(0).getPatternKey()).isEqualTo("recursive_delete");
         assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "git_reset_hard"))
                 .isTrue();
+    }
+
+    @Test
+    void shouldKeepFindDeleteAndFindExecApprovalsSeparateLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+
+        DangerousCommandApprovalService.DetectionResult findExec =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "find . -exec rm {} \\;");
+        DangerousCommandApprovalService.DetectionResult findDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "find . -name '*.tmp' -delete");
+
+        assertThat(findExec).isNotNull();
+        assertThat(findExec.getPatternKey()).isEqualTo("find_exec_rm");
+        assertThat(findDelete).isNotNull();
+        assertThat(findDelete.getPatternKey()).isEqualTo("find_delete");
+        assertThat(findExec.getPatternKey()).isNotEqualTo(findDelete.getPatternKey());
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                findExec.getPatternKey(),
+                findExec.getDescription(),
+                "find . -exec rm {} \\;");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.SESSION,
+                                "test"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "find_exec_rm"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "find_delete"))
+                .isFalse();
     }
 
     @Test
