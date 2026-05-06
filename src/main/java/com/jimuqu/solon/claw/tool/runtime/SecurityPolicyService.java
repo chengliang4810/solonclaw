@@ -62,7 +62,9 @@ public class SecurityPolicyService {
             Arrays.asList(
                     "/etc/sudoers",
                     "/etc/passwd",
-                    "/etc/shadow");
+                    "/etc/shadow",
+                    "/var/run/docker.sock",
+                    "/run/docker.sock");
     private static final List<String> WRITE_DENIED_HOME_FILE_NAMES =
             Arrays.asList(
                     ".bashrc",
@@ -72,6 +74,10 @@ public class SecurityPolicyService {
                     ".zprofile");
     private static final List<String> WRITE_DENIED_PREFIXES =
             Arrays.asList(
+                    "/boot/",
+                    "/usr/lib/systemd/",
+                    "/private/etc/",
+                    "/private/var/",
                     "/etc/sudoers.d/",
                     "/etc/systemd/");
     private static final List<String> BLOCKED_DEVICE_PATHS =

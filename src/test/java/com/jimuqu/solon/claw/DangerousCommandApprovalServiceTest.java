@@ -622,6 +622,12 @@ public class DangerousCommandApprovalServiceTest {
         assertWriteDenied(securityPolicyService, "/etc/sudoers");
         assertWriteDenied(securityPolicyService, "/etc/sudoers.d/custom");
         assertWriteDenied(securityPolicyService, "/etc/systemd/system/evil.service");
+        assertWriteDenied(securityPolicyService, "/boot/grub/grub.cfg");
+        assertWriteDenied(securityPolicyService, "/usr/lib/systemd/system/evil.service");
+        assertWriteDenied(securityPolicyService, "/private/etc/hosts");
+        assertWriteDenied(securityPolicyService, "/private/var/root-owned");
+        assertWriteDenied(securityPolicyService, "/var/run/docker.sock");
+        assertWriteDenied(securityPolicyService, "/run/docker.sock");
     }
 
     @Test
