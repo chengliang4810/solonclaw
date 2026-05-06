@@ -53,7 +53,11 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}", method = MethodType.GET)
     public Map<String, Object> apiGet(String id, Context context) throws Exception {
         try {
+            validateApiJobId(id);
             return apiJobResponse(cronService.get(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalStateException e) {
             context.status(404);
             return apiError(e.getMessage());
@@ -71,6 +75,7 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}", method = MethodType.PATCH)
     public Map<String, Object> apiPatch(String id, Context context) throws Exception {
         try {
+            validateApiJobId(id);
             return apiJobResponse(cronService.apiPatch(id, body(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
@@ -93,7 +98,11 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}/pause", method = MethodType.POST)
     public Map<String, Object> apiPause(String id, Context context) throws Exception {
         try {
+            validateApiJobId(id);
             return apiJobResponse(cronService.pause(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalStateException e) {
             context.status(404);
             return apiError(e.getMessage());
@@ -108,7 +117,11 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}/resume", method = MethodType.POST)
     public Map<String, Object> apiResume(String id, Context context) throws Exception {
         try {
+            validateApiJobId(id);
             return apiJobResponse(cronService.resume(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalStateException e) {
             context.status(404);
             return apiError(e.getMessage());
@@ -123,7 +136,11 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}/run", method = MethodType.POST)
     public Map<String, Object> apiRun(String id, Context context) throws Exception {
         try {
+            validateApiJobId(id);
             return apiJobResponse(cronService.apiRun(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalStateException e) {
             context.status(404);
             return apiError(e.getMessage());
@@ -149,10 +166,14 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}", method = MethodType.DELETE)
     public Map<String, Object> apiDelete(String id, Context context) throws Exception {
         try {
+            validateApiJobId(id);
             cronService.delete(id);
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("ok", Boolean.TRUE);
             return result;
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalStateException e) {
             context.status(404);
             return apiError(e.getMessage());
@@ -185,6 +206,12 @@ public class DashboardCronController {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("error", message == null ? "" : message);
         return result;
+    }
+
+    private void validateApiJobId(String id) {
+        if (id == null || !id.matches("[0-9a-fA-F]+")) {
+            throw new IllegalArgumentException("Invalid job id");
+        }
     }
 
     private boolean isNotFound(IllegalStateException e) {

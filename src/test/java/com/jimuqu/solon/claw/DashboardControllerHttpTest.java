@@ -762,6 +762,10 @@ public class DashboardControllerHttpTest {
         assertThat(get.status).isEqualTo(200);
         assertThat(get.body).contains("\"job\"").contains("compat prompt");
 
+        HttpResult invalidId = request("GET", "/api/jobs/not-a-valid-hex!", null, token);
+        assertThat(invalidId.status).isEqualTo(400);
+        assertThat(invalidId.body).contains("Invalid");
+
         HttpResult patchUnknown =
                 request("PATCH", "/api/jobs/" + jobId, "{\"evil_field\":\"ignored\"}", token);
         assertThat(patchUnknown.status).isEqualTo(400);
