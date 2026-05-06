@@ -412,10 +412,40 @@ public class SecurityPolicyService {
         while (matcher.find()) {
             urls.add(matcher.group());
         }
+        extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    private void extractObfuscatedSchemelessUrlish(String text, List<String> urls) {
+        String[] tokens = StrUtil.nullToEmpty(text).split("\\s+");
+        for (String token : tokens) {
+            String value = cleanUrlToken(token);
+            if (value.length() == 0 || value.contains("://") || value.indexOf('/') <= 0) {
+                continue;
+            }
+            String hostPort = value.substring(0, value.indexOf('/'));
+            int at = hostPort.lastIndexOf('@');
+            if (at >= 0) {
+                hostPort = hostPort.substring(at + 1);
+            }
+            if (hostPort.startsWith("[")) {
+                continue;
+            }
+            int colon = hostPort.lastIndexOf(':');
+            if (colon > 0 && hostPort.indexOf(':') == colon) {
+                hostPort = hostPort.substring(0, colon);
+            }
+            int[] octets = parseObfuscatedIpv4(normalizeHost(hostPort));
+            if (octets != null && isBlockedOrAlwaysBlockedIpv4(octets)) {
+                urls.add(value);
+            }
+        }
     }
 
     private String cleanUrlToken(String raw) {
         String value = StrUtil.nullToEmpty(raw).trim();
+        while (value.startsWith("(") || value.startsWith("{")) {
+            value = value.substring(1).trim();
+        }
         while (value.endsWith(",")
                 || value.endsWith(".")
                 || value.endsWith(";")
@@ -1193,6 +1223,13 @@ public class SecurityPolicyService {
             return true;
         }
         return first == 0x0064 && second == 0xff9b && isZeroSuffix(rawAddress, 4, 8);
+    }
+
+    private boolean isBlockedOrAlwaysBlockedIpv4(int[] octets) {
+        return octets != null
+                && octets.length == 4
+                && (isAlwaysBlockedIpv4(octets[0], octets[1], octets[2], octets[3])
+                        || isBlockedIpv4(octets[0], octets[1], octets[2], octets[3]));
     }
 
     private int[] parseObfuscatedIpv4(String host) {

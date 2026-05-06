@@ -547,6 +547,27 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldExtractObfuscatedSchemelessIpv4FromToolArgsAndCommands()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put(
+                "query",
+                "check 0xA9FEA9FE/latest/meta-data/ then 0251.0376.0251.0376/latest/meta-data/");
+
+        SecurityPolicyService.UrlVerdict toolArgs =
+                securityPolicyService.checkToolArgs("websearch", args);
+        SecurityPolicyService.UrlVerdict command =
+                securityPolicyService.checkCommandUrls("curl 2852039166/latest/meta-data/");
+
+        assertThat(toolArgs.isAllowed()).isFalse();
+        assertThat(toolArgs.getMessage()).contains("元数据");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldFailClosedForEmptyUrlsLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
