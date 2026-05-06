@@ -205,6 +205,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult removeItemReordered =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "Remove-Item .\\runtime\\cache -Force -Recurse");
+        DangerousCommandApprovalService.DetectionResult removeItemLiteralPathShortFlags =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Remove-Item -LiteralPath .\\runtime\\cache -r -fo");
+        DangerousCommandApprovalService.DetectionResult removeItemConfirmFalse =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Remove-Item -Path .\\runtime\\cache -Recurse -Confirm:$false");
+        DangerousCommandApprovalService.DetectionResult removeItemAlias =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ri .\\runtime\\cache -r -fo");
         DangerousCommandApprovalService.DetectionResult delReordered =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "del /q /s .\\runtime\\cache\\*");
@@ -222,6 +233,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(killByPgrep.getPatternKey()).isEqualTo("kill_pgrep_expansion");
         assertThat(removeItemReordered).isNotNull();
         assertThat(removeItemReordered.getPatternKey()).isEqualTo("windows_remove_item");
+        assertThat(removeItemLiteralPathShortFlags).isNotNull();
+        assertThat(removeItemLiteralPathShortFlags.getPatternKey()).isEqualTo("windows_remove_item");
+        assertThat(removeItemConfirmFalse).isNotNull();
+        assertThat(removeItemConfirmFalse.getPatternKey()).isEqualTo("windows_remove_item");
+        assertThat(removeItemAlias).isNotNull();
+        assertThat(removeItemAlias.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(delReordered).isNotNull();
         assertThat(delReordered.getPatternKey()).isEqualTo("windows_del_force");
         assertThat(rdReordered).isNotNull();
@@ -305,15 +322,28 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult reorderedProfileDelete =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "Remove-Item C:\\Users\\chengliang -Force -Recurse");
+        DangerousCommandApprovalService.DetectionResult literalPathProfileDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell",
+                        "Remove-Item -LiteralPath C:\\Users\\chengliang -r -fo");
+        DangerousCommandApprovalService.DetectionResult aliasProfileDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "ri $env:USERPROFILE -r -fo");
         DangerousCommandApprovalService.DetectionResult delProfileDelete =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "del /q /s C:\\Users\\chengliang\\*");
         DangerousCommandApprovalService.DetectionResult driveRootDelete =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "rd /q /s C:\\");
+        DangerousCommandApprovalService.DetectionResult removeDriveRootDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "Remove-Item -Path C:\\ -Recurse -Confirm:$false");
         DangerousCommandApprovalService.DetectionResult windowsDirDelete =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "Remove-Item C:\\Windows -Force -Recurse");
+        DangerousCommandApprovalService.DetectionResult aliasWindowsDirDelete =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "rm -LiteralPath C:\\Windows -r -fo");
         DangerousCommandApprovalService.DetectionResult shutdown =
                 env.dangerousCommandApprovalService.detectHardline("execute_shell", "shutdown /r /t 0");
 
@@ -324,13 +354,23 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(reorderedProfileDelete).isNotNull();
         assertThat(reorderedProfileDelete.getPatternKey())
                 .isEqualTo("hardline_windows_delete_profile");
+        assertThat(literalPathProfileDelete).isNotNull();
+        assertThat(literalPathProfileDelete.getPatternKey())
+                .isEqualTo("hardline_windows_delete_profile");
+        assertThat(aliasProfileDelete).isNotNull();
+        assertThat(aliasProfileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
         assertThat(delProfileDelete).isNotNull();
         assertThat(delProfileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
         assertThat(driveRootDelete).isNotNull();
         assertThat(driveRootDelete.getPatternKey())
                 .isEqualTo("hardline_windows_delete_drive_root");
+        assertThat(removeDriveRootDelete).isNotNull();
+        assertThat(removeDriveRootDelete.getPatternKey())
+                .isEqualTo("hardline_windows_delete_drive_root");
         assertThat(windowsDirDelete).isNotNull();
         assertThat(windowsDirDelete.getPatternKey()).isEqualTo("hardline_windows_system_dir");
+        assertThat(aliasWindowsDirDelete).isNotNull();
+        assertThat(aliasWindowsDirDelete.getPatternKey()).isEqualTo("hardline_windows_system_dir");
         assertThat(shutdown).isNotNull();
         assertThat(shutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
     }
