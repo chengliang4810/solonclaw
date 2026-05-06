@@ -13,6 +13,63 @@ import org.noear.snack4.ONode;
 
 public class SolonClawShellSkillTest {
     @Test
+    void shouldReturnCleanTerminalErrorForNullCommandLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                null,
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString().toLowerCase(java.util.Locale.ROOT))
+                .contains("expected string")
+                .contains("nonetype");
+    }
+
+    @Test
+    void shouldReturnCleanTerminalErrorForBlankCommandLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "  ",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("error").getString()).contains("expected non-empty string");
+    }
+
+    @Test
+    void shouldHandleNullSudoTransformLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("secret");
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand(null);
+
+        assertThat(transform.isChanged()).isFalse();
+        assertThat(transform.getCommand()).isNull();
+        assertThat(transform.getStdin()).isNull();
+    }
+
+    @Test
     void shouldNotRewriteSudoMentionInArgumentsOrStrings() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("secret");

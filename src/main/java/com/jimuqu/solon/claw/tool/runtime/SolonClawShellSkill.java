@@ -232,7 +232,7 @@ public class SolonClawShellSkill extends ShellSkill {
 
     private String validateCommand(String command) {
         if (command == null) {
-            return "Invalid terminal command: expected string, got null.";
+            return "Invalid terminal command: expected string, got NoneType/null.";
         }
         if (StrUtil.isBlank(command)) {
             return "Invalid terminal command: expected non-empty string.";
@@ -249,7 +249,10 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     public SudoTransform transformSudoCommand(String command) {
-        String raw = StrUtil.nullToEmpty(command);
+        if (command == null) {
+            return SudoTransform.unchanged(null);
+        }
+        String raw = command;
         String password = resolveSudoPassword();
         if (password == null) {
             return SudoTransform.unchanged(raw);
