@@ -322,7 +322,7 @@ public class AcpStdioServer {
         if (StrUtil.isBlank(modelId)) {
             throw new IllegalArgumentException("model_id is required");
         }
-        state.setModelId(modelId);
+        sessionManager.setModelOverride(state, modelId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", true);
         result.put("session_id", state.getSessionId());

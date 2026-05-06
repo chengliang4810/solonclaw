@@ -140,6 +140,17 @@ public class AcpSessionManager {
         state.setHistory(history(record));
     }
 
+    public synchronized void setModelOverride(AcpSessionState state, String modelOverride)
+            throws Exception {
+        if (state == null) {
+            return;
+        }
+        state.setModelId(modelOverride);
+        if (sessionRepository != null) {
+            sessionRepository.setModelOverride(state.getSessionId(), state.getModelId());
+        }
+    }
+
     private AcpSessionState fromRecord(SessionRecord record, String cwd) throws Exception {
         AcpSessionState state =
                 new AcpSessionState(

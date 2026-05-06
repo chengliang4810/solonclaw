@@ -4,7 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
+import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -13,7 +19,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.session.InMemoryChatSession;
 
 public class AcpStdioServerTest {
     @Test
@@ -158,6 +166,35 @@ public class AcpStdioServerTest {
                 .contains("\"model_id\":\"default:gpt-test-acp\"")
                 .contains("\"mode_id\":\"plan\"")
                 .contains("\"reasoning_effort\":\"high\"");
+    }
+
+    @Test
+    void shouldApplyAcpSessionModelToFollowingPrompt() throws Exception {
+        TestEnvironment env = TestEnvironment.withLlm(new ModelEchoGateway());
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String sessionId = extractSessionId(newAcpSession(server, 35));
+        server.handle(
+                "{\"jsonrpc\":\"2.0\",\"id\":36,\"method\":\"set_session_model\",\"params\":{\"session_id\":\""
+                        + sessionId
+                        + "\",\"model_id\":\"default:acp-session-model\"}}");
+
+        String prompted =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":37,\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"prompt\":[{\"type\":\"text\",\"text\":\"hello model\"}]}}");
+
+        assertThat(prompted)
+                .contains("\"id\":37")
+                .contains("model=acp-session-model");
+        SessionRecord record = env.sessionRepository.findById(sessionId);
+        assertThat(record.getModelOverride()).isEqualTo("default:acp-session-model");
+        assertThat(record.getLastResolvedModel()).isEqualTo("acp-session-model");
     }
 
     @Test
@@ -342,5 +379,39 @@ public class AcpStdioServerTest {
         int end = json.indexOf('"', valueStart);
         assertThat(end).isGreaterThan(valueStart);
         return json.substring(valueStart, end);
+    }
+
+    private static class ModelEchoGateway extends FakeLlmGateway {
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                java.util.List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            String response = "model=" + resolved.getModel();
+            InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
+            if (session.getNdjson() != null && session.getNdjson().length() > 0) {
+                chatSession.loadNdjson(session.getNdjson());
+            }
+            chatSession.addMessage(ChatMessage.ofUser(userMessage));
+            chatSession.addMessage(ChatMessage.ofAssistant(response));
+
+            LlmResult result = new LlmResult();
+            result.setAssistantMessage(new AssistantMessage(response));
+            result.setNdjson(chatSession.toNdjson());
+            result.setRawResponse("fake");
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setInputTokens(1L);
+            result.setOutputTokens(1L);
+            result.setTotalTokens(2L);
+            return result;
+        }
     }
 }
