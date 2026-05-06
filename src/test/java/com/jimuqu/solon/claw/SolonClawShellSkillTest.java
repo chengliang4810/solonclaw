@@ -1144,7 +1144,7 @@ public class SolonClawShellSkillTest {
 
     private String javaLongOutputCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
-            return "powershell -NoProfile -Command \"$s='head-' + ('A' * 600) + 'middle-' + ('B' * 600) + 'tail-'; [Console]::Write($s)\"";
+            return "@powershell -NoProfile -Command \"$s='head-' + ('A' * 600) + 'middle-' + ('B' * 600) + 'tail-'; [Console]::Write($s)\"";
         }
         return "printf 'head-'; head -c 600 /dev/zero | tr '\\0' 'A'; printf 'middle-'; head -c 600 /dev/zero | tr '\\0' 'B'; printf 'tail-'";
     }

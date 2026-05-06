@@ -85,6 +85,7 @@ solonclaw:
   # 安全策略配置。对齐 Hermes 的 hardline、URL safety、website policy 基线。
   security:
     # 是否允许 URL 工具访问内网/私有地址。云元数据地址始终阻断，无法通过本开关放行。
+    # 也可用环境变量 SOLONCLAW_ALLOW_PRIVATE_URLS=true 临时开启；HERMES_ALLOW_PRIVATE_URLS 仍兼容。
     allowPrivateUrls: false
     # URL 工具的网站阻断策略，用于 webfetch/websearch/codesearch 中出现的 URL。
     websiteBlocklist:

@@ -2275,7 +2275,13 @@ public class AppConfig {
     }
 
     private static boolean readAllowPrivateUrls(Props props, Map<String, Object> overrides) {
-        String env = StrUtil.nullToEmpty(System.getenv("HERMES_ALLOW_PRIVATE_URLS")).trim();
+        String env = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_ALLOW_PRIVATE_URLS")).trim();
+        if (env.length() == 0) {
+            env = StrUtil.nullToEmpty(System.getenv("JIMUQU_ALLOW_PRIVATE_URLS")).trim();
+        }
+        if (env.length() == 0) {
+            env = StrUtil.nullToEmpty(System.getenv("HERMES_ALLOW_PRIVATE_URLS")).trim();
+        }
         if (env.length() > 0) {
             return parseBooleanText(env, false);
         }
