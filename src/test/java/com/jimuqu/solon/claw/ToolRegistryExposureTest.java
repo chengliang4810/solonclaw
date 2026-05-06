@@ -817,6 +817,39 @@ public class ToolRegistryExposureTest {
         assertThat(changed.get("content").getString()).contains("delta");
     }
 
+    @Test
+    void shouldRefuseWritingInternalReadDedupStatusTextLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("dedup-source.txt"),
+                Arrays.asList("alpha", "bravo"),
+                StandardCharsets.UTF_8);
+        HermesFileReadWriteSkill fileSkill =
+                new HermesFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        fileSkill.read("dedup-source.txt", 1, 2);
+        ONode dedup = ONode.ofJson(fileSkill.read("dedup-source.txt", 1, 2));
+        String status = dedup.get("summary").getString();
+
+        assertThatThrownBy(() -> fileSkill.write("bad.txt", status))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("internal read_file status");
+        assertThatThrownBy(() -> fileSkill.write("bad.txt", "Note:\n" + status))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("internal read_file status");
+
+        StringBuilder longDoc = new StringBuilder();
+        longDoc.append("This document quotes a tool status for tests:\n").append(status);
+        while (longDoc.length() <= status.length() * 2) {
+            longDoc.append("\nmore ordinary documentation");
+        }
+        fileSkill.write("quoted-status.txt", longDoc.toString());
+        assertThat(Files.readAllBytes(workspace.resolve("quoted-status.txt")).length).isGreaterThan(0);
+    }
+
     private String javaSleepCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return "ping -n 30 127.0.0.1 > nul";

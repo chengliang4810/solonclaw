@@ -56,6 +56,7 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
     @ToolMapping(name = "file_write", description = "写入文本到文件。会自动创建不存在的目录。")
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
         assertSafe(ToolNameConstants.FILE_WRITE, fileName);
+        assertNotInternalFileStatusContent(content);
         assertContained(fileName);
         String result = super.write(fileName, content);
         clearReadDedup(fileName);
@@ -303,6 +304,26 @@ public class HermesFileReadWriteSkill extends FileReadWriteSkill {
                     .data("limit", Integer.valueOf(key.limit))
                     .toJson();
         }
+    }
+
+    private void assertNotInternalFileStatusContent(String content) {
+        if (!isInternalFileStatusText(content)) {
+            return;
+        }
+        throw new IllegalArgumentException(
+                "Refusing to write internal read_file status text as file content. Re-read the file or reconstruct the intended file contents before writing.");
+    }
+
+    private boolean isInternalFileStatusText(String content) {
+        String stripped = StrUtil.nullToEmpty(content).trim();
+        if (stripped.length() == 0) {
+            return false;
+        }
+        if (READ_DEDUP_STATUS_MESSAGE.equals(stripped)) {
+            return true;
+        }
+        return stripped.contains(READ_DEDUP_STATUS_MESSAGE)
+                && stripped.length() <= 2 * READ_DEDUP_STATUS_MESSAGE.length();
     }
 
     private ReadStatus recordRead(String fileName, ReadKey key, File targetFile) {
