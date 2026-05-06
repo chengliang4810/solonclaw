@@ -55,8 +55,8 @@ import org.noear.solon.annotation.Configuration;
 @Configuration
 public class ToolConfiguration {
     @Bean
-    public ProcessRegistry processRegistry() {
-        return new ProcessRegistry();
+    public ProcessRegistry processRegistry(AppConfig appConfig) {
+        return new ProcessRegistry(appConfig);
     }
 
     @Bean

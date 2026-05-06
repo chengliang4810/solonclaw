@@ -218,7 +218,7 @@ public class SolonClawCodeExecutionSkills {
         }
 
         private void configureSandboxEnvironment(Map<String, String> env, Path staging) {
-            SubprocessEnvironmentSanitizer.sanitize(env);
+            SubprocessEnvironmentSanitizer.sanitize(env, appConfig);
             String existingPythonPath = env.get("PYTHONPATH");
             env.put(
                     "PYTHONPATH",

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
@@ -21,8 +22,17 @@ import java.util.concurrent.TimeUnit;
 /** Hermes 风格的受管后台进程注册表。 */
 public class ProcessRegistry {
     private static final int MAX_OUTPUT_CHARS = 200000;
+    private final AppConfig appConfig;
     private final Map<String, ManagedProcess> processes =
             Collections.synchronizedMap(new LinkedHashMap<String, ManagedProcess>());
+
+    public ProcessRegistry() {
+        this(null);
+    }
+
+    public ProcessRegistry(AppConfig appConfig) {
+        this.appConfig = appConfig;
+    }
 
     public String add(Process process) {
         String id = IdSupport.newId();
@@ -42,7 +52,7 @@ public class ProcessRegistry {
             builder.directory(workDir);
         }
         builder.redirectErrorStream(true);
-        SubprocessEnvironmentSanitizer.sanitize(builder.environment());
+        SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
         Process process = builder.start();
         String id = "proc_" + IdSupport.newId();
         ManagedProcess managed =

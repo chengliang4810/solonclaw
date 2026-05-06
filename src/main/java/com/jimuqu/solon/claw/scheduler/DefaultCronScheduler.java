@@ -826,7 +826,7 @@ public class DefaultCronScheduler {
             builder.directory(new File(job.getWorkdir()));
         }
         builder.redirectErrorStream(true);
-        SubprocessEnvironmentSanitizer.sanitize(builder.environment());
+        SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
         Process process = builder.start();
         byte[] data = readAll(process.getInputStream());
         int timeoutSeconds = scriptTimeoutSeconds();

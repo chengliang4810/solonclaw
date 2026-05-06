@@ -504,6 +504,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.approvals.mcp_reload_confirm",
                 "solonclaw.terminal.credentialFiles",
                 "terminal.credential_files",
+                "solonclaw.terminal.envPassthrough",
+                "terminal.env_passthrough",
                 "solonclaw.terminal.sudoPassword",
                 "terminal.sudo_password",
                 "solonclaw.terminal.writeSafeRoot",

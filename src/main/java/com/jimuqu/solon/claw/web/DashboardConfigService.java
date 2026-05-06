@@ -432,6 +432,12 @@ public class DashboardConfigService {
                         "终端凭据文件挂载清单"));
         addField(
                 new FieldDefinition(
+                        "terminal.envPassthrough",
+                        "list",
+                        "security",
+                        "终端子进程环境变量放行清单"));
+        addField(
+                new FieldDefinition(
                         "terminal.sudoPassword", "password", "security", "sudo 密码"));
 
         addChannelFields("feishu");

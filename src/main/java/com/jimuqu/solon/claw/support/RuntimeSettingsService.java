@@ -112,6 +112,7 @@ public class RuntimeSettingsService {
                     "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
                     "terminal.credentialFiles",
+                    "terminal.envPassthrough",
                     "terminal.sudoPassword",
                     "terminal.writeSafeRoot",
                     "terminal.maxForegroundTimeoutSeconds");
@@ -491,6 +492,7 @@ public class RuntimeSettingsService {
                 || "security.website_blocklist.domains".equals(key)
                 || "security.website_blocklist.shared_files".equals(key)
                 || "terminal.credentialFiles".equals(key)
+                || "terminal.envPassthrough".equals(key)
                 || "rollback.excludePatterns".equals(key)
                 || "scheduler.enabledToolsets".equals(key)) {
             List<String> values = new ArrayList<String>();

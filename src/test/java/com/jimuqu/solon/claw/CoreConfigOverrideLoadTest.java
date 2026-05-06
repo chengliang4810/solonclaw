@@ -47,6 +47,8 @@ public class CoreConfigOverrideLoadTest {
                         + "  terminal:\n"
                         + "    credentialFiles:\n"
                         + "      - credentials/oauth.json\n"
+                        + "    envPassthrough:\n"
+                        + "      - TENOR_API_KEY\n"
                         + "    sudoPassword: runtime-pass\n"
                         + "    writeSafeRoot: D:/workspace/runtime\n"
                         + "  skills:\n"
@@ -128,6 +130,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(160000);
         assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(5000);
         assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(3000);
+        assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
         assertThat(config.getTask().getMediaCacheTtlHours()).isEqualTo(72);
         assertThat(config.getTerminal().getCredentialFiles())
                 .containsExactly("credentials/oauth.json");
@@ -212,7 +215,9 @@ public class CoreConfigOverrideLoadTest {
         FileUtil.writeUtf8String(
                 "terminal:\n"
                         + "  credential_files:\n"
-                        + "    - credentials/hermes-token.json\n",
+                        + "    - credentials/hermes-token.json\n"
+                        + "  env_passthrough:\n"
+                        + "    - TENOR_API_KEY\n",
                 configFile);
 
         Props props = new Props();
@@ -222,6 +227,7 @@ public class CoreConfigOverrideLoadTest {
 
         assertThat(config.getTerminal().getCredentialFiles())
                 .containsExactly("credentials/hermes-token.json");
+        assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
     }
 
     @Test

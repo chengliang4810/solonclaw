@@ -579,7 +579,7 @@ public class SolonClawShellSkill extends ShellSkill {
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(directory == null ? workPath.toFile() : directory);
             builder.redirectErrorStream(true);
-            SubprocessEnvironmentSanitizer.sanitize(builder.environment());
+            SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
             Process process = builder.start();
             if (stdin == null) {
                 process.getOutputStream().close();

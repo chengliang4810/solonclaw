@@ -1461,6 +1461,18 @@ public class AppConfig {
                                                 "terminal.credential_files",
                                                 ""))));
         config.getTerminal()
+                .setEnvPassthrough(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.terminal.envPassthrough",
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "terminal.env_passthrough",
+                                                ""))));
+        config.getTerminal()
                 .setSudoPassword(
                         resolveConfigString(
                                 readString(
@@ -1735,6 +1747,7 @@ public class AppConfig {
 
     private void copyTerminal(TerminalConfig other) {
         this.terminal.setCredentialFiles(new ArrayList<String>(other.getCredentialFiles()));
+        this.terminal.setEnvPassthrough(new ArrayList<String>(other.getEnvPassthrough()));
         this.terminal.setSudoPassword(other.getSudoPassword());
         this.terminal.setWriteSafeRoot(other.getWriteSafeRoot());
         this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
@@ -3076,6 +3089,9 @@ public class AppConfig {
     public static class TerminalConfig {
         /** 对齐 Hermes terminal.credential_files，相对 runtime home 的凭据文件挂载清单。 */
         private List<String> credentialFiles = new ArrayList<String>();
+
+        /** 对齐 Hermes terminal.env_passthrough，允许技能显式传给本地子进程的第三方环境变量名。 */
+        private List<String> envPassthrough = new ArrayList<String>();
 
         /** 对齐 Hermes SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
         private String sudoPassword;
