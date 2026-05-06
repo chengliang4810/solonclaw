@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
 /** Hermes 风格 Cron 任务管理服务。 */
@@ -24,6 +25,27 @@ public class CronJobService {
     private static final String STATUS_PAUSED = "PAUSED";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String DEFAULT_SOURCE = "MEMORY:dashboard:cron";
+    private static final CronPromptThreat[] CRON_PROMPT_THREATS =
+            new CronPromptThreat[] {
+                threat(
+                        "prompt_injection",
+                        "ignore\\s+(?:\\w+\\s+)*(?:previous|all|above|prior)\\s+(?:\\w+\\s+)*instructions"),
+                threat("deception_hide", "do\\s+not\\s+tell\\s+the\\s+user"),
+                threat("sys_prompt_override", "system\\s+prompt\\s+override"),
+                threat(
+                        "disregard_rules",
+                        "disregard\\s+(your|all|any)\\s+(instructions|rules|guidelines)"),
+                threat(
+                        "exfil_curl",
+                        "curl\\s+[^\\n]*\\$\\{?\\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)"),
+                threat(
+                        "exfil_wget",
+                        "wget\\s+[^\\n]*\\$\\{?\\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)"),
+                threat("read_secrets", "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass)"),
+                threat("ssh_backdoor", "authorized_keys"),
+                threat("sudoers_mod", "/etc/sudoers|visudo"),
+                threat("destructive_root_rm", "rm\\s+-rf\\s+/")
+            };
 
     private final AppConfig appConfig;
     private final CronJobRepository cronJobRepository;
@@ -364,28 +386,47 @@ public class CronJobService {
         if (StrUtil.isBlank(prompt)) {
             return;
         }
-        String value = prompt.toLowerCase(Locale.ROOT);
-        String[] blocked =
-                new String[] {
-                    "ignore previous instructions",
-                    "ignore all instructions",
-                    "disregard your instructions",
-                    "do not tell the user",
-                    "system prompt override",
-                    "authorized_keys",
-                    "/etc/sudoers",
-                    "rm -rf /"
-                };
-        for (String item : blocked) {
-            if (value.contains(item)) {
-                throw new IllegalStateException("Blocked unsafe cron prompt pattern: " + item);
-            }
-        }
         for (int i = 0; i < prompt.length(); i++) {
             char ch = prompt.charAt(i);
-            if (ch == '\u200b' || ch == '\u200c' || ch == '\u200d' || ch == '\u2060' || ch == '\ufeff') {
-                throw new IllegalStateException("Blocked invisible unicode in cron prompt");
+            if (isInvisibleInjectionChar(ch)) {
+                throw new IllegalStateException(
+                        "Blocked invisible unicode U+"
+                                + String.format(Locale.ROOT, "%04X", Integer.valueOf(ch))
+                                + " in cron prompt");
             }
+        }
+        for (CronPromptThreat threat : CRON_PROMPT_THREATS) {
+            if (threat.pattern.matcher(prompt).find()) {
+                throw new IllegalStateException(
+                        "Blocked unsafe cron prompt pattern: " + threat.id);
+            }
+        }
+    }
+
+    private static boolean isInvisibleInjectionChar(char ch) {
+        return ch == '\u200b'
+                || ch == '\u200c'
+                || ch == '\u200d'
+                || ch == '\u2060'
+                || ch == '\ufeff'
+                || ch == '\u202a'
+                || ch == '\u202b'
+                || ch == '\u202c'
+                || ch == '\u202d'
+                || ch == '\u202e';
+    }
+
+    private static CronPromptThreat threat(String id, String regex) {
+        return new CronPromptThreat(id, Pattern.compile(regex, Pattern.CASE_INSENSITIVE));
+    }
+
+    private static class CronPromptThreat {
+        private final String id;
+        private final Pattern pattern;
+
+        private CronPromptThreat(String id, Pattern pattern) {
+            this.id = id;
+            this.pattern = pattern;
         }
     }
 
