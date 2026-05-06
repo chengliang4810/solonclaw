@@ -91,14 +91,89 @@ public class TirithSecurityServiceTest {
         assertThat(result.getSummary()).hasSize(500);
     }
 
+    @Test
+    void shouldAllowImmediatelyWhenTirithIsDisabled() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setTirithEnabled(false);
+        config.getSecurity().setTirithPath("Z:\\missing\\tirith.exe");
+
+        TirithSecurityService.ScanResult result =
+                new TirithSecurityService(config).checkCommandSecurity("rm -rf /");
+
+        assertThat(result.getAction()).isEqualTo("allow");
+        assertThat(result.requiresApproval()).isFalse();
+    }
+
+    @Test
+    void shouldApplyFailOpenAndFailClosedWhenTirithCannotStart() {
+        String missingPath = missingAbsolutePath();
+        AppConfig openConfig = config(missingPath);
+        openConfig.getSecurity().setTirithFailOpen(true);
+        AppConfig closedConfig = config(missingPath);
+        closedConfig.getSecurity().setTirithFailOpen(false);
+
+        TirithSecurityService.ScanResult open =
+                new TirithSecurityService(openConfig).checkCommandSecurity("echo hello");
+        TirithSecurityService.ScanResult closed =
+                new TirithSecurityService(closedConfig).checkCommandSecurity("echo hello");
+
+        assertThat(open.getAction()).isEqualTo("allow");
+        assertThat(open.getSummary()).contains("tirith unavailable");
+        assertThat(closed.getAction()).isEqualTo("block");
+        assertThat(closed.getSummary()).contains("fail-closed");
+    }
+
+    @Test
+    void shouldApplyFailOpenAndFailClosedWhenTirithTimesOut() throws Exception {
+        Path binary = script(sleepBody(3), 0);
+        AppConfig openConfig = config(binary);
+        openConfig.getSecurity().setTirithTimeoutSeconds(1);
+        openConfig.getSecurity().setTirithFailOpen(true);
+        AppConfig closedConfig = config(binary);
+        closedConfig.getSecurity().setTirithTimeoutSeconds(1);
+        closedConfig.getSecurity().setTirithFailOpen(false);
+
+        TirithSecurityService.ScanResult open =
+                new TirithSecurityService(openConfig).checkCommandSecurity("echo hello");
+        TirithSecurityService.ScanResult closed =
+                new TirithSecurityService(closedConfig).checkCommandSecurity("echo hello");
+
+        assertThat(open.getAction()).isEqualTo("allow");
+        assertThat(open.getSummary()).contains("timed out");
+        assertThat(closed.getAction()).isEqualTo("block");
+        assertThat(closed.getSummary()).contains("timed out").contains("fail-closed");
+    }
+
+    @Test
+    void shouldExpandTildeInConfiguredTirithPath() throws Exception {
+        String oldHome = System.getProperty("user.home");
+        Path fakeHome = Files.createTempDirectory("jimuqu-tirith-home");
+        Path binary = scriptIn(fakeHome, "tirith", "printf '%s\\n' '{\"findings\":[],\"summary\":\"tilde ok\"}'", 0);
+        try {
+            System.setProperty("user.home", fakeHome.toString());
+            TirithSecurityService.ScanResult result =
+                    new TirithSecurityService(config("~/" + binary.getFileName().toString()))
+                            .checkCommandSecurity("echo hello");
+
+            assertThat(result.getAction()).isEqualTo("allow");
+            assertThat(result.getSummary()).isEqualTo("tilde ok");
+        } finally {
+            System.setProperty("user.home", oldHome);
+        }
+    }
+
     private TirithSecurityService.ScanResult scan(Path binary) {
         return new TirithSecurityService(config(binary)).checkCommandSecurity("echo hello");
     }
 
     private AppConfig config(Path binary) {
+        return config(binary.toString());
+    }
+
+    private AppConfig config(String binary) {
         AppConfig config = new AppConfig();
         config.getSecurity().setTirithEnabled(true);
-        config.getSecurity().setTirithPath(binary.toString());
+        config.getSecurity().setTirithPath(binary);
         config.getSecurity().setTirithTimeoutSeconds(5);
         config.getSecurity().setTirithFailOpen(true);
         return config;
@@ -106,8 +181,12 @@ public class TirithSecurityServiceTest {
 
     private Path script(String body, int exitCode) throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-tirith");
+        return scriptIn(dir, "tirith", body, exitCode);
+    }
+
+    private Path scriptIn(Path dir, String basename, String body, int exitCode) throws Exception {
         boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
-        Path file = dir.resolve(windows ? "tirith.cmd" : "tirith");
+        Path file = dir.resolve(windows ? basename + ".cmd" : basename);
         String content;
         if (windows) {
             content = "@echo off\r\n" + windowsBody(body) + "\r\nexit /b " + exitCode + "\r\n";
@@ -129,7 +208,26 @@ public class TirithSecurityServiceTest {
             String value = trimmed.substring("printf '%s' '".length(), trimmed.length() - "' >&2".length());
             return "echo " + value + " 1>&2";
         }
+        if (trimmed.startsWith("powershell ")) {
+            return trimmed;
+        }
         return "";
+    }
+
+    private String sleepBody(int seconds) {
+        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        if (windows) {
+            return "powershell -NoProfile -Command \"Start-Sleep -Seconds " + seconds + "\"";
+        }
+        return "sleep " + seconds;
+    }
+
+    private String missingAbsolutePath() {
+        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        if (windows) {
+            return "Z:\\jimuqu-missing-tirith\\tirith.exe";
+        }
+        return "/tmp/jimuqu-missing-tirith/tirith";
     }
 
     private String printJson(String json) {
