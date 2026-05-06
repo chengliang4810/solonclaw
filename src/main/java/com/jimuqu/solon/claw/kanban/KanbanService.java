@@ -203,7 +203,38 @@ public class KanbanService {
             Object skills = body.containsKey("skills") ? body.get("skills") : body.get("skills_json");
             task.setSkillsJson(skills == null ? null : ONode.serialize(skills));
         }
-        return taskView(repository.saveTask(task), true);
+        KanbanTaskRecord saved = repository.saveTask(task);
+        if (body.containsKey("parents") || body.containsKey("parent_id")) {
+            Object parents = body.containsKey("parents") ? body.get("parents") : body.get("parent_id");
+            for (String parentId : normalizeTaskIds(parents)) {
+                link(parentId, saved.getTaskId());
+            }
+        }
+        return task(saved.getTaskId());
+    }
+
+    public Map<String, Object> link(String parentId, String childId) throws Exception {
+        String parent = requireArg(parentId, "kanban_link parent_id");
+        String child = requireArg(childId, "kanban_link child_id");
+        if (StrUtil.equals(parent, child)) {
+            throw new IllegalArgumentException("Kanban task cannot link to itself: " + parent);
+        }
+        KanbanTaskRecord parentTask = requireTask(parent);
+        KanbanTaskRecord childTask = requireTask(child);
+        if (!StrUtil.equals(parentTask.getBoardSlug(), childTask.getBoardSlug())) {
+            throw new IllegalArgumentException(
+                    "Kanban tasks must be on the same board: " + parent + " -> " + child);
+        }
+        if (wouldCreateCycle(parent, child)) {
+            throw new IllegalArgumentException(
+                    "Kanban link would create a dependency cycle: " + parent + " -> " + child);
+        }
+        repository.linkTasks(parent, child);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("parent_id", parent);
+        payload.put("child_id", child);
+        addEvent(child, "linked", payload);
+        return task(child);
     }
 
     public Map<String, Object> status(String taskId, String status, String result) throws Exception {
@@ -1508,6 +1539,26 @@ public class KanbanService {
         }
         addCardId(ids, value);
         return ids;
+    }
+
+    private boolean wouldCreateCycle(String parentId, String childId) throws Exception {
+        return reaches(childId, parentId, new ArrayList<String>());
+    }
+
+    private boolean reaches(String currentId, String targetId, List<String> visited) throws Exception {
+        if (StrUtil.equals(currentId, targetId)) {
+            return true;
+        }
+        if (visited.contains(currentId)) {
+            return false;
+        }
+        visited.add(currentId);
+        for (KanbanTaskRecord child : repository.listChildren(currentId)) {
+            if (reaches(child.getTaskId(), targetId, visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

@@ -36,6 +36,12 @@ public class KanbanToolsTest {
         String duplicate = tools.kanbanCreate("子任务", "worker", "执行子任务", parentId, "child-key", null, null);
         assertThat(duplicate).contains(childId);
 
+        String reviewId = task(service, "复核任务", "reviewer");
+        String link = tools.kanbanLink(childId, reviewId);
+        assertThat(link).contains("\"success\":true").contains(childId).contains(reviewId);
+        assertThat(String.valueOf(service.task(reviewId).get("parents"))).contains(childId).contains("子任务");
+        assertThat(tools.kanbanLink(reviewId, childId)).contains("\"success\":false").contains("dependency cycle");
+
         String comment = tools.kanbanComment(parentId, "交接信息", "worker");
         assertThat(comment).contains("\"success\":true").contains("交接信息");
 

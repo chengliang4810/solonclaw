@@ -237,6 +237,31 @@ public class KanbanServiceTest {
                 .contains(parentId)
                 .contains("Recent comments:")
                 .contains("准备执行");
+
+        String linkedChildId = createTask(service, "后置检查", "reviewer", "lead");
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("parents", Arrays.asList(childId));
+        Map<String, Object> linked = service.updateTask(linkedChildId, update);
+        assertThat(String.valueOf(linked.get("parents"))).contains(childId).contains("子任务");
+        assertThat(String.valueOf(service.task(childId).get("children"))).contains(linkedChildId).contains("后置检查");
+    }
+
+    @Test
+    void shouldLinkExistingTasksAndRejectInvalidDependencyEdges() throws Exception {
+        KanbanService service = service();
+        String parentId = createTask(service, "父任务", "lead", "lead");
+        String childId = createTask(service, "子任务", "worker", "lead");
+
+        Map<String, Object> linked = service.link(parentId, childId);
+
+        assertThat(String.valueOf(linked.get("parents"))).contains(parentId).contains("父任务");
+        assertThat(String.valueOf(linked.get("events"))).contains("linked").contains(parentId);
+        assertThat(String.valueOf(service.task(parentId).get("children"))).contains(childId).contains("子任务");
+
+        assertThatThrownBy(() -> service.link(parentId, parentId))
+                .hasMessageContaining("cannot link to itself");
+        assertThatThrownBy(() -> service.link(childId, parentId))
+                .hasMessageContaining("dependency cycle");
     }
 
     @Test

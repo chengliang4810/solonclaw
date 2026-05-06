@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.kanban.KanbanService;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -213,10 +212,7 @@ public class KanbanTools {
             return error("both parent_id and child_id are required");
         }
         try {
-            Map<String, Object> request = new LinkedHashMap<String, Object>();
-            request.put("parents", Arrays.asList(parentId));
-            kanbanService.updateTask(childId, request);
-            Map<String, Object> child = kanbanService.task(childId);
+            Map<String, Object> child = kanbanService.link(parentId, childId);
             return ToolResultEnvelope.ok("Linked Kanban tasks")
                     .data("parent_id", parentId)
                     .data("child_id", childId)
