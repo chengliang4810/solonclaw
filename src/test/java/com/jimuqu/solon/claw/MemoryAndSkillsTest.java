@@ -601,6 +601,35 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldSkipSymlinkedCacheDirectoryMountsLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File externalCache =
+                FileUtil.file(
+                        new File(env.appConfig.getRuntime().getHome()).getParentFile(),
+                        "external-cache");
+        FileUtil.mkdir(externalCache);
+        FileUtil.writeUtf8String("secret", FileUtil.file(externalCache, "secret.txt"));
+        File symlinkCacheDir = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "documents");
+        boolean symlinkCreated = false;
+        try {
+            java.nio.file.Files.createSymbolicLink(symlinkCacheDir.toPath(), externalCache.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Windows test environments may disallow symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+
+        SkillCredentialFileService service = new SkillCredentialFileService(env.appConfig);
+
+        assertThat(service.cacheDirectoryMounts()).isEmpty();
+        assertThat(service.iterCacheFiles()).isEmpty();
+    }
+
+    @Test
     void shouldIterateSkillsAndCacheFilesSkippingSymlinksLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("iter-skill", "ops", skill("iter-skill", "iter"));

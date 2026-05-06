@@ -136,7 +136,7 @@ public class SkillCredentialFileService {
         List<DirectoryMount> mounts = new ArrayList<DirectoryMount>();
         for (CacheMountDirectory directory : CACHE_MOUNT_DIRS) {
             File dir = resolveCacheDirectory(directory);
-            if (dir.isDirectory()) {
+            if (dir.isDirectory() && !isSymbolicLink(dir)) {
                 mounts.add(
                         new DirectoryMount(
                                 dir.getAbsolutePath(),
