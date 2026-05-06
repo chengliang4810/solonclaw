@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,13 +30,21 @@ public class SqliteKanbanRepository implements KanbanRepository {
 
     @Override
     public List<KanbanBoardRecord> listBoards() throws Exception {
+        return listBoards(false);
+    }
+
+    @Override
+    public List<KanbanBoardRecord> listBoards(boolean includeArchived) throws Exception {
         ensureDefaultBoard();
         List<KanbanBoardRecord> boards = new ArrayList<KanbanBoardRecord>();
         Connection connection = database.openConnection();
         try {
+            String sql =
+                    includeArchived
+                            ? "select * from kanban_boards order by current desc, updated_at desc"
+                            : "select * from kanban_boards where archived = 0 order by current desc, updated_at desc";
             PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select * from kanban_boards order by current desc, updated_at desc");
+                    connection.prepareStatement(sql);
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {
@@ -58,7 +67,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement("select * from kanban_boards where slug = ?");
+                    connection.prepareStatement("select * from kanban_boards where slug = ? and archived = 0");
             statement.setString(1, normalized);
             ResultSet resultSet = statement.executeQuery();
             try {
@@ -79,7 +88,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from kanban_boards where current = 1 order by updated_at desc limit 1");
+                            "select * from kanban_boards where current = 1 and archived = 0 order by updated_at desc limit 1");
             ResultSet resultSet = statement.executeQuery();
             try {
                 if (resultSet.next()) {
@@ -116,15 +125,16 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into kanban_boards (board_id, slug, name, description, color, current, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into kanban_boards (board_id, slug, name, description, color, current, archived, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, board.getBoardId());
             statement.setString(2, board.getSlug());
             statement.setString(3, board.getName());
             statement.setString(4, board.getDescription());
             statement.setString(5, board.getColor());
             statement.setInt(6, board.isCurrent() ? 1 : 0);
-            statement.setLong(7, board.getCreatedAt());
-            statement.setLong(8, board.getUpdatedAt());
+            statement.setInt(7, board.isArchived() ? 1 : 0);
+            statement.setLong(8, board.getCreatedAt());
+            statement.setLong(9, board.getUpdatedAt());
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -362,6 +372,111 @@ public class SqliteKanbanRepository implements KanbanRepository {
         } finally {
             connection.close();
         }
+    }
+
+    @Override
+    public boolean renameBoard(String slug, String name) throws Exception {
+        String normalized = normalizeBoard(slug);
+        if (StrUtil.isBlank(name)) {
+            throw new IllegalArgumentException("board name is required");
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_boards set name = ?, updated_at = ? where slug = ? and archived = 0");
+            statement.setString(1, name.trim());
+            statement.setLong(2, System.currentTimeMillis());
+            statement.setString(3, normalized);
+            int updated = statement.executeUpdate();
+            statement.close();
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean archiveBoard(String slug) throws Exception {
+        String normalized = normalizeBoard(slug);
+        if (DEFAULT_BOARD.equals(normalized)) {
+            throw new IllegalArgumentException("default Kanban board cannot be archived");
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_boards set archived = 1, current = 0, updated_at = ? where slug = ? and archived = 0");
+            statement.setLong(1, System.currentTimeMillis());
+            statement.setString(2, normalized);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0 && currentBoardNeedsFallback(connection)) {
+                setDefaultCurrent(connection);
+            }
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean deleteBoard(String slug) throws Exception {
+        String normalized = normalizeBoard(slug);
+        if (DEFAULT_BOARD.equals(normalized)) {
+            throw new IllegalArgumentException("default Kanban board cannot be deleted");
+        }
+        Connection connection = database.openConnection();
+        try {
+            List<String> taskIds = new ArrayList<String>();
+            PreparedStatement taskQuery =
+                    connection.prepareStatement("select task_id from kanban_tasks where board_slug = ?");
+            taskQuery.setString(1, normalized);
+            ResultSet resultSet = taskQuery.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    taskIds.add(resultSet.getString("task_id"));
+                }
+            } finally {
+                resultSet.close();
+                taskQuery.close();
+            }
+            deleteTasks(connection, taskIds);
+            PreparedStatement statement =
+                    connection.prepareStatement("delete from kanban_boards where slug = ?");
+            statement.setString(1, normalized);
+            int updated = statement.executeUpdate();
+            statement.close();
+            if (updated > 0 && currentBoardNeedsFallback(connection)) {
+                setDefaultCurrent(connection);
+            }
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    private boolean currentBoardNeedsFallback(Connection connection) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select count(*) from kanban_boards where current = 1 and archived = 0");
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return !resultSet.next() || resultSet.getLong(1) == 0L;
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    private void setDefaultCurrent(Connection connection) throws Exception {
+        PreparedStatement update =
+                connection.prepareStatement(
+                        "update kanban_boards set current = 1, archived = 0, updated_at = ? where slug = ?");
+        update.setLong(1, System.currentTimeMillis());
+        update.setString(2, DEFAULT_BOARD);
+        update.executeUpdate();
+        update.close();
     }
 
     @Override
@@ -912,6 +1027,17 @@ public class SqliteKanbanRepository implements KanbanRepository {
     public void deleteTask(String taskId) throws Exception {
         Connection connection = database.openConnection();
         try {
+            deleteTasks(connection, Collections.singletonList(taskId));
+        } finally {
+            connection.close();
+        }
+    }
+
+    private void deleteTasks(Connection connection, List<String> taskIds) throws Exception {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return;
+        }
+        for (String taskId : taskIds) {
             PreparedStatement comments =
                     connection.prepareStatement("delete from kanban_comments where task_id = ?");
             comments.setString(1, taskId);
@@ -944,8 +1070,6 @@ public class SqliteKanbanRepository implements KanbanRepository {
             task.setString(1, taskId);
             task.executeUpdate();
             task.close();
-        } finally {
-            connection.close();
         }
     }
 
@@ -1395,15 +1519,16 @@ public class SqliteKanbanRepository implements KanbanRepository {
             long now = System.currentTimeMillis();
             PreparedStatement insert =
                     connection.prepareStatement(
-                            "insert into kanban_boards (board_id, slug, name, description, color, current, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert into kanban_boards (board_id, slug, name, description, color, current, archived, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             insert.setString(1, "board_default");
             insert.setString(2, DEFAULT_BOARD);
             insert.setString(3, "默认看板");
             insert.setString(4, "本地协作任务看板");
             insert.setString(5, "#2563eb");
             insert.setInt(6, 1);
-            insert.setLong(7, now);
+            insert.setInt(7, 0);
             insert.setLong(8, now);
+            insert.setLong(9, now);
             insert.executeUpdate();
             insert.close();
         } finally {
@@ -1442,6 +1567,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setDescription(resultSet.getString("description"));
         record.setColor(resultSet.getString("color"));
         record.setCurrent(resultSet.getInt("current") == 1);
+        record.setArchived(resultSet.getInt("archived") == 1);
         record.setCreatedAt(resultSet.getLong("created_at"));
         record.setUpdatedAt(resultSet.getLong("updated_at"));
         return record;

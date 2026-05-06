@@ -457,6 +457,15 @@ public class DashboardControllerHttpTest {
         assertThat(createBoard.status).isEqualTo(200);
         assertThat(createBoard.body).contains("dashboard-board");
 
+        HttpResult renameBoard =
+                request(
+                        "PUT",
+                        "/api/kanban/boards/dashboard-board",
+                        "{\"name\":\"Dashboard renamed\"}",
+                        token);
+        assertThat(renameBoard.status).isEqualTo(200);
+        assertThat(renameBoard.body).contains("Dashboard renamed");
+
         HttpResult createTask =
                 request(
                         "POST",
@@ -508,6 +517,7 @@ public class DashboardControllerHttpTest {
         HttpResult kanbanContext =
                 request("GET", "/api/kanban/tasks/" + taskId + "/context", null, token);
         assertThat(kanbanContext.status).isEqualTo(200);
+
         assertThat(kanbanContext.body).contains("worker_context").contains("Prior attempts");
 
         HttpResult kanbanDiagnostics =
@@ -594,6 +604,19 @@ public class DashboardControllerHttpTest {
         HttpResult stopDaemon = request("POST", "/api/kanban/daemon/stop", "{}", token);
         assertThat(stopDaemon.status).isEqualTo(200);
         assertThat(stopDaemon.body).contains("\"running\":false");
+
+        HttpResult archiveBoard =
+                request(
+                        "DELETE",
+                        "/api/kanban/boards/dashboard-board",
+                        null,
+                        token);
+        assertThat(archiveBoard.status).isEqualTo(200);
+        assertThat(archiveBoard.body).contains("\"action\":\"archived\"");
+
+        HttpResult archivedBoards = request("GET", "/api/kanban/boards?archived=true", null, token);
+        assertThat(archivedBoards.status).isEqualTo(200);
+        assertThat(archivedBoards.body).contains("dashboard-board").contains("\"archived\":true");
 
         HttpResult logs = request("GET", "/api/logs?file=agent&lines=20", null, token);
         assertThat(logs.status).isEqualTo(200);

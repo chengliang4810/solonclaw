@@ -46,19 +46,13 @@ public class KanbanService {
     }
 
     public List<Map<String, Object>> boards() throws Exception {
+        return boards(false);
+    }
+
+    public List<Map<String, Object>> boards(boolean includeArchived) throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
-        for (KanbanBoardRecord board : repository.listBoards()) {
-            Map<String, Object> item = boardView(board);
-            Map<String, Integer> counts = new LinkedHashMap<String, Integer>();
-            for (String status : STATUSES) {
-                counts.put(status, Integer.valueOf(0));
-            }
-            for (KanbanTaskRecord task : repository.listTasks(board.getSlug(), null, true)) {
-                Integer old = counts.get(task.getStatus());
-                counts.put(task.getStatus(), Integer.valueOf(old == null ? 1 : old.intValue() + 1));
-            }
-            item.put("counts", counts);
-            result.add(item);
+        for (KanbanBoardRecord board : repository.listBoards(includeArchived)) {
+            result.add(boardWithCounts(board));
         }
         return result;
     }
@@ -75,6 +69,25 @@ public class KanbanService {
         board.setColor(StrUtil.blankToDefault(text(body, "color"), "#2563eb"));
         board.setCurrent(booleanValue(body, "current") || booleanValue(body, "switch"));
         return boardView(repository.saveBoard(board));
+    }
+
+    public Map<String, Object> renameBoard(String slug, String name) throws Exception {
+        if (!repository.renameBoard(slug, name)) {
+            throw new IllegalArgumentException("Kanban board not found: " + slug);
+        }
+        return boardView(repository.findBoard(slug));
+    }
+
+    public Map<String, Object> removeBoard(String slug, boolean hardDelete) throws Exception {
+        boolean removed = hardDelete ? repository.deleteBoard(slug) : repository.archiveBoard(slug);
+        if (!removed) {
+            throw new IllegalArgumentException("Kanban board not found: " + slug);
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("slug", slug);
+        result.put("action", hardDelete ? "deleted" : "archived");
+        result.put("current", currentBoard());
+        return result;
     }
 
     public Map<String, Object> switchBoard(String slug) throws Exception {
@@ -796,9 +809,10 @@ public class KanbanService {
 
     private String handleBoardsCommand(String rest) throws Exception {
         String raw = StrUtil.nullToEmpty(rest).trim();
-        if (StrUtil.isBlank(raw) || "list".equalsIgnoreCase(raw) || "ls".equalsIgnoreCase(raw)) {
+        String firstToken = raw.split("\\s+", 2)[0];
+        if (StrUtil.isBlank(raw) || "list".equalsIgnoreCase(firstToken) || "ls".equalsIgnoreCase(firstToken)) {
             StringBuilder buffer = new StringBuilder();
-            for (Map<String, Object> board : boards()) {
+            for (Map<String, Object> board : boards(raw.contains("--all"))) {
                 if (buffer.length() > 0) {
                     buffer.append('\n');
                 }
@@ -806,6 +820,9 @@ public class KanbanService {
                         .append(board.get("slug"))
                         .append("  ")
                         .append(board.get("name"));
+                if (Boolean.TRUE.equals(board.get("archived"))) {
+                    buffer.append("  [archived]");
+                }
             }
             return buffer.length() == 0 ? "当前没有看板。" : buffer.toString();
         }
@@ -821,7 +838,30 @@ public class KanbanService {
                 && parts.length >= 2) {
             return "已切换看板：" + switchBoard(parts[1]).get("slug");
         }
-        return "用法：/kanban boards [list|create <slug> [name]|switch <slug>]";
+        if (("show".equalsIgnoreCase(parts[0]) || "current".equalsIgnoreCase(parts[0]))) {
+            Map<String, Object> board = boardWithCounts(repository.currentBoard());
+            return "当前看板："
+                    + board.get("slug")
+                    + "\n名称："
+                    + board.get("name")
+                    + "\n描述："
+                    + StrUtil.blankToDefault((String) board.get("description"), "-")
+                    + "\n任务数："
+                    + board.get("counts");
+        }
+        if ("rename".equalsIgnoreCase(parts[0]) && parts.length >= 3) {
+            return "已重命名看板：" + renameBoard(parts[1], parts[2]).get("name");
+        }
+        if (("rm".equalsIgnoreCase(parts[0])
+                        || "remove".equalsIgnoreCase(parts[0])
+                        || "delete".equalsIgnoreCase(parts[0]))
+                && parts.length >= 2) {
+            boolean hardDelete = raw.contains("--delete") || "delete".equalsIgnoreCase(parts[0]);
+            String slug = parts[1].replace("--delete", "").trim();
+            Map<String, Object> result = removeBoard(slug, hardDelete);
+            return hardDelete ? "已删除看板：" + result.get("slug") : "已归档看板：" + result.get("slug");
+        }
+        return "用法：/kanban boards [list [--all]|create <slug> [name]|switch <slug>|show|rename <slug> <name>|rm <slug> [--delete]]";
     }
 
     private Map<String, Object> boardView(KanbanBoardRecord board) {
@@ -832,9 +872,24 @@ public class KanbanService {
         result.put("description", board.getDescription());
         result.put("color", board.getColor());
         result.put("current", Boolean.valueOf(board.isCurrent()));
+        result.put("archived", Boolean.valueOf(board.isArchived()));
         result.put("created_at", iso(board.getCreatedAt()));
         result.put("updated_at", iso(board.getUpdatedAt()));
         return result;
+    }
+
+    private Map<String, Object> boardWithCounts(KanbanBoardRecord board) throws Exception {
+        Map<String, Object> item = boardView(board);
+        Map<String, Integer> counts = new LinkedHashMap<String, Integer>();
+        for (String status : STATUSES) {
+            counts.put(status, Integer.valueOf(0));
+        }
+        for (KanbanTaskRecord task : repository.listTasks(board.getSlug(), null, true)) {
+            Integer old = counts.get(task.getStatus());
+            counts.put(task.getStatus(), Integer.valueOf(old == null ? 1 : old.intValue() + 1));
+        }
+        item.put("counts", counts);
+        return item;
     }
 
     private Map<String, Object> taskView(KanbanTaskRecord task, boolean includeComments)

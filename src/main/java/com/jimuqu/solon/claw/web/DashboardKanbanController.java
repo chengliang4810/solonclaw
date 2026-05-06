@@ -24,8 +24,8 @@ public class DashboardKanbanController {
     }
 
     @Mapping(value = "/api/kanban/boards", method = MethodType.GET)
-    public List<Map<String, Object>> boards() throws Exception {
-        return kanbanService.boards();
+    public List<Map<String, Object>> boards(Context context) throws Exception {
+        return kanbanService.boards(Boolean.parseBoolean(String.valueOf(context.param("archived"))));
     }
 
     @Mapping(value = "/api/kanban/boards", method = MethodType.POST)
@@ -36,6 +36,19 @@ public class DashboardKanbanController {
     @Mapping(value = "/api/kanban/boards/{slug}/switch", method = MethodType.POST)
     public Map<String, Object> switchBoard(String slug) throws Exception {
         return DashboardResponse.ok(kanbanService.switchBoard(slug));
+    }
+
+    @Mapping(value = "/api/kanban/boards/{slug}", method = MethodType.PUT)
+    public Map<String, Object> renameBoard(String slug, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.renameBoard(slug, body(context)));
+    }
+
+    @Mapping(value = "/api/kanban/boards/{slug}", method = MethodType.DELETE)
+    public Map<String, Object> removeBoard(String slug, Context context) throws Exception {
+        return DashboardResponse.ok(
+                kanbanService.removeBoard(
+                        slug,
+                        Boolean.parseBoolean(String.valueOf(context.param("delete")))));
     }
 
     @Mapping(value = "/api/kanban/tasks", method = MethodType.GET)

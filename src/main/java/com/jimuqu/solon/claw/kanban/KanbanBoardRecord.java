@@ -8,6 +8,7 @@ public class KanbanBoardRecord {
     private String description;
     private String color;
     private boolean current;
+    private boolean archived;
     private long createdAt;
     private long updatedAt;
 
@@ -57,6 +58,14 @@ public class KanbanBoardRecord {
 
     public void setCurrent(boolean current) {
         this.current = current;
+    }
+
+    public boolean isArchived() {
+        return archived;
+    }
+
+    public void setArchived(boolean archived) {
+        this.archived = archived;
     }
 
     public long getCreatedAt() {

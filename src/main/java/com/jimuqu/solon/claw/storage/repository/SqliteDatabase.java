@@ -820,9 +820,11 @@ public class SqliteDatabase {
                             + "description text,"
                             + "color text,"
                             + "current integer not null default 0,"
+                            + "archived integer not null default 0,"
                             + "created_at integer not null,"
                             + "updated_at integer not null"
                             + ")");
+            addColumn(statement, "kanban_boards", "archived integer not null default 0");
             statement.execute(
                     "create table if not exists kanban_tasks ("
                             + "task_id text primary key,"

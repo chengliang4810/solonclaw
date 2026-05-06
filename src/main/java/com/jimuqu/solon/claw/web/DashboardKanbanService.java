@@ -17,7 +17,11 @@ public class DashboardKanbanService {
     }
 
     public List<Map<String, Object>> boards() throws Exception {
-        return kanbanService.boards();
+        return boards(false);
+    }
+
+    public List<Map<String, Object>> boards(boolean includeArchived) throws Exception {
+        return kanbanService.boards(includeArchived);
     }
 
     public Map<String, Object> createBoard(Map<String, Object> body) throws Exception {
@@ -26,6 +30,16 @@ public class DashboardKanbanService {
 
     public Map<String, Object> switchBoard(String slug) throws Exception {
         return kanbanService.switchBoard(slug);
+    }
+
+    public Map<String, Object> renameBoard(String slug, Map<String, Object> body) throws Exception {
+        return kanbanService.renameBoard(
+                slug,
+                body == null || body.get("name") == null ? null : String.valueOf(body.get("name")));
+    }
+
+    public Map<String, Object> removeBoard(String slug, boolean hardDelete) throws Exception {
+        return kanbanService.removeBoard(slug, hardDelete);
     }
 
     public List<Map<String, Object>> tasks(String board, String status, boolean includeArchived)

@@ -6,6 +6,8 @@ import java.util.List;
 public interface KanbanRepository {
     List<KanbanBoardRecord> listBoards() throws Exception;
 
+    List<KanbanBoardRecord> listBoards(boolean includeArchived) throws Exception;
+
     KanbanBoardRecord findBoard(String slug) throws Exception;
 
     KanbanBoardRecord currentBoard() throws Exception;
@@ -13,6 +15,12 @@ public interface KanbanRepository {
     KanbanBoardRecord saveBoard(KanbanBoardRecord board) throws Exception;
 
     void switchBoard(String slug) throws Exception;
+
+    boolean renameBoard(String slug, String name) throws Exception;
+
+    boolean archiveBoard(String slug) throws Exception;
+
+    boolean deleteBoard(String slug) throws Exception;
 
     List<KanbanTaskRecord> listTasks(String boardSlug, String status, boolean includeArchived)
             throws Exception;

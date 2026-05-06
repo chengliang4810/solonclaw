@@ -47,6 +47,30 @@ public class KanbanServiceTest {
         String commandResult = service.handleCommand("done " + taskId, "tester");
         assertThat(commandResult).contains("已完成任务");
         assertThat(service.task(taskId).get("status")).isEqualTo("done");
+
+        assertThat(service.handleCommand("boards show", "tester"))
+                .contains("当前看板")
+                .contains("demo-board");
+        assertThat(service.handleCommand("boards rename demo-board 重命名看板", "tester"))
+                .contains("重命名看板");
+        assertThat(service.currentBoard().get("name")).isEqualTo("重命名看板");
+
+        Map<String, Object> secondBoard = new LinkedHashMap<String, Object>();
+        secondBoard.put("slug", "archive-me");
+        secondBoard.put("name", "归档候选");
+        service.createBoard(secondBoard);
+        assertThat(service.handleCommand("boards rm archive-me", "tester")).contains("已归档看板");
+        assertThat(String.valueOf(service.boards())).doesNotContain("archive-me");
+        assertThat(String.valueOf(service.boards(true))).contains("archive-me").contains("archived=true");
+        assertThat(service.handleCommand("boards list --all", "tester")).contains("archive-me").contains("[archived]");
+
+        Map<String, Object> deleteBoard = new LinkedHashMap<String, Object>();
+        deleteBoard.put("slug", "delete-me");
+        service.createBoard(deleteBoard);
+        assertThat(service.handleCommand("boards rm delete-me --delete", "tester")).contains("已删除看板");
+        assertThat(String.valueOf(service.boards(true))).doesNotContain("delete-me");
+        assertThatThrownBy(() -> service.removeBoard("default", false))
+                .hasMessageContaining("default Kanban board cannot be archived");
     }
 
     @Test
