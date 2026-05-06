@@ -177,6 +177,9 @@ public class AcpSessionManager {
         private List<Object> mcpServers = new ArrayList<Object>();
         private int mcpToolCount;
         private List<String> mcpChangedServers = new ArrayList<String>();
+        private String modelId;
+        private String modeId;
+        private Map<String, Object> configOptions = new LinkedHashMap<String, Object>();
         private long updatedAt = System.currentTimeMillis();
         private volatile boolean cancelled;
 
@@ -255,6 +258,36 @@ public class AcpSessionManager {
                     mcpChangedServers == null
                             ? new ArrayList<String>()
                             : new ArrayList<String>(mcpChangedServers);
+            touch();
+        }
+
+        public String getModelId() {
+            return modelId;
+        }
+
+        public void setModelId(String modelId) {
+            this.modelId = StrUtil.nullToEmpty(modelId).trim();
+            touch();
+        }
+
+        public String getModeId() {
+            return modeId;
+        }
+
+        public void setModeId(String modeId) {
+            this.modeId = StrUtil.nullToEmpty(modeId).trim();
+            touch();
+        }
+
+        public Map<String, Object> getConfigOptions() {
+            return new LinkedHashMap<String, Object>(configOptions);
+        }
+
+        public void setConfigOption(String key, Object value) {
+            if (StrUtil.isBlank(key)) {
+                return;
+            }
+            this.configOptions.put(key.trim(), value);
             touch();
         }
 

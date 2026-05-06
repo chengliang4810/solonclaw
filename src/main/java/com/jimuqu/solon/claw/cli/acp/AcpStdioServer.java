@@ -125,6 +125,15 @@ public class AcpStdioServer {
         if ("session/cancel".equals(method) || "cancel".equals(method)) {
             return cancel(params);
         }
+        if ("set_session_model".equals(method) || "session/set_model".equals(method)) {
+            return setSessionModel(params);
+        }
+        if ("set_session_mode".equals(method) || "session/set_mode".equals(method)) {
+            return setSessionMode(params);
+        }
+        if ("set_config_option".equals(method) || "session/set_config_option".equals(method)) {
+            return setConfigOption(params);
+        }
         if ("session/prompt".equals(method) || "prompt".equals(method)) {
             return prompt(params);
         }
@@ -291,6 +300,75 @@ public class AcpStdioServer {
         result.put("mcp_servers", state.getMcpServers());
         result.put("mcp_tool_count", state.getMcpToolCount());
         result.put("mcp_changed_servers", state.getMcpChangedServers());
+        if (StrUtil.isNotBlank(state.getModelId())) {
+            result.put("model_id", state.getModelId());
+            result.put("modelId", state.getModelId());
+        }
+        if (StrUtil.isNotBlank(state.getModeId())) {
+            result.put("mode_id", state.getModeId());
+            result.put("modeId", state.getModeId());
+        }
+        if (!state.getConfigOptions().isEmpty()) {
+            result.put("config_options", state.getConfigOptions());
+            result.put("configOptions", state.getConfigOptions());
+        }
+        return result;
+    }
+
+    private Map<String, Object> setSessionModel(ONode params) throws Exception {
+        AcpSessionManager.AcpSessionState state =
+                sessionManager.require(readSessionId(params));
+        String modelId = read(params, "model_id", read(params, "modelId", read(params, "model", "")));
+        if (StrUtil.isBlank(modelId)) {
+            throw new IllegalArgumentException("model_id is required");
+        }
+        state.setModelId(modelId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", true);
+        result.put("session_id", state.getSessionId());
+        result.put("sessionId", state.getSessionId());
+        result.put("model_id", state.getModelId());
+        result.put("modelId", state.getModelId());
+        return result;
+    }
+
+    private Map<String, Object> setSessionMode(ONode params) throws Exception {
+        AcpSessionManager.AcpSessionState state =
+                sessionManager.require(readSessionId(params));
+        String modeId = read(params, "mode_id", read(params, "modeId", read(params, "mode", "")));
+        if (StrUtil.isBlank(modeId)) {
+            throw new IllegalArgumentException("mode_id is required");
+        }
+        state.setModeId(modeId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", true);
+        result.put("session_id", state.getSessionId());
+        result.put("sessionId", state.getSessionId());
+        result.put("mode_id", state.getModeId());
+        result.put("modeId", state.getModeId());
+        return result;
+    }
+
+    private Map<String, Object> setConfigOption(ONode params) throws Exception {
+        AcpSessionManager.AcpSessionState state =
+                sessionManager.require(readSessionId(params));
+        String configId =
+                read(params, "config_id", read(params, "configId", read(params, "key", "")));
+        if (StrUtil.isBlank(configId)) {
+            throw new IllegalArgumentException("config_id is required");
+        }
+        ONode valueNode = params == null ? null : params.get("value");
+        Object value = valueNode == null || valueNode.isNull() ? null : valueNode.toData();
+        state.setConfigOption(configId, value);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", true);
+        result.put("session_id", state.getSessionId());
+        result.put("sessionId", state.getSessionId());
+        result.put("config_id", configId.trim());
+        result.put("configId", configId.trim());
+        result.put("value", value);
+        result.put("config_options", state.getConfigOptions());
+        result.put("configOptions", state.getConfigOptions());
         return result;
     }
 

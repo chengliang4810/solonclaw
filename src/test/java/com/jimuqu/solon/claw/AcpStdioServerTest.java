@@ -106,6 +106,61 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldAcceptHermesEditorSessionModelModeAndConfigMethods() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String sessionId = extractSessionId(newAcpSession(server, 30));
+
+        String model =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"set_session_model\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"model_id\":\"default:gpt-test-acp\"}}");
+        assertThat(model)
+                .contains("\"id\":31")
+                .contains("\"ok\":true")
+                .contains("\"model_id\":\"default:gpt-test-acp\"")
+                .contains("\"modelId\":\"default:gpt-test-acp\"");
+
+        String mode =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"set_session_mode\",\"params\":{\"sessionId\":\""
+                                + sessionId
+                                + "\",\"mode_id\":\"plan\"}}");
+        assertThat(mode)
+                .contains("\"id\":32")
+                .contains("\"ok\":true")
+                .contains("\"mode_id\":\"plan\"")
+                .contains("\"modeId\":\"plan\"");
+
+        String config =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"set_config_option\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"config_id\":\"reasoning_effort\",\"value\":\"high\"}}");
+        assertThat(config)
+                .contains("\"id\":33")
+                .contains("\"ok\":true")
+                .contains("\"config_id\":\"reasoning_effort\"")
+                .contains("\"reasoning_effort\":\"high\"");
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":34,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\"}}");
+        assertThat(loaded)
+                .contains("\"model_id\":\"default:gpt-test-acp\"")
+                .contains("\"mode_id\":\"plan\"")
+                .contains("\"reasoning_effort\":\"high\"");
+    }
+
+    @Test
     void shouldRegisterAcpMcpServersThroughDashboardMcpService() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
