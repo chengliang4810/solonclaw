@@ -2,16 +2,33 @@ package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
 import java.net.URLDecoder;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Redacts common secrets before returning logs/session details to dashboard clients. */
 public final class SecretRedactor {
-    private static final Pattern BEARER = Pattern.compile("(?i)bearer\\s+[A-Za-z0-9._~+/-]+=*");
-    private static final Pattern KEY_VALUE =
+    private static final Pattern BEARER =
             Pattern.compile(
-                    "(?i)(api[_-]?key|token|secret|password|authorization|client[_-]?secret)(\\s*[:=]\\s*)([^\\s,;\"'}]+)");
+                    "(?i)(Authorization:\\s*Bearer\\s+|\\bbearer\\s+)([A-Za-z0-9._~+/-]+=*)");
+    private static final Pattern ENV_ASSIGNMENT =
+            Pattern.compile(
+                    "\\b([A-Z0-9_]{0,50}(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Z0-9_]{0,50})(=)(['\"]?)(\\S+)\\3");
+    private static final Pattern SHELL_KEY_VALUE =
+            Pattern.compile(
+                    "(?i)\\b(api[_-]?key|apikey|token|secret|password|authorization|client[_-]?secret)(=)([^\\s,;\"'}]+)");
+    private static final Pattern JSON_FIELD =
+            Pattern.compile(
+                    "(?i)(\"(?:api_?key|token|secret|password|access_token|refresh_token|auth_token|bearer|secret_value|raw_secret|secret_input|key_material|private_key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
     private static final Pattern URL_USERINFO =
-            Pattern.compile("(?i)(https?://)([^/?#\\s@]+)@");
+            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
+    private static final Pattern DB_CONNSTR =
+            Pattern.compile(
+                    "(?i)\\b((?:postgres(?:ql)?|mysql|mongodb(?:\\+srv)?|redis|amqp)://[^:\\s/@]+:)([^@\\s]+)(@)");
+    private static final Pattern PRIVATE_KEY =
+            Pattern.compile(
+                    "-----BEGIN[A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END[A-Z ]*PRIVATE KEY-----");
+    private static final Pattern JWT =
+            Pattern.compile("eyJ[A-Za-z0-9_-]{10,}(?:\\.[A-Za-z0-9_=-]{4,}){0,2}");
     private static final String SENSITIVE_QUERY_NAMES =
             "access_token|refresh_token|id_token|token|api_key|apikey|client_secret|password|auth|jwt|session|secret|key|code|signature|x-amz-signature";
     private static final Pattern SENSITIVE_QUERY =
@@ -63,10 +80,15 @@ public final class SecretRedactor {
         if (text == null) {
             return null;
         }
-        String result = BEARER.matcher(text).replaceAll("Bearer ***");
-        result = KEY_VALUE.matcher(result).replaceAll("$1$2***");
+        String result = BEARER.matcher(text).replaceAll("$1***");
+        result = ENV_ASSIGNMENT.matcher(result).replaceAll("$1$2$3***$3");
+        result = SHELL_KEY_VALUE.matcher(result).replaceAll("$1$2***");
+        result = JSON_FIELD.matcher(result).replaceAll("$1$2***$4");
         result = PREFIX_SECRET.matcher(result).replaceAll("***");
-        result = URL_USERINFO.matcher(result).replaceAll("$1***@");
+        result = PRIVATE_KEY.matcher(result).replaceAll("[REDACTED PRIVATE KEY]");
+        result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
+        result = JWT.matcher(result).replaceAll("***");
+        result = redactUrlUserinfo(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {
@@ -104,8 +126,22 @@ public final class SecretRedactor {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        String result = URL_USERINFO.matcher(value).replaceAll("$1***@");
+        String result = redactUrlUserinfo(value);
+        result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         return PREFIX_SECRET.matcher(result).replaceAll("***");
+    }
+
+    private static String redactUrlUserinfo(String value) {
+        Matcher matcher = URL_USERINFO.matcher(value);
+        StringBuffer buffer = new StringBuffer(value.length());
+        while (matcher.find()) {
+            matcher.appendReplacement(
+                    buffer,
+                    Matcher.quoteReplacement(
+                            matcher.group(1) + "://" + matcher.group(2) + ":***@"));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
     }
 }
