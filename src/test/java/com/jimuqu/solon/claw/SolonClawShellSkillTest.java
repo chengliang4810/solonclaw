@@ -456,17 +456,39 @@ public class SolonClawShellSkillTest {
 
         assertThat(skill.interpretExitCode("grep 'pattern' file.txt", Integer.valueOf(1)))
                 .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("egrep 'pattern' file.txt", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("fgrep 'pattern' file.txt", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
         assertThat(skill.interpretExitCode("rg 'foo' .", Integer.valueOf(2))).isNull();
+        assertThat(skill.interpretExitCode("ag 'foo' .", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("ack 'foo' .", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("ls -la | grep 'pattern'", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("cd /tmp && grep foo bar", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
         assertThat(skill.interpretExitCode("cat file; diff a b", Integer.valueOf(1)))
+                .isEqualTo("Files differ (expected, not an error)");
+        assertThat(skill.interpretExitCode("colordiff a b", Integer.valueOf(1)))
                 .isEqualTo("Files differ (expected, not an error)");
         assertThat(skill.interpretExitCode("false || /usr/bin/grep foo bar", Integer.valueOf(1)))
                 .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("/usr/bin/grep 'foo' bar", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("FOO=1 BAR=2 grep 'foo' bar", Integer.valueOf(1)))
+                .isEqualTo("No matches found (not an error)");
+        assertThat(skill.interpretExitCode("find . -name '*.java'", Integer.valueOf(1)))
+                .isEqualTo("Some directories were inaccessible (partial results may still be valid)");
         assertThat(skill.interpretExitCode("LANG=C test -f /nonexistent", Integer.valueOf(1)))
                 .isEqualTo("Condition evaluated to false (expected, not an error)");
         assertThat(skill.interpretExitCode("[ -f /nonexistent ]", Integer.valueOf(1)))
                 .isEqualTo("Condition evaluated to false (expected, not an error)");
         assertThat(skill.interpretExitCode("curl https://example.com", Integer.valueOf(28)))
                 .isEqualTo("Operation timed out");
+        assertThat(skill.interpretExitCode("curl http://localhost:99999", Integer.valueOf(7)))
+                .isEqualTo("Failed to connect to host");
         assertThat(skill.interpretExitCode("git diff HEAD~1", Integer.valueOf(1)))
                 .isEqualTo("Git diff found differences (normal for diff commands)");
         assertThat(skill.interpretExitCode("LANG=C git diff --exit-code", Integer.valueOf(1)))
