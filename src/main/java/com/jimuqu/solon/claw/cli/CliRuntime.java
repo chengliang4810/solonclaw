@@ -33,16 +33,18 @@ public class CliRuntime {
 
     public GatewayReply send(String sessionId, String input, ConversationEventSink eventSink)
             throws Exception {
-        GatewayMessage message = message(sessionId, input);
-        String text = StrUtil.nullToEmpty(input).trim();
+        String sanitized = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
+        ConversationEventSink sink = eventSink == null ? ConversationEventSink.noop() : eventSink;
+        GatewayMessage message = message(sessionId, sanitized);
+        String text = StrUtil.nullToEmpty(sanitized).trim();
         if (text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
-            GatewayReply reply = commandService.handle(message, text, eventSink);
+            GatewayReply reply = commandService.handle(message, text, sink);
             if (reply != null) {
                 reply.setCommandHandled(true);
             }
             return reply;
         }
-        return conversationOrchestrator.handleIncoming(message, eventSink);
+        return conversationOrchestrator.handleIncoming(message, sink);
     }
 
     public AgentRunStopResult stop(String sessionId) {

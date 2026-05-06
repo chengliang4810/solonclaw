@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliModeParser;
+import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.support.TestEnvironment;
 import org.junit.jupiter.api.Test;
 
 public class CliModeParserTest {
@@ -43,5 +47,19 @@ public class CliModeParserTest {
 
         assertThat(mode.getKind()).isEqualTo(CliMode.Kind.ACP);
         assertThat(mode.isConsoleMode()).isTrue();
+    }
+
+    @Test
+    void shouldSanitizeLeakedTerminalResponsesBeforeRoutingCliInput() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime = new CliRuntime(env.commandService, env.conversationOrchestrator);
+
+        GatewayReply reply =
+                runtime.send(
+                        "sanitize",
+                        "hello\u001B[53;1Rworld<65;1;49M",
+                        ConversationEventSink.noop());
+
+        assertThat(reply.getContent()).isEqualTo("echo:helloworld");
     }
 }
