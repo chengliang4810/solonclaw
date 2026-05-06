@@ -361,4 +361,40 @@ public class CoreConfigOverrideLoadTest {
 
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
     }
+
+    @Test
+    void shouldPreferSecurityAllowPrivateUrlsOverBrowserFallback() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-private-url-precedence").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  allow_private_urls: false\n"
+                        + "browser:\n"
+                        + "  allow_private_urls: true\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
+    }
+
+    @Test
+    void shouldTreatQuotedFalseAllowPrivateUrlsAsFalse() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-private-url-false").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  allow_private_urls: \"false\"\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
+    }
 }
