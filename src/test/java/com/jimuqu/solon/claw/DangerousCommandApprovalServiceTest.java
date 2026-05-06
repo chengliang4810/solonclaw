@@ -1058,6 +1058,59 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldMergeWebsiteBlocklistConfigAndSharedFilesLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File shared = new File(env.appConfig.getRuntime().getHome(), "community-blocklist.txt");
+        FileUtil.writeUtf8String("# comment\nexample.org\nsub.bad.net\n", shared);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("example.com", "https://www.evil.test/path"));
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("community-blocklist.txt"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict parent =
+                securityPolicyService.checkUrl("https://docs.example.com/page");
+        SecurityPolicyService.UrlVerdict normalized =
+                securityPolicyService.checkUrl("https://evil.test/path");
+        SecurityPolicyService.UrlVerdict sharedExact =
+                securityPolicyService.checkUrl("https://example.org/docs");
+        SecurityPolicyService.UrlVerdict sharedParent =
+                securityPolicyService.checkUrl("https://api.sub.bad.net/docs");
+
+        assertThat(parent.isAllowed()).isFalse();
+        assertThat(parent.getMessage()).contains("example.com");
+        assertThat(normalized.isAllowed()).isFalse();
+        assertThat(normalized.getMessage()).contains("evil.test");
+        assertThat(sharedExact.isAllowed()).isFalse();
+        assertThat(sharedExact.getMessage()).contains("example.org");
+        assertThat(sharedParent.isAllowed()).isFalse();
+        assertThat(sharedParent.getMessage()).contains("sub.bad.net");
+    }
+
+    @Test
+    void shouldSkipMissingSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("missing-blocklist.txt"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://allowed.example/docs");
+
+        assertThat(verdict.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldApplyAbsoluteSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
