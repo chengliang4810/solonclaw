@@ -72,6 +72,79 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectHermesApprovalSqlAndShellGuardVariants() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult bashLcNewline =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "bash -lc \\\n'echo pwned'");
+        DangerousCommandApprovalService.DetectionResult kshC =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ksh -c 'echo test'");
+        DangerousCommandApprovalService.DetectionResult dropTable =
+                env.dangerousCommandApprovalService.detect("execute_shell", "DROP TABLE users");
+        DangerousCommandApprovalService.DetectionResult deleteWithoutWhere =
+                env.dangerousCommandApprovalService.detect("execute_shell", "DELETE FROM users");
+        DangerousCommandApprovalService.DetectionResult truncate =
+                env.dangerousCommandApprovalService.detect("execute_shell", "TRUNCATE TABLE users");
+        DangerousCommandApprovalService.DetectionResult deleteWithWhere =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "DELETE FROM users WHERE id = 1");
+
+        assertThat(bashLcNewline).isNotNull();
+        assertThat(bashLcNewline.getPatternKey()).isEqualTo("shell_command_flag");
+        assertThat(kshC).isNotNull();
+        assertThat(kshC.getPatternKey()).isEqualTo("shell_command_flag");
+        assertThat(dropTable).isNotNull();
+        assertThat(dropTable.getPatternKey()).isEqualTo("sql_drop");
+        assertThat(deleteWithoutWhere).isNotNull();
+        assertThat(deleteWithoutWhere.getPatternKey()).isEqualTo("sql_delete_no_where");
+        assertThat(truncate).isNotNull();
+        assertThat(truncate.getPatternKey()).isEqualTo("sql_truncate");
+        assertThat(deleteWithWhere).isNull();
+    }
+
+    @Test
+    void shouldDetectHermesApprovalProcessAndGitGuardVariants() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult spacedForkBomb =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", ":()  {  : | :&  } ; :");
+        DangerousCommandApprovalService.DetectionResult safeColon =
+                env.dangerousCommandApprovalService.detect("execute_shell", "echo hello:world");
+        DangerousCommandApprovalService.DetectionResult systemctlRestart =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "systemctl --user restart hermes-gateway");
+        DangerousCommandApprovalService.DetectionResult killallGateway =
+                env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
+        DangerousCommandApprovalService.DetectionResult pkillUnrelated =
+                env.dangerousCommandApprovalService.detect("execute_shell", "pkill -f nginx");
+        DangerousCommandApprovalService.DetectionResult gitForcePush =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git push --force origin main");
+        DangerousCommandApprovalService.DetectionResult gitShortForcePush =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git push -f origin main");
+        DangerousCommandApprovalService.DetectionResult gitNormalPush =
+                env.dangerousCommandApprovalService.detect("execute_shell", "git push origin main");
+
+        assertThat(spacedForkBomb).isNotNull();
+        assertThat(spacedForkBomb.getPatternKey()).isEqualTo("fork_bomb");
+        assertThat(safeColon).isNull();
+        assertThat(systemctlRestart).isNotNull();
+        assertThat(systemctlRestart.getPatternKey()).isEqualTo("stop_service");
+        assertThat(killallGateway).isNotNull();
+        assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
+        assertThat(pkillUnrelated).isNull();
+        assertThat(gitForcePush).isNotNull();
+        assertThat(gitForcePush.getPatternKey()).isEqualTo("git_force_push");
+        assertThat(gitShortForcePush).isNotNull();
+        assertThat(gitShortForcePush.getPatternKey()).isEqualTo("git_force_push");
+        assertThat(gitNormalPush).isNull();
+    }
+
+    @Test
     void shouldNotFlagSafeRmFilenamesLikeHermesApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
