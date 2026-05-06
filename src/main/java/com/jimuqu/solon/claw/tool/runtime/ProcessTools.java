@@ -9,15 +9,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
 /** Hermes 风格的受管后台进程工具。 */
 public class ProcessTools {
-    private static final Pattern ANSI_CONTROL_SEQUENCE =
-            Pattern.compile(
-                    "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|[\\u0080-\\u009F]");
     private final ProcessRegistry processRegistry;
     private final String defaultWorkDir;
     private final SecurityPolicyService securityPolicyService;
@@ -376,7 +372,7 @@ public class ProcessTools {
     }
 
     private String stripAnsi(String text) {
-        return ANSI_CONTROL_SEQUENCE.matcher(StrUtil.nullToEmpty(text)).replaceAll("");
+        return TerminalAnsiSanitizer.stripAnsi(text);
     }
 
     private String cleanOutput(String text) {

@@ -157,6 +157,14 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldStripEightBitAnsiFromTerminalOutputLikeHermes() throws Exception {
+        assertThat(
+                        com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer.stripAnsi(
+                                "\u009B31mred\u009B0m"))
+                .isEqualTo("red");
+    }
+
+    @Test
     void shouldRejectWorkdirWithShellMetacharactersLikeHermesTerminalGuardrail() {
         AppConfig config = new AppConfig();
 

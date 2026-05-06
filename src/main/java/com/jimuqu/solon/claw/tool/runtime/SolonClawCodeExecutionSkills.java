@@ -22,7 +22,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -35,9 +34,6 @@ public class SolonClawCodeExecutionSkills {
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
     private static final int MAX_STDERR_CHARS = 10000;
-    private static final Pattern ANSI_CONTROL_SEQUENCE =
-            Pattern.compile(
-                    "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|[\\u0080-\\u009F]");
     private static final String[] SAFE_ENV_PREFIXES =
             new String[] {
                 "PATH", "HOME", "USER", "USERNAME", "USERPROFILE", "LANG", "LC_", "TERM",
@@ -313,7 +309,7 @@ public class SolonClawCodeExecutionSkills {
                                 + " total] ...\n\n"
                                 + value.substring(value.length() - tailChars);
             }
-            return SecretRedactor.redact(ANSI_CONTROL_SEQUENCE.matcher(value).replaceAll(""));
+            return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(value));
         }
 
         private double durationSeconds(long started) {

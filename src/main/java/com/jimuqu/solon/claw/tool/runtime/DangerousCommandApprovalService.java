@@ -78,9 +78,6 @@ public class DangerousCommandApprovalService {
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
-    private static final Pattern ANSI_CONTROL_SEQUENCE =
-            Pattern.compile(
-                    "\\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\\u0007\\u001B]*(?:\\u0007|\\u001B\\\\)|P[^\\u001B]*(?:\\u001B\\\\)|[_^][^\\u001B]*(?:\\u001B\\\\)|[@-Z\\\\-_])|\\u009B[0-?]*[ -/]*[@-~]|\\u009D[^\\u009C]*(?:\\u009C)|[\\u0080-\\u009A\\u009C\\u009E-\\u009F]");
     private static final List<Pattern> LONG_LIVED_FOREGROUND_PATTERNS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -1824,7 +1821,7 @@ public class DangerousCommandApprovalService {
 
     private String normalize(String code) {
         String normalized = StrUtil.nullToEmpty(code).replace("\u0000", "");
-        normalized = ANSI_CONTROL_SEQUENCE.matcher(normalized).replaceAll("");
+        normalized = TerminalAnsiSanitizer.stripAnsi(normalized);
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC);
         normalized = normalized.replaceAll("\\\\\\r?\\n", " ");
         return normalized.trim();
