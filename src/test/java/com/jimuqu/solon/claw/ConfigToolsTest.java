@@ -71,5 +71,44 @@ public class ConfigToolsTest {
 
         assertThat(ONode.ofJson(response).get("success").getBoolean()).isFalse();
         assertThat(ONode.ofJson(response).get("error").getString()).contains("占位符密钥");
+
+        String channelSecretResponse =
+                (String)
+                        method.invoke(
+                                configSetSecretTool,
+                                "solonclaw.channels.weixin.token",
+                                "dummy");
+        assertThat(ONode.ofJson(channelSecretResponse).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(channelSecretResponse).get("error").getString())
+                .contains("占位符密钥");
+    }
+
+    @Test
+    void shouldRejectPlaceholderSecretsFromConfigSetTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configSetTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configSet".equals(method.getName())) {
+                    configSetTool = tool;
+                    break;
+                }
+            }
+            if (configSetTool != null) {
+                break;
+            }
+        }
+
+        assertThat(configSetTool).isNotNull();
+        Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
+        String providerResponse =
+                (String) method.invoke(configSetTool, "providers.default.apiKey", "example");
+        String channelResponse =
+                (String) method.invoke(configSetTool, "channels.dingtalk.clientSecret", "none");
+
+        assertThat(ONode.ofJson(providerResponse).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(providerResponse).get("error").getString()).contains("占位符密钥");
+        assertThat(ONode.ofJson(channelResponse).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(channelResponse).get("error").getString()).contains("占位符密钥");
     }
 }

@@ -459,9 +459,9 @@ public class DashboardRuntimeConfigService {
     }
 
     public Map<String, Object> set(String key, String value, boolean reconnectChannels) {
-        ensureSupported(key);
-        if ("providers.default.apiKey".equals(key) && SecretValueGuard.isPlaceholderSecret(value)) {
-            throw new IllegalArgumentException("providers.default.apiKey 不能使用示例或占位符密钥。");
+        ConfigItemDefinition definition = requireSupported(key);
+        if (definition.password && SecretValueGuard.isPlaceholderSecret(value)) {
+            throw new IllegalArgumentException(key + " 不能使用示例或占位符密钥。");
         }
         configResolver.setFileValue(key, value);
         if (reconnectChannels) {

@@ -365,6 +365,9 @@ public class RuntimeSettingsService {
 
     public void setConfigValue(String key, String rawValue) {
         ensureConfigKeyAllowed(key);
+        if (isSecretConfigKey(key) && SecretValueGuard.isPlaceholderSecret(rawValue)) {
+            throw new IllegalArgumentException(key + " 不能使用示例或占位符密钥。");
+        }
         persistConfigValue(
                 key, parseValueForKey(key, rawValue), shouldReconnectChannelsForConfigKey(key));
     }
@@ -545,6 +548,22 @@ public class RuntimeSettingsService {
 
     private boolean shouldReconnectChannelsForRuntimeKey(String key) {
         return key != null && key.startsWith("solonclaw.channels.");
+    }
+
+    private boolean isSecretConfigKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        if ("providers.default.apiKey".equals(key)
+                || "gateway.injectionSecret".equals(key)
+                || "terminal.sudoPassword".equals(key)) {
+            return true;
+        }
+        return key.endsWith(".apiKey")
+                || key.endsWith(".appSecret")
+                || key.endsWith(".clientSecret")
+                || key.endsWith(".secret")
+                || key.endsWith(".token");
     }
 
     public static class ResolvedModel {

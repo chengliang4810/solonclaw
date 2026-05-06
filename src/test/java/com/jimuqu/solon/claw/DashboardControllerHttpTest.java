@@ -841,7 +841,7 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
-    void shouldRejectProviderPlaceholderApiKeys() throws Exception {
+    void shouldRejectPlaceholderSecrets() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
         HttpResult createProvider =
@@ -861,6 +861,14 @@ public class DashboardControllerHttpTest {
                         "{\"key\":\"providers.default.apiKey\",\"value\":\"NONE\"}",
                         token);
         assertThat(saveRuntimeConfig.status).isEqualTo(500);
+
+        HttpResult saveChannelToken =
+                request(
+                        "PUT",
+                        "/api/runtime-config",
+                        "{\"key\":\"solonclaw.channels.weixin.token\",\"value\":\"dummy\"}",
+                        token);
+        assertThat(saveChannelToken.status).isEqualTo(500);
     }
 
     @Test
