@@ -818,15 +818,46 @@ public class KanbanService {
             comment(tokens[0], author, tokens[1]);
             return "已追加评论：" + tokens[0];
         }
+        if ("block".equals(action)) {
+            return blockCommand(rest, author);
+        }
         if ("done".equals(action) || "complete".equals(action)) {
-            status(requireArg(rest, "/kanban done <task-id>"), "done", null);
-            return "已完成任务：" + rest;
+            return bulkStatusCommand(rest, "done", "已完成任务", "/kanban done <task-id> [task-id...]");
         }
         if ("archive".equals(action)) {
-            status(requireArg(rest, "/kanban archive <task-id>"), "archived", null);
-            return "已归档任务：" + rest;
+            return bulkStatusCommand(rest, "archived", "已归档任务", "/kanban archive <task-id> [task-id...]");
         }
         return kanbanHelp();
+    }
+
+    private String blockCommand(String rest, String author) throws Exception {
+        String raw = requireArg(rest, "/kanban block <task-id> [reason] [--ids task-id...]");
+        String[] split = raw.split("\\s+", 2);
+        String firstTaskId = split[0];
+        String reasonAndIds = split.length > 1 ? split[1] : "";
+        String reason = reasonAndIds;
+        List<String> taskIds = new ArrayList<String>();
+        taskIds.add(firstTaskId);
+        int idsIndex = reasonAndIds.indexOf("--ids");
+        if (idsIndex >= 0) {
+            reason = reasonAndIds.substring(0, idsIndex).trim();
+            String extraIds = reasonAndIds.substring(idsIndex + "--ids".length()).trim();
+            if (StrUtil.isNotBlank(extraIds)) {
+                String[] parts = extraIds.split("\\s+");
+                for (String taskId : parts) {
+                    if (StrUtil.isNotBlank(taskId) && !taskIds.contains(taskId)) {
+                        taskIds.add(taskId);
+                    }
+                }
+            }
+        }
+        String result = StrUtil.blankToDefault(reason, null);
+        if (StrUtil.isNotBlank(result)) {
+            for (String taskId : taskIds) {
+                comment(taskId, author, "BLOCKED: " + result);
+            }
+        }
+        return bulkStatusCommand(taskIds, "blocked", result, "已阻塞任务");
     }
 
     private String unblockCommand(String rest) throws Exception {
@@ -850,6 +881,35 @@ public class KanbanService {
                     "Kanban task is not blocked or not found: " + String.join(", ", failed));
         }
         return "已解除阻塞任务：" + String.join(", ", unblocked);
+    }
+
+    private String bulkStatusCommand(String rest, String status, String label, String usage)
+            throws Exception {
+        String raw = requireArg(rest, usage);
+        List<String> taskIds = Arrays.asList(raw.split("\\s+"));
+        return bulkStatusCommand(taskIds, status, null, label);
+    }
+
+    private String bulkStatusCommand(List<String> taskIds, String status, String result, String label)
+            throws Exception {
+        List<String> updated = new ArrayList<String>();
+        List<String> failed = new ArrayList<String>();
+        for (String taskId : taskIds) {
+            if (StrUtil.isBlank(taskId)) {
+                continue;
+            }
+            try {
+                status(taskId, status, result);
+                updated.add(taskId);
+            } catch (IllegalArgumentException e) {
+                failed.add(taskId);
+            }
+        }
+        if (!failed.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Kanban task cannot be updated to " + status + ": " + String.join(", ", failed));
+        }
+        return label + "：" + String.join(", ", updated);
     }
 
     private String handleDaemonCommand(String rest) {
@@ -1237,7 +1297,9 @@ public class KanbanService {
                         "/kanban dispatch [--dry-run] [--max N] [--board slug] - 执行一次自动派发",
                         "/kanban daemon status|start|stop [--interval N] [--max N] [--board slug] - 管理后台派发循环",
                         "/kanban comment <task-id> <text> - 追加评论",
-                        "/kanban done <task-id> - 标记完成",
+                        "/kanban block <task-id> [reason] [--ids task-id...] - 阻塞任务并可批量追加同一原因",
+                        "/kanban done <task-id> [task-id...] - 标记完成",
+                        "/kanban archive <task-id> [task-id...] - 归档任务",
                         "/kanban boards [list|create|switch] - 管理多看板"));
     }
 

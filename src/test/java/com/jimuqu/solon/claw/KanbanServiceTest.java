@@ -261,6 +261,44 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldSupportHermesStyleBulkLifecycleCommands() throws Exception {
+        KanbanService service = service();
+        String firstId = createTask(service, "批量任务一", "alice", "alice");
+        String secondId = createTask(service, "批量任务二", "alice", "alice");
+        String thirdId = createTask(service, "批量任务三", "alice", "alice");
+
+        assertThat(service.handleCommand(
+                        "block " + firstId + " 需要人工确认 --ids " + secondId + " " + thirdId,
+                        "tester"))
+                .contains("已阻塞任务")
+                .contains(firstId)
+                .contains(secondId)
+                .contains(thirdId);
+        assertThat(service.task(firstId).get("status")).isEqualTo("blocked");
+        assertThat(service.task(secondId).get("status")).isEqualTo("blocked");
+        assertThat(service.task(thirdId).get("status")).isEqualTo("blocked");
+        assertThat(String.valueOf(service.task(secondId).get("comments")))
+                .contains("BLOCKED: 需要人工确认");
+
+        assertThat(service.handleCommand("complete " + firstId + " " + secondId, "tester"))
+                .contains("已完成任务")
+                .contains(firstId)
+                .contains(secondId);
+        assertThat(service.task(firstId).get("status")).isEqualTo("done");
+        assertThat(service.task(secondId).get("status")).isEqualTo("done");
+
+        assertThat(service.handleCommand("archive " + firstId + " " + secondId, "tester"))
+                .contains("已归档任务")
+                .contains(firstId)
+                .contains(secondId);
+        assertThat(service.task(firstId).get("status")).isEqualTo("archived");
+        assertThat(service.task(secondId).get("status")).isEqualTo("archived");
+
+        assertThatThrownBy(() -> service.handleCommand("archive " + firstId + " KB-NOTFOUND", "tester"))
+                .hasMessageContaining("KB-NOTFOUND");
+    }
+
+    @Test
     void shouldExposePipelineLinksIdempotencyAndWorkerContext() throws Exception {
         KanbanService service = service();
         String parentId = createTask(service, "父任务", "lead", "lead");
