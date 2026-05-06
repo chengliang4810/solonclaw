@@ -94,7 +94,7 @@ public class DashboardMcpService {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, coalesce((select last_tools_hash from mcp_servers where server_id = ?), ?), ?, ?, coalesce((select created_at from mcp_servers where server_id = ?), ?), ?, coalesce((select last_checked_at from mcp_servers where server_id = ?), 0), coalesce((select last_tools_changed_at from mcp_servers where server_id = ?), 0))");
+                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, case when coalesce((select tools_json from mcp_servers where server_id = ?), '') = coalesce(?, '') then coalesce((select last_tools_hash from mcp_servers where server_id = ?), '') else '' end, ?, ?, coalesce((select created_at from mcp_servers where server_id = ?), ?), ?, coalesce((select last_checked_at from mcp_servers where server_id = ?), 0), coalesce((select last_tools_changed_at from mcp_servers where server_id = ?), 0))");
             statement.setString(1, serverId);
             statement.setString(2, name);
             statement.setString(3, transport);
@@ -108,14 +108,15 @@ public class DashboardMcpService {
             String toolsJson = json(body.get("tools"));
             statement.setString(11, toolsJson);
             statement.setString(12, serverId);
-            statement.setString(13, "");
-            statement.setString(14, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
-            statement.setInt(15, asBoolean(body.get("enabled"), true) ? 1 : 0);
-            statement.setString(16, serverId);
-            statement.setLong(17, now);
+            statement.setString(13, toolsJson);
+            statement.setString(14, serverId);
+            statement.setString(15, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
+            statement.setInt(16, asBoolean(body.get("enabled"), true) ? 1 : 0);
+            statement.setString(17, serverId);
             statement.setLong(18, now);
-            statement.setString(19, serverId);
+            statement.setLong(19, now);
             statement.setString(20, serverId);
+            statement.setString(21, serverId);
             statement.executeUpdate();
             statement.close();
         } finally {

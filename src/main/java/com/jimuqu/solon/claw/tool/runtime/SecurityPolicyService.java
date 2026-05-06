@@ -172,6 +172,9 @@ public class SecurityPolicyService {
         if (!"http".equals(scheme) && !"https".equals(scheme)) {
             return UrlVerdict.block(raw, "仅允许 http/https URL");
         }
+        if (hasUserInfo(uri)) {
+            return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
+        }
 
         String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
@@ -914,6 +917,20 @@ public class SecurityPolicyService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private boolean hasUserInfo(URI uri) {
+        if (uri == null) {
+            return false;
+        }
+        if (StrUtil.isNotBlank(uri.getRawUserInfo()) || StrUtil.isNotBlank(uri.getUserInfo())) {
+            return true;
+        }
+        String authority = StrUtil.nullToEmpty(uri.getRawAuthority());
+        if (authority.length() == 0) {
+            authority = StrUtil.nullToEmpty(uri.getAuthority());
+        }
+        return authority.indexOf('@') >= 0;
     }
 
     private String extractUriHost(URI uri) {

@@ -273,6 +273,9 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
+        assertThat(started.get("success").getBoolean())
+                .as("process start result: %s", started.toString())
+                .isTrue();
         String sessionId = started.get("session_id").getString();
         ONode waited =
                 ONode.ofJson(
@@ -305,8 +308,7 @@ public class ToolRegistryExposureTest {
                 .contains("api_key=***")
                 .contains("token=***")
                 .doesNotContain("sk-test-secret")
-                .doesNotContain("secret123")
-                .doesNotContain("user:pass");
+                .doesNotContain("secret123");
     }
 
     @Test
@@ -1229,9 +1231,9 @@ public class ToolRegistryExposureTest {
 
     private String secretEchoCommand() {
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
-            return "echo api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123";
+            return "echo api_key=sk-test-secret token=secret123 https://example.com/public";
         }
-        return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 https://user:pass@example.com/?token=secret123'";
+        return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 https://example.com/public'";
     }
 
     private boolean commandExists(String command) {

@@ -486,6 +486,25 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockUrlUserinfoCredentialsBeforeNetworkAccess() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "https://user:password@example.com/private",
+                        "https://user%3Apassword@example.com/private",
+                        "https://safe.example@169.254.169.254/latest/meta-data/");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("userinfo").contains("凭据");
+        }
+    }
+
+    @Test
     void shouldAllowToolArgsWithoutUrls() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
