@@ -21,6 +21,7 @@ import java.io.File;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +29,9 @@ import java.nio.file.attribute.FileTime;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.rag.Document;
+import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
+import org.noear.solon.ai.skills.web.WebsearchTool;
 
 public class ToolRegistryExposureTest {
     @Test
@@ -810,6 +813,99 @@ public class ToolRegistryExposureTest {
                         () ->
                                 webfetch.webfetch(
                                         "https://allowed.example/start", "markdown", Integer.valueOf(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
+    void shouldGuardWebsearchReturnedDocumentUrlsAfterProviderResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        policy,
+                        new WebsearchTool() {
+                            @Override
+                            public Document websearch(
+                                    String query,
+                                    Integer numResults,
+                                    String livecrawl,
+                                    String type,
+                                    Integer contextMaxCharacters) {
+                                return new Document("secret search content")
+                                        .title("result")
+                                        .url("https://blocked.example/result?token=secret123")
+                                        .metadata(
+                                                "finalUrl",
+                                                "https://blocked.example/result?token=secret123");
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "allowed search",
+                                        Integer.valueOf(1),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
+    void shouldGuardCodesearchReturnedDocumentUrlsInsideContainers() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        policy,
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
+                                result.put(
+                                        "documents",
+                                        Arrays.asList(
+                                                new Document("secret code content")
+                                                        .title("code")
+                                                        .metadata(
+                                                                "source_url",
+                                                                "https://blocked.example/code?token=secret123")));
+                                return result;
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")

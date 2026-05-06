@@ -3,10 +3,15 @@ package com.jimuqu.solon.claw.tool.runtime;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import cn.hutool.core.util.StrUtil;
+import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
 import org.noear.solon.annotation.Param;
@@ -64,6 +69,45 @@ public class SolonClawWebTools {
         }
     }
 
+    private static void checkReturnedUrls(SecurityPolicyService securityPolicyService, Object value) {
+        if (securityPolicyService == null || value == null) {
+            return;
+        }
+        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
+        checkReturnedUrls(securityPolicyService, value, visited);
+    }
+
+    private static void checkReturnedUrls(
+            SecurityPolicyService securityPolicyService, Object value, Set<Object> visited) {
+        if (value == null || visited.contains(value)) {
+            return;
+        }
+        visited.add(value);
+        if (value instanceof Document) {
+            checkFinalDocumentUrls(securityPolicyService, (Document) value);
+            return;
+        }
+        if (value instanceof Collection) {
+            for (Object item : (Collection<?>) value) {
+                checkReturnedUrls(securityPolicyService, item, visited);
+            }
+            return;
+        }
+        Class<?> valueClass = value.getClass();
+        if (valueClass.isArray()) {
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                checkReturnedUrls(securityPolicyService, Array.get(value, i), visited);
+            }
+            return;
+        }
+        if (value instanceof Map) {
+            for (Object item : ((Map<?, ?>) value).values()) {
+                checkReturnedUrls(securityPolicyService, item, visited);
+            }
+        }
+    }
+
     public static class SafeWebfetchTool {
         private final SecurityPolicyService securityPolicyService;
         private final WebfetchTool delegate;
@@ -116,7 +160,10 @@ public class SolonClawWebTools {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("query", query);
             check(securityPolicyService, ToolNameConstants.WEBSEARCH, args);
-            return delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
+            Document document =
+                    delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
+            checkReturnedUrls(securityPolicyService, document);
+            return document;
         }
     }
 
@@ -145,7 +192,9 @@ public class SolonClawWebTools {
             args.put("query", query);
             args.put("tokensNum", tokensNum);
             check(securityPolicyService, ToolNameConstants.CODESEARCH, args);
-            return delegate.handle(query, tokensNum);
+            Object result = delegate.handle(query, tokensNum);
+            checkReturnedUrls(securityPolicyService, result);
+            return result;
         }
     }
 }
