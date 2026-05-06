@@ -123,6 +123,34 @@ public class SolonClawShellSkill extends ShellSkill {
                 executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout));
     }
 
+    public String terminal(
+            @Param(name = "command", description = "Command to execute") String command,
+            @Param(
+                            name = "background",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Run in the managed background process registry")
+                    Boolean background,
+            @Param(
+                            name = "timeout",
+                            required = false,
+                            defaultValue = "180",
+                            description = "Timeout in seconds for foreground commands")
+                    Integer timeoutSeconds,
+            @Param(
+                            name = "workdir",
+                            required = false,
+                            description = "Working directory. Defaults to the tool workdir.")
+                    String workdir,
+            @Param(
+                            name = "notify_on_complete",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Accepted for compatibility; delivery is handled by higher-level runtime events.")
+                    Boolean notifyOnComplete) {
+        return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, null);
+    }
+
     @ToolMapping(
             name = "terminal",
             description =
@@ -151,10 +179,16 @@ public class SolonClawShellSkill extends ShellSkill {
                             required = false,
                             defaultValue = "false",
                             description = "Accepted for compatibility; delivery is handled by higher-level runtime events.")
-                    Boolean notifyOnComplete) {
+                    Boolean notifyOnComplete,
+            @Param(
+                            name = "pty",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Accepted for Hermes compatibility. PTY execution is disabled for stdin-pipe commands.")
+                    Boolean pty) {
         try {
             if (Boolean.TRUE.equals(background)) {
-                return startBackground(command, workdir, notifyOnComplete);
+                return startBackground(command, workdir, notifyOnComplete, pty);
             }
             return runForegroundTerminal(command, timeoutSeconds, workdir);
         } catch (Exception e) {
@@ -219,7 +253,8 @@ public class SolonClawShellSkill extends ShellSkill {
         return ONode.serialize(map);
     }
 
-    private String startBackground(String command, String workdir, Boolean notifyOnComplete)
+    private String startBackground(
+            String command, String workdir, Boolean notifyOnComplete, Boolean pty)
             throws Exception {
         String commandError = validateCommand(command);
         if (commandError != null) {
@@ -233,8 +268,15 @@ public class SolonClawShellSkill extends ShellSkill {
                 command,
                 securityPolicyService);
         File dir = resolveBackgroundWorkdir(workdir);
+        String ptyNote = null;
+        if (Boolean.TRUE.equals(pty) && commandRequiresPipeStdin(command)) {
+            ptyNote =
+                    "PTY disabled for this command because it expects piped stdin/EOF "
+                            + "(for example gh auth login --with-token). For local background "
+                            + "processes, call process(action='close') after writing so it receives EOF.";
+        }
         ProcessRegistry.ManagedProcess managed = processRegistry.start(command, dir);
-        return ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
+        ToolResultEnvelope envelope = ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
                 .data("cwd", SecretRedactor.redact(managed.getCwd()))
@@ -244,8 +286,12 @@ public class SolonClawShellSkill extends ShellSkill {
                 .data("notify_on_complete", Boolean.TRUE.equals(notifyOnComplete))
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
                 .data("output_preview", normalizeTerminalOutput(managed.outputPreview(1000)))
-                .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid())
-                .toJson();
+                .preview("session_id=" + managed.getId() + "\npid=" + managed.getPid());
+        if (ptyNote != null) {
+            envelope.data("pty", Boolean.FALSE);
+            envelope.data("pty_note", ptyNote);
+        }
+        return envelope.toJson();
     }
 
     private String validateCommand(String command) {
@@ -260,6 +306,14 @@ public class SolonClawShellSkill extends ShellSkill {
 
     public String rewriteCompoundBackground(String command) {
         return ProcessRegistry.rewriteCompoundBackground(command);
+    }
+
+    public boolean commandRequiresPipeStdin(String command) {
+        String normalized = StrUtil.nullToEmpty(command).trim().toLowerCase(java.util.Locale.ROOT);
+        while (normalized.contains("  ")) {
+            normalized = normalized.replace("  ", " ");
+        }
+        return normalized.startsWith("gh auth login") && normalized.contains("--with-token");
     }
 
     public String interpretExitCode(String command, Integer exitCode) {

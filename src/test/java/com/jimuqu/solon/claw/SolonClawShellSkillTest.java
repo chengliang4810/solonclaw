@@ -292,6 +292,44 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldDetectHermesPipeStdinCommandsThatCannotUsePty() throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        assertThat(
+                        skill.commandRequiresPipeStdin(
+                                "gh auth login --hostname github.com --git-protocol https --with-token"))
+                .isTrue();
+        assertThat(skill.commandRequiresPipeStdin("gh auth login --web")).isFalse();
+    }
+
+    @Test
+    void shouldReturnPtyDisabledNoteForHermesPipeStdinBackgroundCommands() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "gh auth login --hostname github.com --git-protocol https --with-token",
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.TRUE));
+
+        assertThat(result.get("session_id").getString()).startsWith("proc_");
+        assertThat(result.get("pty").getBoolean()).isFalse();
+        assertThat(result.get("pty_note").getString())
+                .contains("PTY disabled")
+                .contains("gh auth login --with-token");
+        assertThat(registry.stop(result.get("session_id").getString())).isTrue();
+    }
+
+    @Test
     void shouldInterpretHermesTerminalExitCodeSemantics() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
