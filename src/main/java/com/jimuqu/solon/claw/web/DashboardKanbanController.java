@@ -139,6 +139,11 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.stats());
     }
 
+    @Mapping(value = "/api/kanban/assignees", method = MethodType.GET)
+    public List<Map<String, Object>> assignees(Context context) throws Exception {
+        return kanbanService.assignees(context.param("board"));
+    }
+
     @Mapping(value = "/api/kanban/watch", method = MethodType.GET)
     public List<Map<String, Object>> watch(Context context) throws Exception {
         return kanbanService.watch(

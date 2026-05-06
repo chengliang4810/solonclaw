@@ -179,7 +179,6 @@ public class TestEnvironment {
         AgentRunRepository agentRunRepository = new SqliteAgentRunRepository(database);
         CronJobRepository cronJobRepository = new SqliteCronJobRepository(database);
         KanbanRepository kanbanRepository = new SqliteKanbanRepository(database);
-        KanbanService kanbanService = new KanbanService(kanbanRepository);
         GatewayPolicyRepository gatewayPolicyRepository =
                 new SqliteGatewayPolicyRepository(database);
         ChannelStateRepository channelStateRepository = new SqliteChannelStateRepository(database);
@@ -188,6 +187,7 @@ public class TestEnvironment {
                 new AgentRuntimeService(config, agentProfileRepository);
         AgentProfileService agentProfileService =
                 new AgentProfileService(agentProfileRepository, agentRuntimeService);
+        KanbanService kanbanService = new KanbanService(kanbanRepository, config, agentProfileService);
         ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
         SkillHubStateStore skillHubStateStore =
                 new SkillHubStateStore(new File(config.getRuntime().getSkillsDir()));

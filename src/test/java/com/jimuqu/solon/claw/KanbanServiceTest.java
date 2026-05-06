@@ -3,7 +3,9 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import cn.hutool.core.io.FileUtil;
@@ -329,6 +331,36 @@ public class KanbanServiceTest {
                 .hasMessageContaining("not done");
         assertThatThrownBy(() -> service.edit(taskId, "bad metadata", null, "[1,2]"))
                 .hasMessageContaining("JSON object");
+    }
+
+    @Test
+    void shouldListConfiguredAndBoardAssignees() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentProfileService agentService =
+                new AgentProfileService(new SqliteAgentProfileRepository(env.sqliteDatabase), env.agentRuntimeService);
+        agentService.createAgent("alice", "负责实现");
+        KanbanService service =
+                new KanbanService(
+                        new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig, agentService);
+
+        createTask(service, "Alice task", "alice", "tester");
+        String bobTask = createTask(service, "Bob task", "bob", "tester");
+        service.status(bobTask, "ready", null);
+
+        String assigneesText = service.handleCommand("assignees", "tester");
+        assertThat(assigneesText)
+                .contains("alice")
+                .contains("configured=yes")
+                .contains("bob")
+                .contains("configured=no")
+                .contains("ready=1");
+
+        assertThat(String.valueOf(service.assignees()))
+                .contains("name=alice")
+                .contains("on_disk=true")
+                .contains("enabled=true")
+                .contains("name=bob")
+                .contains("on_disk=false");
     }
 
     @Test

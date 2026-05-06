@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw.kanban;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentProfile;
+import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -30,6 +32,7 @@ public class KanbanService {
 
     private final KanbanRepository repository;
     private final AppConfig appConfig;
+    private final AgentProfileService agentProfileService;
     private KanbanDispatcherService dispatcherService;
 
     public KanbanService(KanbanRepository repository) {
@@ -37,8 +40,16 @@ public class KanbanService {
     }
 
     public KanbanService(KanbanRepository repository, AppConfig appConfig) {
+        this(repository, appConfig, null);
+    }
+
+    public KanbanService(
+            KanbanRepository repository,
+            AppConfig appConfig,
+            AgentProfileService agentProfileService) {
         this.repository = repository;
         this.appConfig = appConfig;
+        this.agentProfileService = agentProfileService;
     }
 
     public void setDispatcherService(KanbanDispatcherService dispatcherService) {
@@ -420,6 +431,50 @@ public class KanbanService {
         return result;
     }
 
+    public List<Map<String, Object>> assignees() throws Exception {
+        return assignees(null);
+    }
+
+    public List<Map<String, Object>> assignees(String board) throws Exception {
+        Map<String, Map<String, Integer>> counts = repository.countTasksByAssignee(board);
+        Map<String, Map<String, Object>> entries = new LinkedHashMap<String, Map<String, Object>>();
+        if (agentProfileService != null) {
+            for (AgentProfile profile : agentProfileService.listAll()) {
+                String name = profile.getAgentName();
+                if (StrUtil.isBlank(name)) {
+                    continue;
+                }
+                Map<String, Object> entry = assigneeEntry(name);
+                entry.put("configured", Boolean.TRUE);
+                entry.put("on_disk", Boolean.TRUE);
+                entry.put("enabled", Boolean.valueOf(profile.isEnabled()));
+                entry.put(
+                        "display_name",
+                        StrUtil.blankToDefault(profile.getDisplayName(), profile.getAgentName()));
+                entries.put(name, entry);
+            }
+        }
+        for (Map.Entry<String, Map<String, Integer>> item : counts.entrySet()) {
+            String name = item.getKey();
+            if (StrUtil.isBlank(name)) {
+                continue;
+            }
+            Map<String, Object> entry = entries.get(name);
+            if (entry == null) {
+                entry = assigneeEntry(name);
+                entries.put(name, entry);
+            }
+            entry.put("counts", item.getValue());
+        }
+        List<String> names = new ArrayList<String>(entries.keySet());
+        Collections.sort(names);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (String name : names) {
+            result.add(entries.get(name));
+        }
+        return result;
+    }
+
     public List<Map<String, Object>> watch(String assignee, String tenant, String kinds, int limit)
             throws Exception {
         List<String> kindFilter = splitCsv(kinds);
@@ -735,6 +790,9 @@ public class KanbanService {
         }
         if ("edit".equals(action)) {
             return editCommand(rest);
+        }
+        if ("assignees".equals(action)) {
+            return formatAssignees(assignees(StrUtil.blankToDefault(rest, null)));
         }
         if ("runs".equals(action) || "history".equals(action)) {
             return formatRuns(requireArg(rest, "/kanban runs <task-id>"));
@@ -1269,6 +1327,27 @@ public class KanbanService {
         return buffer.toString();
     }
 
+    @SuppressWarnings("unchecked")
+    private String formatAssignees(List<Map<String, Object>> assignees) {
+        if (assignees.isEmpty()) {
+            return "当前没有可用执行人。请先创建 Agent 或给任务分配 assignee。";
+        }
+        StringBuilder buffer = new StringBuilder("Kanban 执行人：");
+        for (Map<String, Object> assignee : assignees) {
+            Map<String, Integer> counts = (Map<String, Integer>) assignee.get("counts");
+            buffer.append('\n')
+                    .append("- ")
+                    .append(assignee.get("name"))
+                    .append("  configured=")
+                    .append(Boolean.TRUE.equals(assignee.get("configured")) ? "yes" : "no")
+                    .append("  enabled=")
+                    .append(Boolean.TRUE.equals(assignee.get("enabled")) ? "yes" : "no")
+                    .append("  counts=")
+                    .append(counts == null || counts.isEmpty() ? "(idle)" : counts);
+        }
+        return buffer.toString();
+    }
+
     private String formatNotifySubscriptions(List<Map<String, Object>> subscriptions) {
         if (subscriptions.isEmpty()) {
             return "当前没有 Kanban 通知订阅。";
@@ -1341,6 +1420,7 @@ public class KanbanService {
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",
                         "/kanban unblock <task-id> [task-id...] - 将 blocked 任务恢复为 ready",
                         "/kanban edit <task-id> --result <text> [--summary <text>] [--metadata <json>] - 修正已完成任务的结果",
+                        "/kanban assignees [board] - 查看 Agent 与看板执行人负载",
                         "/kanban link <parent-id> <child-id> - 添加任务依赖",
                         "/kanban unlink <parent-id> <child-id> - 移除任务依赖",
                         "/kanban runs <task-id> - 查看任务执行历史",
@@ -2057,6 +2137,17 @@ public class KanbanService {
             throw new IllegalArgumentException("kanban edit --metadata must be a JSON object");
         }
         return ONode.serialize(parsed);
+    }
+
+    private Map<String, Object> assigneeEntry(String name) {
+        Map<String, Object> entry = new LinkedHashMap<String, Object>();
+        entry.put("name", name);
+        entry.put("on_disk", Boolean.FALSE);
+        entry.put("configured", Boolean.FALSE);
+        entry.put("enabled", Boolean.FALSE);
+        entry.put("display_name", name);
+        entry.put("counts", new LinkedHashMap<String, Integer>());
+        return entry;
     }
 
     private String stripWrappingQuotes(String value) {

@@ -236,6 +236,41 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public Map<String, Map<String, Integer>> countTasksByAssignee(String boardSlug) throws Exception {
+        String slug = StrUtil.isBlank(boardSlug) ? currentBoard().getSlug() : normalizeBoard(boardSlug);
+        Map<String, Map<String, Integer>> counts = new LinkedHashMap<String, Map<String, Integer>>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select assignee, status, count(*) as n from kanban_tasks "
+                                    + "where board_slug = ? and status <> 'archived' and assignee is not null and assignee <> '' "
+                                    + "group by assignee, status order by assignee asc, status asc");
+            statement.setString(1, slug);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    String assignee = resultSet.getString("assignee");
+                    Map<String, Integer> statusCounts = counts.get(assignee);
+                    if (statusCounts == null) {
+                        statusCounts = new LinkedHashMap<String, Integer>();
+                        counts.put(assignee, statusCounts);
+                    }
+                    statusCounts.put(
+                            resultSet.getString("status"),
+                            Integer.valueOf(resultSet.getInt("n")));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return counts;
+    }
+
+    @Override
     public KanbanTaskRecord findTask(String taskId) throws Exception {
         Connection connection = database.openConnection();
         try {

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.kanban;
 
 import java.util.List;
+import java.util.Map;
 
 /** Repository for the shared Hermes-style Kanban board. */
 public interface KanbanRepository {
@@ -26,6 +27,8 @@ public interface KanbanRepository {
             throws Exception;
 
     List<KanbanTaskRecord> listReadyTasks(String boardSlug) throws Exception;
+
+    Map<String, Map<String, Integer>> countTasksByAssignee(String boardSlug) throws Exception;
 
     KanbanTaskRecord findTask(String taskId) throws Exception;
 

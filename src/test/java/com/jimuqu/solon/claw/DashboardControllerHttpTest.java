@@ -462,6 +462,15 @@ public class DashboardControllerHttpTest {
         assertThat(createBoard.status).isEqualTo(200);
         assertThat(createBoard.body).contains("dashboard-board");
 
+        HttpResult createAgent =
+                request(
+                        "POST",
+                        "/api/agents",
+                        "{\"name\":\"next\",\"role_prompt\":\"HTTP Kanban worker\"}",
+                        token);
+        assertThat(createAgent.status).isEqualTo(200);
+        assertThat(createAgent.body).contains("\"name\":\"next\"");
+
         HttpResult renameBoard =
                 request(
                         "PUT",
@@ -600,6 +609,16 @@ public class DashboardControllerHttpTest {
         HttpResult kanbanStats = request("GET", "/api/kanban/stats", null, token);
         assertThat(kanbanStats.status).isEqualTo(200);
         assertThat(kanbanStats.body).contains("by_status").contains("next");
+
+        HttpResult kanbanAssignees = request("GET", "/api/kanban/assignees", null, token);
+        assertThat(kanbanAssignees.status).isEqualTo(200);
+        assertThat(kanbanAssignees.body)
+                .contains("\"name\":\"next\"")
+                .contains("\"configured\":true")
+                .contains("\"on_disk\":true")
+                .contains("\"name\":\"local\"")
+                .contains("\"configured\":false")
+                .contains("\"counts\"");
 
         HttpResult kanbanWatch =
                 request("GET", "/api/kanban/watch?kinds=reassigned&limit=20", null, token);

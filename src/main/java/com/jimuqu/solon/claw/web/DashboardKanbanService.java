@@ -131,6 +131,10 @@ public class DashboardKanbanService {
         return kanbanService.stats();
     }
 
+    public List<Map<String, Object>> assignees(String board) throws Exception {
+        return kanbanService.assignees(board);
+    }
+
     public List<Map<String, Object>> watch(String assignee, String tenant, String kinds, int limit)
             throws Exception {
         return kanbanService.watch(assignee, tenant, kinds, limit);
