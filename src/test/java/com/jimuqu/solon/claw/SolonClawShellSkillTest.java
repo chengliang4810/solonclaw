@@ -158,6 +158,20 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldTreatExplicitEmptySudoPasswordAsConfiguredLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("");
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
+
+        assertThat(transform.isChanged()).isTrue();
+        assertThat(transform.getCommand()).isEqualTo("sudo -S -p '' true");
+        assertThat(transform.getStdin()).isEqualTo("\n");
+    }
+
+    @Test
     void shouldStripEightBitAnsiFromTerminalOutputLikeHermes() throws Exception {
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m"))
                 .isEqualTo("red");
@@ -207,6 +221,27 @@ public class SolonClawShellSkillTest {
         assertThat(result)
                 .contains("Foreground timeout 2000ms exceeds the maximum of 1000ms")
                 .contains("background=true");
+    }
+
+    @Test
+    void shouldNotRejectDefaultTerminalTimeoutAboveCapLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setMaxForegroundTimeoutSeconds(1);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo default-timeout-ok",
+                                Boolean.FALSE,
+                                null,
+                                workdir,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(result.get("error").isNull()).isTrue();
+        assertThat(result.get("output").getString()).contains("default-timeout-ok");
     }
 
     @Test

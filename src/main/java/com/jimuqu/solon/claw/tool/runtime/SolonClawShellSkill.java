@@ -110,7 +110,7 @@ public class SolonClawShellSkill extends ShellSkill {
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 code,
                 securityPolicyService);
-        Integer effectiveTimeout = normalizeForegroundTimeout(timeout);
+        Integer effectiveTimeout = normalizeForegroundTimeout(timeout, timeout != null);
         if (effectiveTimeout == null) {
             return foregroundTimeoutExceededMessage(timeout);
         }
@@ -207,9 +207,11 @@ public class SolonClawShellSkill extends ShellSkill {
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
                 securityPolicyService);
-        int seconds = timeoutSeconds == null ? 180 : Math.max(1, timeoutSeconds.intValue());
+        boolean explicitTimeout = timeoutSeconds != null;
+        int seconds = explicitTimeout ? Math.max(1, timeoutSeconds.intValue()) : 180;
         int timeoutMs = seconds * 1000;
-        Integer effectiveTimeout = normalizeForegroundTimeout(Integer.valueOf(timeoutMs));
+        Integer effectiveTimeout =
+                normalizeForegroundTimeout(Integer.valueOf(timeoutMs), explicitTimeout);
         if (effectiveTimeout == null) {
             return terminalError(foregroundTimeoutExceededMessage(Integer.valueOf(timeoutMs)));
         }
@@ -627,8 +629,15 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private Integer normalizeForegroundTimeout(Integer timeoutMs) {
+        return normalizeForegroundTimeout(timeoutMs, true);
+    }
+
+    private Integer normalizeForegroundTimeout(Integer timeoutMs, boolean explicitTimeout) {
         if (timeoutMs == null || timeoutMs < 0) {
             return 180000;
+        }
+        if (!explicitTimeout) {
+            return timeoutMs;
         }
         int maxSeconds = 600;
         if (appConfig != null && appConfig.getTerminal() != null) {
