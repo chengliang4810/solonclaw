@@ -53,6 +53,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult branchDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git branch -D old-feature");
+        DangerousCommandApprovalService.DetectionResult safeBranchDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git branch -d old-feature");
 
         assertThat(recursiveLong).isNotNull();
         assertThat(recursiveLong.getPatternKey()).isEqualTo("recursive_delete_long_flag");
@@ -64,6 +67,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(heredoc.getPatternKey()).isEqualTo("script_heredoc");
         assertThat(branchDelete).isNotNull();
         assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
+        assertThat(safeBranchDelete).isNotNull();
+        assertThat(safeBranchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
     }
 
     @Test

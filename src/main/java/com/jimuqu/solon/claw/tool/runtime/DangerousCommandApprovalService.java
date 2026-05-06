@@ -291,7 +291,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "git_branch_force_delete",
                                     "git branch force delete",
-                                    pattern("\\bgit\\s+branch\\s+-D\\b"),
+                                    pattern("\\bgit\\s+branch\\s+-[dD]\\b"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
