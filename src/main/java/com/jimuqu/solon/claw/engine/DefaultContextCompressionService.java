@@ -71,6 +71,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         String beforeNdjson = session == null ? "" : session.getNdjson();
         try {
             List<ChatMessage> history = MessageSupport.loadMessages(session.getNdjson());
+            ToolCallArgumentSanitizer.sanitize(history);
             if (history.size() <= appConfig.getCompression().getProtectHeadMessages() + 1) {
                 return CompressionOutcome.skipped(session);
             }

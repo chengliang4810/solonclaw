@@ -6,11 +6,17 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.engine.DefaultContextCompressionService;
+import com.jimuqu.solon.claw.engine.ToolCallArgumentSanitizer;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
@@ -209,6 +215,66 @@ public class CompressionStabilityTest {
         assertThat(parsed.get("content").getString()).endsWith("...[truncated]");
     }
 
+    @Test
+    void shouldRepairCorruptedToolCallArgumentsBeforeCompression() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-corrupted-tool-args");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("old request"),
+                                ChatMessage.ofAssistant(repeat("middle", 500)),
+                                ChatMessage.ofUser("latest request"),
+                                assistantWithRawToolCall(
+                                        "call_1", "read_file", "{\"path\":\"/tmp/foo"),
+                                ChatMessage.ofTool("existing tool output", "read_file", "call_1"),
+                                ChatMessage.ofAssistant("working"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getNdjson()).contains("\"arguments\":\"{}\"");
+        assertThat(compressed.getNdjson()).contains(ToolCallArgumentSanitizer.CORRUPTION_MARKER);
+        assertThat(compressed.getNdjson()).contains("existing tool output");
+    }
+
+    @Test
+    void shouldTreatEmptyToolCallArgumentsAsEmptyObjectWithoutMarker() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                assistantWithRawToolCall("call_1", "read_file", ""),
+                                ChatMessage.ofTool("ok", "read_file", "call_1")));
+
+        int repaired = ToolCallArgumentSanitizer.sanitize(messages);
+
+        AssistantMessage assistant = (AssistantMessage) messages.get(0);
+        Map raw = assistant.getToolCallsRaw().get(0);
+        Map function = (Map) raw.get("function");
+        assertThat(repaired).isZero();
+        assertThat(function.get("arguments")).isEqualTo("{}");
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(1).getContent()).isEqualTo("ok");
+    }
+
+    @Test
+    void shouldInsertMarkerToolMessageWhenCorruptedToolResultIsMissing() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                assistantWithRawToolCall("call_1", "read_file", "{\"path\":\"x"),
+                                ChatMessage.ofUser("next turn")));
+
+        int repaired = ToolCallArgumentSanitizer.sanitize(messages);
+
+        assertThat(repaired).isEqualTo(1);
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(1).getRole().name()).isEqualTo("TOOL");
+        assertThat(messages.get(1).getContent()).isEqualTo(ToolCallArgumentSanitizer.CORRUPTION_MARKER);
+        assertThat(messages.get(2).getContent()).isEqualTo("next turn");
+    }
+
     private AppConfig config() {
         AppConfig config = new AppConfig();
         config.getCompression().setEnabled(true);
@@ -239,5 +305,21 @@ public class CompressionStabilityTest {
             from = idx + token.length();
         }
         return count;
+    }
+
+    private AssistantMessage assistantWithRawToolCall(
+            String callId, String name, String arguments) {
+        Map<String, Object> function = new LinkedHashMap<String, Object>();
+        function.put("name", name);
+        function.put("arguments", arguments);
+
+        Map<String, Object> call = new LinkedHashMap<String, Object>();
+        call.put("id", callId);
+        call.put("type", "function");
+        call.put("function", function);
+
+        List<Map> rawCalls = new ArrayList<Map>();
+        rawCalls.add(call);
+        return new AssistantMessage("", false, null, rawCalls, null, null);
     }
 }
