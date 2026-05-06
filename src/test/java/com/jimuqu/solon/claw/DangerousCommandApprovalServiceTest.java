@@ -597,6 +597,27 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockSchemelessPrivateUrlsInToolArgsAndCommandsLikeHermes()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put(
+                "query",
+                "check 127.0.0.1:8080/admin then localhost:3000/debug and [::1]/metrics");
+
+        SecurityPolicyService.UrlVerdict toolArgs =
+                securityPolicyService.checkToolArgs("websearch", args);
+        SecurityPolicyService.UrlVerdict command =
+                securityPolicyService.checkCommandUrls("curl 169.254.169.254/latest/meta-data/");
+
+        assertThat(toolArgs.isAllowed()).isFalse();
+        assertThat(toolArgs.getMessage()).contains("阻断");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldAllowPrivateUrlsWhenConfiguredExceptMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);

@@ -129,7 +129,7 @@ public class SecurityPolicyService {
             Pattern.compile("^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
-                    "(?iu)(https?://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*)");
+                    "(?iu)(https?://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
 
     private final AppConfig appConfig;
 
@@ -146,29 +146,20 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "URL 包含疑似 API key 或 token，禁止通过 URL 发送凭据");
         }
 
+        if (!raw.contains("://")) {
+            String schemelessHost = extractSchemelessHost(raw);
+            if (StrUtil.isBlank(schemelessHost)) {
+                return UrlVerdict.allow();
+            }
+            return checkSchemelessHostAccess(raw, schemelessHost);
+        }
+
         URI uri = parseUri(raw);
         if (uri == null) {
             return UrlVerdict.block(raw, "URL 解析失败");
         }
 
         String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
-        if (scheme.length() == 0) {
-            String schemelessHost = extractSchemelessHost(raw);
-            if (StrUtil.isBlank(schemelessHost)) {
-                return UrlVerdict.allow();
-            }
-            WebsiteRule websiteRule = checkWebsitePolicy(raw, schemelessHost);
-            if (websiteRule != null) {
-                return UrlVerdict.block(
-                        raw,
-                        "Blocked by website policy: '"
-                                + schemelessHost
-                                + "' matched rule '"
-                                + websiteRule.rule
-                                + "'");
-            }
-            return UrlVerdict.allow();
-        }
         if (!"http".equals(scheme) && !"https".equals(scheme)) {
             return UrlVerdict.block(raw, "仅允许 http/https URL");
         }
@@ -181,6 +172,32 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "URL 缺少主机名");
         }
 
+        return checkHostAccess(raw, scheme, host);
+    }
+
+    private UrlVerdict checkSchemelessHostAccess(String raw, String host) {
+        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
+            if (blocked.equals(host)) {
+                return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
+            }
+        }
+        WebsiteRule websiteRule = checkWebsitePolicy(raw, host);
+        if (websiteRule != null) {
+            return UrlVerdict.block(
+                    raw,
+                    "Blocked by website policy: '"
+                            + host
+                            + "' matched rule '"
+                            + websiteRule.rule
+                            + "'");
+        }
+        if (isLocalOrAddressLiteral(host)) {
+            return checkHostAccess(raw, "", host);
+        }
+        return UrlVerdict.allow();
+    }
+
+    private UrlVerdict checkHostAccess(String raw, String scheme, String host) {
         for (String blocked : ALWAYS_BLOCKED_HOSTS) {
             if (blocked.equals(host)) {
                 return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
@@ -1000,6 +1017,17 @@ public class SecurityPolicyService {
         } catch (Exception ignored) {
             return host;
         }
+    }
+
+    private boolean isLocalOrAddressLiteral(String host) {
+        String value = StrUtil.nullToEmpty(host).toLowerCase(Locale.ROOT);
+        if ("localhost".equals(value)) {
+            return true;
+        }
+        if (value.indexOf(':') >= 0) {
+            return true;
+        }
+        return Pattern.compile("^\\d{1,3}(?:\\.\\d{1,3}){3}$").matcher(value).matches();
     }
 
     private boolean isAlwaysBlockedIp(String ip) {
