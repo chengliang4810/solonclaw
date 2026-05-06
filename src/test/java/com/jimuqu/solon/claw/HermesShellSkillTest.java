@@ -321,6 +321,18 @@ public class HermesShellSkillTest {
     }
 
     @Test
+    void shouldCloseForegroundStdinWhenNoInputIsProvidedLikeHermesPipedStdinGuardrail()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        HermesShellSkill skill =
+                new HermesShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result = skill.execute(waitForStdinEofCommand(), Integer.valueOf(10000));
+
+        assertThat(result).contains("stdin-closed");
+    }
+
+    @Test
     void shouldApplyHermesForegroundOutputByteLimit() throws Exception {
         AppConfig config = new AppConfig();
         config.getTask().setToolOutputInlineLimit(300);
@@ -371,5 +383,12 @@ public class HermesShellSkillTest {
             return "set TOKEN=secret123 && ping -n 30 127.0.0.1 > nul";
         }
         return "TOKEN=secret123 sleep 30";
+    }
+
+    private String waitForStdinEofCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "powershell -NoProfile -Command \"$null=[Console]::In.ReadToEnd(); Write-Output stdin-closed\"";
+        }
+        return "cat >/dev/null; printf 'stdin-closed\\n'";
     }
 }

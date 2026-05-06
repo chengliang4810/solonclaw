@@ -105,7 +105,7 @@ public class HermesShellSkill extends ShellSkill {
         String executableCode = rewriteCompoundBackground(code);
         SudoTransform transform = transformSudoCommand(executableCode);
         if (!transform.isChanged()) {
-            return normalizeTerminalOutput(super.execute(executableCode, effectiveTimeout));
+            return normalizeTerminalOutput(executeWithStdin(executableCode, null, effectiveTimeout));
         }
         return normalizeTerminalOutput(
                 executeWithStdin(transform.getCommand(), transform.getStdin(), effectiveTimeout));
@@ -452,6 +452,9 @@ public class HermesShellSkill extends ShellSkill {
             builder.directory(directory == null ? workPath.toFile() : directory);
             builder.redirectErrorStream(true);
             Process process = builder.start();
+            if (stdin == null) {
+                process.getOutputStream().close();
+            }
             CompletableFuture<String> outputFuture =
                     CompletableFuture.supplyAsync(
                             () -> {
