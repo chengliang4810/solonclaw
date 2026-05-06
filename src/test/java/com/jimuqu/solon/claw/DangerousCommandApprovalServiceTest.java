@@ -1018,6 +1018,8 @@ public class DangerousCommandApprovalServiceTest {
 
         SecurityPolicyService.UrlVerdict direct =
                 securityPolicyService.checkUrl("https://docs.blocked.example/page?token=secret");
+        SecurityPolicyService.UrlVerdict directSchemeless =
+                securityPolicyService.checkUrl("www.blocked.example/docs");
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("query", "read https://api.internal.example/docs");
         SecurityPolicyService.UrlVerdict query =
@@ -1033,6 +1035,8 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(direct.isAllowed()).isFalse();
         assertThat(direct.getMessage()).contains("blocked.example");
+        assertThat(directSchemeless.isAllowed()).isFalse();
+        assertThat(directSchemeless.getMessage()).contains("blocked.example");
         assertThat(query.isAllowed()).isFalse();
         assertThat(query.getMessage()).contains("*.internal.example");
         assertThat(schemeless.isAllowed()).isFalse();
@@ -1069,6 +1073,20 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(wildcard.getMessage()).contains("*.wild.xn--zckzah");
         assertThat(schemeless.isAllowed()).isFalse();
         assertThat(schemeless.getMessage()).contains("example.com");
+    }
+
+    @Test
+    void shouldFailOpenWhenWebsiteBlocklistDomainsAreMissingLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(null);
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://allowed.example/docs");
+
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test

@@ -17,6 +17,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -841,7 +842,11 @@ public class SecurityPolicyService {
                 || !appConfig.getSecurity().getWebsiteBlocklist().isEnabled()) {
             return null;
         }
-        for (String rawRule : appConfig.getSecurity().getWebsiteBlocklist().getDomains()) {
+        List<String> domains = appConfig.getSecurity().getWebsiteBlocklist().getDomains();
+        if (domains == null) {
+            domains = Collections.emptyList();
+        }
+        for (String rawRule : domains) {
             String rule = normalizeRule(rawRule);
             if (StrUtil.isBlank(rule)) {
                 continue;
