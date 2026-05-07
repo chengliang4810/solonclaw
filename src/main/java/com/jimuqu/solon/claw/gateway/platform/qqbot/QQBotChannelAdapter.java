@@ -201,8 +201,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode body =
                 new ONode()
                         .set("msg_type", config.isMarkdownSupport() ? 2 : 0)
-                        .set("content", text)
                         .set("msg_seq", Long.valueOf(System.currentTimeMillis()));
+        if (config.isMarkdownSupport()) {
+            body.getOrNew("markdown").set("content", text);
+        } else {
+            body.set("content", text);
+        }
         if (StrUtil.isNotBlank(replyTo)) {
             body.set("msg_id", replyTo);
         }

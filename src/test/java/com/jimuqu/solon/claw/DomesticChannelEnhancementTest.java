@@ -200,8 +200,10 @@ public class DomesticChannelEnhancementTest {
 
         ONode body = adapter.buildApprovalBody(request);
 
-        assertThat(body.get("content").getString()).contains("命令执行审批");
-        assertThat(body.get("content").getString()).contains("rm -rf runtime/cache");
+        assertThat(body.get("msg_type").getInt()).isEqualTo(2);
+        assertThat(body.get("markdown").get("content").getString()).contains("命令执行审批");
+        assertThat(body.get("markdown").get("content").getString()).contains("rm -rf runtime/cache");
+        assertThat(body.get("content").getString()).isNull();
         assertThat(body.get("msg_id").getString()).isEqualTo("m1");
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
         assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
@@ -236,6 +238,33 @@ public class DomesticChannelEnhancementTest {
                 .isEqualTo("⭐ 始终允许");
         assertThat(buttons.get(1).get("action").get("data").getString())
                 .isEqualTo("approve:approval-456:allow-always");
+    }
+
+    @Test
+    void shouldBuildQqbotPlainTextBodyWhenMarkdownDisabled() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setMarkdownSupport(false);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.QQBOT);
+        request.setChatId("user-a");
+        request.setChatType("dm");
+        request.setText("纯文本审批");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        extras.put("approvalId", "approval-plain");
+        request.setChannelExtras(extras);
+
+        ONode body = adapter.buildApprovalBody(request);
+
+        assertThat(body.get("msg_type").getInt()).isEqualTo(0);
+        assertThat(body.get("content").getString()).isEqualTo("纯文本审批");
+        assertThat(body.get("markdown").isNull()).isTrue();
+        assertThat(body.get("keyboard").get("content").get("rows").get(0).get("buttons").get(0)
+                        .get("action")
+                        .get("data")
+                        .getString())
+                .isEqualTo("approve:approval-plain:allow-once");
     }
 
     @Test
@@ -292,9 +321,10 @@ public class DomesticChannelEnhancementTest {
 
         ONode body = adapter.buildUpdatePromptBody(request);
 
-        assertThat(body.get("content").getString()).contains("更新需要确认");
-        assertThat(body.get("content").getString()).contains("是否继续升级？");
-        assertThat(body.get("content").getString()).contains("默认: y");
+        assertThat(body.get("msg_type").getInt()).isEqualTo(2);
+        assertThat(body.get("markdown").get("content").getString()).contains("更新需要确认");
+        assertThat(body.get("markdown").get("content").getString()).contains("是否继续升级？");
+        assertThat(body.get("markdown").get("content").getString()).contains("默认: y");
         assertThat(body.get("msg_id").getString()).isEqualTo("m1");
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
         assertThat(((List<?>) buttons.toData()).size()).isEqualTo(2);
