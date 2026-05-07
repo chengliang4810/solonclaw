@@ -20,6 +20,7 @@ public class CoreConfigOverrideLoadTest {
                         + "    enabled: false\n"
                         + "    tickSeconds: 15\n"
                         + "    scriptTimeoutSeconds: 7\n"
+                        + "    inactivityTimeoutSeconds: 9\n"
                         + "  react:\n"
                         + "    maxSteps: 14\n"
                         + "    retryMax: 5\n"
@@ -113,6 +114,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getScheduler().isEnabled()).isFalse();
         assertThat(config.getScheduler().getTickSeconds()).isEqualTo(15);
         assertThat(config.getScheduler().getScriptTimeoutSeconds()).isEqualTo(7);
+        assertThat(config.getScheduler().getInactivityTimeoutSeconds()).isEqualTo(9);
         assertThat(config.getReact().getMaxSteps()).isEqualTo(14);
         assertThat(config.getReact().getRetryMax()).isEqualTo(5);
         assertThat(config.getReact().getRetryDelayMs()).isEqualTo(3000);

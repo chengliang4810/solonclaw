@@ -93,6 +93,41 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     @Override
+    public Map<String, Object> activeRunSummary(String sourceKey) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null) {
+            return null;
+        }
+        try {
+            AgentRunRecord record = agentRunRepository.findRun(handle.runId);
+            if (record == null) {
+                return null;
+            }
+            long now = System.currentTimeMillis();
+            long lastActivityAt =
+                    record.getLastActivityAt() > 0 ? record.getLastActivityAt() : record.getStartedAt();
+            Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+            summary.put("run_id", record.getRunId());
+            summary.put("session_id", record.getSessionId());
+            summary.put("source_key", record.getSourceKey());
+            summary.put("status", record.getStatus());
+            summary.put("phase", record.getPhase());
+            summary.put("last_activity_at", Long.valueOf(lastActivityAt));
+            summary.put(
+                    "seconds_since_activity",
+                    Long.valueOf(Math.max(0L, (now - lastActivityAt) / 1000L)));
+            summary.put("last_activity_desc", lastActivityDescription(record));
+            summary.put("tool_call_count", Integer.valueOf(record.getToolCallCount()));
+            summary.put("attempts", Integer.valueOf(record.getAttempts()));
+            return summary;
+        } catch (Exception e) {
+            log.debug("activeRunSummary failed: sourceKey={}", sourceKey, e);
+            return null;
+        }
+    }
+
+    @Override
     public int stopAllRunningRuns() {
         int stopped = 0;
         for (String sourceKey : new ArrayList<String>(runningRuns.keySet())) {
@@ -101,6 +136,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
             }
         }
         return stopped;
+    }
+
+    private String lastActivityDescription(AgentRunRecord record) {
+        if (record == null) {
+            return "unknown";
+        }
+        String phase = StrUtil.blankToDefault(record.getPhase(), "running");
+        if (StrUtil.isNotBlank(record.getModel())) {
+            return phase + " " + record.getProvider() + "/" + record.getModel();
+        }
+        return phase;
     }
 
     @Override

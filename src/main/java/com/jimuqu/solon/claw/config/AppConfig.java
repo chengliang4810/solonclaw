@@ -210,6 +210,16 @@ public class AppConfig {
                                                 120)),
                                 120));
         config.getScheduler()
+                .setInactivityTimeoutSeconds(
+                        nonNegativeInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.scheduler.inactivityTimeoutSeconds",
+                                                600)),
+                                600));
+        config.getScheduler()
                 .setCronApprovalMode(
                         resolveConfigString(
                                 readString(
@@ -1727,6 +1737,7 @@ public class AppConfig {
         this.scheduler.setTickSeconds(other.getTickSeconds());
         this.scheduler.setWrapResponse(other.isWrapResponse());
         this.scheduler.setScriptTimeoutSeconds(other.getScriptTimeoutSeconds());
+        this.scheduler.setInactivityTimeoutSeconds(other.getInactivityTimeoutSeconds());
         this.scheduler.setCronApprovalMode(other.getCronApprovalMode());
         this.scheduler.setEnabledToolsets(new ArrayList<String>(other.getEnabledToolsets()));
     }
@@ -2044,6 +2055,10 @@ public class AppConfig {
 
     private static int positiveInt(int value, int defaultValue) {
         return value > 0 ? value : defaultValue;
+    }
+
+    private static int nonNegativeInt(int value, int defaultValue) {
+        return value >= 0 ? value : defaultValue;
     }
 
     /** 支持通过配置文件覆盖浮点配置。 */
@@ -2858,6 +2873,9 @@ public class AppConfig {
 
         /** cron 脚本执行超时时间，单位秒。 */
         private int scriptTimeoutSeconds = 120;
+
+        /** cron Agent 无活动超时时间，单位秒；0 表示不限制。 */
+        private int inactivityTimeoutSeconds = 600;
 
         /** 无人值守 cron 遇到危险命令时的策略：deny / approve。 */
         private String cronApprovalMode = "deny";

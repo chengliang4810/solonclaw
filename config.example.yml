@@ -75,6 +75,8 @@ solonclaw:
     wrapResponse: true
     # cron 脚本执行超时时间，单位秒；对应 Hermes cron.script_timeout_seconds / HERMES_CRON_SCRIPT_TIMEOUT。
     scriptTimeoutSeconds: 120
+    # cron Agent 无活动超时时间，单位秒；对应 Hermes HERMES_CRON_TIMEOUT，0 表示不限制。
+    inactivityTimeoutSeconds: 600
     # 无人值守 cron 遇到危险命令时的处理方式：deny 表示阻断，approve 表示沿用普通危险命令审批放行策略。
     # 对齐 Hermes approvals.cron_mode；默认 deny，避免定时任务在无人确认时执行破坏性命令。
     cronApprovalMode: deny

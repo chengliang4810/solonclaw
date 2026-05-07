@@ -34,6 +34,7 @@ solonclaw.scheduler.enabled: true
 solonclaw.scheduler.tickSeconds: 60
 solonclaw.scheduler.wrapResponse: true
 solonclaw.scheduler.scriptTimeoutSeconds: 120
+solonclaw.scheduler.inactivityTimeoutSeconds: 600
 solonclaw.scheduler.cronApprovalMode: deny
 solonclaw.scheduler.enabledToolsets:
 

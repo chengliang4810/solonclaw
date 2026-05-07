@@ -37,7 +37,8 @@ public class SchedulerConfiguration {
             GatewayPolicyRepository gatewayPolicyRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AttachmentCacheService attachmentCacheService,
-            LocalSkillService localSkillService) {
+            LocalSkillService localSkillService,
+            AgentRunControlService agentRunControlService) {
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         appConfig,
@@ -48,7 +49,8 @@ public class SchedulerConfiguration {
                         gatewayPolicyRepository,
                         dangerousCommandApprovalService,
                         attachmentCacheService,
-                        localSkillService);
+                        localSkillService,
+                        agentRunControlService);
         scheduler.start();
         return scheduler;
     }

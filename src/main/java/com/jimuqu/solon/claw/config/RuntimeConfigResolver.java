@@ -394,6 +394,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.scheduler.enabled",
                 "solonclaw.scheduler.tickSeconds",
                 "solonclaw.scheduler.wrapResponse",
+                "solonclaw.scheduler.scriptTimeoutSeconds",
+                "solonclaw.scheduler.inactivityTimeoutSeconds",
                 "solonclaw.compression.enabled",
                 "solonclaw.compression.thresholdPercent",
                 "solonclaw.compression.summaryModel",

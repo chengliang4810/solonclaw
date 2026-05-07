@@ -18,6 +18,11 @@ public interface AgentRunControlService {
         return false;
     }
 
+    /** Activity summary for the active run of a gateway source. */
+    default Map<String, Object> activeRunSummary(String sourceKey) {
+        return null;
+    }
+
     /** Number of currently active source runs. */
     default int runningRunCount() {
         return hasRunningRuns() ? 1 : 0;

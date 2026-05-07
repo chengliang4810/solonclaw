@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -37,10 +38,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
@@ -55,6 +59,8 @@ public class DefaultCronScheduler {
     private static final int MAX_CONTEXT_FROM_CHARS = 8000;
     private static final List<String> CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
+    private static final int DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS = 600;
+    private static final long AGENT_TIMEOUT_POLL_MILLIS = 500L;
     private static final Pattern MEDIA_PATTERN =
             Pattern.compile(
                     "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
@@ -70,6 +76,7 @@ public class DefaultCronScheduler {
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
     private final AttachmentCacheService attachmentCacheService;
     private final LocalSkillService localSkillService;
+    private final AgentRunControlService agentRunControlService;
     private ScheduledExecutorService executorService;
 
     public DefaultCronScheduler(
@@ -86,6 +93,7 @@ public class DefaultCronScheduler {
                 conversationOrchestrator,
                 deliveryService,
                 gatewayPolicyRepository,
+                null,
                 null,
                 null,
                 null);
@@ -108,6 +116,7 @@ public class DefaultCronScheduler {
                 gatewayPolicyRepository,
                 dangerousCommandApprovalService,
                 null,
+                null,
                 null);
     }
 
@@ -129,6 +138,7 @@ public class DefaultCronScheduler {
                 gatewayPolicyRepository,
                 dangerousCommandApprovalService,
                 attachmentCacheService,
+                null,
                 null);
     }
 
@@ -142,6 +152,30 @@ public class DefaultCronScheduler {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AttachmentCacheService attachmentCacheService,
             LocalSkillService localSkillService) {
+        this(
+                appConfig,
+                cronJobRepository,
+                cronJobService,
+                conversationOrchestrator,
+                deliveryService,
+                gatewayPolicyRepository,
+                dangerousCommandApprovalService,
+                attachmentCacheService,
+                localSkillService,
+                null);
+    }
+
+    public DefaultCronScheduler(
+            AppConfig appConfig,
+            CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AttachmentCacheService attachmentCacheService,
+            LocalSkillService localSkillService,
+            AgentRunControlService agentRunControlService) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
         this.cronJobService = cronJobService;
@@ -151,6 +185,7 @@ public class DefaultCronScheduler {
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.attachmentCacheService = attachmentCacheService;
         this.localSkillService = localSkillService;
+        this.agentRunControlService = agentRunControlService;
     }
 
     public void start() {
@@ -465,7 +500,7 @@ public class DefaultCronScheduler {
                 }
                 synthetic.setEnabledToolsetsOverride(resolveCronEnabledToolsets(job));
                 synthetic.setDisabledToolsetsOverride(new ArrayList<String>(CRON_DISABLED_TOOLSETS));
-                reply = conversationOrchestrator.runScheduled(synthetic);
+                reply = runScheduledWithInactivityTimeout(job, synthetic);
                 output = reply == null ? "" : reply.getContent();
             }
             cronJobRepository.markRunResult(
@@ -507,6 +542,132 @@ public class DefaultCronScheduler {
                 + ")"
                 + "\n"
                 + SILENT_MARKER;
+    }
+
+    private GatewayReply runScheduledWithInactivityTimeout(
+            CronJobRecord job, GatewayMessage synthetic) throws Exception {
+        int timeoutSeconds = agentInactivityTimeoutSeconds();
+        if (timeoutSeconds <= 0 || agentRunControlService == null) {
+            return conversationOrchestrator.runScheduled(synthetic);
+        }
+        ExecutorService executor =
+                Executors.newSingleThreadExecutor(
+                        new ThreadFactory() {
+                            @Override
+                            public Thread newThread(Runnable runnable) {
+                                Thread thread = new Thread(runnable, "cron-agent-run-" + job.getJobId());
+                                thread.setDaemon(true);
+                                return thread;
+                            }
+                        });
+        Future<GatewayReply> future =
+                executor.submit(
+                        new java.util.concurrent.Callable<GatewayReply>() {
+                            @Override
+                            public GatewayReply call() throws Exception {
+                                return conversationOrchestrator.runScheduled(synthetic);
+                            }
+                        });
+        boolean inactivityTimeout = false;
+        Map<String, Object> activity = null;
+        long limitMillis = timeoutSeconds * 1000L;
+        try {
+            while (true) {
+                try {
+                    return future.get(AGENT_TIMEOUT_POLL_MILLIS, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException ignored) {
+                    activity = agentRunControlService.activeRunSummary(synthetic.sourceKey());
+                    if (activity == null) {
+                        continue;
+                    }
+                    long lastActivityAt = longValue(activity.get("last_activity_at"), 0L);
+                    if (lastActivityAt <= 0L) {
+                        continue;
+                    }
+                    long idleMillis = Math.max(0L, System.currentTimeMillis() - lastActivityAt);
+                    if (idleMillis >= limitMillis) {
+                        inactivityTimeout = true;
+                        break;
+                    }
+                }
+            }
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            throw new IllegalStateException(cause);
+        } finally {
+            if (inactivityTimeout) {
+                agentRunControlService.stop(synthetic.sourceKey());
+                future.cancel(true);
+            }
+            executor.shutdownNow();
+        }
+        if (activity == null) {
+            activity = agentRunControlService.activeRunSummary(synthetic.sourceKey());
+        }
+        long idleSeconds =
+                Math.max(
+                        0L,
+                        longValue(
+                                activity == null ? null : activity.get("seconds_since_activity"),
+                                timeoutSeconds));
+        String lastDesc =
+                StrUtil.blankToDefault(
+                        stringValue(activity == null ? null : activity.get("last_activity_desc")),
+                        "unknown");
+        String jobName = StrUtil.blankToDefault(job.getName(), job.getJobId());
+        String message =
+                "Cron job '"
+                        + jobName
+                        + "' idle for "
+                        + idleSeconds
+                        + "s (limit "
+                        + timeoutSeconds
+                        + "s) - last activity: "
+                        + lastDesc;
+        log.error("{}", message);
+        throw new TimeoutException(message);
+    }
+
+    private int agentInactivityTimeoutSeconds() {
+        String envValue = StrUtil.trim(System.getenv("HERMES_CRON_TIMEOUT"));
+        if (StrUtil.isNotBlank(envValue)) {
+            try {
+                int value = (int) Double.parseDouble(envValue);
+                return value >= 0 ? value : DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS;
+            } catch (Exception e) {
+                log.warn(
+                        "Invalid HERMES_CRON_TIMEOUT={}; using default {}s",
+                        envValue,
+                        DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS);
+                return DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS;
+            }
+        }
+        int value =
+                appConfig == null || appConfig.getScheduler() == null
+                        ? DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS
+                        : appConfig.getScheduler().getInactivityTimeoutSeconds();
+        return value >= 0 ? value : DEFAULT_AGENT_INACTIVITY_TIMEOUT_SECONDS;
+    }
+
+    private long longValue(Object value, long defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String deliverBestEffort(CronJobRecord job, GatewayReply reply) {

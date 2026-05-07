@@ -7,11 +7,16 @@ import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
+import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
@@ -29,6 +34,7 @@ import java.util.Calendar;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -117,6 +123,71 @@ public class DefaultCronSchedulerTest {
                 .contains("(job_id: " + job.getJobId() + ")")
                 .contains("disk ok")
                 .contains("To stop or manage this job");
+    }
+
+    @Test
+    void shouldInterruptIdleScheduledAgentRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getScheduler().setInactivityTimeoutSeconds(1);
+        CronJobRecord job = job("idle-job", "MEMORY:cron:user");
+        env.cronJobRepository.save(job);
+        BlockingConversationOrchestrator orchestrator = new BlockingConversationOrchestrator();
+        RecordingRunControlService controlService =
+                new RecordingRunControlService(System.currentTimeMillis() - 5000L);
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        orchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        controlService);
+
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                scheduler.runNow("idle-job");
+                            }
+                        })
+                .hasMessageContaining("Cron job 'idle-job' idle")
+                .hasMessageContaining("last activity: model test-provider/test-model");
+
+        assertThat(controlService.stoppedSourceKey).isEqualTo("MEMORY:cron:user");
+        assertThat(orchestrator.interrupted.get()).isTrue();
+        assertThat(env.cronJobRepository.findById("idle-job").getLastStatus()).isEqualTo("error");
+        assertThat(env.cronJobRepository.findById("idle-job").getLastError())
+                .contains("Cron job 'idle-job' idle");
+    }
+
+    @Test
+    void shouldAllowUnlimitedScheduledAgentRunTimeout() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getScheduler().setInactivityTimeoutSeconds(0);
+        CronJobRecord job = job("unlimited-job", "MEMORY:cron:user");
+        env.cronJobRepository.save(job);
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        new SlowSuccessConversationOrchestrator(),
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        new RecordingRunControlService(System.currentTimeMillis() - 5000L));
+
+        scheduler.runNow("unlimited-job");
+
+        CronJobRecord updated = env.cronJobRepository.findById("unlimited-job");
+        assertThat(updated.getLastStatus()).isEqualTo("ok");
+        assertThat(updated.getLastOutput()).contains("slow ok");
     }
 
     @Test
@@ -2074,6 +2145,82 @@ public class DefaultCronSchedulerTest {
         @Override
         public List<com.jimuqu.solon.claw.core.model.ChannelStatus> statuses() {
             return java.util.Collections.emptyList();
+        }
+    }
+
+    private static class BlockingConversationOrchestrator implements ConversationOrchestrator {
+        private final AtomicBoolean interrupted = new AtomicBoolean(false);
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
+            try {
+                while (true) {
+                    Thread.sleep(100L);
+                }
+            } catch (InterruptedException e) {
+                interrupted.set(true);
+                Thread.currentThread().interrupt();
+                throw e;
+            }
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class SlowSuccessConversationOrchestrator implements ConversationOrchestrator {
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
+            Thread.sleep(1200L);
+            return GatewayReply.ok("slow ok");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class RecordingRunControlService implements AgentRunControlService {
+        private final long lastActivityAt;
+        private String stoppedSourceKey;
+
+        private RecordingRunControlService(long lastActivityAt) {
+            this.lastActivityAt = lastActivityAt;
+        }
+
+        @Override
+        public AgentRunStopResult stop(String sourceKey) {
+            this.stoppedSourceKey = sourceKey;
+            return AgentRunStopResult.stopped("run-1", "session-1", true, lastActivityAt);
+        }
+
+        @Override
+        public boolean isRunning(String sourceKey) {
+            return true;
+        }
+
+        @Override
+        public Map<String, Object> activeRunSummary(String sourceKey) {
+            Map<String, Object> summary = new LinkedHashMap<String, Object>();
+            summary.put("last_activity_at", Long.valueOf(lastActivityAt));
+            summary.put(
+                    "seconds_since_activity",
+                    Long.valueOf(Math.max(0L, (System.currentTimeMillis() - lastActivityAt) / 1000L)));
+            summary.put("last_activity_desc", "model test-provider/test-model");
+            return summary;
         }
     }
 }
