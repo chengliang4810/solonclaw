@@ -81,7 +81,7 @@ public class CronJobService {
         }
         scanPrompt(prompt);
         validateScript(script);
-        validateWorkdir(string(body.get("workdir"), null));
+        String workdir = normalizeWorkdir(string(body.get("workdir"), null));
         List<String> dependencyRefs = dependencyRefs(body);
         validateContextFrom(dependencyRefs);
 
@@ -100,7 +100,7 @@ public class CronJobService {
         record.setRepeatTimes(intValue(body.get("repeat"), 0));
         record.setRepeatCompleted(0);
         record.setScript(script);
-        record.setWorkdir(string(body.get("workdir"), null));
+        record.setWorkdir(workdir);
         record.setNoAgent(noAgent);
         record.setContextFromJson(json(dependencyRefs));
         record.setEnabledToolsetsJson(json(stringList(body.get("enabled_toolsets"))));
@@ -156,9 +156,7 @@ public class CronJobService {
             record.setScript(script);
         }
         if (body.containsKey("workdir")) {
-            String workdir = string(body.get("workdir"), null);
-            validateWorkdir(workdir);
-            record.setWorkdir(workdir);
+            record.setWorkdir(normalizeWorkdir(string(body.get("workdir"), null)));
         }
         if (body.containsKey("no_agent") || body.containsKey("noAgent")) {
             boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
@@ -494,12 +492,13 @@ public class CronJobService {
         return targetPath.startsWith(rootPath);
     }
 
-    private void validateWorkdir(String workdir) {
-        if (StrUtil.isBlank(workdir)) {
-            return;
+    private String normalizeWorkdir(String workdir) {
+        String value = StrUtil.nullToEmpty(workdir).trim();
+        if (StrUtil.isBlank(value)) {
+            return null;
         }
         SecurityPolicyService.FileVerdict textVerdict =
-                SecurityPolicyService.checkWorkdirText(workdir);
+                SecurityPolicyService.checkWorkdirText(value);
         if (!textVerdict.isAllowed()) {
             throw new IllegalStateException(
                     "workdir blocked by security policy: "
@@ -507,19 +506,50 @@ public class CronJobService {
                             + " - "
                             + textVerdict.getMessage());
         }
-        File file = FileUtil.file(workdir);
-        if (!file.isAbsolute() || !file.exists() || !file.isDirectory()) {
-            throw new IllegalStateException("workdir must be an existing absolute directory");
+        try {
+            File file = FileUtil.file(expandUserHome(value));
+            if (!file.isAbsolute() || !file.exists() || !file.isDirectory()) {
+                throw new IllegalStateException("workdir must be an existing absolute directory");
+            }
+            File canonical = file.getCanonicalFile();
+            SecurityPolicyService.FileVerdict verdict =
+                    new SecurityPolicyService(appConfig).checkPath(canonical.getAbsolutePath(), false);
+            if (!verdict.isAllowed()) {
+                throw new IllegalStateException(
+                        "workdir blocked by security policy: "
+                                + verdict.getPath()
+                                + " - "
+                                + verdict.getMessage());
+            }
+            String normalized = file.getAbsoluteFile().toPath().normalize().toFile().getAbsolutePath();
+            if (usesForwardSlash(value)) {
+                return normalized.replace('\\', '/');
+            }
+            return normalized;
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("workdir path could not be validated: " + e.getMessage());
         }
-        SecurityPolicyService.FileVerdict verdict =
-                new SecurityPolicyService(appConfig).checkPath(file.getAbsolutePath(), false);
-        if (!verdict.isAllowed()) {
-            throw new IllegalStateException(
-                    "workdir blocked by security policy: "
-                            + verdict.getPath()
-                            + " - "
-                            + verdict.getMessage());
+    }
+
+    private boolean usesForwardSlash(String path) {
+        return path != null && path.indexOf('/') >= 0 && path.indexOf('\\') < 0;
+    }
+
+    private String expandUserHome(String path) {
+        if (StrUtil.isBlank(path)) {
+            return path;
         }
+        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
+        if (StrUtil.isBlank(home)) {
+            return path;
+        }
+        if ("~".equals(path)) {
+            return home;
+        }
+        if (path.startsWith("~/") || path.startsWith("~\\")) {
+            return home + path.substring(1);
+        }
+        return path;
     }
 
     private void scanPrompt(String prompt) {

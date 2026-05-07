@@ -2274,6 +2274,50 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldNormalizeCronWorkdirLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        File realDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/workdir-normalized");
+        FileUtil.mkdir(realDir);
+        File nestedDir = FileUtil.file(realDir, "nested");
+        FileUtil.mkdir(nestedDir);
+        File homeDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "home-for-workdir");
+        FileUtil.mkdir(homeDir);
+        String previousHome = System.getProperty("user.home");
+        System.setProperty("user.home", homeDir.getAbsolutePath());
+        try {
+            Map<String, Object> createBody = new LinkedHashMap<String, Object>();
+            createBody.put("name", "canonical-workdir");
+            createBody.put("schedule", "30m");
+            createBody.put("prompt", "inspect");
+            createBody.put("workdir", FileUtil.file(realDir, "nested/..").getPath());
+            CronJobRecord canonical = service.create("MEMORY:cron:user", createBody);
+            String normalizedRealDir = realDir.getAbsoluteFile().toPath().normalize().toFile().getAbsolutePath();
+            assertThat(canonical.getWorkdir()).isEqualTo(normalizedRealDir);
+            assertThat(service.toView(canonical).get("workdir")).isEqualTo(normalizedRealDir);
+
+            Map<String, Object> tildeCreate = new LinkedHashMap<String, Object>();
+            tildeCreate.put("name", "tilde-workdir");
+            tildeCreate.put("schedule", "30m");
+            tildeCreate.put("prompt", "inspect");
+            tildeCreate.put("workdir", "~");
+            CronJobRecord tilde = service.create("MEMORY:cron:user", tildeCreate);
+            assertThat(tilde.getWorkdir()).isEqualTo(homeDir.getAbsolutePath());
+
+            Map<String, Object> clear = new LinkedHashMap<String, Object>();
+            clear.put("workdir", "   ");
+            CronJobRecord cleared = service.update(canonical.getJobId(), clear);
+            assertThat(cleared.getWorkdir()).isNull();
+        } finally {
+            if (previousHome == null) {
+                System.clearProperty("user.home");
+            } else {
+                System.setProperty("user.home", previousHome);
+            }
+        }
+    }
+
+    @Test
     void shouldRewriteCronSkillRefsAfterCuratorChanges() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
