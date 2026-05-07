@@ -186,6 +186,41 @@ public class SecurityPolicyService {
         return checkUrl(url, Boolean.TRUE);
     }
 
+    public boolean isAlwaysBlockedUrl(String url) {
+        return !checkAlwaysBlockedUrl(url).isAllowed();
+    }
+
+    public UrlVerdict checkAlwaysBlockedUrl(String url) {
+        String raw = normalizeUrlText(url);
+        if (raw.length() == 0 || !raw.contains("://")) {
+            return UrlVerdict.allow();
+        }
+        URI uri = parseUri(raw);
+        if (uri == null) {
+            return UrlVerdict.allow();
+        }
+        String host = extractUriHost(uri);
+        if (StrUtil.isBlank(host)) {
+            return UrlVerdict.allow();
+        }
+        UrlVerdict hostVerdict = checkAlwaysBlockedHost(raw, host);
+        if (!hostVerdict.allowed) {
+            return hostVerdict;
+        }
+        try {
+            InetAddress[] addresses = resolveHost(host);
+            for (InetAddress address : addresses) {
+                String ip = address.getHostAddress();
+                if (isAlwaysBlockedIp(ip) || isAlwaysBlockedAddress(address)) {
+                    return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
+                }
+            }
+        } catch (Exception ignored) {
+            return UrlVerdict.allow();
+        }
+        return UrlVerdict.allow();
+    }
+
     private UrlVerdict checkUrl(String url, Boolean allowPrivateOverride) {
         String raw = normalizeUrlText(url);
         if (raw.length() == 0) {
@@ -252,10 +287,9 @@ public class SecurityPolicyService {
 
     private UrlVerdict checkHostAccess(
             String raw, String scheme, String host, Boolean allowPrivateOverride) {
-        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
-            if (blocked.equals(host)) {
-                return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
-            }
+        UrlVerdict alwaysBlockedHost = checkAlwaysBlockedHost(raw, host);
+        if (!alwaysBlockedHost.allowed) {
+            return alwaysBlockedHost;
         }
 
         WebsiteRule websiteRule = checkWebsitePolicy(raw, host);
@@ -306,6 +340,24 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "DNS 解析失败或 URL 安全检查失败：" + host);
         }
 
+        return UrlVerdict.allow();
+    }
+
+    private UrlVerdict checkAlwaysBlockedHost(String raw, String host) {
+        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
+            if (blocked.equals(host)) {
+                return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
+            }
+        }
+        if (isAlwaysBlockedIp(host)) {
+            return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host);
+        }
+        int[] hostIpv4 = parseObfuscatedIpv4(host);
+        if (hostIpv4 != null
+                && isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+            return UrlVerdict.block(
+                    raw, "阻断云元数据/链路本地地址：" + host + " -> " + formatIpv4(hostIpv4));
+        }
         return UrlVerdict.allow();
     }
 

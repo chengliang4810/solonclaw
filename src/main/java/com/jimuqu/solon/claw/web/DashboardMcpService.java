@@ -1192,6 +1192,16 @@ public class DashboardMcpService {
         if (StrUtil.isBlank(url)) {
             return;
         }
+        SecurityPolicyService.UrlVerdict floorVerdict =
+                securityPolicyService.checkAlwaysBlockedUrl(url);
+        if (!floorVerdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    label
+                            + " 被 URL 安全底线阻止："
+                            + floorVerdict.getMessage()
+                            + " URL: "
+                            + SecretRedactor.maskUrl(floorVerdict.getUrl()));
+        }
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlAllowingPrivate(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(

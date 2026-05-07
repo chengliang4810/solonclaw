@@ -1,0 +1,104 @@
+package com.jimuqu.solon.claw;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import java.net.InetAddress;
+import org.junit.jupiter.api.Test;
+
+public class SecurityPolicyServiceTest {
+    @Test
+    void shouldExposeAlwaysBlockedUrlFloorForCloudMetadataTargets() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        assertThat(policy.isAlwaysBlockedUrl("http://169.254.169.254/latest/meta-data/"))
+                .isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://169.254.169.253/metadata/instance"))
+                .isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://169.254.170.2/v2/credentials"))
+                .isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://100.100.100.200/latest/meta-data/"))
+                .isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://169.254.42.1/")).isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://metadata.google.internal/")).isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://metadata.goog/computeMetadata/v1/"))
+                .isTrue();
+    }
+
+    @Test
+    void shouldResolveHostnameBeforeApplyingAlwaysBlockedFloor() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                policy.checkAlwaysBlockedUrl("https://attacker.example/resource");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldTreatIpv4MappedMetadataAddressAsAlwaysBlocked() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "::ffff:169.254.169.254");
+
+        assertThat(policy.isAlwaysBlockedUrl("https://attacker.example/resource")).isTrue();
+    }
+
+    @Test
+    void shouldKeepAlwaysBlockedFloorNarrowerThanFullSsrfPolicy() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        assertThat(policy.isAlwaysBlockedUrl("http://127.0.0.1:8080/")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("http://10.0.0.5/")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("http://172.16.0.1/")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("http://192.168.1.1/")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("http://100.64.0.1/")).isFalse();
+    }
+
+    @Test
+    void shouldNotClaimDnsFailuresOrMalformedInputAreAlwaysBlocked() {
+        SecurityPolicyService policy = new FailingDnsSecurityPolicyService(new AppConfig());
+
+        assertThat(policy.isAlwaysBlockedUrl("https://nonexistent.example/")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("not a url at all")).isFalse();
+        assertThat(policy.isAlwaysBlockedUrl("ftp://169.254.169.254/file")).isTrue();
+    }
+
+    @Test
+    void shouldIgnoreAllowPrivateUrlToggleForAlwaysBlockedFloor() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        assertThat(policy.isAlwaysBlockedUrl("http://169.254.169.254/")).isTrue();
+        assertThat(policy.isAlwaysBlockedUrl("http://127.0.0.1:8080/")).isFalse();
+    }
+
+    private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
+        private final String ip;
+
+        private FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
+            super(appConfig);
+            this.ip = ip;
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            return new InetAddress[] {InetAddress.getByName(ip)};
+        }
+    }
+
+    private static class FailingDnsSecurityPolicyService extends SecurityPolicyService {
+        private FailingDnsSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            throw new java.net.UnknownHostException(host);
+        }
+    }
+}
