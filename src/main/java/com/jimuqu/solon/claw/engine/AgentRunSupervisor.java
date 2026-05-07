@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -129,8 +130,16 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
     @Override
     public int stopAllRunningRuns() {
+        return stopAllRunningRuns(null);
+    }
+
+    @Override
+    public int stopAllRunningRuns(String resumeReason) {
         int stopped = 0;
         for (String sourceKey : new ArrayList<String>(runningRuns.keySet())) {
+            if (StrUtil.isNotBlank(resumeReason)) {
+                markSessionResumePending(sourceKey, resumeReason);
+            }
             if (stop(sourceKey).isActiveRun()) {
                 stopped++;
             }
@@ -1087,6 +1096,24 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         runningRuns.remove(normalizeSourceKey(sourceKey), handle);
         lastRunFinishedAt = System.currentTimeMillis();
+    }
+
+    private void markSessionResumePending(String sourceKey, String resumeReason) {
+        if (StrUtil.isBlank(sourceKey) || StrUtil.isBlank(resumeReason)) {
+            return;
+        }
+        try {
+            SessionRecord session = sessionRepository.getBoundSession(sourceKey);
+            if (session == null) {
+                return;
+            }
+            SqliteAgentSession agentSession =
+                    new SqliteAgentSession(session, sessionRepository);
+            agentSession.pending(true, resumeReason);
+            agentSession.updateSnapshot();
+        } catch (Exception e) {
+            log.warn("mark resume pending failed: sourceKey={}", sourceKey, e);
+        }
     }
 
     public void recoverStaleRuns(long staleAfterMillis) {

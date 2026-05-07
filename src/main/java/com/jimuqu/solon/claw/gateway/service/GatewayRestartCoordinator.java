@@ -83,7 +83,7 @@ public class GatewayRestartCoordinator {
                         }
                         activeRunCount = currentRunningRunCount();
                         if (activeRunCount > 0 && agentRunControlService != null) {
-                            agentRunControlService.stopAllRunningRuns();
+                            agentRunControlService.stopAllRunningRuns("restart_timeout");
                             sleepQuietly(3000L);
                         }
                         exitHandler.restartAfterDrain(activeRunCount > 0);

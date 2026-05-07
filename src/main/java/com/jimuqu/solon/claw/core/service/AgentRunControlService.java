@@ -33,6 +33,11 @@ public interface AgentRunControlService {
         return 0;
     }
 
+    /** Request cancellation of every active run and optionally mark them resumable. */
+    default int stopAllRunningRuns(String resumeReason) {
+        return stopAllRunningRuns();
+    }
+
     /** Last time any run finished. A zero value means no completed run is known. */
     default long lastRunFinishedAt() {
         return 0L;

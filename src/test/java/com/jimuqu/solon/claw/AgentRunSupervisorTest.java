@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
@@ -25,6 +26,11 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 
@@ -89,6 +95,44 @@ public class AgentRunSupervisorTest {
         List<AgentRunEventRecord> events =
                 fixture.agentRunRepository.listEvents(outcome.getRunRecord().getRunId());
         assertThat(eventTypes(events)).contains("compression.unchanged");
+    }
+
+    @Test
+    void shouldMarkRunningSessionsResumePendingForRestartTimeoutStops() throws Exception {
+        Fixture fixture = fixture();
+        BlockingGateway gateway = new BlockingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:restart:user");
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<AgentRunOutcome> running =
+                executorService.submit(
+                        () ->
+                                supervisor.run(
+                                        session,
+                                        "system",
+                                        "long task",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        ConversationEventSink.noop(),
+                                        false));
+
+        assertThat(gateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(supervisor.stopAllRunningRuns("restart_timeout")).isEqualTo(1);
+
+        try {
+            running.get(3, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
+        } finally {
+            executorService.shutdownNow();
+        }
+
+        SessionRecord reloaded = fixture.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession agentSession = new SqliteAgentSession(reloaded);
+        assertThat(agentSession.isPending()).isTrue();
+        assertThat(agentSession.getPendingReason()).isEqualTo("restart_timeout");
+        assertThat(gateway.interrupted).isTrue();
     }
 
     private static AgentRunSupervisor supervisor(
@@ -236,6 +280,36 @@ public class AgentRunSupervisorTest {
             result.setAssistantMessage(new AssistantMessage("backup ok"));
             result.setNdjson(session.getNdjson());
             return result;
+        }
+    }
+
+    private static class BlockingGateway implements LlmGateway {
+        private final CountDownLatch started = new CountDownLatch(1);
+        private volatile boolean interrupted;
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            started.countDown();
+            try {
+                while (true) {
+                    Thread.sleep(1000L);
+                }
+            } catch (InterruptedException e) {
+                interrupted = true;
+                throw e;
+            }
+        }
+
+        @Override
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects)
+                throws Exception {
+            return chat(session, systemPrompt, null, toolObjects);
         }
     }
 
