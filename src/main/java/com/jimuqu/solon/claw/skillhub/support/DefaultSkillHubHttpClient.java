@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.skillhub.support;
 
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -13,12 +15,21 @@ import okhttp3.Response;
 public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
+    private final SecurityPolicyService securityPolicyService;
     private final OkHttpClient client =
             new OkHttpClient.Builder()
                     .connectTimeout(20, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
                     .writeTimeout(30, TimeUnit.SECONDS)
                     .build();
+
+    public DefaultSkillHubHttpClient() {
+        this(null);
+    }
+
+    public DefaultSkillHubHttpClient(SecurityPolicyService securityPolicyService) {
+        this.securityPolicyService = securityPolicyService;
+    }
 
     @Override
     public String getText(String url, Map<String, String> headers) throws Exception {
@@ -49,6 +60,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
     @Override
     public String postJson(String url, Map<String, String> headers, String jsonBody)
             throws Exception {
+        assertSafeUrl(url);
         RequestBody body = RequestBody.create(jsonBody == null ? "{}" : jsonBody, JSON);
         Request.Builder builder = new Request.Builder().url(url).post(body);
         for (Map.Entry<String, String> entry : safeHeaders(headers).entrySet()) {
@@ -67,6 +79,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
     }
 
     private Response executeGet(String url, Map<String, String> headers) throws Exception {
+        assertSafeUrl(url);
         Request.Builder builder = new Request.Builder().url(url).get();
         for (Map.Entry<String, String> entry : safeHeaders(headers).entrySet()) {
             builder.header(entry.getKey(), entry.getValue());
@@ -76,5 +89,20 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
 
     private Map<String, String> safeHeaders(Map<String, String> headers) {
         return headers == null ? Collections.<String, String>emptyMap() : headers;
+    }
+
+    private void assertSafeUrl(String url) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "Skills Hub HTTP URL blocked by security policy: "
+                            + verdict.getMessage()
+                            + " ("
+                            + SecretRedactor.maskUrl(verdict.getUrl())
+                            + ")");
+        }
     }
 }

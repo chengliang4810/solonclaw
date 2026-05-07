@@ -53,7 +53,8 @@ public class DashboardMcpService {
         this.database = database;
         this.packageSecurityService =
                 packageSecurityService == null
-                        ? new McpPackageSecurityService(new DefaultSkillHubHttpClient())
+                        ? new McpPackageSecurityService(
+                                new DefaultSkillHubHttpClient(new SecurityPolicyService(appConfig)))
                         : packageSecurityService;
         this.mcpRuntimeService =
                 mcpRuntimeService == null ? new McpRuntimeService(appConfig, database) : mcpRuntimeService;

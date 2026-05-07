@@ -230,12 +230,16 @@ public class DashboardConfiguration {
 
     @Bean
     public DashboardMcpService dashboardMcpService(
-            AppConfig appConfig, SqliteDatabase sqliteDatabase, McpRuntimeService mcpRuntimeService) {
+            AppConfig appConfig,
+            SqliteDatabase sqliteDatabase,
+            McpRuntimeService mcpRuntimeService,
+            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
         return new DashboardMcpService(
                 appConfig,
                 sqliteDatabase,
                 new McpPackageSecurityService(
-                        new com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient()),
+                        new com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient(
+                                securityPolicyService)),
                 mcpRuntimeService);
     }
 

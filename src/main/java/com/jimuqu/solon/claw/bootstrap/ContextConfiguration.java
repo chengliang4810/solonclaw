@@ -41,6 +41,7 @@ import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -108,8 +109,8 @@ public class ContextConfiguration {
     }
 
     @Bean
-    public SkillHubHttpClient skillHubHttpClient() {
-        return new DefaultSkillHubHttpClient();
+    public SkillHubHttpClient skillHubHttpClient(SecurityPolicyService securityPolicyService) {
+        return new DefaultSkillHubHttpClient(securityPolicyService);
     }
 
     @Bean
