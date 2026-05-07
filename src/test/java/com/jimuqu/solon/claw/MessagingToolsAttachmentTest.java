@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
@@ -98,6 +99,41 @@ public class MessagingToolsAttachmentTest {
         assertThat(request.getAttachments().get(0).getLocalPath()).endsWith("demo.png");
         assertThat(request.getAttachments().get(1).getKind()).isEqualTo("voice");
         assertThat(request.getAttachments().get(1).getLocalPath()).endsWith("note.silk");
+    }
+
+    @Test
+    void shouldSniffImageMimeFromCachedBytesBeforeSuffixOrHeader() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+
+        MessageAttachment attachment =
+                attachmentCacheService.cacheBytes(
+                        PlatformType.MEMORY,
+                        null,
+                        "discord_cached.webp",
+                        "image/webp",
+                        false,
+                        null,
+                        pngBytes());
+
+        assertThat(attachment.getKind()).isEqualTo("image");
+        assertThat(attachment.getMimeType()).isEqualTo("image/png");
+    }
+
+    @Test
+    void shouldSniffImageMimeFromCachedFileBeforeSuffix() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+        File image = new File(attachmentCacheService.platformDir(PlatformType.MEMORY), "real_png.webp");
+        Files.createDirectories(image.getParentFile().toPath());
+        Files.write(image.toPath(), pngBytes());
+
+        MessageAttachment attachment =
+                attachmentCacheService.fromMediaCacheFile(
+                        PlatformType.MEMORY, image, null, false, null);
+
+        assertThat(attachment.getKind()).isEqualTo("image");
+        assertThat(attachment.getMimeType()).isEqualTo("image/png");
     }
 
     @Test
@@ -222,5 +258,22 @@ public class MessagingToolsAttachmentTest {
                                         null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outside runtime cache");
+    }
+
+    private byte[] pngBytes() {
+        return new byte[] {
+            (byte) 0x89,
+            'P',
+            'N',
+            'G',
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+            0,
+            0,
+            0,
+            0
+        };
     }
 }

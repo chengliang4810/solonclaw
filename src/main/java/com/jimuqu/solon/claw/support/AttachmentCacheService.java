@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
@@ -59,11 +60,12 @@ public class AttachmentCacheService {
         FileUtil.mkParentDirs(target);
         FileUtil.writeBytes(data, target);
 
+        String normalizedMimeType = normalizeMimeType(mimeType, originalName, data);
         MessageAttachment attachment = new MessageAttachment();
-        attachment.setKind(normalizeKind(kind, originalName, mimeType));
+        attachment.setKind(normalizeKind(kind, originalName, normalizedMimeType));
         attachment.setLocalPath(target.getAbsolutePath());
         attachment.setOriginalName(safeName(originalName));
-        attachment.setMimeType(normalizeMimeType(mimeType, originalName));
+        attachment.setMimeType(normalizedMimeType);
         attachment.setFromQuote(fromQuote);
         attachment.setTranscribedText(StrUtil.nullToEmpty(transcribedText).trim());
         return attachment;
@@ -86,10 +88,11 @@ public class AttachmentCacheService {
         }
 
         MessageAttachment attachment = new MessageAttachment();
-        attachment.setKind(normalizeKind(explicitKind, canonical.getName(), null));
+        String normalizedMimeType = normalizeMimeType(canonical, null, canonical.getName());
+        attachment.setKind(normalizeKind(explicitKind, canonical.getName(), normalizedMimeType));
         attachment.setLocalPath(canonical.getAbsolutePath());
         attachment.setOriginalName(safeName(canonical.getName()));
-        attachment.setMimeType(normalizeMimeType(null, canonical.getName()));
+        attachment.setMimeType(normalizedMimeType);
         attachment.setFromQuote(fromQuote);
         attachment.setTranscribedText(StrUtil.nullToEmpty(transcribedText).trim());
         return attachment;
@@ -166,7 +169,7 @@ public class AttachmentCacheService {
         String mime = StrUtil.nullToEmpty(mimeType).toLowerCase(Locale.ROOT);
         String ext = extension(name);
         if (mime.startsWith("image/")
-                || matches(ext, ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")) {
+                || matches(ext, ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".heic", ".heif")) {
             return "image";
         }
         if (mime.startsWith("video/")
@@ -182,6 +185,15 @@ public class AttachmentCacheService {
     }
 
     public static String normalizeMimeType(String mimeType, String name) {
+        return normalizeMimeType(mimeType, name, null);
+    }
+
+    public static String normalizeMimeType(String mimeType, String name, byte[] data) {
+        String sniffed = sniffImageMimeType(data);
+        if (sniffed != null) {
+            return sniffed;
+        }
+
         String normalized = StrUtil.nullToEmpty(mimeType).trim();
         if (normalized.length() > 0) {
             return normalized;
@@ -202,6 +214,12 @@ public class AttachmentCacheService {
         }
         if (matches(ext, ".bmp")) {
             return "image/bmp";
+        }
+        if (matches(ext, ".heic")) {
+            return "image/heic";
+        }
+        if (matches(ext, ".heif")) {
+            return "image/heif";
         }
         if (matches(ext, ".mp4", ".m4v")) {
             return "video/mp4";
@@ -261,6 +279,93 @@ public class AttachmentCacheService {
             return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
         }
         return "application/octet-stream";
+    }
+
+    public static String normalizeMimeType(File file, String mimeType, String name) {
+        return normalizeMimeType(mimeType, name, readImageHeader(file));
+    }
+
+    public static String sniffImageMimeType(byte[] data) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        if (startsWith(data, new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A})) {
+            return "image/png";
+        }
+        if (startsWith(data, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF})) {
+            return "image/jpeg";
+        }
+        if (startsWith(data, ascii("GIF87a")) || startsWith(data, ascii("GIF89a"))) {
+            return "image/gif";
+        }
+        if (data.length >= 12
+                && bytesEqual(data, 0, ascii("RIFF"))
+                && bytesEqual(data, 8, ascii("WEBP"))) {
+            return "image/webp";
+        }
+        if (startsWith(data, ascii("BM"))) {
+            return "image/bmp";
+        }
+        if (data.length >= 12 && bytesEqual(data, 4, ascii("ftyp"))) {
+            String brand = new String(data, 8, 4, java.nio.charset.StandardCharsets.US_ASCII);
+            if ("heic".equals(brand)
+                    || "heix".equals(brand)
+                    || "hevc".equals(brand)
+                    || "hevx".equals(brand)
+                    || "mif1".equals(brand)
+                    || "msf1".equals(brand)
+                    || "heim".equals(brand)
+                    || "heis".equals(brand)) {
+                return "image/heic";
+            }
+        }
+        return null;
+    }
+
+    private static byte[] readImageHeader(File file) {
+        if (file == null || !file.isFile()) {
+            return null;
+        }
+        byte[] header = new byte[32];
+        try {
+            java.io.InputStream input = Files.newInputStream(file.toPath());
+            try {
+                int read = input.read(header);
+                if (read <= 0) {
+                    return null;
+                }
+                if (read == header.length) {
+                    return header;
+                }
+                byte[] trimmed = new byte[read];
+                System.arraycopy(header, 0, trimmed, 0, read);
+                return trimmed;
+            } finally {
+                input.close();
+            }
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] ascii(String value) {
+        return value.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    }
+
+    private static boolean startsWith(byte[] data, byte[] prefix) {
+        return bytesEqual(data, 0, prefix);
+    }
+
+    private static boolean bytesEqual(byte[] data, int offset, byte[] expected) {
+        if (data == null || expected == null || offset < 0 || data.length < offset + expected.length) {
+            return false;
+        }
+        for (int i = 0; i < expected.length; i++) {
+            if (data[offset + i] != expected[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String prefixedName(String originalName) {
@@ -329,6 +434,8 @@ public class AttachmentCacheService {
                 ".gif",
                 ".webp",
                 ".bmp",
+                ".heic",
+                ".heif",
                 ".mp4",
                 ".mov",
                 ".avi",
