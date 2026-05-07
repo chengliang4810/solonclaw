@@ -338,7 +338,7 @@ public class DefaultCronScheduler {
             return true;
         }
         if (isRecurring(job)) {
-            long next = CronSupport.nextRunAt(job.getCronExpr(), now);
+            long next = CronSupport.nextRunAt(job.getCronExpr(), recurringRecoveryBase(job, now));
             if (next > 0L) {
                 cronJobRepository.markRun(job.getJobId(), job.getLastRunAt(), next);
                 job.setNextRunAt(next);
@@ -361,6 +361,10 @@ public class DefaultCronScheduler {
                 job.getJobId(),
                 runAt);
         return true;
+    }
+
+    private long recurringRecoveryBase(CronJobRecord job, long now) {
+        return job.getLastRunAt() > 0L ? job.getLastRunAt() : now;
     }
 
     private Long recoverableOneShotRunAt(CronJobRecord job, long now) {

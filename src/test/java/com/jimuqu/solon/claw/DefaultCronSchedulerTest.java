@@ -1976,6 +1976,36 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldRecoverRecurringNextRunFromLastRunAtLikeHermes() throws Exception {
+        RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        long now = System.currentTimeMillis();
+        CronJobRecord job = job("job-recurring-last-run-recover", "MEMORY:recurring-last-run:user");
+        job.setCronExpr("every 1h");
+        job.setLastRunAt(now - 30L * 60L * 1000L);
+        job.setNextRunAt(0L);
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById("job-recurring-last-run-recover");
+        long expectedNext = job.getLastRunAt() + 60L * 60L * 1000L;
+        assertThat(gateway.toolObjectsText).isNull();
+        assertThat(updated.getLastRunAt()).isEqualTo(job.getLastRunAt());
+        assertThat(updated.getNextRunAt()).isBetween(expectedNext - 1000L, expectedNext + 1000L);
+        assertThat(updated.getNextRunAt()).isLessThan(now + 45L * 60L * 1000L);
+        assertThat(env.cronJobRepository.listRuns("job-recurring-last-run-recover", 5)).isEmpty();
+    }
+
+    @Test
     void shouldRunManualTriggeredRecurringJobEvenWhenNextRunWasFuture() throws Exception {
         RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
