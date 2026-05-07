@@ -1239,6 +1239,97 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldLetApprovedExecuteShellCommandPassToolFallbackOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawShellSkill shell =
+                new SolonClawShellSkill(env.appConfig.getRuntime().getHome(), env.appConfig, policy);
+        String command = "git reset --hard";
+
+        assertThatThrownBy(() -> shell.execute(command, Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("危险命令安全规则")
+                .hasMessageContaining("git reset --hard");
+
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository, env.appConfig, policy);
+        DangerousCommandApprovalServiceTest.TestTrace trace =
+                new DangerousCommandApprovalServiceTest.TestTrace();
+        Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
+        args.put("code", command);
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+        assertThat(
+                        service.approve(
+                                trace.getSession(),
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+        DangerousCommandApprovalServiceTest.TestTrace resumed =
+                new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
+        service.buildInterceptor().onAction(resumed, "execute_shell", args);
+
+        assertThat(shell.execute(command, Integer.valueOf(1000)))
+                .doesNotContain("危险命令安全规则");
+
+        assertThatThrownBy(() -> shell.execute(command, Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("危险命令安全规则")
+                .hasMessageContaining("git reset --hard");
+    }
+
+    @Test
+    void shouldLetApprovedTerminalCommandPassToolFallbackOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawShellSkill shell =
+                new SolonClawShellSkill(env.appConfig.getRuntime().getHome(), env.appConfig, policy);
+        String command = "git reset --hard";
+
+        ONode blockedBefore =
+                ONode.ofJson(
+                        shell.terminal(
+                                command, Boolean.FALSE, Integer.valueOf(1), null, Boolean.FALSE));
+        assertThat(blockedBefore.get("status").getString()).isEqualTo("error");
+        assertThat(blockedBefore.get("error").getString())
+                .contains("危险命令安全规则")
+                .contains("git reset --hard");
+
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository, env.appConfig, policy);
+        DangerousCommandApprovalServiceTest.TestTrace trace =
+                new DangerousCommandApprovalServiceTest.TestTrace();
+        Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
+        args.put("command", command);
+        service.buildInterceptor().onAction(trace, "terminal", args);
+        assertThat(
+                        service.approve(
+                                trace.getSession(),
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+        DangerousCommandApprovalServiceTest.TestTrace resumed =
+                new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
+        service.buildInterceptor().onAction(resumed, "terminal", args);
+
+        ONode allowed =
+                ONode.ofJson(
+                        shell.terminal(
+                                command, Boolean.FALSE, Integer.valueOf(1), null, Boolean.FALSE));
+        assertThat(allowed.toJson()).doesNotContain("危险命令安全规则");
+
+        ONode blockedAfter =
+                ONode.ofJson(
+                        shell.terminal(
+                                command, Boolean.FALSE, Integer.valueOf(1), null, Boolean.FALSE));
+        assertThat(blockedAfter.get("status").getString()).isEqualTo("error");
+        assertThat(blockedAfter.get("error").getString())
+                .contains("危险命令安全规则")
+                .contains("git reset --hard");
+    }
+
+    @Test
     void shouldGuardFileToolsBeforeDelegatingToSolonAiSkill() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);

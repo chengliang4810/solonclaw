@@ -929,16 +929,33 @@ public class SolonClawCodeExecutionSkills {
 
     static void assertSafe(
             String toolName, String code, SecurityPolicyService securityPolicyService) {
-        assertSafe(toolName, code, securityPolicyService, true);
+        assertSafe(toolName, toolName, code, securityPolicyService, true);
     }
 
     static void assertSafeForManagedBackground(
             String toolName, String code, SecurityPolicyService securityPolicyService) {
-        assertSafe(toolName, code, securityPolicyService, false);
+        assertSafe(toolName, toolName, code, securityPolicyService, false);
+    }
+
+    static void assertSafeWithApprovalTool(
+            String approvalToolName,
+            String ruleToolName,
+            String code,
+            SecurityPolicyService securityPolicyService) {
+        assertSafe(approvalToolName, ruleToolName, code, securityPolicyService, true);
+    }
+
+    static void assertSafeForManagedBackgroundWithApprovalTool(
+            String approvalToolName,
+            String ruleToolName,
+            String code,
+            SecurityPolicyService securityPolicyService) {
+        assertSafe(approvalToolName, ruleToolName, code, securityPolicyService, false);
     }
 
     private static void assertSafe(
-            String toolName,
+            String approvalToolName,
+            String ruleToolName,
             String code,
             SecurityPolicyService securityPolicyService,
             boolean rejectForegroundPatterns) {
@@ -946,7 +963,7 @@ public class SolonClawCodeExecutionSkills {
             SecurityPolicyService.FileVerdict fileVerdict =
                     securityPolicyService.checkCommandPaths(code);
             if (!fileVerdict.isAllowed()) {
-                throw new IllegalArgumentException(blockedFileMessage(toolName, fileVerdict));
+                throw new IllegalArgumentException(blockedFileMessage(approvalToolName, fileVerdict));
             }
             SecurityPolicyService.UrlVerdict urlVerdict =
                     securityPolicyService.checkCommandUrls(code);
@@ -958,20 +975,24 @@ public class SolonClawCodeExecutionSkills {
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(null, securityPolicyService);
         DangerousCommandApprovalService.DetectionResult hardline =
-                approvalService.detectHardline(toolName, code);
+                approvalService.detectHardline(ruleToolName, code);
         if (hardline != null) {
-            throw new IllegalArgumentException(blockedHardlineMessage(toolName, hardline));
+            throw new IllegalArgumentException(blockedHardlineMessage(approvalToolName, hardline));
         }
         if (rejectForegroundPatterns) {
-            String foregroundGuidance = approvalService.foregroundBackgroundGuidance(toolName, code);
+            String foregroundGuidance = approvalService.foregroundBackgroundGuidance(ruleToolName, code);
             if (foregroundGuidance != null) {
                 throw new IllegalArgumentException(foregroundGuidance);
             }
         }
         DangerousCommandApprovalService.DetectionResult dangerous =
-                approvalService.detect(toolName, code);
+                approvalService.detect(ruleToolName, code);
         if (dangerous != null) {
-            throw new IllegalArgumentException(blockedDangerousMessage(toolName, dangerous));
+            if (DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                    approvalToolName, code)) {
+                return;
+            }
+            throw new IllegalArgumentException(blockedDangerousMessage(approvalToolName, dangerous));
         }
     }
 

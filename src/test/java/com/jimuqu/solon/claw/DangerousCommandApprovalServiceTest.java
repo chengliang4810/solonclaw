@@ -2567,6 +2567,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForTerminalDangerousCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("command", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "terminal", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+
+        assertThat(trace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("terminal");
+        assertThat(pending.getCommand()).isEqualTo("rm -rf runtime/cache");
+        assertThat(pending.getPatternKeys()).containsExactly("recursive_delete");
+    }
+
+    @Test
     void shouldExposeCurrentThreadApprovalForApprovedProcessCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =

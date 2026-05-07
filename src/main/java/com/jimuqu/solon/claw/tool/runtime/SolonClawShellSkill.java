@@ -247,7 +247,8 @@ public class SolonClawShellSkill extends ShellSkill {
         if (commandError != null) {
             return terminalError(commandError);
         }
-        SolonClawCodeExecutionSkills.assertSafe(
+        SolonClawCodeExecutionSkills.assertSafeWithApprovalTool(
+                com.jimuqu.solon.claw.support.constants.ToolNameConstants.TERMINAL,
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
                 securityPolicyService);
@@ -316,7 +317,8 @@ public class SolonClawShellSkill extends ShellSkill {
                     .data("background", Boolean.TRUE)
                     .toJson();
         }
-        SolonClawCodeExecutionSkills.assertSafeForManagedBackground(
+        SolonClawCodeExecutionSkills.assertSafeForManagedBackgroundWithApprovalTool(
+                com.jimuqu.solon.claw.support.constants.ToolNameConstants.TERMINAL,
                 com.jimuqu.solon.claw.support.constants.ToolNameConstants.EXECUTE_SHELL,
                 command,
                 securityPolicyService);

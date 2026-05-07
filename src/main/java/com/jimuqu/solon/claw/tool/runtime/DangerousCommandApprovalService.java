@@ -576,6 +576,9 @@ public class DangerousCommandApprovalService {
                                         ToolNameConstants.EXECUTE_PYTHON,
                                         codeArg(args)))
                 .onTool(
+                        ToolNameConstants.TERMINAL,
+                        (trace, args) -> evaluateTerminalTool(trace, args))
+                .onTool(
                         ToolNameConstants.PROCESS,
                         (trace, args) -> evaluateProcessTool(trace, args))
                 .onTool(
@@ -968,6 +971,15 @@ public class DangerousCommandApprovalService {
 
     private String codeArg(Map<String, Object> args) {
         return args == null || args.get("code") == null ? null : String.valueOf(args.get("code"));
+    }
+
+    private String evaluateTerminalTool(ReActTrace trace, Map<String, Object> args) {
+        String command =
+                args == null || args.get("command") == null
+                        ? null
+                        : String.valueOf(args.get("command"));
+        return evaluateCommand(
+                trace, ToolNameConstants.TERMINAL, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
     private String evaluateProcessTool(ReActTrace trace, Map<String, Object> args) {
