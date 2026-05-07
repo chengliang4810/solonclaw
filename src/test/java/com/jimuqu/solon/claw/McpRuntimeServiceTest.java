@@ -404,6 +404,34 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldFallbackAndClampInvalidNumericMcpToolArgumentsWhenSchemaProvidesDefault()
+            throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        NumericMcpFactory factory = new NumericMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool tool = toolByName(provider, "mcp_local-docs_numeric_tool");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("limit", "bad");
+        args.put("ratio", Double.valueOf(Double.POSITIVE_INFINITY));
+        args.put("page", "-5");
+        args.put("label", "keep");
+
+        Object raw = tool.handle(args);
+
+        assertThat(String.valueOf(raw)).contains("ok");
+        assertThat(factory.provider.lastArgs.get("limit")).isEqualTo(Integer.valueOf(50));
+        assertThat(factory.provider.lastArgs.get("ratio")).isEqualTo(Double.valueOf(1D));
+        assertThat(factory.provider.lastArgs.get("page")).isEqualTo(Integer.valueOf(1));
+        assertThat(factory.provider.lastArgs.get("label")).isEqualTo("keep");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
     void shouldReportConfiguredMcpToolTimeoutAndCancelCall() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
@@ -938,7 +966,7 @@ public class McpRuntimeServiceTest {
             tool.title("Numeric Tool");
             tool.description("Checks numeric argument coercion.");
             tool.inputSchema(
-                    "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":200},\"ratio\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1},\"label\":{\"type\":\"string\"}}}");
+                    "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":200,\"default\":50},\"ratio\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1,\"default\":2},\"page\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":200},\"label\":{\"type\":\"string\"}}}");
             tool.doHandle(
                     args -> {
                         lastArgs = new LinkedHashMap<String, Object>(args);

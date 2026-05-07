@@ -1341,7 +1341,10 @@ public class McpRuntimeService implements Closeable {
             }
             Double parsed = parseDouble(value);
             if (parsed == null) {
-                return value;
+                parsed = parseDouble(property.get("default"));
+                if (parsed == null) {
+                    return value;
+                }
             }
             double bounded = clamp(parsed.doubleValue(), property);
             if (integer) {
@@ -1369,14 +1372,22 @@ public class McpRuntimeService implements Closeable {
 
         private Double parseDouble(Object value) {
             if (value instanceof Number) {
-                return Double.valueOf(((Number) value).doubleValue());
+                double parsed = ((Number) value).doubleValue();
+                if (Double.isNaN(parsed) || Double.isInfinite(parsed)) {
+                    return null;
+                }
+                return Double.valueOf(parsed);
             }
             String text = String.valueOf(value).trim();
             if (StrUtil.isBlank(text)) {
                 return null;
             }
             try {
-                return Double.valueOf(Double.parseDouble(text));
+                double parsed = Double.parseDouble(text);
+                if (Double.isNaN(parsed) || Double.isInfinite(parsed)) {
+                    return null;
+                }
+                return Double.valueOf(parsed);
             } catch (Exception e) {
                 return null;
             }
