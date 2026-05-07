@@ -370,7 +370,10 @@ public class DefaultToolRegistry implements ToolRegistry {
                         sysWorkDir, defaultPythonCommand(), securityPolicyService, appConfig);
         SystemClockSkill systemClockSkill = new SystemClockSkill();
         SolonClawWebTools.SafeWebsearchTool websearchTool =
-                new SolonClawWebTools.SafeWebsearchTool(securityPolicyService);
+                new SolonClawWebTools.SafeWebsearchTool(
+                        securityPolicyService,
+                        org.noear.solon.ai.skills.web.WebsearchTool.getInstance(),
+                        appConfig);
         SolonClawWebTools.SafeWebfetchTool webfetchTool =
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
         SolonClawWebTools.SafeCodeSearchTool codeSearchTool =

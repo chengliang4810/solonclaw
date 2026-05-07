@@ -61,6 +61,9 @@ public class CoreConfigOverrideLoadTest {
                         + "      - external/team-skills\n"
                         + "  mcp:\n"
                         + "    enabled: true\n"
+                        + "  web:\n"
+                        + "    searchBackend: brave-free\n"
+                        + "    braveSearchApiKey: brv-test-key\n"
                         + "  security:\n"
                         + "    allowPrivateUrls: true\n"
                         + "    websiteBlocklist:\n"
@@ -148,6 +151,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTerminal().getProcessWaitTimeoutSeconds()).isEqualTo(11);
         assertThat(config.getSkills().getExternalDirs()).containsExactly("external/team-skills");
         assertThat(config.getMcp().isEnabled()).isTrue();
+        assertThat(config.getWeb().getSearchBackend()).isEqualTo("brave-free");
+        assertThat(config.getWeb().getBraveSearchApiKey()).isEqualTo("brv-test-key");
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())

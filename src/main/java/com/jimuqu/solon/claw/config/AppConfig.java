@@ -93,6 +93,9 @@ public class AppConfig {
     /** 安全策略配置。 */
     private SecurityConfig security = new SecurityConfig();
 
+    /** Web 工具配置。 */
+    private WebConfig web = new WebConfig();
+
     /** 审批/确认策略配置。 */
     private ApprovalsConfig approvals = new ApprovalsConfig();
 
@@ -1495,6 +1498,42 @@ public class AppConfig {
                 .setEnabled(
                         resolveBoolean(
                                 readBoolean(props, overrides, "solonclaw.mcp.enabled", false)));
+        config.getWeb()
+                .setSearchBackend(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.web.searchBackend",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.web.search_backend",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "web.search_backend",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "web.backend",
+                                                                "solon-ai"))))));
+        config.getWeb()
+                .setBraveSearchApiKey(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.web.braveSearchApiKey",
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.web.brave_search_api_key",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "web.brave_search_api_key",
+                                                        "")))));
         config.getTerminal()
                 .setCredentialFiles(
                         resolveList(
@@ -1678,6 +1717,7 @@ public class AppConfig {
         copyTask(other.getTask());
         copyTerminal(other.getTerminal());
         copySecurity(other.getSecurity());
+        copyWeb(other.getWeb());
         copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
@@ -1887,6 +1927,11 @@ public class AppConfig {
         this.security
                 .getWebsiteBlocklist()
                 .setSharedFiles(new ArrayList<String>(other.getWebsiteBlocklist().getSharedFiles()));
+    }
+
+    private void copyWeb(WebConfig other) {
+        this.web.setSearchBackend(other.getSearchBackend());
+        this.web.setBraveSearchApiKey(other.getBraveSearchApiKey());
     }
 
     private void copyApprovals(ApprovalsConfig other) {
@@ -3305,6 +3350,17 @@ public class AppConfig {
 
         /** 共享阻断列表文件，支持相对 runtime home 或绝对路径。 */
         private List<String> sharedFiles = new ArrayList<String>();
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class WebConfig {
+        /** Websearch 后端；solon-ai 为默认内置实现，brave-free 对齐 Brave Search free tier。 */
+        private String searchBackend = "solon-ai";
+
+        /** Brave Search API key；为空时也会尝试读取 BRAVE_SEARCH_API_KEY 环境变量。 */
+        private String braveSearchApiKey;
     }
 
     @Getter

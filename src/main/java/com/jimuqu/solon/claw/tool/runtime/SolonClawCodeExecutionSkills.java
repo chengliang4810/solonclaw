@@ -90,7 +90,10 @@ public class SolonClawCodeExecutionSkills {
                             new ProcessRegistry());
             this.websearchTool =
                     websearchTool == null
-                            ? new SolonClawWebTools.SafeWebsearchTool(securityPolicyService)
+                            ? new SolonClawWebTools.SafeWebsearchTool(
+                                    securityPolicyService,
+                                    org.noear.solon.ai.skills.web.WebsearchTool.getInstance(),
+                                    appConfig)
                             : websearchTool;
             this.webfetchTool =
                     webfetchTool == null

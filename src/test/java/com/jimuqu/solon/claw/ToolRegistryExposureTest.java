@@ -1064,6 +1064,100 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldUseBraveFreeSearchBackendWhenConfigured() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("brave-free");
+        env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        null,
+                        env.appConfig) {
+                    @Override
+                    protected String executeBraveSearchRequest(
+                            String query, int limit, String apiKey) {
+                        assertThat(query).isEqualTo("solon ai");
+                        assertThat(limit).isEqualTo(2);
+                        assertThat(apiKey).isEqualTo("brv-test-secret");
+                        return "{\"web\":{\"results\":[{\"title\":\"Solon AI\",\"url\":\"https://example.com/solon\",\"description\":\"Java agent\"},{\"title\":\"Jimuqu\",\"url\":\"https://example.com/jimuqu\",\"description\":\"Agent\"}]}}";
+                    }
+                };
+
+        Document document =
+                websearch.websearch(
+                        "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
+        ONode result = ONode.ofJson(document.getContent());
+
+        assertThat(result.get("provider").getString()).isEqualTo("brave-free");
+        assertThat(((List<?>) result.get("data").get("web").toData()).size()).isEqualTo(2);
+        assertThat(result.get("data").get("web").get(0).get("url").getString())
+                .isEqualTo("https://example.com/solon");
+    }
+
+    @Test
+    void shouldRequireBraveFreeApiKeyWhenConfigured() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("brave_free");
+        env.appConfig.getWeb().setBraveSearchApiKey("");
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        null,
+                        env.appConfig);
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "solon ai",
+                                        Integer.valueOf(2),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("BRAVE_SEARCH_API_KEY");
+    }
+
+    @Test
+    void shouldGuardBraveFreeReturnedUrls() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        env.appConfig.getWeb().setSearchBackend("brave-free");
+        env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
+                    @Override
+                    protected String executeBraveSearchRequest(
+                            String query, int limit, String apiKey) {
+                        return "{\"web\":{\"results\":[{\"title\":\"Blocked\",\"url\":\"https://blocked.example/docs?token=secret123\",\"description\":\"bad\"}]}}";
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "blocked",
+                                        Integer.valueOf(1),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
     void shouldGuardCodesearchReturnedDocumentUrlsInsideContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);

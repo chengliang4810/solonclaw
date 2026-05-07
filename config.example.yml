@@ -122,6 +122,13 @@ solonclaw:
     # 设为 false 后，/reload-mcp 将直接执行。
     mcpReloadConfirm: true
 
+  # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；需要 Brave Search free tier 时启用 brave-free。
+  web:
+    # 搜索后端：solon-ai / brave-free。兼容 Hermes 的 web.search_backend 与 web.backend。
+    searchBackend: solon-ai
+    # Brave Search API key；也可通过环境变量 BRAVE_SEARCH_API_KEY 提供。
+    braveSearchApiKey: ""
+
   # 上下文压缩配置。
   compression:
     # 是否启用上下文压缩。

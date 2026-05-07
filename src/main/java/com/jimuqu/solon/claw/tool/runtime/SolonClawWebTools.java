@@ -1,6 +1,10 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import cn.hutool.core.util.StrUtil;
 import java.lang.reflect.Array;
@@ -9,9 +13,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
 import org.noear.solon.annotation.Param;
@@ -21,6 +28,10 @@ import org.noear.solon.ai.skills.web.WebsearchTool;
 
 /** Solon AI web tools wrapped with Hermes-style URL and website policy checks. */
 public class SolonClawWebTools {
+    private static final String BRAVE_FREE_BACKEND = "brave-free";
+    private static final String BRAVE_SEARCH_ENDPOINT =
+            "https://api.search.brave.com/res/v1/web/search";
+
     private static String blockedMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
                 + verdict.getMessage()
@@ -139,14 +150,23 @@ public class SolonClawWebTools {
     public static class SafeWebsearchTool {
         private final SecurityPolicyService securityPolicyService;
         private final WebsearchTool delegate;
+        private final AppConfig appConfig;
 
         public SafeWebsearchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, WebsearchTool.getInstance());
+            this(securityPolicyService, WebsearchTool.getInstance(), null);
         }
 
         public SafeWebsearchTool(SecurityPolicyService securityPolicyService, WebsearchTool delegate) {
+            this(securityPolicyService, delegate, null);
+        }
+
+        public SafeWebsearchTool(
+                SecurityPolicyService securityPolicyService,
+                WebsearchTool delegate,
+                AppConfig appConfig) {
             this.securityPolicyService = securityPolicyService;
             this.delegate = delegate;
+            this.appConfig = appConfig;
         }
 
         @ToolMapping(name = "websearch", description = "执行实时web搜索")
@@ -160,10 +180,105 @@ public class SolonClawWebTools {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("query", query);
             check(securityPolicyService, ToolNameConstants.WEBSEARCH, args);
+            if (BRAVE_FREE_BACKEND.equals(normalizedSearchBackend())) {
+                Document document = braveSearch(query, numResults);
+                checkReturnedUrls(securityPolicyService, document);
+                return document;
+            }
             Document document =
                     delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
             checkReturnedUrls(securityPolicyService, document);
             return document;
+        }
+
+        private String normalizedSearchBackend() {
+            if (appConfig == null || appConfig.getWeb() == null) {
+                return "";
+            }
+            return StrUtil.nullToEmpty(appConfig.getWeb().getSearchBackend())
+                    .trim()
+                    .replace('_', '-')
+                    .toLowerCase(Locale.ROOT);
+        }
+
+        private Document braveSearch(String query, Integer numResults) {
+            String apiKey = resolveBraveSearchApiKey();
+            if (!SecretValueGuard.hasUsableSecret(apiKey, 8)) {
+                throw new IllegalStateException("BRAVE_SEARCH_API_KEY is not set");
+            }
+            int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
+            String body = executeBraveSearchRequest(query, limit, apiKey);
+            Object parsed = ONode.ofJson(body).toData();
+            Map<String, Object> root = parsed instanceof Map ? castMap(parsed) : Collections.<String, Object>emptyMap();
+            Map<String, Object> webData = castMap(root.get("web"));
+            Object rawResults = webData.get("results");
+            List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
+            if (rawResults instanceof Collection) {
+                for (Object rawHit : (Collection<?>) rawResults) {
+                    if (web.size() >= limit) {
+                        break;
+                    }
+                    Map<String, Object> hit = castMap(rawHit);
+                    if (hit.isEmpty()) {
+                        continue;
+                    }
+                    String url = StrUtil.nullToEmpty(stringValue(hit.get("url")));
+                    checkUrl(securityPolicyService, url);
+                    Map<String, Object> item = new LinkedHashMap<String, Object>();
+                    item.put("title", StrUtil.nullToEmpty(stringValue(hit.get("title"))));
+                    item.put("url", url);
+                    item.put("description", StrUtil.nullToEmpty(stringValue(hit.get("description"))));
+                    item.put("position", Integer.valueOf(web.size() + 1));
+                    web.add(item);
+                }
+            }
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("web", web);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("success", Boolean.TRUE);
+            result.put("data", data);
+            result.put("provider", BRAVE_FREE_BACKEND);
+            return new Document(ONode.serialize(result)).title("Web search: " + query);
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> castMap(Object value) {
+            if (value instanceof Map) {
+                return (Map<String, Object>) value;
+            }
+            return Collections.emptyMap();
+        }
+
+        private String stringValue(Object value) {
+            return value == null ? "" : String.valueOf(value);
+        }
+
+        protected String executeBraveSearchRequest(String query, int limit, String apiKey) {
+            HttpResponse response =
+                    HttpRequest.get(BRAVE_SEARCH_ENDPOINT)
+                            .form("q", query)
+                            .form("count", Integer.valueOf(limit))
+                            .header("X-Subscription-Token", apiKey)
+                            .header("Accept", "application/json")
+                            .timeout(15000)
+                            .execute();
+            int status = response.getStatus();
+            String body = response.body();
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException("Brave Search returned HTTP " + status);
+            }
+            if (StrUtil.isBlank(body)) {
+                throw new IllegalStateException("Brave Search returned an empty response");
+            }
+            return body;
+        }
+
+        private String resolveBraveSearchApiKey() {
+            String configured =
+                    appConfig == null || appConfig.getWeb() == null
+                            ? ""
+                            : appConfig.getWeb().getBraveSearchApiKey();
+            return StrUtil.blankToDefault(configured, System.getenv("BRAVE_SEARCH_API_KEY"));
         }
     }
 
