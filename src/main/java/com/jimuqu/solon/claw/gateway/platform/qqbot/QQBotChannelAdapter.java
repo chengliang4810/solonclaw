@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -56,7 +57,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
         this.securityPolicyService = securityPolicyService;
-        this.client = new OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build();
+        this.client =
+                new OkHttpClient.Builder()
+                        .readTimeout(0, TimeUnit.MILLISECONDS)
+                        .followRedirects(false)
+                        .followSslRedirects(false)
+                        .build();
         setConnectionMode("websocket");
         setFeatures("text", "attachments", "media-transfer", "platform-asr-text");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
@@ -86,13 +92,17 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             refreshAccessTokenIfNecessary();
-            String gateway = StrUtil.blankToDefault(config.getWebsocketUrl(), fetchGatewayUrl());
+            String gateway =
+                    StrUtil.isNotBlank(config.getWebsocketUrl())
+                            ? config.getWebsocketUrl().trim()
+                            : fetchGatewayUrl();
             if (StrUtil.isBlank(gateway)) {
                 setConnected(true);
                 setSetupState("configured");
                 setDetail("REST ready; websocket gateway unavailable");
                 return true;
             }
+            assertSafeUrl(gateway, "QQBot websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
@@ -223,7 +233,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String apiDomain() {
-        return StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN);
+        String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 
     private synchronized void refreshAccessTokenIfNecessary() throws Exception {
@@ -236,6 +250,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("appId", config.getAppId())
                         .set("clientSecret", config.getClientSecret())
                         .toJson();
+        assertSafeUrl(TOKEN_URL, "QQBot token URL");
         Request request =
                 new Request.Builder().url(TOKEN_URL).post(RequestBody.create(JSON, body)).build();
         Response response = client.newCall(request).execute();
@@ -271,9 +286,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private ONode getJson(String path) throws Exception {
+        String url = apiDomain() + path;
+        assertSafeUrl(url, "QQBot API URL");
         Request request =
                 new Request.Builder()
-                        .url(apiDomain() + path)
+                        .url(url)
                         .header("Authorization", "QQBot " + accessToken)
                         .build();
         Response response = client.newCall(request).execute();
@@ -289,9 +306,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private ONode postJson(String path, String body) throws Exception {
+        String url = apiDomain() + path;
+        assertSafeUrl(url, "QQBot API URL");
         Request request =
                 new Request.Builder()
-                        .url(apiDomain() + path)
+                        .url(url)
                         .header("Authorization", "QQBot " + accessToken)
                         .post(RequestBody.create(JSON, body))
                         .build();
@@ -309,6 +328,21 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private String safeBody(Response response) throws Exception {
         return response.body() == null ? "" : response.body().string();
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
     }
 
     private class Listener extends WebSocketListener {

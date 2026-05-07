@@ -235,6 +235,41 @@ public class DomesticChannelEnhancementTest {
                 .hasMessageContaining("token=***");
     }
 
+    @Test
+    void shouldBlockUnsafeQqbotConfiguredUrlsBeforeNetworkAccess() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setEnabled(true);
+        config.getChannels().getQqbot().setAppId("qq_real");
+        config.getChannels().getQqbot().setClientSecret("real_secret");
+        config.getChannels().getQqbot().setWebsocketUrl(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        QQBotChannelAdapter adapter =
+                new QQBotChannelAdapter(
+                        config.getChannels().getQqbot(),
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config));
+        setField(adapter, "accessToken", "cached-token");
+        setField(adapter, "accessTokenExpireAt", Long.valueOf(System.currentTimeMillis() + 120000L));
+
+        assertThat(adapter.connect()).isFalse();
+        assertThat(adapter.statusSnapshot().getLastErrorMessage())
+                .contains("QQBot websocket URL blocked")
+                .contains("169.254.169.254")
+                .contains("token=***");
+
+        config.getChannels().getQqbot().setApiDomain(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        Method postJson =
+                QQBotChannelAdapter.class.getDeclaredMethod("postJson", String.class, String.class);
+        postJson.setAccessible(true);
+
+        assertThatThrownBy(() -> invoke(postJson, adapter, "/v2/users/u/messages", "{}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("QQBot API URL blocked")
+                .hasMessageContaining("169.254.169.254")
+                .hasMessageContaining("token=***");
+    }
+
     private void assertWeakCredentialRejected(
             com.jimuqu.solon.claw.core.service.ChannelAdapter adapter,
             String expectedErrorCode,
@@ -256,6 +291,12 @@ public class DomesticChannelEnhancementTest {
         } catch (InvocationTargetException e) {
             throw e.getCause();
         }
+    }
+
+    private void setField(Object target, String name, Object value) throws Exception {
+        java.lang.reflect.Field field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     private static class TestQQBotAdapter extends QQBotChannelAdapter {
