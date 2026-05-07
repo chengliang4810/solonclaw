@@ -24,6 +24,8 @@ public class ToolCallLoopGuardrailService {
     private static final String STATE_KEY = "solonclaw.tool_loop_guardrail.state";
     public static final String HALT_DECISION_EXTRA_KEY =
             "solonclaw.tool_loop_guardrail.halt_decision";
+    private static final ThreadLocal<Integer> OTHER_TOOL_CALL_EPOCH =
+            new ThreadLocal<Integer>();
     private static final Set<String> IDEMPOTENT_TOOLS =
             Collections.unmodifiableSet(
                     new HashSet<String>(
@@ -117,6 +119,7 @@ public class ToolCallLoopGuardrailService {
             if (trace == null || toolName == null) {
                 return;
             }
+            notifyFileReadDedupIfOtherTool(toolName);
             State state = state(trace);
             Signature signature = signature(toolName, args);
             Decision decision = state.beforeCall(toolName, signature, config);
@@ -181,6 +184,18 @@ public class ToolCallLoopGuardrailService {
             }
             return state;
         }
+    }
+
+    public static int otherToolCallEpoch() {
+        Integer value = OTHER_TOOL_CALL_EPOCH.get();
+        return value == null ? 0 : value.intValue();
+    }
+
+    public static void notifyFileReadDedupIfOtherTool(String toolName) {
+        if (isFileReadTool(toolName)) {
+            return;
+        }
+        OTHER_TOOL_CALL_EPOCH.set(Integer.valueOf(otherToolCallEpoch() + 1));
     }
 
     private static class State {
@@ -560,6 +575,10 @@ public class ToolCallLoopGuardrailService {
             return false;
         }
         return IDEMPOTENT_TOOLS.contains(toolName);
+    }
+
+    private static boolean isFileReadTool(String toolName) {
+        return ToolNameConstants.FILE_READ.equals(toolName) || "read_file".equals(toolName);
     }
 
     private static String argsKey(String toolName) {

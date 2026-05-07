@@ -35,6 +35,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private final Map<ReadKey, ReadTracker> readDedup = new LinkedHashMap<ReadKey, ReadTracker>();
     private ReadKey lastReadKey;
     private int consecutiveReadCount;
+    private int observedOtherToolCallEpoch;
 
     public SolonClawFileReadWriteSkill(String workDir, SecurityPolicyService securityPolicyService) {
         this(workDir, securityPolicyService, 2000, 2000, new SolonClawFileStateTracker());
@@ -303,6 +304,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     }
 
     private String duplicateReadResult(String fileName, ReadKey key, File targetFile) {
+        resetDedupHitsAfterOtherToolCall();
         long modifiedAt = targetFile.lastModified();
         synchronized (readDedup) {
             ReadTracker tracker = readDedup.get(key);
@@ -348,6 +350,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     }
 
     private ReadStatus recordRead(String fileName, ReadKey key, File targetFile) {
+        resetDedupHitsAfterOtherToolCall();
         synchronized (readDedup) {
             ReadTracker tracker = readDedup.get(key);
             if (tracker == null) {
@@ -405,6 +408,21 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 }
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    private void resetDedupHitsAfterOtherToolCall() {
+        int currentEpoch = ToolCallLoopGuardrailService.otherToolCallEpoch();
+        synchronized (readDedup) {
+            if (observedOtherToolCallEpoch == currentEpoch) {
+                return;
+            }
+            observedOtherToolCallEpoch = currentEpoch;
+            for (ReadTracker tracker : readDedup.values()) {
+                if (tracker != null) {
+                    tracker.dedupHits = 0;
+                }
+            }
         }
     }
 

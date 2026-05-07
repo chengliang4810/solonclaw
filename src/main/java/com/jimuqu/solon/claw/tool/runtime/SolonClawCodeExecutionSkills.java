@@ -406,6 +406,7 @@ public class SolonClawCodeExecutionSkills {
 
         private String dispatchRpcTool(String toolName, Map<String, Object> args) {
             try {
+                ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool(toolName);
                 if ("read_file".equals(toolName)) {
                     return normalizeToolResult(
                             fileSkill.read(

@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.File;
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -1388,6 +1389,41 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldResetExecuteCodeRpcReadDedupAfterOtherToolCall() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(workspace.resolve("rpc-repeat.txt"), Arrays.asList("alpha", "needle"), StandardCharsets.UTF_8);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from solonclaw_tools import read_file, search_files\n"
+                                        + "print(read_file('rpc-repeat.txt').get('success'))\n"
+                                        + "print(read_file('rpc-repeat.txt').get('dedup'))\n"
+                                        + "print(search_files('needle', path='.', limit=5)['matches'][0]['path'])\n"
+                                        + "third = read_file('rpc-repeat.txt')\n"
+                                        + "print(third.get('dedup'))\n"
+                                        + "print(third.get('error'))\n"
+                                        + "print(read_file('rpc-repeat.txt').get('error'))\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(5);
+        assertThat(result.get("output").getString())
+                .contains("True")
+                .contains("rpc-repeat.txt")
+                .contains("None")
+                .contains("BLOCKED");
+    }
+
+    @Test
     void shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -1820,6 +1856,35 @@ public class ToolRegistryExposureTest {
 
         assertThat(changed.get("success").getBoolean()).isTrue();
         assertThat(changed.get("content").getString()).contains("delta");
+    }
+
+    @Test
+    void shouldResetFileReadDedupHitsAfterOtherToolCall() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(
+                workspace.resolve("repeat-after-tool.txt"),
+                Arrays.asList("alpha", "bravo", "charlie"),
+                StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode first = ONode.ofJson(fileSkill.read("repeat-after-tool.txt", 1, 2));
+        ONode second = ONode.ofJson(fileSkill.read("repeat-after-tool.txt", 1, 2));
+        ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("search_files");
+        ONode third = ONode.ofJson(fileSkill.read("repeat-after-tool.txt", 1, 2));
+        ONode fourth = ONode.ofJson(fileSkill.read("repeat-after-tool.txt", 1, 2));
+
+        assertThat(first.get("success").getBoolean()).isTrue();
+        assertThat(second.get("success").getBoolean()).isTrue();
+        assertThat(second.get("dedup").getBoolean()).isTrue();
+        assertThat(third.get("success").getBoolean()).isTrue();
+        assertThat(third.get("dedup").getBoolean()).isTrue();
+        assertThat(third.get("error").getString()).isNull();
+        assertThat(fourth.get("success").getBoolean()).isFalse();
+        assertThat(fourth.get("error").getString()).contains("BLOCKED").contains("重复");
     }
 
     @Test
