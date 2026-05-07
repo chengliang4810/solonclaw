@@ -36,6 +36,14 @@ public final class CliModeParser {
                 kind = CliMode.Kind.ACP;
                 continue;
             }
+            if ("completion".equalsIgnoreCase(arg)
+                    || "--completion".equalsIgnoreCase(arg)) {
+                kind = CliMode.Kind.COMPLETION;
+                if (i + 1 < args.length) {
+                    inputParts.add(args[++i]);
+                }
+                continue;
+            }
             if ("--session".equals(arg) && i + 1 < args.length) {
                 sessionId = args[++i];
                 continue;

@@ -27,6 +27,9 @@ public class CliRunner {
     }
 
     public int run(CliMode mode) throws Exception {
+        if (mode.getKind() == CliMode.Kind.COMPLETION) {
+            return new ShellCompletionGenerator().write(mode.getInput(), System.out, System.err);
+        }
         if (mode.getKind() == CliMode.Kind.ACP) {
             return new com.jimuqu.solon.claw.cli.acp.AcpStdioServer(
                             cliRuntime, sessionRepository, dashboardMcpService)

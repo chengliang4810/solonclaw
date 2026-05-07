@@ -6,7 +6,8 @@ public class CliMode {
         SERVER,
         CLI,
         TUI,
-        ACP
+        ACP,
+        COMPLETION
     }
 
     private final Kind kind;
@@ -32,6 +33,6 @@ public class CliMode {
     }
 
     public boolean isConsoleMode() {
-        return kind == Kind.CLI || kind == Kind.TUI || kind == Kind.ACP;
+        return kind == Kind.CLI || kind == Kind.TUI || kind == Kind.ACP || kind == Kind.COMPLETION;
     }
 }
