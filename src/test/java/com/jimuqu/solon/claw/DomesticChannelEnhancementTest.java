@@ -215,7 +215,7 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldBuildQqbotSessionApprovalButtonWhenAlwaysIsNotAllowed() {
+    void shouldBuildQqbotNativeApprovalKeyboardWithHermesChoices() {
         AppConfig config = new AppConfig();
         TestQQBotAdapter adapter = new TestQQBotAdapter(config);
         DeliveryRequest request = new DeliveryRequest();
@@ -233,9 +233,9 @@ public class DomesticChannelEnhancementTest {
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
         assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
         assertThat(buttons.get(1).get("render_data").get("label").getString())
-                .isEqualTo("✅ 本次会话");
+                .isEqualTo("⭐ 始终允许");
         assertThat(buttons.get(1).get("action").get("data").getString())
-                .isEqualTo("approve:approval-456:allow-session");
+                .isEqualTo("approve:approval-456:allow-always");
     }
 
     @Test
@@ -260,6 +260,19 @@ public class DomesticChannelEnhancementTest {
         assertThat(deny.getText()).isEqualTo("/deny approval-123");
         assertThat(deny.getChatType()).isEqualTo("dm");
         assertThat(deny.getChatId()).isEqualTo("user-b");
+    }
+
+    @Test
+    void shouldIgnoreQqbotNonHermesApprovalDecision() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-3\",\"chat_type\":2,\"user_openid\":\"user-c\",\"resolved\":{\"button_data\":\"approve:approval-123:allow-session\"}}}");
+
+        assertThat(message).isNull();
     }
 
     @Test

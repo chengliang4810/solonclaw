@@ -10,13 +10,13 @@ import org.noear.snack4.ONode;
 /** QQBot inline keyboard helpers. */
 final class QQBotKeyboardSupport {
     private static final Pattern APPROVAL_DATA_PATTERN =
-            Pattern.compile("^approve:(.+):(allow-once|allow-always|allow-session|session|deny)$");
+            Pattern.compile("^approve:(.+):(allow-once|allow-always|deny)$");
     private static final Pattern UPDATE_PROMPT_DATA_PATTERN =
             Pattern.compile("^update_prompt:([yn])$");
 
     private QQBotKeyboardSupport() {}
 
-    static ONode buildApprovalKeyboard(String approvalId, boolean allowAlways) {
+    static ONode buildApprovalKeyboard(String approvalId) {
         List<Object> buttons = new ArrayList<Object>();
         buttons.add(
                 button(
@@ -26,25 +26,14 @@ final class QQBotKeyboardSupport {
                         "approve:" + approvalId + ":allow-once",
                         1,
                         "approval"));
-        if (allowAlways) {
-            buttons.add(
-                    button(
-                            "always",
-                            "⭐ 始终允许",
-                            "已始终允许",
-                            "approve:" + approvalId + ":allow-always",
-                            1,
-                            "approval"));
-        } else {
-            buttons.add(
-                    button(
-                            "session",
-                            "✅ 本次会话",
-                            "已允许本次会话",
-                            "approve:" + approvalId + ":allow-session",
-                            1,
-                            "approval"));
-        }
+        buttons.add(
+                button(
+                        "always",
+                        "⭐ 始终允许",
+                        "已始终允许",
+                        "approve:" + approvalId + ":allow-always",
+                        1,
+                        "approval"));
         buttons.add(
                 button(
                         "deny",
@@ -73,9 +62,6 @@ final class QQBotKeyboardSupport {
         }
         if ("allow-always".equals(decision)) {
             return "/approve " + approvalId + " always";
-        }
-        if ("allow-session".equals(decision) || "session".equals(decision)) {
-            return "/approve " + approvalId + " session";
         }
         return StrUtil.isBlank(approvalId) ? "/approve" : "/approve " + approvalId;
     }

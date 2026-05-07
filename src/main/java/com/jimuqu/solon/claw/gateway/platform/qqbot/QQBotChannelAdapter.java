@@ -249,8 +249,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         : request.getChannelExtras();
         String approvalId = stringValue(extras.get("approvalId"));
         String text = buildApprovalText(request, extras);
-        boolean allowAlways = Boolean.TRUE.equals(extras.get("approvalAllowAlways"));
-        ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(approvalId, allowAlways);
+        ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(approvalId);
         return buildTextBody(text, request.getThreadId(), keyboard);
     }
 
