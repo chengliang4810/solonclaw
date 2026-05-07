@@ -21,6 +21,12 @@ public class MessageAttachment {
     /** MIME 类型。 */
     private String mimeType;
 
+    /** 内联 base64 数据，主要用于 ACP image/resource blob。 */
+    private String data;
+
+    /** 远程或 data: URL，主要用于 ACP 直接 image block。 */
+    private String url;
+
     /** 是否来自引用消息。 */
     private boolean fromQuote;
 

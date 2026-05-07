@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
@@ -305,10 +306,11 @@ public class AcpStdioServer {
         AcpSessionManager.AcpSessionState state = sessionManager.require(sessionId);
         state.setCancelled(false);
         String text = extractPromptText(params.get("prompt"));
+        List<MessageAttachment> attachments = extractPromptAttachments(params.get("prompt"));
         state.append("user", text);
 
         AcpEventSink sink = new AcpEventSink();
-        GatewayReply reply = cliRuntime.send(state.getSessionId(), text, sink);
+        GatewayReply reply = cliRuntime.send(state.getSessionId(), text, attachments, sink);
         String finalText = sink.assistantText();
         if (StrUtil.isBlank(finalText) && reply != null) {
             finalText = StrUtil.nullToEmpty(reply.getContent());
@@ -774,6 +776,125 @@ public class AcpStdioServer {
             return promptBlockText(prompt);
         }
         return StrUtil.nullToEmpty(prompt.getString());
+    }
+
+    private List<MessageAttachment> extractPromptAttachments(ONode prompt) {
+        List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
+        if (prompt == null || prompt.isNull()) {
+            return attachments;
+        }
+        if (prompt.isArray()) {
+            for (int i = 0; i < prompt.size(); i++) {
+                appendPromptAttachment(attachments, prompt.get(i));
+            }
+            return attachments;
+        }
+        if (prompt.isObject()) {
+            appendPromptAttachment(attachments, prompt);
+        }
+        return attachments;
+    }
+
+    private void appendPromptAttachment(List<MessageAttachment> attachments, ONode block) {
+        if (block == null || block.isNull() || !block.isObject()) {
+            return;
+        }
+        String type = read(block, "type", "");
+        if ("resource_link".equals(type)) {
+            appendResourceLinkAttachment(attachments, block);
+        } else if ("resource".equals(type)) {
+            appendEmbeddedResourceAttachment(attachments, block);
+        } else if ("image".equals(type)) {
+            appendDirectImageAttachment(attachments, block);
+        }
+    }
+
+    private void appendResourceLinkAttachment(List<MessageAttachment> attachments, ONode block) {
+        String uri = read(block, "uri", "");
+        if (StrUtil.isBlank(uri)) {
+            return;
+        }
+        String name = read(block, "name", "");
+        String title = read(block, "title", "");
+        String mimeType = readMimeType(block);
+        Path path = localResourcePath(uri);
+        if (path == null) {
+            return;
+        }
+        String imageMime = StrUtil.blankToDefault(imageMime(mimeType), imageMimeFromPath(path));
+        if (StrUtil.isBlank(imageMime)) {
+            return;
+        }
+        try {
+            long size = Files.size(path);
+            if (size > MAX_ACP_RESOURCE_BYTES) {
+                return;
+            }
+            byte[] data = readFilePrefix(path, (int) size);
+            MessageAttachment attachment = imageAttachment(uri, name, title, imageMime);
+            attachment.setLocalPath(path.toAbsolutePath().toString());
+            attachment.setData(Base64.getEncoder().encodeToString(data));
+            attachments.add(attachment);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void appendEmbeddedResourceAttachment(List<MessageAttachment> attachments, ONode block) {
+        ONode resource = block.get("resource");
+        if (resource == null || resource.isNull() || !resource.isObject()) {
+            return;
+        }
+        String mimeType = readMimeType(resource);
+        String imageMime = imageMime(mimeType);
+        if (StrUtil.isBlank(imageMime)) {
+            return;
+        }
+        String blob = read(resource, "blob", read(resource, "data", ""));
+        if (StrUtil.isBlank(blob)) {
+            return;
+        }
+        byte[] data = decodeBase64OrUtf8(blob);
+        if (data.length > MAX_ACP_RESOURCE_BYTES) {
+            return;
+        }
+        String uri = read(resource, "uri", "");
+        MessageAttachment attachment =
+                imageAttachment(uri, read(resource, "name", ""), read(resource, "title", ""), imageMime);
+        attachment.setData(Base64.getEncoder().encodeToString(data));
+        attachments.add(attachment);
+    }
+
+    private void appendDirectImageAttachment(List<MessageAttachment> attachments, ONode block) {
+        String mimeType = StrUtil.blankToDefault(readMimeType(block), "image/png");
+        String imageMime = imageMime(mimeType);
+        if (StrUtil.isBlank(imageMime)) {
+            imageMime = "image/png";
+        }
+        String uri = read(block, "uri", "");
+        String data = read(block, "data", "");
+        if (StrUtil.isBlank(uri) && StrUtil.isBlank(data)) {
+            return;
+        }
+        MessageAttachment attachment =
+                imageAttachment(uri, read(block, "name", ""), read(block, "title", ""), imageMime);
+        if (StrUtil.isNotBlank(data)) {
+            byte[] bytes = decodeBase64OrUtf8(data);
+            if (bytes.length > MAX_ACP_RESOURCE_BYTES) {
+                return;
+            }
+            attachment.setData(Base64.getEncoder().encodeToString(bytes));
+        } else {
+            attachment.setUrl(uri);
+        }
+        attachments.add(attachment);
+    }
+
+    private MessageAttachment imageAttachment(String uri, String name, String title, String mimeType) {
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind("image");
+        attachment.setOriginalName(resourceDisplayName(uri, name, title));
+        attachment.setMimeType(mimeType);
+        return attachment;
     }
 
     private void appendPromptPart(StringBuilder buffer, String text) {

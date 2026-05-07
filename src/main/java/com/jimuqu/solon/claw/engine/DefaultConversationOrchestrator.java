@@ -428,7 +428,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             feedbackSink,
                             eventSink,
                             false,
-                            agentScope);
+                            agentScope,
+                            MessageAttachmentSupport.safeAttachments(message));
             shouldDrainQueue = true;
             String finalReply = StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK);
             if (MessageDeliveryTracker.consumeDuplicateFinalReply(message.sourceKey(), finalReply)) {

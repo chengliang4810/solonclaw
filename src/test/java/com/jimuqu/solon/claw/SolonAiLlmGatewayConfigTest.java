@@ -4,14 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
+import java.util.Arrays;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import org.noear.solon.ai.chat.content.ImageBlock;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatModel;
+import org.noear.solon.ai.chat.message.UserMessage;
+import org.noear.solon.ai.chat.prompt.Prompt;
 
 /** 校验 LLM provider 配置的前置失败逻辑。 */
 public class SolonAiLlmGatewayConfigTest {
@@ -174,6 +180,33 @@ public class SolonAiLlmGatewayConfigTest {
         assertLoggingDialect("ollama", "http://localhost:11434/api/chat", "llama3");
         assertLoggingDialect("gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-pro");
         assertLoggingDialect("anthropic", "https://api.anthropic.com/v1/messages", "claude-sonnet");
+    }
+
+    @Test
+    void shouldBuildMultimodalPromptForImageAttachments() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
+        AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind("image");
+        attachment.setOriginalName("shot.png");
+        attachment.setMimeType("image/png");
+        attachment.setData("iVBORw0KGgo=");
+        runContext.setUserAttachments(Arrays.asList(attachment));
+        Method userPrompt =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "userPrompt", String.class, AgentRunContext.class);
+        userPrompt.setAccessible(true);
+
+        Prompt prompt = (Prompt) userPrompt.invoke(gateway, "Describe it", runContext);
+
+        assertThat(prompt.getMessages()).hasSize(1);
+        assertThat(prompt.getMessages().get(0)).isInstanceOf(UserMessage.class);
+        UserMessage message = (UserMessage) prompt.getMessages().get(0);
+        assertThat(message.getBlocks()).hasSize(2);
+        assertThat(message.getBlocks().get(1)).isInstanceOf(ImageBlock.class);
+        ImageBlock image = (ImageBlock) message.getBlocks().get(1);
+        assertThat(image.getMimeType()).isEqualTo("image/png");
+        assertThat(image.getData()).isEqualTo("iVBORw0KGgo=");
     }
 
     private void assertLoggingDialect(String provider, String apiUrl, String model)

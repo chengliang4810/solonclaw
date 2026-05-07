@@ -5,12 +5,14 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
+import java.util.List;
 
 /** Shared local console runtime that reuses the normal command and conversation chain. */
 public class CliRuntime {
@@ -33,9 +35,18 @@ public class CliRuntime {
 
     public GatewayReply send(String sessionId, String input, ConversationEventSink eventSink)
             throws Exception {
+        return send(sessionId, input, null, eventSink);
+    }
+
+    public GatewayReply send(
+            String sessionId,
+            String input,
+            List<MessageAttachment> attachments,
+            ConversationEventSink eventSink)
+            throws Exception {
         String sanitized = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
         ConversationEventSink sink = eventSink == null ? ConversationEventSink.noop() : eventSink;
-        GatewayMessage message = message(sessionId, sanitized);
+        GatewayMessage message = message(sessionId, sanitized, attachments);
         String text = StrUtil.nullToEmpty(sanitized).trim();
         if (text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
             GatewayReply reply = commandService.handle(message, text, sink);
@@ -59,12 +70,20 @@ public class CliRuntime {
     }
 
     private GatewayMessage message(String sessionId, String input) {
+        return message(sessionId, input, null);
+    }
+
+    private GatewayMessage message(
+            String sessionId, String input, List<MessageAttachment> attachments) {
         String sid = StrUtil.blankToDefault(sessionId, "cli");
         GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "cli", "local", input);
         message.setChatType(GatewayBehaviorConstants.CHAT_TYPE_DM);
         message.setChatName("CLI");
         message.setUserName("local");
         message.setSourceKeyOverride(sourceKey(sid));
+        if (attachments != null && !attachments.isEmpty()) {
+            message.setAttachments(new java.util.ArrayList<MessageAttachment>(attachments));
+        }
         return message;
     }
 }

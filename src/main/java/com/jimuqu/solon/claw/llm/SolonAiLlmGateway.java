@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -31,6 +32,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +60,9 @@ import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.ChatRequestDesc;
 import org.noear.solon.ai.chat.ChatResponse;
+import org.noear.solon.ai.chat.content.ContentBlock;
+import org.noear.solon.ai.chat.content.Contents;
+import org.noear.solon.ai.chat.content.ImageBlock;
 import org.noear.solon.ai.chat.dialect.ChatDialectManager;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -424,9 +429,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                     resolved,
                     feedbackSink,
                     eventSink,
-                    usageCollector);
+                    usageCollector,
+                    runContext);
         }
-        ReActResponse response = callAgent(agent, agentSession, userMessage, resume);
+        ReActResponse response = callAgent(agent, agentSession, userMessage, resume, runContext);
 
         AssistantMessage assistantMessage = response.getMessage();
         LlmResult result = new LlmResult();
@@ -446,11 +452,21 @@ public class SolonAiLlmGateway implements LlmGateway {
     private ReActResponse callAgent(
             ReActAgent agent, SqliteAgentSession agentSession, String userMessage, boolean resume)
             throws Exception {
+        return callAgent(agent, agentSession, userMessage, resume, null);
+    }
+
+    private ReActResponse callAgent(
+            ReActAgent agent,
+            SqliteAgentSession agentSession,
+            String userMessage,
+            boolean resume,
+            AgentRunContext runContext)
+            throws Exception {
         try {
             if (resume) {
                 return agent.prompt().session(agentSession).call();
             }
-            return agent.prompt(Prompt.of(userMessage))
+            return agent.prompt(userPrompt(userMessage, runContext))
                     .session(agentSession)
                     .options(options -> options.toolContextPut("user_message", userMessage))
                     .call();
@@ -470,7 +486,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             AppConfig.LlmConfig resolved,
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
-            UsageCollector usageCollector)
+            UsageCollector usageCollector,
+            AgentRunContext runContext)
             throws Exception {
         final StringBuilder emittedText = new StringBuilder();
         final ReActResponse[] finalResponse = new ReActResponse[1];
@@ -491,7 +508,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                         .blockLast();
             } else {
                 agent
-                        .prompt(Prompt.of(userMessage))
+                        .prompt(userPrompt(userMessage, runContext))
                         .session(agentSession)
                         .options(options -> options.toolContextPut("user_message", userMessage))
                         .stream()
@@ -818,6 +835,68 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
                 && SecretValueGuard.isPlaceholderSecret(resolved.getApiKey())) {
             throw new IllegalStateException("LLM apiKey 不能使用示例或占位符密钥。");
+        }
+    }
+
+    private Prompt userPrompt(String userMessage, AgentRunContext runContext) {
+        List<ContentBlock> blocks = userContentBlocks(userMessage, runContext);
+        if (blocks.isEmpty()) {
+            return Prompt.of(userMessage);
+        }
+        if (StrUtil.isBlank(userMessage)) {
+            return Prompt.of(ChatMessage.ofUser(new Contents().addBlocks(blocks)));
+        }
+        return Prompt.of(ChatMessage.ofUser(StrUtil.nullToEmpty(userMessage), blocks));
+    }
+
+    private List<ContentBlock> userContentBlocks(String userMessage, AgentRunContext runContext) {
+        List<MessageAttachment> attachments =
+                runContext == null
+                        ? Collections.<MessageAttachment>emptyList()
+                        : runContext.getUserAttachments();
+        if (attachments.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ContentBlock> blocks = new ArrayList<ContentBlock>();
+        for (MessageAttachment attachment : attachments) {
+            if (!isImageAttachment(attachment)) {
+                continue;
+            }
+            ImageBlock image = imageBlock(attachment);
+            if (image != null) {
+                blocks.add(image);
+            }
+        }
+        return blocks;
+    }
+
+    private boolean isImageAttachment(MessageAttachment attachment) {
+        if (attachment == null) {
+            return false;
+        }
+        String kind = StrUtil.nullToEmpty(attachment.getKind()).trim().toLowerCase(Locale.ROOT);
+        String mime = StrUtil.nullToEmpty(attachment.getMimeType()).trim().toLowerCase(Locale.ROOT);
+        return "image".equals(kind) || mime.startsWith("image/");
+    }
+
+    private ImageBlock imageBlock(MessageAttachment attachment) {
+        String mimeType = StrUtil.blankToDefault(attachment.getMimeType(), "image/png");
+        if (StrUtil.isNotBlank(attachment.getData())) {
+            return ImageBlock.ofBase64(attachment.getData(), mimeType);
+        }
+        if (StrUtil.isNotBlank(attachment.getUrl())) {
+            return ImageBlock.ofUrl(attachment.getUrl(), mimeType);
+        }
+        if (StrUtil.isBlank(attachment.getLocalPath())) {
+            return null;
+        }
+        try {
+            byte[] data = java.nio.file.Files.readAllBytes(
+                    java.nio.file.Paths.get(attachment.getLocalPath()));
+            return ImageBlock.ofBase64(data, mimeType);
+        } catch (Exception e) {
+            log.warn("Failed to attach image block: {}", attachment.getLocalPath(), e);
+            return null;
         }
     }
 

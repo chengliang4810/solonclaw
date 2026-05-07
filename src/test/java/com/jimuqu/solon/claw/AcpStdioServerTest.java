@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
@@ -104,7 +105,8 @@ public class AcpStdioServerTest {
     @Test
     void shouldPreserveAcpResourceLinkImageFileAsAttachmentNote(@TempDir Path tempDir)
             throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpAttachmentGateway gateway = new AcpAttachmentGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
         AcpStdioServer server =
                 new AcpStdioServer(
                         new CliRuntime(env.commandService, env.conversationOrchestrator),
@@ -131,6 +133,12 @@ public class AcpStdioServerTest {
                 .contains("[Attached image: shot.png]")
                 .contains("MIME: image/png")
                 .contains("Bytes: " + ONE_PX_PNG.length);
+        assertThat(gateway.lastAttachments).hasSize(1);
+        assertThat(gateway.lastAttachments.get(0).getKind()).isEqualTo("image");
+        assertThat(gateway.lastAttachments.get(0).getOriginalName()).isEqualTo("shot.png");
+        assertThat(gateway.lastAttachments.get(0).getMimeType()).isEqualTo("image/png");
+        assertThat(gateway.lastAttachments.get(0).getData())
+                .isEqualTo(Base64.getEncoder().encodeToString(ONE_PX_PNG));
     }
 
     @Test
@@ -187,7 +195,8 @@ public class AcpStdioServerTest {
 
     @Test
     void shouldPreserveAcpEmbeddedBlobImageAsAttachmentNote() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpAttachmentGateway gateway = new AcpAttachmentGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
         AcpStdioServer server =
                 new AcpStdioServer(
                         new CliRuntime(env.commandService, env.conversationOrchestrator),
@@ -211,11 +220,16 @@ public class AcpStdioServerTest {
                 .contains("[Attached image: embed.png]")
                 .contains("MIME: image/png")
                 .contains("Bytes: " + ONE_PX_PNG.length);
+        assertThat(gateway.lastAttachments).hasSize(1);
+        assertThat(gateway.lastAttachments.get(0).getOriginalName()).isEqualTo("embed.png");
+        assertThat(gateway.lastAttachments.get(0).getMimeType()).isEqualTo("image/png");
+        assertThat(gateway.lastAttachments.get(0).getData()).isEqualTo(b64);
     }
 
     @Test
     void shouldPreserveAcpDirectImageBlockAsAttachmentNote() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpAttachmentGateway gateway = new AcpAttachmentGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
         AcpStdioServer server =
                 new AcpStdioServer(
                         new CliRuntime(env.commandService, env.conversationOrchestrator),
@@ -241,6 +255,10 @@ public class AcpStdioServerTest {
                 .contains("[Attached image: direct.png]")
                 .contains("MIME: image/png")
                 .contains("Bytes: " + ONE_PX_PNG.length);
+        assertThat(gateway.lastAttachments).hasSize(1);
+        assertThat(gateway.lastAttachments.get(0).getOriginalName()).isEqualTo("direct.png");
+        assertThat(gateway.lastAttachments.get(0).getMimeType()).isEqualTo("image/png");
+        assertThat(gateway.lastAttachments.get(0).getData()).isEqualTo(b64);
     }
 
     @Test
@@ -923,6 +941,39 @@ public class AcpStdioServerTest {
             session.setLastCacheReadTokens(6L);
             session.setLastCacheWriteTokens(7L);
             return result;
+        }
+    }
+
+    private static class AcpAttachmentGateway extends FakeLlmGateway {
+        private java.util.List<MessageAttachment> lastAttachments =
+                java.util.Collections.emptyList();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                java.util.List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            lastAttachments =
+                    runContext == null
+                            ? java.util.Collections.<MessageAttachment>emptyList()
+                            : runContext.getUserAttachments();
+            return super.executeOnce(
+                    session,
+                    systemPrompt,
+                    userMessage,
+                    toolObjects,
+                    feedbackSink,
+                    eventSink,
+                    resume,
+                    resolved,
+                    runContext);
         }
     }
 }

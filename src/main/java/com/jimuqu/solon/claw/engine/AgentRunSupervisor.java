@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.ContextBudgetDecision;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
@@ -427,6 +428,29 @@ public class AgentRunSupervisor implements AgentRunControlService {
             boolean resume,
             AgentRuntimeScope agentScope)
             throws Exception {
+        return run(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                Collections.<MessageAttachment>emptyList());
+    }
+
+    public AgentRunOutcome run(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments)
+            throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
             agentScope.setAgentName(
@@ -471,6 +495,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         runRecord.getRunId(),
                         session.getSessionId(),
                         session.getSourceKey());
+        runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
         RunHandle runHandle =
                 registerRun(
@@ -834,7 +859,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             AgentRunContext runContext) {
+        java.util.List<MessageAttachment> previousAttachments =
+                runContext == null
+                        ? Collections.<MessageAttachment>emptyList()
+                        : runContext.getUserAttachments();
         try {
+            if (runContext != null) {
+                runContext.setUserAttachments(Collections.<MessageAttachment>emptyList());
+            }
             return llmGateway.executeOnce(
                     session,
                     systemPrompt,
@@ -849,6 +881,10 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runContext.event("recovery.error", e.getMessage());
             log.warn("Agent recovery failed: sessionId={}", session.getSessionId(), e);
             return null;
+        } finally {
+            if (runContext != null) {
+                runContext.setUserAttachments(previousAttachments);
+            }
         }
     }
 
