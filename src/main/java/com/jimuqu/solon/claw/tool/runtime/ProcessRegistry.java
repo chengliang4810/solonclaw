@@ -46,7 +46,8 @@ public class ProcessRegistry {
     public ManagedProcess start(String command, File workDir) throws Exception {
         validateCommand(command);
         String executableCommand = isWindows() ? command : rewriteCompoundBackground(command);
-        List<String> shellCommand = shellCommand(executableCommand);
+        List<String> shellCommand =
+                shellCommand(executableCommand, resolveShellInitFiles(), isWindows());
         ProcessBuilder builder = new ProcessBuilder(shellCommand);
         if (workDir != null) {
             builder.directory(workDir);
@@ -167,18 +168,32 @@ public class ProcessRegistry {
         return count;
     }
 
-    private static List<String> shellCommand(String command) {
+    static List<String> shellCommand(String command, List<String> shellInitFiles, boolean windows) {
         List<String> parts = new ArrayList<String>();
-        if (isWindows()) {
+        if (windows) {
             parts.add("cmd");
             parts.add("/c");
             parts.add(command);
         } else {
             parts.add("/bin/sh");
             parts.add("-lc");
-            parts.add(command);
+            parts.add(SolonClawShellSkill.prependShellInit(command, shellInitFiles, false));
         }
         return parts;
+    }
+
+    private List<String> resolveShellInitFiles() {
+        List<String> configured = Collections.emptyList();
+        boolean autoSource = true;
+        if (appConfig != null
+                && appConfig.getTerminal() != null
+                && appConfig.getTerminal().getShellInitFiles() != null) {
+            configured = appConfig.getTerminal().getShellInitFiles();
+            autoSource = appConfig.getTerminal().isAutoSourceBashrc();
+        }
+        String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
+        return SolonClawShellSkill.resolveShellInitFiles(
+                configured, autoSource, isWindows(), home, System.getenv());
     }
 
     static String rewriteCompoundBackground(String command) {

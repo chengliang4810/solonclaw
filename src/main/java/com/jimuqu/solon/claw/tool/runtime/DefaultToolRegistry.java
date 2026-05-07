@@ -660,6 +660,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     private ProcessRegistry resolveProcessRegistry() {
-        return processRegistry == null ? new ProcessRegistry() : processRegistry;
+        return processRegistry == null ? new ProcessRegistry(appConfig) : processRegistry;
     }
 }

@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class ProcessRegistryTest {
@@ -52,5 +55,32 @@ public class ProcessRegistryTest {
                 .isEqualTo("echo ready && npm run dev &> app.log");
         assertThat(ProcessRegistry.rewriteCompoundBackground("echo ready && npm run dev 2>&1"))
                 .isEqualTo("echo ready && npm run dev 2>&1");
+    }
+
+    @Test
+    void shouldPrependShellInitFilesForPosixBackgroundCommandsLikeHermes() {
+        List<String> command =
+                ProcessRegistry.shellCommand(
+                        "npm run dev",
+                        Arrays.asList("/tmp/profile.sh", "/tmp/o'malley.sh"),
+                        false);
+
+        assertThat(command).containsExactly("/bin/sh", "-lc", command.get(2));
+        assertThat(command.get(2)).startsWith("set +e\n");
+        assertThat(command.get(2))
+                .contains("[ -r '/tmp/profile.sh' ] && . '/tmp/profile.sh' 2>/dev/null || true");
+        assertThat(command.get(2)).contains("o'\\''malley");
+        assertThat(command.get(2)).endsWith("npm run dev");
+    }
+
+    @Test
+    void shouldKeepWindowsBackgroundShellCommandUnwrapped() {
+        List<String> command =
+                ProcessRegistry.shellCommand(
+                        "npm run dev",
+                        Collections.singletonList("/tmp/profile.sh"),
+                        true);
+
+        assertThat(command).containsExactly("cmd", "/c", "npm run dev");
     }
 }
