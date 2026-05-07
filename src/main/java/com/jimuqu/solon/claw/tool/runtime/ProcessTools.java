@@ -110,7 +110,10 @@ public class ProcessTools {
         if (StrUtil.isBlank(command)) {
             return ToolResultEnvelope.error("command is required for action=start").toJson();
         }
-        assertBackgroundSafe(command);
+        if (!DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                ToolNameConstants.PROCESS, command)) {
+            assertBackgroundSafe(command);
+        }
         File workDir = resolveWorkDir(cwd);
         ProcessRegistry.ManagedProcess managed = processRegistry.start(command, workDir);
         return ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())

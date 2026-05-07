@@ -44,6 +44,10 @@ public class DangerousCommandApprovalService {
             "_dangerous_command_pending_queue_";
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
     private static final String CONTEXT_SESSION_YOLO = "_dangerous_command_session_yolo_";
+    private static final String CONTEXT_ONCE_APPROVALS = "_dangerous_command_once_approvals_";
+    private static final long CURRENT_THREAD_APPROVAL_TTL_MILLIS = 30000L;
+    private static final ThreadLocal<Map<String, Long>> CURRENT_THREAD_APPROVED_COMMANDS =
+            new ThreadLocal<Map<String, Long>>();
 
     private static final String PATH_SEPARATOR = "[\\\\/]";
     private static final String HOME_PATH_PREFIX =
@@ -564,6 +568,9 @@ public class DangerousCommandApprovalService {
                         ToolNameConstants.EXECUTE_JS,
                         (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_JS, args))
                 .onTool(
+                        ToolNameConstants.PROCESS,
+                        (trace, args) -> evaluateProcessTool(trace, args))
+                .onTool(
                         ToolNameConstants.FILE_READ,
                         (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
                 .onTool(
@@ -665,6 +672,9 @@ public class DangerousCommandApprovalService {
             comment = comment + " 审批人：" + approver.trim();
         }
 
+        if (effectiveScope == ApprovalScope.ONCE) {
+            addOnceApproval(session.getContext(), pending.approvalKey());
+        }
         HITL.approve(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
         session.updateSnapshot();
@@ -857,6 +867,20 @@ public class DangerousCommandApprovalService {
                 || approvals.contains(approvalKey(toolName, patternKey, normalize(command)));
     }
 
+    public static boolean consumeCurrentThreadApproval(String toolName, String command) {
+        Map<String, Long> approvals = CURRENT_THREAD_APPROVED_COMMANDS.get();
+        if (approvals == null || approvals.isEmpty()) {
+            return false;
+        }
+        removeExpiredCurrentThreadApprovals(approvals);
+        String key = currentThreadApprovalKey(toolName, command);
+        Long expiresAt = approvals.remove(key);
+        if (approvals.isEmpty()) {
+            CURRENT_THREAD_APPROVED_COMMANDS.remove();
+        }
+        return expiresAt != null && expiresAt.longValue() >= System.currentTimeMillis();
+    }
+
     public List<String> listSessionApprovals(AgentSession session) {
         if (session == null) {
             return new ArrayList<String>();
@@ -873,6 +897,7 @@ public class DangerousCommandApprovalService {
             return;
         }
         session.getContext().remove(CONTEXT_SESSION_APPROVALS);
+        session.getContext().remove(CONTEXT_ONCE_APPROVALS);
         session.getContext().remove(CONTEXT_PENDING_APPROVAL);
         session.getContext().remove(CONTEXT_PENDING_APPROVAL_QUEUE);
         session.getContext().remove(CONTEXT_SESSION_YOLO);
@@ -932,9 +957,33 @@ public class DangerousCommandApprovalService {
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
         String code =
                 args == null || args.get("code") == null ? null : String.valueOf(args.get("code"));
-        DetectionResult hardline = detectHardline(toolName, code);
+        return evaluateCommand(trace, toolName, toolName, code);
+    }
+
+    private String evaluateProcessTool(ReActTrace trace, Map<String, Object> args) {
+        if (args == null) {
+            return null;
+        }
+        String action =
+                args.get("action") == null
+                        ? ""
+                        : StrUtil.nullToEmpty(String.valueOf(args.get("action")))
+                                .trim()
+                                .toLowerCase(Locale.ROOT);
+        if (!"start".equals(action)) {
+            return null;
+        }
+        String command =
+                args.get("command") == null ? null : String.valueOf(args.get("command"));
+        return evaluateCommand(
+                trace, ToolNameConstants.PROCESS, ToolNameConstants.EXECUTE_SHELL, command);
+    }
+
+    private String evaluateCommand(
+            ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
+        DetectionResult hardline = detectHardline(ruleToolName, code);
         if (hardline != null) {
-            trace.setFinalAnswer(buildHardlineMessage(toolName, hardline, code));
+            trace.setFinalAnswer(buildHardlineMessage(approvalToolName, hardline, code));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
@@ -942,7 +991,7 @@ public class DangerousCommandApprovalService {
 
         SecurityPolicyService.FileVerdict fileVerdict = detectUnsafeCommandPath(code);
         if (fileVerdict != null) {
-            trace.setFinalAnswer(buildFilePolicyMessage(toolName, fileVerdict));
+            trace.setFinalAnswer(buildFilePolicyMessage(approvalToolName, fileVerdict));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
@@ -956,7 +1005,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String foregroundGuidance = foregroundBackgroundGuidance(toolName, code);
+        String foregroundGuidance = foregroundBackgroundGuidance(ruleToolName, code);
         if (foregroundGuidance != null) {
             trace.setFinalAnswer(foregroundGuidance);
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
@@ -975,21 +1024,23 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        DetectionResult detection = detectCombined(toolName, code);
+        DetectionResult detection = detectCombined(ruleToolName, code);
         if (detection == null) {
             persistTraceSnapshot(trace);
             return null;
         }
 
-        String approvalKey = combinedApprovalKey(toolName, detection);
+        String approvalKey = combinedApprovalKey(approvalToolName, detection);
         PendingApproval pending = getPendingApproval(trace.getSession());
-        if (trace.getContext().getAs(HITL.DECISION_PREFIX + toolName) != null) {
-            if (pending != null && approvalKey.equals(pending.approvalKey())) {
+        if (trace.getContext().getAs(HITL.DECISION_PREFIX + approvalToolName) != null) {
+            if ((pending != null && approvalKey.equals(pending.approvalKey()))
+                    || consumeOnceApproval(trace.getContext(), approvalKey)) {
+                markCurrentThreadApproval(approvalToolName, code);
                 removePendingApproval(trace.getSession(), pending);
                 persistTraceSnapshot(trace);
                 return null;
             }
-            trace.getContext().remove(HITL.DECISION_PREFIX + toolName);
+            trace.getContext().remove(HITL.DECISION_PREFIX + approvalToolName);
             persistTraceSnapshot(trace);
         }
 
@@ -997,27 +1048,29 @@ public class DangerousCommandApprovalService {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
                 removePendingApproval(trace.getSession(), pending);
             }
+            markCurrentThreadApproval(approvalToolName, code);
             persistTraceSnapshot(trace);
             return null;
         }
 
         SmartApprovalDecision smartDecision =
                 "smart".equals(approvalMode)
-                        ? smartApprove(toolName, code, detection, trace.getContext())
+                        ? smartApprove(approvalToolName, code, detection, trace.getContext())
                         : null;
         if (smartDecision != null && smartDecision.isApproved()) {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
                 removePendingApproval(trace.getSession(), pending);
             }
+            markCurrentThreadApproval(approvalToolName, code);
             persistTraceSnapshot(trace);
             return null;
         }
 
-        Map<String, Object> pendingMap = createPendingMap(toolName, detection, code);
+        Map<String, Object> pendingMap = createPendingMap(approvalToolName, detection, code);
         storePendingMap(trace.getSession(), pendingMap);
         persistTraceSnapshot(trace);
         notifyApprovalRequest(trace.getSession(), toPendingApproval(pendingMap));
-        return buildPendingMessage(toolName, detection, code);
+        return buildPendingMessage(approvalToolName, detection, code);
     }
 
     private SmartApprovalDecision smartApprove(
@@ -1038,6 +1091,66 @@ public class DangerousCommandApprovalService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private void addOnceApproval(FlowContext context, String approvalKey) {
+        if (context == null || StrUtil.isBlank(approvalKey)) {
+            return;
+        }
+        Set<String> approvals = loadOnceApprovals(context);
+        approvals.add(approvalKey.trim());
+        context.put(CONTEXT_ONCE_APPROVALS, new ArrayList<String>(approvals));
+    }
+
+    private boolean consumeOnceApproval(FlowContext context, String approvalKey) {
+        if (context == null || StrUtil.isBlank(approvalKey)) {
+            return false;
+        }
+        Set<String> approvals = loadOnceApprovals(context);
+        boolean consumed = approvals.remove(approvalKey.trim());
+        if (consumed) {
+            if (approvals.isEmpty()) {
+                context.remove(CONTEXT_ONCE_APPROVALS);
+            } else {
+                context.put(CONTEXT_ONCE_APPROVALS, new ArrayList<String>(approvals));
+            }
+        }
+        return consumed;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> loadOnceApprovals(FlowContext context) {
+        Set<String> approvals = new LinkedHashSet<String>();
+        if (context == null) {
+            return approvals;
+        }
+        Object raw = context.get(CONTEXT_ONCE_APPROVALS);
+        if (raw instanceof Collection) {
+            for (Object value : (Collection<Object>) raw) {
+                if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+                    approvals.add(String.valueOf(value).trim());
+                }
+            }
+            return approvals;
+        }
+        String text = raw == null ? "" : String.valueOf(raw).trim();
+        if (text.length() == 0) {
+            return approvals;
+        }
+        try {
+            Object parsed = ONode.deserialize(text, Object.class);
+            if (parsed instanceof Collection) {
+                for (Object value : (Collection<Object>) parsed) {
+                    if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
+                        approvals.add(String.valueOf(value).trim());
+                    }
+                }
+                return approvals;
+            }
+        } catch (Exception ignored) {
+        }
+        approvals.add(text);
+        return approvals;
     }
 
     private DetectionResult detectCombined(String toolName, String code) {
@@ -1281,6 +1394,38 @@ public class DangerousCommandApprovalService {
                 || "1".equals(value)
                 || "yes".equalsIgnoreCase(value)
                 || "on".equalsIgnoreCase(value);
+    }
+
+    private void markCurrentThreadApproval(String toolName, String command) {
+        if (StrUtil.hasBlank(toolName, command)) {
+            return;
+        }
+        Map<String, Long> approvals = CURRENT_THREAD_APPROVED_COMMANDS.get();
+        if (approvals == null) {
+            approvals = new LinkedHashMap<String, Long>();
+            CURRENT_THREAD_APPROVED_COMMANDS.set(approvals);
+        }
+        approvals.put(
+                currentThreadApprovalKey(toolName, command),
+                Long.valueOf(System.currentTimeMillis() + CURRENT_THREAD_APPROVAL_TTL_MILLIS));
+    }
+
+    private static String currentThreadApprovalKey(String toolName, String command) {
+        return StrUtil.nullToEmpty(toolName).trim() + ":" + normalizeCommand(command);
+    }
+
+    private static void removeExpiredCurrentThreadApprovals(Map<String, Long> approvals) {
+        long now = System.currentTimeMillis();
+        List<String> expired = new ArrayList<String>();
+        for (Map.Entry<String, Long> entry : approvals.entrySet()) {
+            Long expiresAt = entry.getValue();
+            if (expiresAt == null || expiresAt.longValue() < now) {
+                expired.add(entry.getKey());
+            }
+        }
+        for (String key : expired) {
+            approvals.remove(key);
+        }
     }
 
     private boolean setSessionYolo(AgentSession session, boolean enabled) throws Exception {
@@ -1884,6 +2029,10 @@ public class DangerousCommandApprovalService {
     }
 
     private String normalize(String code) {
+        return normalizeCommand(code);
+    }
+
+    private static String normalizeCommand(String code) {
         String normalized = StrUtil.nullToEmpty(code).replace("\u0000", "");
         normalized = TerminalAnsiSanitizer.stripAnsi(normalized);
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC);

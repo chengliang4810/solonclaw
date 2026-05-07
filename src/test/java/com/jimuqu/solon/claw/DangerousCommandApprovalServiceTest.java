@@ -6,6 +6,7 @@ import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
@@ -18,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
@@ -2518,6 +2520,124 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForProcessStartDangerousCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("action", "start");
+        args.put("command", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "process", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+
+        assertThat(trace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("process");
+        assertThat(pending.getCommand()).isEqualTo("rm -rf runtime/cache");
+        assertThat(pending.getPatternKeys()).containsExactly("recursive_delete");
+    }
+
+    @Test
+    void shouldExposeCurrentThreadApprovalForApprovedProcessCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("action", "start");
+        args.put("command", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "process", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+        assertThat(pending).isNotNull();
+        assertThat(
+                        service.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        TestTrace resumed = new TestTrace(trace.session);
+        service.buildInterceptor().onAction(resumed, "process", args);
+
+        assertThat(resumed.getFinalAnswer()).isNull();
+        assertThat(DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                        "process", "rm -rf runtime/cache"))
+                .isTrue();
+        assertThat(DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                        "process", "rm -rf runtime/cache"))
+                .isFalse();
+    }
+
+    @Test
+    void shouldLetApprovedProcessCommandPassToolFallbackOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("action", "start");
+        args.put("command", "rm -rf runtime/cache");
+        service.buildInterceptor().onAction(trace, "process", args);
+        assertThat(
+                        service.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        TestTrace resumed = new TestTrace(trace.session);
+        service.buildInterceptor().onAction(resumed, "process", args);
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "rm -rf runtime/cache",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(started.get("success").getBoolean()).isTrue();
+        assertThat(started.get("session_id").getString()).isNotBlank();
+        env.processRegistry.stop(started.get("session_id").getString());
+
+        ONode blocked =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "rm -rf runtime/cache",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(blocked.get("success").getBoolean()).isFalse();
+        assertThat(blocked.get("error").getString()).contains("危险命令安全规则");
+    }
+
+    @Test
     void shouldPromptForTirithWarningEvenWhenFindingsAreEmptyLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FakeTirithSecurityService tirith =
@@ -3124,8 +3244,16 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     private static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
-        private final InMemoryAgentSession session = new InMemoryAgentSession("tirith-test");
+        private final InMemoryAgentSession session;
         private String route;
+
+        private TestTrace() {
+            this(new InMemoryAgentSession("tirith-test"));
+        }
+
+        private TestTrace(InMemoryAgentSession session) {
+            this.session = session;
+        }
 
         @Override
         public InMemoryAgentSession getSession() {
