@@ -63,7 +63,7 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult branchDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git branch -D old-feature");
-        DangerousCommandApprovalService.DetectionResult safeBranchDelete =
+        DangerousCommandApprovalService.DetectionResult lowercaseBranchDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git branch -d old-feature");
 
@@ -82,8 +82,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(compactNodeEval).isNotNull();
         assertThat(compactNodeEval.getPatternKey()).isEqualTo("script_eval_flag");
         assertThat(branchDelete).isNotNull();
-        assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
-        assertThat(safeBranchDelete).isNull();
+        assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_delete");
+        assertThat(lowercaseBranchDelete).isNotNull();
+        assertThat(lowercaseBranchDelete.getPatternKey()).isEqualTo("git_branch_delete");
     }
 
     @Test
