@@ -470,14 +470,28 @@ public class CronJobService {
                 throw new IllegalStateException("script path contains control character");
             }
         }
-        if (value.startsWith("/") || value.startsWith("~") || (value.length() > 1 && value.charAt(1) == ':')) {
-            throw new IllegalStateException("script must be relative to runtime/scripts");
-        }
-        File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts");
-        File target = FileUtil.file(scriptsDir, value);
-        if (!FileUtil.isSub(scriptsDir, target)) {
+        if (value.startsWith("~")) {
             throw new IllegalStateException("script must stay within runtime/scripts");
         }
+        try {
+            File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
+            File requested = new File(value);
+            File target = (requested.isAbsolute() ? requested : new File(scriptsDir, value)).getCanonicalFile();
+            if (!isUnderDirectory(scriptsDir, target)) {
+                throw new IllegalStateException("script must stay within runtime/scripts");
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("script path could not be validated: " + e.getMessage());
+        }
+    }
+
+    private boolean isUnderDirectory(File root, File target) throws java.io.IOException {
+        java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
+        java.nio.file.Path targetPath = target.getCanonicalFile().toPath().toAbsolutePath().normalize();
+        if (targetPath.equals(rootPath)) {
+            return false;
+        }
+        return targetPath.startsWith(rootPath);
     }
 
     private void validateWorkdir(String workdir) {

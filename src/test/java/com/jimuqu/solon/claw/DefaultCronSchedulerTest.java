@@ -31,6 +31,8 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1036,6 +1038,95 @@ public class DefaultCronSchedulerTest {
                             }
                         })
                 .hasMessageContaining("script path contains control character");
+    }
+
+    @Test
+    void shouldResolveCronScriptPathsWithinRuntimeScriptsOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File nested = FileUtil.file(scriptsDir, "nested/good.py");
+        FileUtil.writeString("print('inside')", nested, StandardCharsets.UTF_8);
+
+        Map<String, Object> safeRelative = cronScriptBody("safe-relative", "nested/good.py");
+        CronJobRecord relativeJob = service.create("MEMORY:room:user", safeRelative);
+        assertThat(relativeJob.getScript()).isEqualTo("nested/good.py");
+
+        Map<String, Object> safeAbsolute =
+                cronScriptBody("safe-absolute", nested.getCanonicalPath());
+        CronJobRecord absoluteJob = service.create("MEMORY:room:user", safeAbsolute);
+        assertThat(absoluteJob.getScript()).isEqualTo(nested.getCanonicalPath());
+
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.create(
+                                        "MEMORY:room:user",
+                                        cronScriptBody("traversal", "../outside.py"));
+                            }
+                        })
+                .hasMessageContaining("script must stay within runtime/scripts");
+
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.create(
+                                        "MEMORY:room:user",
+                                        cronScriptBody("tilde", "~/outside.py"));
+                            }
+                        })
+                .hasMessageContaining("script must stay within runtime/scripts");
+    }
+
+    @Test
+    void shouldBlockCronScriptSymlinkEscapeAtRuntime() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File scriptsDir = FileUtil.file(runtimeHome, "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File safeScript = FileUtil.file(scriptsDir, "sneaky.py");
+        FileUtil.writeString("print('safe')", safeScript, StandardCharsets.UTF_8);
+
+        CronJobRecord job = service.create("MEMORY:room:user", cronScriptBody("sneaky", "sneaky.py"));
+        Files.delete(safeScript.toPath());
+
+        File outside = new File(runtimeHome.getParentFile(), "outside-cron-script.py");
+        Files.write(outside.toPath(), "print('escaped')".getBytes("UTF-8"));
+        Path link = safeScript.toPath();
+        boolean symlinkCreated = false;
+        try {
+            Files.createSymbolicLink(link, outside.toPath());
+            symlinkCreated = true;
+        } catch (UnsupportedOperationException ignored) {
+            // Some Windows test environments do not support symlink creation.
+        } catch (java.io.IOException ignored) {
+            // Windows without Developer Mode/Admin often rejects symlink creation.
+        } catch (SecurityException ignored) {
+            // Security managers may disallow symlink creation in CI.
+        }
+        if (!symlinkCreated) {
+            return;
+        }
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.runNow(job.getJobId());
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastStatus()).isEqualTo("error");
+        assertThat(updated.getLastError()).contains("Cron script not found under runtime/scripts");
+        assertThat(updated.getLastOutput()).doesNotContain("escaped");
     }
 
     @Test
@@ -2252,6 +2343,16 @@ public class DefaultCronSchedulerTest {
         body.put("schedule", "30m");
         body.put("prompt", "cron prompt");
         body.put("skills", skills);
+        return body;
+    }
+
+    private Map<String, Object> cronScriptBody(String name, String script) {
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", name);
+        body.put("schedule", "30m");
+        body.put("script", script);
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "local");
         return body;
     }
 

@@ -1184,9 +1184,10 @@ public class DefaultCronScheduler {
     }
 
     private CronScriptResult runScriptResult(CronJobRecord job) throws Exception {
-        File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts");
-        File script = FileUtil.file(scriptsDir, job.getScript());
-        if (!FileUtil.isSub(scriptsDir, script) || !script.exists() || !script.isFile()) {
+        File scriptsDir = FileUtil.file(appConfig.getRuntime().getHome(), "scripts").getCanonicalFile();
+        File requested = new File(job.getScript());
+        File script = (requested.isAbsolute() ? requested : new File(scriptsDir, job.getScript())).getCanonicalFile();
+        if (!isUnderDirectory(scriptsDir, script) || !script.exists() || !script.isFile()) {
             throw new IllegalStateException("Cron script not found under runtime/scripts: " + job.getScript());
         }
         String name = script.getName().toLowerCase();
@@ -1218,6 +1219,15 @@ public class DefaultCronScheduler {
             throw new IllegalStateException("Cron script exited " + process.exitValue() + ": " + output);
         }
         return new CronScriptResult(output, parseWakeAgent(output));
+    }
+
+    private boolean isUnderDirectory(File root, File target) throws Exception {
+        java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
+        java.nio.file.Path targetPath = target.getCanonicalFile().toPath().toAbsolutePath().normalize();
+        if (targetPath.equals(rootPath)) {
+            return false;
+        }
+        return targetPath.startsWith(rootPath);
     }
 
     private int scriptTimeoutSeconds() {
