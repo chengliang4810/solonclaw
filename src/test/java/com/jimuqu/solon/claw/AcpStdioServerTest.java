@@ -318,12 +318,23 @@ public class AcpStdioServerTest {
     @Test
     void shouldAcceptHermesEditorSessionModelModeAndConfigMethods() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        AppConfig.ProviderConfig fallbackProvider = new AppConfig.ProviderConfig();
+        fallbackProvider.setName("BackupProvider");
+        fallbackProvider.setBaseUrl("https://api.openai.com");
+        fallbackProvider.setApiKey("");
+        fallbackProvider.setDefaultModel("gpt-backup");
+        fallbackProvider.setDialect("openai");
+        env.appConfig.getProviders().put("backup", fallbackProvider);
+        AppConfig.FallbackProviderConfig fallback = new AppConfig.FallbackProviderConfig();
+        fallback.setProvider("backup");
+        env.appConfig.getFallbackProviders().add(fallback);
         AcpStdioServer server =
                 new AcpStdioServer(
                         new CliRuntime(env.commandService, env.conversationOrchestrator),
                         env.sessionRepository,
                         new DashboardMcpService(env.appConfig, env.sqliteDatabase),
-                        env.dangerousCommandApprovalService);
+                        env.dangerousCommandApprovalService,
+                        env.appConfig);
 
         String sessionId = extractSessionId(newAcpSession(server, 30));
 
@@ -367,6 +378,9 @@ public class AcpStdioServerTest {
                                 + "\"}}");
         assertThat(loaded)
                 .contains("\"model_id\":\"default:gpt-test-acp\"")
+                .contains("\"current_model_id\":\"default:gpt-test-acp\"")
+                .contains("\"available_models\"")
+                .contains("\"model_id\":\"backup:gpt-backup\"")
                 .contains("\"mode_id\":\"plan\"")
                 .contains("\"reasoning_effort\":\"high\"");
     }

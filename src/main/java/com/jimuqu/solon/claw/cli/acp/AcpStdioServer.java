@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.cli.acp;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -10,6 +11,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.BufferedInputStream;
@@ -43,6 +45,8 @@ public class AcpStdioServer {
     private final SessionRepository sessionRepository;
     private final DashboardMcpService mcpService;
     private final DangerousCommandApprovalService dangerousCommandApprovalService;
+    private final AppConfig appConfig;
+    private final LlmProviderService llmProviderService;
     private final InputStream input;
     private final OutputStream output;
 
@@ -58,7 +62,7 @@ public class AcpStdioServer {
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
             DashboardMcpService mcpService) {
-        this(cliRuntime, sessionRepository, mcpService, null, System.in, System.out);
+        this(cliRuntime, sessionRepository, mcpService, null, null, System.in, System.out);
     }
 
     public AcpStdioServer(
@@ -71,21 +75,17 @@ public class AcpStdioServer {
                 sessionRepository,
                 mcpService,
                 dangerousCommandApprovalService,
+                null,
                 System.in,
                 System.out);
-    }
-
-    public AcpStdioServer(CliRuntime cliRuntime, InputStream input, OutputStream output) {
-        this(cliRuntime, null, null, null, input, output);
     }
 
     public AcpStdioServer(
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
             DashboardMcpService mcpService,
-            InputStream input,
-            OutputStream output) {
-        this(cliRuntime, sessionRepository, mcpService, null, input, output);
+            AppConfig appConfig) {
+        this(cliRuntime, sessionRepository, mcpService, null, appConfig, System.in, System.out);
     }
 
     public AcpStdioServer(
@@ -93,6 +93,36 @@ public class AcpStdioServer {
             SessionRepository sessionRepository,
             DashboardMcpService mcpService,
             DangerousCommandApprovalService dangerousCommandApprovalService,
+            AppConfig appConfig) {
+        this(
+                cliRuntime,
+                sessionRepository,
+                mcpService,
+                dangerousCommandApprovalService,
+                appConfig,
+                System.in,
+                System.out);
+    }
+
+    public AcpStdioServer(CliRuntime cliRuntime, InputStream input, OutputStream output) {
+        this(cliRuntime, null, null, null, null, input, output);
+    }
+
+    public AcpStdioServer(
+            CliRuntime cliRuntime,
+            SessionRepository sessionRepository,
+            DashboardMcpService mcpService,
+            InputStream input,
+            OutputStream output) {
+        this(cliRuntime, sessionRepository, mcpService, null, null, input, output);
+    }
+
+    public AcpStdioServer(
+            CliRuntime cliRuntime,
+            SessionRepository sessionRepository,
+            DashboardMcpService mcpService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AppConfig appConfig,
             InputStream input,
             OutputStream output) {
         this.cliRuntime = cliRuntime;
@@ -100,6 +130,8 @@ public class AcpStdioServer {
         this.sessionManager = new AcpSessionManager(cliRuntime, sessionRepository);
         this.mcpService = mcpService;
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
+        this.appConfig = appConfig;
+        this.llmProviderService = appConfig == null ? null : new LlmProviderService(appConfig);
         this.input = input;
         this.output = output;
     }
@@ -377,7 +409,7 @@ public class AcpStdioServer {
             result.put("title", state.getTitle());
         }
         result.put("history", state.getHistory());
-        result.put("models", new ArrayList<Object>());
+        result.put("models", modelState(state));
         result.put(
                 "source_key",
                 StrUtil.blankToDefault(state.getSourceKey(), cliRuntime.sourceKey(state.getSessionId())));
@@ -397,6 +429,118 @@ public class AcpStdioServer {
             result.put("configOptions", state.getConfigOptions());
         }
         return result;
+    }
+
+    private Map<String, Object> modelState(AcpSessionManager.AcpSessionState state) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> availableModels = new ArrayList<Map<String, Object>>();
+        String currentModelId = "";
+        if (appConfig == null || appConfig.getProviders() == null || appConfig.getProviders().isEmpty()) {
+            result.put("available_models", availableModels);
+            result.put("availableModels", availableModels);
+            result.put("current_model_id", currentModelId);
+            result.put("currentModelId", currentModelId);
+            return result;
+        }
+
+        String providerKey = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
+        String model = "";
+        if (state != null && StrUtil.isNotBlank(state.getModelId())) {
+            String[] parsed = parseModelChoice(state.getModelId(), providerKey);
+            providerKey = parsed[0];
+            model = parsed[1];
+        }
+        if (StrUtil.isBlank(providerKey)) {
+            providerKey = StrUtil.nullToEmpty(appConfig.getLlm().getProvider()).trim();
+        }
+
+        LlmProviderService.ResolvedProvider current = null;
+        try {
+            current = llmProviderService == null ? null : llmProviderService.resolveProvider(providerKey, model);
+        } catch (Exception e) {
+            current = null;
+        }
+        if (current != null) {
+            currentModelId = modelChoiceId(current.getProviderKey(), current.getModel());
+            addModelInfo(availableModels, current, true);
+        }
+
+        addFallbackModelInfos(availableModels, currentModelId);
+        result.put("available_models", availableModels);
+        result.put("availableModels", availableModels);
+        result.put("current_model_id", currentModelId);
+        result.put("currentModelId", currentModelId);
+        return result;
+    }
+
+    private void addFallbackModelInfos(List<Map<String, Object>> availableModels, String currentModelId) {
+        if (llmProviderService == null || appConfig.getFallbackProviders() == null) {
+            return;
+        }
+        for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
+            if (fallback == null || StrUtil.isBlank(fallback.getProvider())) {
+                continue;
+            }
+            try {
+                LlmProviderService.ResolvedProvider resolved =
+                        llmProviderService.resolveProvider(fallback.getProvider(), fallback.getModel());
+                String modelId = modelChoiceId(resolved.getProviderKey(), resolved.getModel());
+                addModelInfo(availableModels, resolved, modelId.equals(currentModelId));
+            } catch (Exception ignored) {
+                // Runtime provider validation handles broken fallback entries elsewhere.
+            }
+        }
+    }
+
+    private void addModelInfo(
+            List<Map<String, Object>> availableModels,
+            LlmProviderService.ResolvedProvider provider,
+            boolean current) {
+        String modelId = modelChoiceId(provider.getProviderKey(), provider.getModel());
+        if (StrUtil.isBlank(modelId) || hasModelInfo(availableModels, modelId)) {
+            return;
+        }
+        Map<String, Object> modelInfo = new LinkedHashMap<String, Object>();
+        modelInfo.put("model_id", modelId);
+        modelInfo.put("modelId", modelId);
+        modelInfo.put("name", StrUtil.blankToDefault(provider.getModel(), modelId));
+        modelInfo.put(
+                "description",
+                "Provider: "
+                        + StrUtil.blankToDefault(provider.getLabel(), provider.getProviderKey())
+                        + (current ? " - current" : ""));
+        availableModels.add(modelInfo);
+    }
+
+    private boolean hasModelInfo(List<Map<String, Object>> availableModels, String modelId) {
+        for (Map<String, Object> item : availableModels) {
+            if (modelId.equals(item.get("model_id")) || modelId.equals(item.get("modelId"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String modelChoiceId(String providerKey, String model) {
+        String normalizedModel = StrUtil.nullToEmpty(model).trim();
+        if (StrUtil.isBlank(normalizedModel)) {
+            return "";
+        }
+        String normalizedProvider = StrUtil.nullToEmpty(providerKey).trim().toLowerCase();
+        return StrUtil.isBlank(normalizedProvider) ? normalizedModel : normalizedProvider + ":" + normalizedModel;
+    }
+
+    private String[] parseModelChoice(String rawModel, String currentProvider) {
+        String model = StrUtil.nullToEmpty(rawModel).trim();
+        String provider = StrUtil.nullToEmpty(currentProvider).trim();
+        if (model.contains(":")) {
+            String[] parts = model.split(":", 2);
+            if (StrUtil.isNotBlank(parts[0]) && StrUtil.isNotBlank(parts[1])) {
+                provider = parts[0].trim().toLowerCase();
+                model = parts[1].trim();
+            }
+        }
+        return new String[] {provider, model};
     }
 
     private Map<String, Object> setSessionModel(ONode params) throws Exception {

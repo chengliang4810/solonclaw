@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
@@ -23,7 +24,8 @@ public class CliConfiguration {
     public CliRunner cliRunner(
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
-            DashboardMcpService dashboardMcpService) {
-        return new CliRunner(cliRuntime, sessionRepository, dashboardMcpService);
+            DashboardMcpService dashboardMcpService,
+            AppConfig appConfig) {
+        return new CliRunner(cliRuntime, sessionRepository, dashboardMcpService, appConfig);
     }
 }
