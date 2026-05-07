@@ -1281,6 +1281,42 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldApplySudoRewriteBeforeStartingManagedBackgroundProcessLikeHermes()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("testpass");
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        Path fakeSudo = createFakeSudoCommand(workdir);
+        fakeSudo.toFile().setExecutable(true);
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+        String command =
+                isWindows()
+                        ? "set \"PATH=" + workdir + ";%PATH%\" && sudo cmd /c exit 0"
+                        : "PATH=" + workdir + ":$PATH sudo sh -c 'exit 0'";
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                command,
+                                Boolean.TRUE,
+                                Integer.valueOf(5),
+                                workdir,
+                                Boolean.FALSE));
+
+        String sessionId = result.get("session_id").getString();
+        ProcessRegistry.ManagedProcess managed = registry.get(sessionId);
+
+        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("command").getString())
+                .contains("sudo -S -p ''")
+                .doesNotContain("testpass");
+        assertThat(managed.getCommand()).contains("sudo -S -p ''").doesNotContain("testpass");
+        assertThat(registry.waitFor(sessionId, 5000L)).isTrue();
+        assertThat(managed.getExitCode()).isEqualTo(0);
+    }
+
+    @Test
     void shouldTimeoutSudoRewriteBranchWithoutWaitingForOutputEof() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
@@ -1411,6 +1447,46 @@ public class SolonClawShellSkillTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private Path createFakeSudoCommand(String workdir) throws Exception {
+        Path fakeSudo = Paths.get(workdir).resolve(isWindows() ? "sudo.bat" : "sudo");
+        if (isWindows()) {
+            Files.write(
+                    fakeSudo,
+                    Arrays.asList(
+                            "@echo off",
+                            "set /p _sudo_password=",
+                            "if not \"%_sudo_password%\"==\"testpass\" exit /b 7",
+                            ":parse",
+                            "if \"%~1\"==\"-S\" shift & goto parse",
+                            "if \"%~1\"==\"-p\" shift & shift & goto parse",
+                            "if \"%~1\"==\"--\" shift & goto run",
+                            "goto run",
+                            ":run",
+                            "%1 %2 %3 %4 %5 %6 %7 %8 %9"));
+        } else {
+            Files.write(
+                    fakeSudo,
+                    Arrays.asList(
+                            "#!/bin/sh",
+                            "read -r _sudo_password",
+                            "if [ \"$_sudo_password\" != \"testpass\" ]; then exit 7; fi",
+                            "while [ \"$#\" -gt 0 ]; do",
+                            "  case \"$1\" in",
+                            "    -S) shift ;;",
+                            "    -p) shift 2 ;;",
+                            "    --) shift; break ;;",
+                            "    *) break ;;",
+                            "  esac",
+                            "done",
+                            "exec \"$@\""));
+        }
+        return fakeSudo;
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
 
     private String watchReadyCommand() {

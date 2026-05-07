@@ -338,12 +338,17 @@ public class SolonClawShellSkill extends ShellSkill {
                             + "these two flags produce duplicate notifications when combined";
             normalizedWatchPatterns = Collections.emptyList();
         }
+        SudoTransform transform = transformSudoCommand(command);
+        String executableCommand = transform.isChanged() ? transform.getCommand() : command;
         ProcessRegistry.ManagedProcess managed =
                 processRegistry.start(
-                        command,
+                        executableCommand,
                         dir,
                         Boolean.TRUE.equals(notifyOnComplete),
                         normalizedWatchPatterns);
+        if (transform.getStdin() != null) {
+            managed.writeStdin(transform.getStdin());
+        }
         ToolResultEnvelope envelope = ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
