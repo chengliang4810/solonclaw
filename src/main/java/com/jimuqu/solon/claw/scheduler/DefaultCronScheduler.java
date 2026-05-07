@@ -542,6 +542,8 @@ public class DefaultCronScheduler {
                     nextStatus);
             if (error == null) {
                 deliveryError = deliverBestEffort(job, reply);
+            } else if (reply != null && reply.isError()) {
+                deliveryError = deliverBestEffort(job, GatewayReply.error(cronFailureMessage(job, error)));
             }
             recordRun(job, now, runStatus, error, output, deliveryError, completed, triggerType);
         } catch (Exception e) {
@@ -1333,6 +1335,14 @@ public class DefaultCronScheduler {
                 + message
                 + "\n\nTime: "
                 + time;
+    }
+
+    private String cronFailureMessage(CronJobRecord job, String error) {
+        String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
+        return "⚠ Cron job '"
+                + taskName
+                + "' failed:\n"
+                + StrUtil.blankToDefault(error, "unknown error");
     }
 
     private void recordRun(

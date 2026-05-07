@@ -814,7 +814,10 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastError()).contains("model abort");
         assertThat(updated.getLastOutput()).contains("model abort");
         assertThat(updated.getLastDeliveryError()).isNull();
-        assertThat(env.memoryChannelAdapter.getRequests()).isEmpty();
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText())
+                .contains("Cronjob Response: job-agent-error")
+                .contains("Cron job 'job-agent-error' failed:")
+                .contains("model abort");
         assertThat(env.cronJobRepository.listRuns("job-agent-error", 5)).hasSize(1);
         assertThat(env.cronJobRepository.listRuns("job-agent-error", 5).get(0).getStatus())
                 .isEqualTo("error");
