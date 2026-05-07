@@ -143,6 +143,36 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc)",
                             "reads known secrets file"),
                     new ThreatPattern(
+                            "powershell_read_secrets_file",
+                            "critical",
+                            "exfiltration",
+                            "\\b(Get-Content|gc|type)\\b[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json)",
+                            "reads known secrets file through PowerShell or cmd"),
+                    new ThreatPattern(
+                            "python_open_secrets_file",
+                            "critical",
+                            "exfiltration",
+                            "\\b(open|Path\\s*\\([^\\)]*\\)\\.read_text|Path\\s*\\([^\\)]*\\)\\.read_bytes)\\s*\\([^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json)",
+                            "reads known secrets file through Python"),
+                    new ThreatPattern(
+                            "node_read_secrets_file",
+                            "critical",
+                            "exfiltration",
+                            "\\b(fs\\.)?(readFileSync|readFile)\\s*\\([^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json)",
+                            "reads known secrets file through Node.js fs"),
+                    new ThreatPattern(
+                            "java_read_secrets_file",
+                            "critical",
+                            "exfiltration",
+                            "\\b(Files\\.(readString|readAllBytes|lines)|new\\s+FileInputStream)\\s*\\([^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json)",
+                            "reads known secrets file through Java file APIs"),
+                    new ThreatPattern(
+                            "secret_file_http_upload",
+                            "critical",
+                            "exfiltration",
+                            "\\b(requests|httpx|axios)\\.(post|put|patch)\\s*\\([^\\n]*(open\\s*\\(|readFileSync|Files\\.(readString|readAllBytes))[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc|token\\.json|auth\\.json)",
+                            "uploads a known secrets file through an HTTP client"),
+                    new ThreatPattern(
                             "dump_all_env",
                             "high",
                             "exfiltration",
