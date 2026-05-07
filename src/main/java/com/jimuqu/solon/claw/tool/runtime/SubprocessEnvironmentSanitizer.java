@@ -22,6 +22,9 @@ public final class SubprocessEnvironmentSanitizer {
             };
     private static final String[] SECRET_ENV_SUBSTRINGS =
             new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
+    private static final String SANE_POSIX_PATH =
+            "/opt/homebrew/bin:/opt/homebrew/sbin:"
+                    + "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     private static final Set<String> PROVIDER_ENV_BLOCKLIST = providerEnvBlocklist();
 
     private SubprocessEnvironmentSanitizer() {}
@@ -54,6 +57,10 @@ public final class SubprocessEnvironmentSanitizer {
             if (isSafeEnvName(name)) {
                 env.put(name, entry.getValue());
             }
+        }
+        String path = pathWithSaneFallback(env.get("PATH"), isWindows());
+        if (path != null) {
+            env.put("PATH", path);
         }
     }
 
@@ -104,6 +111,23 @@ public final class SubprocessEnvironmentSanitizer {
         return values;
     }
 
+    static String pathWithSaneFallback(String path, boolean windows) {
+        if (windows) {
+            return path;
+        }
+        String value = StrUtil.nullToEmpty(path);
+        if (value.length() == 0) {
+            return SANE_POSIX_PATH;
+        }
+        String[] parts = value.split(":");
+        for (String part : parts) {
+            if ("/usr/bin".equals(part)) {
+                return value;
+            }
+        }
+        return value + ":" + SANE_POSIX_PATH;
+    }
+
     private static String forcedName(String name) {
         String value = StrUtil.nullToEmpty(name);
         if (value.startsWith(FORCE_PREFIX) && value.length() > FORCE_PREFIX.length()) {
@@ -113,6 +137,10 @@ public final class SubprocessEnvironmentSanitizer {
             return value.substring(HERMES_FORCE_PREFIX.length());
         }
         return null;
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
     }
 
     private static Set<String> providerEnvBlocklist() {

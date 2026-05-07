@@ -195,4 +195,35 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
         assertThat(env).doesNotContainKeys("FIRECRAWL_API_KEY", "BROWSERBASE_PROJECT_ID");
     }
+
+    @Test
+    void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeHermes() {
+        String result =
+                SubprocessEnvironmentSanitizer.pathWithSaneFallback(
+                        "/some/custom/bin", false);
+
+        assertThat(result).startsWith("/some/custom/bin:");
+        assertThat(result).contains("/opt/homebrew/bin");
+        assertThat(result).contains("/opt/homebrew/sbin");
+        assertThat(result).contains("/usr/local/bin");
+        assertThat(result).contains("/usr/bin");
+    }
+
+    @Test
+    void shouldKeepExistingPosixPathWhenUsrBinIsPresentLikeHermes() {
+        String path = "/custom/bin:/usr/bin:/bin";
+
+        String result = SubprocessEnvironmentSanitizer.pathWithSaneFallback(path, false);
+
+        assertThat(result).isEqualTo(path);
+    }
+
+    @Test
+    void shouldNotAppendPosixFallbackOnWindows() {
+        String path = "C:\\Windows\\System32";
+
+        String result = SubprocessEnvironmentSanitizer.pathWithSaneFallback(path, true);
+
+        assertThat(result).isEqualTo(path);
+    }
 }
