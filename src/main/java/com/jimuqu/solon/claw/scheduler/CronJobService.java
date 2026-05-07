@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -92,7 +93,9 @@ public class CronJobService {
         record.setCronExpr(schedule);
         record.setPrompt(prompt);
         record.setSourceKey(StrUtil.blankToDefault(sourceKey, DEFAULT_SOURCE));
-        record.setDeliverPlatform(deliverValue(body.get("deliver"), defaultDeliver(body)));
+        String deliver = deliverValue(body.get("deliver"), defaultDeliver(body));
+        validateDeliverTargets(deliver);
+        record.setDeliverPlatform(deliver);
         record.setDeliverChatId(string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
         record.setDeliverThreadId(string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
         record.setOriginJson(json(body.get("origin")));
@@ -135,7 +138,9 @@ public class CronJobService {
             }
         }
         if (body.containsKey("deliver")) {
-            record.setDeliverPlatform(deliverValue(body.get("deliver"), "local"));
+            String deliver = deliverValue(body.get("deliver"), "local");
+            validateDeliverTargets(deliver);
+            record.setDeliverPlatform(deliver);
         }
         if (body.containsKey("deliver_chat_id") || body.containsKey("deliverChatId")) {
             record.setDeliverChatId(string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
@@ -626,6 +631,29 @@ public class CronJobService {
     private String deliverValue(Object value, String defaultValue) {
         List<String> targets = stringList(value);
         return targets.isEmpty() ? defaultValue : join(targets);
+    }
+
+    private void validateDeliverTargets(String deliver) {
+        if (StrUtil.isBlank(deliver)) {
+            return;
+        }
+        for (String rawTarget : deliver.split(",")) {
+            String target = StrUtil.trim(rawTarget);
+            if (StrUtil.isBlank(target)) {
+                continue;
+            }
+            if ("local".equalsIgnoreCase(target) || "origin".equalsIgnoreCase(target)) {
+                continue;
+            }
+            String platformName = target;
+            int colon = target.indexOf(':');
+            if (colon >= 0) {
+                platformName = target.substring(0, colon);
+            }
+            if (PlatformType.fromName(platformName) == null) {
+                throw new IllegalStateException("unknown cron delivery platform: " + platformName);
+            }
+        }
     }
 
     private String join(List<String> values) {

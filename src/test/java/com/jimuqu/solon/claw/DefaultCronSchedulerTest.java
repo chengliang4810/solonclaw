@@ -137,6 +137,48 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldValidateCronDeliveryTargetsOnCreateAndUpdate() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        Map<String, Object> invalidCreate = new LinkedHashMap<String, Object>();
+        invalidCreate.put("name", "unknown-deliver");
+        invalidCreate.put("schedule", "30m");
+        invalidCreate.put("prompt", "check");
+        invalidCreate.put("deliver", "telegram");
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.create("MEMORY:cron:user", invalidCreate);
+                            }
+                        })
+                .hasMessageContaining("unknown cron delivery platform: telegram");
+        assertThat(env.cronJobRepository.listAll()).isEmpty();
+
+        Map<String, Object> validCreate = new LinkedHashMap<String, Object>();
+        validCreate.put("name", "explicit-deliver");
+        validCreate.put("schedule", "30m");
+        validCreate.put("prompt", "check");
+        validCreate.put("deliver", "origin,FEISHU:chat-1:thread-2");
+        CronJobRecord job = service.create("MEMORY:cron:user", validCreate);
+        assertThat(job.getDeliverPlatform()).isEqualTo("origin,FEISHU:chat-1:thread-2");
+
+        Map<String, Object> invalidUpdate = new LinkedHashMap<String, Object>();
+        invalidUpdate.put("deliver", "discord");
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.update(job.getJobId(), invalidUpdate);
+                            }
+                        })
+                .hasMessageContaining("unknown cron delivery platform: discord");
+        assertThat(env.cronJobRepository.findById(job.getJobId()).getDeliverPlatform())
+                .isEqualTo("origin,FEISHU:chat-1:thread-2");
+    }
+
+    @Test
     void shouldDeliverNoAgentScriptFailureAsCronWatchdogAlert() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
