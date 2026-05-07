@@ -31,8 +31,10 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1300,12 +1302,24 @@ public class DefaultCronScheduler {
             return null;
         }
         try {
-            deliver(job, GatewayReply.error("定时任务执行失败：" + StrUtil.blankToDefault(error, "unknown error")));
+            deliver(job, GatewayReply.error(noAgentScriptFailureMessage(job, error)));
             return null;
         } catch (Exception e) {
             markDeliveryErrorBestEffort(job.getJobId(), e.getMessage());
             return e.getMessage();
         }
+    }
+
+    private String noAgentScriptFailureMessage(CronJobRecord job, String error) {
+        String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
+        String message = StrUtil.blankToDefault(error, "unknown error");
+        String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        return "⚠ Cron watchdog '"
+                + taskName
+                + "' script failed\n\n"
+                + message
+                + "\n\nTime: "
+                + time;
     }
 
     private void recordRun(

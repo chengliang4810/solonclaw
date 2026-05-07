@@ -130,6 +130,54 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldDeliverNoAgentScriptFailureAsCronWatchdogAlert() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "broken-watchdog.py");
+        FileUtil.writeString(
+                "import sys\nprint('partial output')\nprint('oops', file=sys.stderr)\nsys.exit(3)\n",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "broken-watchdog");
+        body.put("schedule", "30m");
+        body.put("script", "broken-watchdog.py");
+        body.put("no_agent", Boolean.TRUE);
+        body.put("deliver", "origin");
+        CronJobRecord job = service.create("MEMORY:watchdog-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastStatus()).isEqualTo("error");
+        assertThat(updated.getLastError())
+                .contains("Cron script exited 3")
+                .contains("partial output")
+                .contains("oops");
+        assertThat(updated.getLastDeliveryError()).isNull();
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText())
+                .contains("Cron watchdog 'broken-watchdog' script failed")
+                .contains("Cron script exited 3")
+                .contains("partial output")
+                .contains("oops")
+                .contains("Time:");
+    }
+
+    @Test
     void shouldInterruptIdleScheduledAgentRun() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getScheduler().setInactivityTimeoutSeconds(1);
