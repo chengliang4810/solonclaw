@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -305,6 +307,30 @@ public class McpRuntimeServiceTest {
         assertThat(factory.createCount).isEqualTo(2);
         assertThat(factory.first.closed).isTrue();
         assertThat(factory.second.remoteCallCount).isEqualTo(1);
+    }
+
+    @Test
+    void shouldReportConfiguredMcpToolTimeoutAndCancelCall() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        Map<String, Object> auth = new LinkedHashMap<String, Object>();
+        auth.put("tool_timeout_ms", Integer.valueOf(200));
+        saveMcpServer(env.appConfig, env.sqliteDatabase, auth);
+        BlockingMcpFactory factory = new BlockingMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool slowTool = toolByName(provider, "mcp_local-docs_slow_tool");
+
+        assertThatThrownBy(() -> slowTool.handle(Collections.<String, Object>emptyMap()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("MCP call timed out after")
+                .hasMessageContaining("configured timeout: 0.2s")
+                .hasMessageContaining("server: local-docs")
+                .hasMessageContaining("operation: slow_tool");
+        assertThat(factory.provider.interrupted.await(2, TimeUnit.SECONDS)).isTrue();
+        mcpRuntimeService.shutdown();
     }
 
     private void saveMcpServer(AppConfig appConfig, SqliteDatabase database) throws Exception {
@@ -714,5 +740,46 @@ public class McpRuntimeServiceTest {
         public void close() {
             closed = true;
         }
+    }
+
+    private static class BlockingMcpFactory implements McpClientProviderFactory {
+        private BlockingMcpClientProvider provider;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            provider = new BlockingMcpClientProvider();
+            return provider;
+        }
+    }
+
+    private static class BlockingMcpClientProvider extends McpClientProvider {
+        private final CountDownLatch interrupted = new CountDownLatch(1);
+
+        private BlockingMcpClientProvider() {
+            super(FakeMcpClientProvider.properties());
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            FunctionToolDesc slow = new FunctionToolDesc("slow_tool");
+            slow.title("Slow Tool");
+            slow.description("Blocks until interrupted");
+            slow.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            slow.doHandle(
+                    args -> {
+                        try {
+                            TimeUnit.SECONDS.sleep(30);
+                        } catch (InterruptedException e) {
+                            interrupted.countDown();
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException("interrupted", e);
+                        }
+                        return Collections.singletonMap("ok", Boolean.TRUE);
+                    });
+            return Collections.<FunctionTool>singletonList(slow);
+        }
+
+        @Override
+        public void close() {}
     }
 }

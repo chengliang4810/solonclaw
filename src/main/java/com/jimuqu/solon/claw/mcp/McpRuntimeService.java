@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.mcp;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -20,8 +21,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.content.ResourceBlock;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -52,6 +58,8 @@ public class McpRuntimeService implements Closeable {
     private final SecurityPolicyService securityPolicyService;
     private final ConcurrentMap<String, McpClientProvider> providers =
             new ConcurrentHashMap<String, McpClientProvider>();
+    private final ExecutorService toolCallExecutor =
+            BoundedExecutorFactory.fixed("mcp-tool-call", 4, 64);
 
     public McpRuntimeService(AppConfig appConfig, SqliteDatabase database) {
         this(appConfig, database, null, null);
@@ -156,6 +164,7 @@ public class McpRuntimeService implements Closeable {
             }
         }
         providers.clear();
+        toolCallExecutor.shutdownNow();
     }
 
     private McpClientProvider providerFor(McpServerConfig config) {
@@ -1223,7 +1232,7 @@ public class McpRuntimeService implements Closeable {
 
         private <T> T callWithRecovery(String operation, RecoverableCall<T> call) {
             try {
-                return call.call(provider);
+                return callWithTimeout(operation, call, provider);
             } catch (Throwable first) {
                 if (isAuthError(first)) {
                     @SuppressWarnings("unchecked")
@@ -1235,7 +1244,7 @@ public class McpRuntimeService implements Closeable {
                 }
                 McpClientProvider reconnected = reconnectProvider();
                 try {
-                    return call.call(reconnected);
+                    return callWithTimeout(operation, call, reconnected);
                 } catch (Throwable second) {
                     if (isAuthError(second)) {
                         @SuppressWarnings("unchecked")
@@ -1246,6 +1255,65 @@ public class McpRuntimeService implements Closeable {
                 }
             }
             throw new IllegalStateException("unreachable");
+        }
+
+        private <T> T callWithTimeout(
+                final String operation,
+                final RecoverableCall<T> call,
+                final McpClientProvider activeProvider)
+                throws Throwable {
+            final long timeoutMillis = Math.max(1L, config.getToolTimeoutMillis());
+            final long startNanos = System.nanoTime();
+            Future<T> future =
+                    toolCallExecutor.submit(
+                            new Callable<T>() {
+                                @Override
+                                public T call() throws Exception {
+                                    try {
+                                        return call.call(activeProvider);
+                                    } catch (RuntimeException e) {
+                                        throw e;
+                                    } catch (Error e) {
+                                        throw e;
+                                    } catch (Exception e) {
+                                        throw e;
+                                    } catch (Throwable e) {
+                                        throw new McpToolCallException(e);
+                                    }
+                                }
+                            });
+            try {
+                return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                long elapsedMillis =
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                throw new IllegalStateException(
+                        "MCP call timed out after "
+                                + formatSeconds(elapsedMillis)
+                                + "s (configured timeout: "
+                                + formatSeconds(timeoutMillis)
+                                + "s, server: "
+                                + config.getServerId()
+                                + ", operation: "
+                                + operation
+                                + ")");
+            } catch (java.util.concurrent.ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof McpToolCallException
+                        && cause.getCause() != null) {
+                    throw cause.getCause();
+                }
+                throw cause == null ? e : cause;
+            } catch (InterruptedException e) {
+                future.cancel(true);
+                Thread.currentThread().interrupt();
+                throw e;
+            }
+        }
+
+        private String formatSeconds(long millis) {
+            return String.format(Locale.ROOT, "%.1f", Double.valueOf(millis / 1000.0D));
         }
 
         private McpClientProvider reconnectProvider() {
@@ -1527,5 +1595,11 @@ public class McpRuntimeService implements Closeable {
 
     private interface RecoverableCall<T> {
         T call(McpClientProvider provider) throws Throwable;
+    }
+
+    private static class McpToolCallException extends Exception {
+        private McpToolCallException(Throwable cause) {
+            super(cause);
+        }
     }
 }
