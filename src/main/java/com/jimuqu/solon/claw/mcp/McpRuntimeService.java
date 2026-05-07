@@ -1356,10 +1356,17 @@ public class McpRuntimeService implements Closeable {
                 String type = current.getClass().getName().toLowerCase(Locale.ROOT);
                 if (message.contains("session terminated")
                         || message.contains("session expired")
+                        || message.contains("session not found")
+                        || message.contains("unknown session")
+                        || message.contains("closed resource")
+                        || message.contains("closedresourceerror")
                         || message.contains("transport")
+                        || message.contains("transport is closed")
                         || message.contains("connection reset")
                         || message.contains("connection closed")
                         || message.contains("broken pipe")
+                        || message.contains("end of file")
+                        || message.contains("eof")
                         || message.contains("stream closed")
                         || type.contains("transport")) {
                     return true;

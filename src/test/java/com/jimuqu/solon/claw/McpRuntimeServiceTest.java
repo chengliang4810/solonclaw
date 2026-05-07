@@ -310,6 +310,34 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldReconnectAndRetryMcpToolAfterStalePipeFailures() throws Throwable {
+        for (String marker :
+                Arrays.asList(
+                        "ClosedResourceError",
+                        "transport is closed",
+                        "end of file",
+                        "unknown session")) {
+            TestEnvironment env = TestEnvironment.withFakeLlm();
+            env.appConfig.getMcp().setEnabled(true);
+            saveMcpServer(env.appConfig, env.sqliteDatabase);
+            RecoveringMcpFactory factory = new RecoveringMcpFactory("transport:" + marker);
+            McpRuntimeService mcpRuntimeService =
+                    new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+            ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+            FunctionTool docsFetch = toolByName(provider, "mcp_local-docs_docs_fetch");
+
+            Object raw = docsFetch.handle(Collections.<String, Object>emptyMap());
+
+            assertThat(String.valueOf(raw)).contains("recovered");
+            assertThat(factory.createCount).isEqualTo(2);
+            assertThat(factory.first.closed).as(marker).isTrue();
+            assertThat(factory.second.remoteCallCount).as(marker).isEqualTo(1);
+            mcpRuntimeService.shutdown();
+        }
+    }
+
+    @Test
     void shouldReportConfiguredMcpToolTimeoutAndCancelCall() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
@@ -730,6 +758,11 @@ public class McpRuntimeServiceTest {
                         }
                         if ("transport".equals(mode) && generation == 1) {
                             throw new IllegalStateException("Session terminated");
+                        }
+                        if (mode != null
+                                && mode.startsWith("transport:")
+                                && generation == 1) {
+                            throw new IllegalStateException(mode.substring("transport:".length()));
                         }
                         return Collections.singletonMap("content", "recovered");
                     });
