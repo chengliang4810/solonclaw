@@ -2959,6 +2959,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockDangerousCommandWhenSmartApprovalDeniesLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        null);
+        service.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.deny("destructive cleanup");
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED by smart approval")
+                .contains("recursive delete")
+                .contains("destructive cleanup");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isFalse();
+    }
+
+    @Test
     void shouldBypassNonHardlineDangerousCommandWhenHermesYoloModeIsEnabled()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

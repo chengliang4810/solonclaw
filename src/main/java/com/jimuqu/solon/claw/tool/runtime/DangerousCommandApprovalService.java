@@ -1207,6 +1207,12 @@ public class DangerousCommandApprovalService {
             persistTraceSnapshot(trace);
             return null;
         }
+        if (smartDecision != null && smartDecision.isDenied()) {
+            trace.setFinalAnswer(buildSmartDeniedMessage(detection, smartDecision));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
 
         Map<String, Object> pendingMap = createPendingMap(approvalToolName, detection, code);
         storePendingMap(trace.getSession(), pendingMap);
@@ -1233,6 +1239,22 @@ public class DangerousCommandApprovalService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private String buildSmartDeniedMessage(
+            DetectionResult detection, SmartApprovalDecision decision) {
+        String description =
+                detection == null
+                        ? "dangerous command"
+                        : StrUtil.blankToDefault(detection.getDescription(), detection.getPatternKey());
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("BLOCKED by smart approval: ")
+                .append(description)
+                .append(". The command was assessed as genuinely dangerous. Do NOT retry.");
+        if (decision != null && StrUtil.isNotBlank(decision.getReason())) {
+            buffer.append("\n原因：").append(decision.getReason());
+        }
+        return buffer.toString();
     }
 
     private void addOnceApproval(FlowContext context, String approvalKey) {

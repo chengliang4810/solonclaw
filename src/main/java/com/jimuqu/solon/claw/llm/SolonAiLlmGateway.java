@@ -1273,10 +1273,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                 ChatModel chatModel = buildChatModel(resolved);
                 String prompt =
                         "You are the smart approval judge for a local AI agent. "
-                                + "Decide whether this flagged command is low risk enough to run without asking the user. "
-                                + "Reply with only compact JSON: {\"decision\":\"approve\"|\"escalate\",\"reason\":\"...\"}. "
+                                + "Decide whether this flagged command is low risk enough to run without asking the user, genuinely dangerous, or uncertain. "
+                                + "Reply with only compact JSON: {\"decision\":\"approve\"|\"deny\"|\"escalate\",\"reason\":\"...\"}. "
                                 + "Approve only read-only, diagnostic, or clearly reversible low-risk actions. "
-                                + "Escalate destructive, credential, network install, privilege, persistence, service, or ambiguous actions.\n\n"
+                                + "Deny genuinely destructive actions. Escalate credential, network install, privilege, persistence, service, or ambiguous actions.\n\n"
                                 + "tool: "
                                 + StrUtil.nullToEmpty(toolName)
                                 + "\nreason: "
@@ -1316,6 +1316,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 if ("approve".equals(decision)) {
                     return SmartApprovalDecision.approve(reason);
                 }
+                if ("deny".equals(decision)) {
+                    return SmartApprovalDecision.deny(reason);
+                }
                 return SmartApprovalDecision.escalate(reason);
             }
         } catch (Exception ignored) {
@@ -1323,6 +1326,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         String lower = text.toLowerCase(Locale.ROOT);
         if (lower.contains("\"approve\"") || lower.startsWith("approve")) {
             return SmartApprovalDecision.approve(text);
+        }
+        if (lower.contains("\"deny\"") || lower.startsWith("deny")) {
+            return SmartApprovalDecision.deny(text);
         }
         return SmartApprovalDecision.escalate(text);
     }
