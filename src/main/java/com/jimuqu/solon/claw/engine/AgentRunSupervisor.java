@@ -588,8 +588,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             eventSink,
                                             runContext);
                             checkCancellation(session.getSourceKey());
-                            if (recovered != null) {
+                            if (hasUsableRecoveryReply(recovered)) {
                                 mergeUsage(result, recovered);
+                                applyRecoveredTranscript(result, recovered);
                                 result = recovered;
                                 currentReply = extractText(recovered.getAssistantMessage());
                             }
@@ -613,6 +614,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             checkCancellation(session.getSourceKey());
                             if (hasUsableRecoveryReply(recovered)) {
                                 mergeUsage(result, recovered);
+                                applyRecoveredTranscript(result, recovered);
                                 result = recovered;
                                 currentReply = extractText(recovered.getAssistantMessage());
                             } else {
@@ -969,6 +971,35 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private boolean hasUsableRecoveryReply(LlmResult recovered) {
         String text = recovered == null ? "" : extractText(recovered.getAssistantMessage());
         return StrUtil.isNotBlank(text) && !isMaxStepsReply(text);
+    }
+
+    private void applyRecoveredTranscript(LlmResult base, LlmResult recovered) {
+        if (base == null || recovered == null || recovered.getAssistantMessage() == null) {
+            return;
+        }
+        try {
+            List<ChatMessage> messages = MessageSupport.loadMessages(base.getNdjson());
+            dropTransientAssistantTail(messages);
+            messages.add(ChatMessage.ofAssistant(extractText(recovered.getAssistantMessage())));
+            recovered.setNdjson(MessageSupport.toNdjson(messages));
+        } catch (Exception e) {
+            log.warn("Failed to sanitize recovery transcript; using model transcript", e);
+        }
+    }
+
+    private void dropTransientAssistantTail(List<ChatMessage> messages) {
+        while (!messages.isEmpty()) {
+            ChatMessage message = messages.get(messages.size() - 1);
+            if (message.getRole() != ChatRole.ASSISTANT) {
+                return;
+            }
+            String content = StrUtil.nullToEmpty(message.getContent());
+            if (StrUtil.isBlank(content) || isMaxStepsReply(content)) {
+                messages.remove(messages.size() - 1);
+                continue;
+            }
+            return;
+        }
     }
 
     private boolean isMaxStepsReply(String replyText) {
