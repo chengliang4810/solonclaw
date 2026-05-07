@@ -59,12 +59,23 @@ public class SqliteAgentSessionTest {
         stale = env.sessionRepository.findById(stale.getSessionId());
         stale.setUpdatedAt(System.currentTimeMillis() - 120_000L);
         env.sessionRepository.save(stale);
+
+        SessionRecord approval =
+                env.sessionRepository.bindNewSession("MEMORY:approval-pending-room:user");
+        SqliteAgentSession approvalAgentSession =
+                new SqliteAgentSession(approval, env.sessionRepository);
+        approvalAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("等待人工审批的任务")));
+        approvalAgentSession.pending(true, "need-review");
+        approvalAgentSession.updateSnapshot();
+
         env.appConfig.getTask().setStaleAfterMinutes(1);
         fresh = env.sessionRepository.findById(fresh.getSessionId());
+        approval = env.sessionRepository.findById(approval.getSessionId());
 
         assertThat(env.sessionRepository.listPendingAgentSessions(System.currentTimeMillis() - 60_000L, 10))
                 .extracting(SessionRecord::getSessionId)
                 .contains(fresh.getSessionId())
+                .contains(approval.getSessionId())
                 .doesNotContain(stale.getSessionId());
 
         PendingSessionRecoveryService recoveryService =
@@ -79,6 +90,10 @@ public class SqliteAgentSessionTest {
 
         SessionRecord stillStale = env.sessionRepository.findById(stale.getSessionId());
         assertThat(new SqliteAgentSession(stillStale).isPending()).isTrue();
+
+        SessionRecord stillApproval = env.sessionRepository.findById(approval.getSessionId());
+        assertThat(new SqliteAgentSession(stillApproval).isPending()).isTrue();
+        assertThat(stillApproval.getNdjson()).doesNotContain("echo:resume");
     }
 
     @Test
