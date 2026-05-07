@@ -860,7 +860,7 @@ public class DefaultCronScheduler {
             if (origin != null) {
                 return origin;
             }
-            return homeTarget(sourcePlatform(job));
+            return originFallbackHomeTarget(job);
         }
 
         int firstColon = target.indexOf(':');
@@ -972,6 +972,28 @@ public class DefaultCronScheduler {
             return null;
         }
         return new CronDeliveryTarget(platform, home.getChatId(), null);
+    }
+
+    private CronDeliveryTarget originFallbackHomeTarget(CronJobRecord job) {
+        PlatformType source = sourcePlatform(job);
+        CronDeliveryTarget target = homeTarget(source);
+        if (target != null) {
+            return target;
+        }
+        for (PlatformType platform : PlatformType.values()) {
+            if (platform == source || platform == PlatformType.MEMORY) {
+                continue;
+            }
+            target = homeTarget(platform);
+            if (target != null) {
+                log.info(
+                        "Cron job has deliver=origin but no origin/source chat; falling back to {} home channel: jobId={}",
+                        platform,
+                        job.getJobId());
+                return target;
+            }
+        }
+        return null;
     }
 
     private PlatformType sourcePlatform(CronJobRecord job) {

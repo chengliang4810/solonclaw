@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -409,6 +410,47 @@ public class DefaultCronSchedulerTest {
         assertThat(request.getChatId()).isEqualTo("origin-room");
         assertThat(request.getThreadId()).isEqualTo("thread-1");
         assertThat(request.getText()).contains("echo:scheduled prompt");
+    }
+
+    @Test
+    void shouldFallbackOriginDeliveryToConfiguredHomeChannelWhenSourceMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        HomeChannelRecord feishuHome = new HomeChannelRecord();
+        feishuHome.setPlatform(PlatformType.FEISHU);
+        feishuHome.setChatId("feishu-home-room");
+        feishuHome.setChatName("Feishu Home");
+        feishuHome.setUpdatedAt(System.currentTimeMillis());
+        env.gatewayPolicyRepository.saveHomeChannel(feishuHome);
+
+        CronJobRecord job = job("job-origin-home-fallback", "MEMORY::cron");
+        job.setDeliverPlatform("origin");
+        job.setNoAgent(true);
+        job.setWrapResponse(false);
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "home-fallback.py");
+        FileUtil.writeString("print('home fallback ok')", script, StandardCharsets.UTF_8);
+        job.setScript(script.getName());
+        env.cronJobRepository.save(job);
+
+        RecordingDeliveryService deliveryService = new RecordingDeliveryService();
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        assertThat(deliveryService.requests).hasSize(1);
+        DeliveryRequest request = deliveryService.requests.get(0);
+        assertThat(request.getPlatform()).isEqualTo(PlatformType.FEISHU);
+        assertThat(request.getChatId()).isEqualTo("feishu-home-room");
+        assertThat(request.getText()).contains("home fallback ok");
+        assertThat(env.cronJobRepository.findById(job.getJobId()).getLastDeliveryError()).isNull();
     }
 
     @Test
@@ -2246,6 +2288,20 @@ public class DefaultCronSchedulerTest {
         @Override
         public void deliver(DeliveryRequest request) throws Exception {
             throw new IllegalStateException(message);
+        }
+
+        @Override
+        public List<com.jimuqu.solon.claw.core.model.ChannelStatus> statuses() {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    private static class RecordingDeliveryService implements DeliveryService {
+        private final List<DeliveryRequest> requests = new java.util.ArrayList<DeliveryRequest>();
+
+        @Override
+        public void deliver(DeliveryRequest request) {
+            requests.add(request);
         }
 
         @Override
