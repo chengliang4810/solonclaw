@@ -339,6 +339,31 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldCoerceNumericMcpToolArgumentsBeforeRemoteCall() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        NumericMcpFactory factory = new NumericMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool tool = toolByName(provider, "mcp_local-docs_numeric_tool");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("limit", "999");
+        args.put("ratio", "0.25");
+        args.put("label", "keep");
+
+        Object raw = tool.handle(args);
+
+        assertThat(String.valueOf(raw)).contains("ok");
+        assertThat(factory.provider.lastArgs.get("limit")).isEqualTo(Integer.valueOf(200));
+        assertThat(factory.provider.lastArgs.get("ratio")).isEqualTo(Double.valueOf(0.25D));
+        assertThat(factory.provider.lastArgs.get("label")).isEqualTo("keep");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
     void shouldReportConfiguredMcpToolTimeoutAndCancelCall() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
@@ -807,6 +832,42 @@ public class McpRuntimeServiceTest {
         public void close() {
             closed = true;
         }
+    }
+
+    private static class NumericMcpFactory implements McpClientProviderFactory {
+        private NumericMcpClientProvider provider;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            provider = new NumericMcpClientProvider();
+            return provider;
+        }
+    }
+
+    private static class NumericMcpClientProvider extends McpClientProvider {
+        private Map<String, Object> lastArgs = Collections.emptyMap();
+
+        private NumericMcpClientProvider() {
+            super(FakeMcpClientProvider.properties());
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            FunctionToolDesc tool = new FunctionToolDesc("numeric_tool");
+            tool.title("Numeric Tool");
+            tool.description("Checks numeric argument coercion.");
+            tool.inputSchema(
+                    "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":200},\"ratio\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1},\"label\":{\"type\":\"string\"}}}");
+            tool.doHandle(
+                    args -> {
+                        lastArgs = new LinkedHashMap<String, Object>(args);
+                        return Collections.singletonMap("ok", Boolean.TRUE);
+                    });
+            return Collections.<FunctionTool>singletonList(tool);
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class BlankMcpError extends RuntimeException {

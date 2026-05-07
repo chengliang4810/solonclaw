@@ -1004,8 +1004,10 @@ public class McpRuntimeService implements Closeable {
                 desc.metaPut("mcp_tool_name", remote.name());
                 desc.doHandle(
                         args -> {
-                            assertSafeRemoteTool(remote.name(), args);
-                            return callRemoteToolWithRecovery(remote.name(), args);
+                            Map<String, Object> normalizedArgs =
+                                    coerceNumericArgs(args, remote.inputSchema());
+                            assertSafeRemoteTool(remote.name(), normalizedArgs);
+                            return callRemoteToolWithRecovery(remote.name(), normalizedArgs);
                         });
                 result.add(desc);
             }
@@ -1235,6 +1237,106 @@ public class McpRuntimeService implements Closeable {
                 }
             }
             return null;
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> coerceNumericArgs(Map<String, Object> args, String inputSchema) {
+            Map<String, Object> result =
+                    args == null
+                            ? new LinkedHashMap<String, Object>()
+                            : new LinkedHashMap<String, Object>(args);
+            if (result.isEmpty() || StrUtil.isBlank(inputSchema)) {
+                return result;
+            }
+            Object parsed = parse(inputSchema);
+            if (!(parsed instanceof Map)) {
+                return result;
+            }
+            Object properties = ((Map<?, ?>) parsed).get("properties");
+            if (!(properties instanceof Map)) {
+                return result;
+            }
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) properties).entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                if (StrUtil.isBlank(key) || !result.containsKey(key)) {
+                    continue;
+                }
+                if (!(entry.getValue() instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> property = (Map<String, Object>) entry.getValue();
+                Object current = result.get(key);
+                Object coerced = coerceNumber(current, property);
+                if (coerced != current) {
+                    result.put(key, coerced);
+                }
+            }
+            return result;
+        }
+
+        private Object coerceNumber(Object value, Map<String, Object> property) {
+            if (value == null || value instanceof Boolean || property == null) {
+                return value;
+            }
+            boolean integer = isNumericSchema(property, "integer");
+            boolean number = integer || isNumericSchema(property, "number");
+            if (!number) {
+                return value;
+            }
+            Double parsed = parseDouble(value);
+            if (parsed == null) {
+                return value;
+            }
+            double bounded = clamp(parsed.doubleValue(), property);
+            if (integer) {
+                long rounded = (long) bounded;
+                if (rounded <= Integer.MAX_VALUE && rounded >= Integer.MIN_VALUE) {
+                    return Integer.valueOf((int) rounded);
+                }
+                return Long.valueOf(rounded);
+            }
+            return Double.valueOf(bounded);
+        }
+
+        private boolean isNumericSchema(Map<String, Object> property, String expectedType) {
+            Object type = property.get("type");
+            if (type instanceof Iterable) {
+                for (Object item : (Iterable<?>) type) {
+                    if (expectedType.equals(String.valueOf(item))) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return expectedType.equals(String.valueOf(type));
+        }
+
+        private Double parseDouble(Object value) {
+            if (value instanceof Number) {
+                return Double.valueOf(((Number) value).doubleValue());
+            }
+            String text = String.valueOf(value).trim();
+            if (StrUtil.isBlank(text)) {
+                return null;
+            }
+            try {
+                return Double.valueOf(Double.parseDouble(text));
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
+        private double clamp(double value, Map<String, Object> property) {
+            Double minimum = parseDouble(property.get("minimum"));
+            Double maximum = parseDouble(property.get("maximum"));
+            double result = value;
+            if (minimum != null) {
+                result = Math.max(minimum.doubleValue(), result);
+            }
+            if (maximum != null) {
+                result = Math.min(maximum.doubleValue(), result);
+            }
+            return result;
         }
 
         private <T> T callWithRecovery(String operation, RecoverableCall<T> call) {

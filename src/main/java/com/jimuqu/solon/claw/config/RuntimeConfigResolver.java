@@ -533,6 +533,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.integrations.github.privateKeyPath",
                 "solonclaw.integrations.github.installationId",
                 "solonclaw.pdf.fontPath");
+        mappings.put("model.maxTokens", "solonclaw.llm.maxTokens");
+        mappings.put("model.max_tokens", "solonclaw.llm.maxTokens");
 
         addChannelMappings(
                 mappings,

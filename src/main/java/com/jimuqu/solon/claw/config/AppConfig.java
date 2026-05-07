@@ -165,12 +165,23 @@ public class AppConfig {
                                         RuntimePathConstants.DEFAULT_TEMPERATURE)));
         config.getLlm()
                 .setMaxTokens(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.llm.maxTokens",
-                                        RuntimePathConstants.DEFAULT_MAX_TOKENS)));
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.llm.maxTokens",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "model.maxTokens",
+                                                        readInt(
+                                                                props,
+                                                                overrides,
+                                                                "model.max_tokens",
+                                                                RuntimePathConstants
+                                                                        .DEFAULT_MAX_TOKENS)))),
+                                RuntimePathConstants.DEFAULT_MAX_TOKENS));
         config.getLlm()
                 .setContextWindowTokens(
                         resolveInt(

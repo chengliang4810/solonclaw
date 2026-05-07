@@ -275,11 +275,12 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/hermes/mcp",
-                        "{\"serverId\":\"local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"}]}",
+                        "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"}]}",
                         token);
         assertThat(createMcp.status).isEqualTo(200);
 
-        HttpResult checkMcp = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
+        HttpResult checkMcp =
+                request("POST", "/api/hermes/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcp.status).isEqualTo(200);
         assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
         assertThat(checkMcp.body).contains("\"tool_changed_notification\":true");
@@ -287,7 +288,8 @@ public class DashboardControllerHttpTest {
         assertThat(stringsAt(checkMcp.body, "removed_tools")).isEmpty();
         assertThat(checkMcp.body).contains("\"schema_sanitizer\":\"snack4\"");
 
-        HttpResult checkMcpAgain = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
+        HttpResult checkMcpAgain =
+                request("POST", "/api/hermes/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcpAgain.status).isEqualTo(200);
         assertThat(checkMcpAgain.body).contains("\"tool_changed_notification\":false");
 
@@ -295,11 +297,12 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/hermes/mcp",
-                        "{\"serverId\":\"local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
+                        "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
                         token);
         assertThat(updateMcp.status).isEqualTo(200);
 
-        HttpResult changedMcp = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
+        HttpResult changedMcp =
+                request("POST", "/api/hermes/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(changedMcp.status).isEqualTo(200);
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
