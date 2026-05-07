@@ -181,9 +181,13 @@ public class DashboardConfiguration {
     public WeixinQrSetupService weixinQrSetupService(
             AppConfig appConfig,
             DashboardConfigService dashboardConfigService,
-            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
         return new WeixinQrSetupService(
-                appConfig, dashboardConfigService, gatewayRuntimeRefreshService);
+                appConfig,
+                dashboardConfigService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService);
     }
 
     @Bean

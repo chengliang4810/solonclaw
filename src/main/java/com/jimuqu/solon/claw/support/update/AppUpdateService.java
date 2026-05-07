@@ -23,17 +23,30 @@ import org.noear.snack4.ONode;
 /** 版本检查与在线更新服务。 */
 public class AppUpdateService {
     private static final long CACHE_TTL_MILLIS = 60L * 60L * 1000L;
+    private static final int MAX_GITHUB_JSON_REDIRECTS = 5;
 
     private final AppConfig appConfig;
     private final AppVersionService versionService;
+    private final SecurityPolicyService securityPolicyService;
     private final ScheduledExecutorService exitExecutor =
             BoundedExecutorFactory.scheduled("self-update-exit", 1);
     private volatile String lastErrorMessage;
     private volatile long lastErrorAt;
 
     public AppUpdateService(AppConfig appConfig, AppVersionService versionService) {
+        this(appConfig, versionService, null);
+    }
+
+    public AppUpdateService(
+            AppConfig appConfig,
+            AppVersionService versionService,
+            SecurityPolicyService securityPolicyService) {
         this.appConfig = appConfig;
         this.versionService = versionService;
+        this.securityPolicyService =
+                securityPolicyService == null
+                        ? new SecurityPolicyService(appConfig)
+                        : securityPolicyService;
     }
 
     public VersionStatus getVersionStatus(boolean forceRefresh) {
@@ -358,14 +371,27 @@ public class AppUpdateService {
     }
 
     protected ApiFetchResult executeGithubJson(String url) {
+        return executeGithubJson(url, 0, url);
+    }
+
+    private ApiFetchResult executeGithubJson(String url, int redirectCount, String initialUrl) {
         ApiFetchResult result = new ApiFetchResult();
         result.setUrl(url);
         try {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            if (!verdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        "GitHub API URL blocked: "
+                                + SecretRedactor.maskUrl(url)
+                                + "，"
+                                + verdict.getMessage());
+            }
             HttpRequest request =
                     HttpRequest.get(url)
                             .header(Header.ACCEPT, "application/vnd.github+json")
                             .header(Header.USER_AGENT, "solon-claw")
-                            .timeout(5000);
+                            .timeout(5000)
+                            .setFollowRedirects(false);
             Proxy proxy = resolveProxy();
             if (proxy != null) {
                 request.setProxy(proxy);
@@ -375,11 +401,23 @@ public class AppUpdateService {
                             RuntimeConfigResolver.getValue("solonclaw.integrations.github.token"),
                             RuntimeConfigResolver.getValue(
                                     "solonclaw.integrations.github.cliToken"));
-            if (StrUtil.isNotBlank(token)) {
+            if (StrUtil.isNotBlank(token) && sameOrigin(initialUrl, url)) {
                 request.header(Header.AUTHORIZATION, "Bearer " + token.trim());
             }
             HttpResponse response = request.execute();
             try {
+                if (isRedirect(response.getStatus())) {
+                    if (redirectCount >= MAX_GITHUB_JSON_REDIRECTS) {
+                        throw new IllegalStateException("GitHub API redirect count exceeds limit");
+                    }
+                    String location = response.header("Location");
+                    if (StrUtil.isBlank(location)) {
+                        throw new IllegalStateException("GitHub API redirect missing Location");
+                    }
+                    String redirectUrl = resolveRedirectUrl(url, location);
+                    response.close();
+                    return executeGithubJson(redirectUrl, redirectCount + 1, initialUrl);
+                }
                 result.setStatusCode(response.getStatus());
                 result.setBody(
                         BoundedAttachmentIO.readHutoolText(
@@ -393,6 +431,44 @@ public class AppUpdateService {
                     e.getClass().getSimpleName() + ": " + SecretRedactor.redact(e.getMessage()));
         }
         return result;
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private String resolveRedirectUrl(String baseUrl, String location) {
+        try {
+            return URI.create(baseUrl).resolve(location.trim()).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "GitHub API redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
+        }
+    }
+
+    private boolean sameOrigin(String initialUrl, String url) {
+        try {
+            URI initial = URI.create(initialUrl);
+            URI current = URI.create(url);
+            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
+                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
+                    && effectivePort(initial) == effectivePort(current);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
     }
 
     protected ReleaseInfo parseReleaseInfo(String body) {

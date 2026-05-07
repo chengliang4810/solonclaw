@@ -7,7 +7,10 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.sun.net.httpserver.HttpServer;
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import org.junit.jupiter.api.Test;
 
 public class AppUpdateServiceTest {
@@ -104,6 +107,43 @@ public class AppUpdateServiceTest {
                 .hasMessageContaining("blocked-by-test");
     }
 
+    @Test
+    void shouldBlockUnsafeGithubJsonRedirectTarget() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/release",
+                    exchange -> {
+                        exchange.getResponseHeaders()
+                                .set(
+                                        "Location",
+                                        "http://169.254.169.254/latest/meta-data/?token=secret");
+                        exchange.sendResponseHeaders(302, -1);
+                        exchange.close();
+                    });
+            server.start();
+            AppConfig config = new AppConfig();
+            FakeVersionService versionService = new FakeVersionService(config);
+            ExposedUpdateService service =
+                    new ExposedUpdateService(
+                            config,
+                            versionService,
+                            new AllowLocalButBlockMetadataSecurityPolicyService(config));
+
+            ApiResultSnapshot result =
+                    service.exposeExecuteGithubJson(
+                            "http://127.0.0.1:" + server.getAddress().getPort() + "/release");
+
+            assertThat(result.statusCode).isEqualTo(-1);
+            assertThat(result.errorMessage)
+                    .contains("GitHub API URL blocked")
+                    .contains("169.254.169.254")
+                    .contains("token=***");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static class FakeUpdateService extends AppUpdateService {
         private int releaseStatus = 200;
         private String releaseBody = "";
@@ -147,6 +187,30 @@ public class AppUpdateServiceTest {
         }
     }
 
+    private static class ExposedUpdateService extends AppUpdateService {
+        private ExposedUpdateService(
+                AppConfig appConfig,
+                AppVersionService versionService,
+                SecurityPolicyService securityPolicyService) {
+            super(appConfig, versionService, securityPolicyService);
+        }
+
+        private ApiResultSnapshot exposeExecuteGithubJson(String url) {
+            ApiFetchResult result = executeGithubJson(url);
+            return new ApiResultSnapshot(result.getStatusCode(), result.getErrorMessage());
+        }
+    }
+
+    private static class ApiResultSnapshot {
+        private final int statusCode;
+        private final String errorMessage;
+
+        private ApiResultSnapshot(int statusCode, String errorMessage) {
+            this.statusCode = statusCode;
+            this.errorMessage = errorMessage;
+        }
+    }
+
     private static class PolicyBlockingUpdateService extends AppUpdateService {
         private PolicyBlockingUpdateService(AppConfig appConfig, AppVersionService versionService) {
             super(appConfig, versionService);
@@ -164,6 +228,21 @@ public class AppUpdateServiceTest {
 
         private void exposeDownloadAsset(String assetUrl, File target) {
             downloadAsset(assetUrl, target);
+        }
+    }
+
+    private static class AllowLocalButBlockMetadataSecurityPolicyService
+            extends SecurityPolicyService {
+        private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            if ("127.0.0.1".equals(host)) {
+                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
+            }
+            return new InetAddress[] {InetAddress.getByName(host)};
         }
     }
 

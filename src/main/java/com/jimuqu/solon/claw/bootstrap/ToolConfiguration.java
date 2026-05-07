@@ -185,8 +185,10 @@ public class ToolConfiguration {
 
     @Bean(destroyMethod = "shutdown")
     public AppUpdateService appUpdateService(
-            AppConfig appConfig, AppVersionService appVersionService) {
-        return new AppUpdateService(appConfig, appVersionService);
+            AppConfig appConfig,
+            AppVersionService appVersionService,
+            SecurityPolicyService securityPolicyService) {
+        return new AppUpdateService(appConfig, appVersionService, securityPolicyService);
     }
 
     @Bean
