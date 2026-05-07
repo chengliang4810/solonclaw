@@ -9,6 +9,9 @@ import org.noear.snack4.ONode;
 
 /** Tool JSON-schema sanitizer for MCP and dynamic tool schemas. */
 public final class SolonClawToolSchemaSanitizer {
+    private static final String[] TOP_LEVEL_FORBIDDEN_COMBINATORS =
+            new String[] {"allOf", "anyOf", "oneOf", "enum", "not"};
+
     private SolonClawToolSchemaSanitizer() {}
 
     public static String sanitizeSchemaJson(String schemaJson) {
@@ -29,7 +32,8 @@ public final class SolonClawToolSchemaSanitizer {
             top.put("properties", new LinkedHashMap<String, Object>());
         }
         Object stripped = stripNullableUnions(top, true);
-        return ONode.serialize(stripped instanceof Map ? stripped : defaultObjectSchema());
+        Object compatible = stripTopLevelForbiddenCombinators(stripped);
+        return ONode.serialize(compatible instanceof Map ? compatible : defaultObjectSchema());
     }
 
     public static Object sanitizeSchemaObject(Object schema) {
@@ -46,7 +50,8 @@ public final class SolonClawToolSchemaSanitizer {
             top.put("properties", new LinkedHashMap<String, Object>());
         }
         Object stripped = stripNullableUnions(top, true);
-        return stripped instanceof Map ? stripped : defaultObjectSchema();
+        Object compatible = stripTopLevelForbiddenCombinators(stripped);
+        return compatible instanceof Map ? compatible : defaultObjectSchema();
     }
 
     public static StripResult stripPatternAndFormat(Object schema) {
@@ -184,6 +189,19 @@ public final class SolonClawToolSchemaSanitizer {
                 }
                 return stripNullableUnions(replacement, keepNullableHint);
             }
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object stripTopLevelForbiddenCombinators(Object schema) {
+        if (!(schema instanceof Map)) {
+            return schema;
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.putAll((Map<String, Object>) schema);
+        for (String key : TOP_LEVEL_FORBIDDEN_COMBINATORS) {
+            result.remove(key);
         }
         return result;
     }

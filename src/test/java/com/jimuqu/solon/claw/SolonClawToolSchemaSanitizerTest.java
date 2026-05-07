@@ -55,6 +55,60 @@ public class SolonClawToolSchemaSanitizerTest {
     }
 
     @Test
+    void shouldStripTopLevelAllOfForStrictBackendCompatibility() {
+        ONode root =
+                ONode.ofJson(
+                        SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
+                                "{"
+                                        + "\"type\":\"object\","
+                                        + "\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"add\",\"replace\"]},\"content\":{\"type\":\"string\"}},"
+                                        + "\"required\":[\"action\"],"
+                                        + "\"allOf\":[{\"if\":{\"properties\":{\"action\":{\"const\":\"add\"}},\"required\":[\"action\"]},\"then\":{\"required\":[\"content\"]}}]"
+                                        + "}"));
+
+        assertThat(root.hasKey("allOf")).isFalse();
+        assertThat(root.get("required").get(0).getString()).isEqualTo("action");
+        assertThat(root.get("properties").hasKey("content")).isTrue();
+        assertThat(root.get("properties").get("action").get("enum").size()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldStripOtherForbiddenTopLevelCombinators() {
+        ONode root =
+                ONode.ofJson(
+                        SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
+                                "{"
+                                        + "\"type\":\"object\","
+                                        + "\"properties\":{\"x\":{\"type\":\"string\"}},"
+                                        + "\"oneOf\":[{\"required\":[\"x\"]}],"
+                                        + "\"anyOf\":[{\"required\":[\"x\"]}],"
+                                        + "\"enum\":[\"invalid-top-level\"],"
+                                        + "\"not\":{\"required\":[\"y\"]}"
+                                        + "}"));
+
+        assertThat(root.hasKey("oneOf")).isFalse();
+        assertThat(root.hasKey("anyOf")).isFalse();
+        assertThat(root.hasKey("enum")).isFalse();
+        assertThat(root.hasKey("not")).isFalse();
+        assertThat(root.get("properties").hasKey("x")).isTrue();
+    }
+
+    @Test
+    void shouldPreserveNestedCombinatorsInsideProperties() {
+        ONode root =
+                ONode.ofJson(
+                        SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
+                                "{"
+                                        + "\"type\":\"object\","
+                                        + "\"properties\":{\"config\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\"}},\"allOf\":[{\"required\":[\"mode\"]}]}}"
+                                        + "}"));
+
+        ONode nested = root.get("properties").get("config");
+        assertThat(nested.hasKey("allOf")).isTrue();
+        assertThat(nested.get("allOf").get(0).get("required").get(0).getString()).isEqualTo("mode");
+    }
+
+    @Test
     void shouldStripPatternAndFormatOnlyFromSchemaNodes() {
         Map<String, Object> root = new LinkedHashMap<String, Object>();
         root.put("type", "object");
