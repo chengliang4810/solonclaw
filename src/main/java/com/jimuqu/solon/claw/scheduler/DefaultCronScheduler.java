@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +36,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,6 +53,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,6 +88,7 @@ public class DefaultCronScheduler {
     private final AttachmentCacheService attachmentCacheService;
     private final LocalSkillService localSkillService;
     private final AgentRunControlService agentRunControlService;
+    private final McpRuntimeService mcpRuntimeService;
     private ScheduledExecutorService executorService;
 
     public DefaultCronScheduler(
@@ -183,6 +188,32 @@ public class DefaultCronScheduler {
             AttachmentCacheService attachmentCacheService,
             LocalSkillService localSkillService,
             AgentRunControlService agentRunControlService) {
+        this(
+                appConfig,
+                cronJobRepository,
+                cronJobService,
+                conversationOrchestrator,
+                deliveryService,
+                gatewayPolicyRepository,
+                dangerousCommandApprovalService,
+                attachmentCacheService,
+                localSkillService,
+                agentRunControlService,
+                null);
+    }
+
+    public DefaultCronScheduler(
+            AppConfig appConfig,
+            CronJobRepository cronJobRepository,
+            CronJobService cronJobService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AttachmentCacheService attachmentCacheService,
+            LocalSkillService localSkillService,
+            AgentRunControlService agentRunControlService,
+            McpRuntimeService mcpRuntimeService) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
         this.cronJobService = cronJobService;
@@ -193,6 +224,7 @@ public class DefaultCronScheduler {
         this.attachmentCacheService = attachmentCacheService;
         this.localSkillService = localSkillService;
         this.agentRunControlService = agentRunControlService;
+        this.mcpRuntimeService = mcpRuntimeService;
     }
 
     public void start() {
@@ -523,6 +555,7 @@ public class DefaultCronScheduler {
                 }
                 synthetic.setEnabledToolsetsOverride(resolveCronEnabledToolsets(job));
                 synthetic.setDisabledToolsetsOverride(new ArrayList<String>(CRON_DISABLED_TOOLSETS));
+                warmupMcpTools(job);
                 reply = runScheduledWithAutoDeliveryContext(job, synthetic);
                 output = reply == null ? "" : reply.getContent();
                 if (reply != null && reply.isError()) {
@@ -586,6 +619,34 @@ public class DefaultCronScheduler {
 
     private boolean isCronPromptSecurityBlock(String error) {
         return StrUtil.isNotBlank(error) && error.startsWith(CRON_PROMPT_BLOCK_PREFIX);
+    }
+
+    private void warmupMcpTools(CronJobRecord job) {
+        if (mcpRuntimeService == null) {
+            return;
+        }
+        try {
+            int count = 0;
+            List<ToolProvider> providers = mcpRuntimeService.resolveEnabledToolProviders();
+            for (ToolProvider provider : providers) {
+                if (provider == null) {
+                    continue;
+                }
+                Collection<FunctionTool> tools = provider.getTools();
+                count += tools == null ? 0 : tools.size();
+            }
+            if (count > 0) {
+                log.info(
+                        "Cron job '{}' warmed {} MCP tool(s)",
+                        StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                        Integer.valueOf(count));
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Cron job '{}' MCP initialization failed (non-fatal): {}",
+                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId()),
+                    e.getMessage());
+        }
     }
 
     private String withScriptOutput(String prompt, String output) {

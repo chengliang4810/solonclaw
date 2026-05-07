@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import org.noear.solon.annotation.Bean;
@@ -39,7 +40,8 @@ public class SchedulerConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AttachmentCacheService attachmentCacheService,
             LocalSkillService localSkillService,
-            AgentRunControlService agentRunControlService) {
+            AgentRunControlService agentRunControlService,
+            McpRuntimeService mcpRuntimeService) {
         DefaultCronScheduler scheduler =
                 new DefaultCronScheduler(
                         appConfig,
@@ -51,7 +53,8 @@ public class SchedulerConfiguration {
                         dangerousCommandApprovalService,
                         attachmentCacheService,
                         localSkillService,
-                        agentRunControlService);
+                        agentRunControlService,
+                        mcpRuntimeService);
         scheduler.start();
         return scheduler;
     }

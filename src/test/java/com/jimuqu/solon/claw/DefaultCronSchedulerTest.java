@@ -21,8 +21,10 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -38,10 +40,15 @@ import java.util.Calendar;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.FunctionToolDesc;
+import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.annotation.Param;
 
 public class DefaultCronSchedulerTest {
@@ -2600,6 +2607,105 @@ public class DefaultCronSchedulerTest {
         assertThat(noop.get("jobs_scanned")).isEqualTo(Integer.valueOf(3));
     }
 
+    @Test
+    void shouldWarmMcpToolsBeforeScheduledAgentRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        List<String> order = new java.util.ArrayList<String>();
+        RecordingMcpRuntimeService mcpRuntimeService =
+                new RecordingMcpRuntimeService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        order,
+                        false);
+        CronJobRecord job = job("mcp-cron", "MEMORY:mcp-room:user");
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        new OrderedConversationOrchestrator(order),
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        mcpRuntimeService);
+
+        scheduler.runNow("mcp-cron");
+
+        assertThat(order).containsExactly("mcp-resolve", "mcp-tools", "orchestrator");
+        assertThat(env.cronJobRepository.findById("mcp-cron").getLastStatus()).isEqualTo("ok");
+    }
+
+    @Test
+    void shouldTreatMcpWarmupFailureAsNonFatalForScheduledAgentRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        List<String> order = new java.util.ArrayList<String>();
+        RecordingMcpRuntimeService mcpRuntimeService =
+                new RecordingMcpRuntimeService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        order,
+                        true);
+        CronJobRecord job = job("mcp-cron-failure", "MEMORY:mcp-failure-room:user");
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        new OrderedConversationOrchestrator(order),
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        mcpRuntimeService);
+
+        scheduler.runNow("mcp-cron-failure");
+
+        assertThat(order).containsExactly("mcp-resolve", "orchestrator");
+        assertThat(env.cronJobRepository.findById("mcp-cron-failure").getLastStatus()).isEqualTo("ok");
+    }
+
+    @Test
+    void shouldSkipMcpWarmupForNoAgentCronJobs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        List<String> order = new java.util.ArrayList<String>();
+        RecordingMcpRuntimeService mcpRuntimeService =
+                new RecordingMcpRuntimeService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        order,
+                        true);
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronJobRecord job = createNoAgentScriptJob(env, service, "mcp-no-agent", "30m");
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        mcpRuntimeService);
+
+        scheduler.runNow(job.getJobId());
+
+        assertThat(order).isEmpty();
+        assertThat(env.cronJobRepository.findById(job.getJobId()).getLastStatus()).isEqualTo("ok");
+    }
+
     private CronJobRecord job(String id, String sourceKey) {
         long now = System.currentTimeMillis();
         CronJobRecord job = new CronJobRecord();
@@ -2828,6 +2934,70 @@ public class DefaultCronSchedulerTest {
         @Override
         public GatewayReply resumePending(String sourceKey) {
             return GatewayReply.ok("");
+        }
+    }
+
+    private static class OrderedConversationOrchestrator implements ConversationOrchestrator {
+        private final List<String> order;
+
+        private OrderedConversationOrchestrator(List<String> order) {
+            this.order = order;
+        }
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            order.add("orchestrator");
+            return GatewayReply.ok("ordered ok");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class RecordingMcpRuntimeService extends McpRuntimeService {
+        private final List<String> order;
+        private final boolean fail;
+
+        private RecordingMcpRuntimeService(
+                AppConfig appConfig, SqliteDatabase database, List<String> order, boolean fail) {
+            super(appConfig, database);
+            this.order = order;
+            this.fail = fail;
+        }
+
+        @Override
+        public List<ToolProvider> resolveEnabledToolProviders() {
+            order.add("mcp-resolve");
+            if (fail) {
+                throw new IllegalStateException("MCP server unreachable");
+            }
+            return Collections.<ToolProvider>singletonList(new RecordingToolProvider(order));
+        }
+    }
+
+    private static class RecordingToolProvider implements ToolProvider {
+        private final List<String> order;
+
+        private RecordingToolProvider(List<String> order) {
+            this.order = order;
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            order.add("mcp-tools");
+            FunctionToolDesc tool = new FunctionToolDesc("mcp_docs_search");
+            tool.title("MCP Docs Search");
+            tool.description("Search docs");
+            tool.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            tool.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
+            return Collections.<FunctionTool>singletonList(tool);
         }
     }
 
