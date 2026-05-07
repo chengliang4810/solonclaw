@@ -1159,6 +1159,80 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldUseDdgsSearchBackendWhenConfigured() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("ddgs");
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        null,
+                        env.appConfig) {
+                    @Override
+                    protected String executeDdgsSearchRequest(String query, int limit) {
+                        assertThat(query).isEqualTo("solon ai");
+                        assertThat(limit).isEqualTo(2);
+                        return "<html><body>"
+                                + "<a rel=\"nofollow\" class=\"result__a\" href=\"//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsolon&amp;rut=x\">Solon <b>AI</b></a>"
+                                + "<a class=\"result__snippet\">Java&nbsp;agent framework</a>"
+                                + "<a class=\"result__a\" href=\"https://example.com/jimuqu\">Jimuqu Agent</a>"
+                                + "<div class=\"result__snippet\">Local agent</div>"
+                                + "</body></html>";
+                    }
+                };
+
+        Document document =
+                websearch.websearch(
+                        "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
+        ONode result = ONode.ofJson(document.getContent());
+
+        assertThat(result.get("provider").getString()).isEqualTo("ddgs");
+        assertThat(((List<?>) result.get("data").get("web").toData()).size()).isEqualTo(2);
+        assertThat(result.get("data").get("web").get(0).get("title").getString()).isEqualTo("Solon AI");
+        assertThat(result.get("data").get("web").get(0).get("url").getString())
+                .isEqualTo("https://example.com/solon");
+        assertThat(result.get("data").get("web").get(0).get("description").getString())
+                .isEqualTo("Java agent framework");
+    }
+
+    @Test
+    void shouldGuardDdgsReturnedUrls() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        env.appConfig.getWeb().setSearchBackend("ddgs");
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
+                    @Override
+                    protected String executeDdgsSearchRequest(String query, int limit) {
+                        return "<a class=\"result__a\" href=\"//duckduckgo.com/l/?uddg=https%3A%2F%2Fblocked.example%2Fdocs%3Ftoken%3Dsecret123\">Blocked</a>";
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "blocked",
+                                        Integer.valueOf(1),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
     void shouldGuardCodesearchReturnedDocumentUrlsInsideContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);

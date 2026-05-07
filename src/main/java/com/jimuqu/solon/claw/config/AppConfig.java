@@ -3356,7 +3356,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class WebConfig {
-        /** Websearch 后端；solon-ai 为默认内置实现，brave-free 对齐 Brave Search free tier。 */
+        /** Websearch 后端；solon-ai 为默认内置实现，brave-free/ddgs 对齐可选搜索后端。 */
         private String searchBackend = "solon-ai";
 
         /** Brave Search API key；为空时也会尝试读取 BRAVE_SEARCH_API_KEY 环境变量。 */

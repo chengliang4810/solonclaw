@@ -212,6 +212,20 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldLoadDdgsWebSearchBackendFromLegacyConfigKey() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-web-ddgs").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String("web:\n  search_backend: ddgs\n", configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getWeb().getSearchBackend()).isEqualTo("ddgs");
+    }
+
+    @Test
     void shouldUseHermesDefaultToolOutputMaxBytes() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-default").toFile();
 

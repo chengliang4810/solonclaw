@@ -2,12 +2,14 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
+import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import cn.hutool.core.util.StrUtil;
 import java.lang.reflect.Array;
+import java.net.URLDecoder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
@@ -29,8 +33,16 @@ import org.noear.solon.ai.skills.web.WebsearchTool;
 /** Solon AI web tools wrapped with Hermes-style URL and website policy checks. */
 public class SolonClawWebTools {
     private static final String BRAVE_FREE_BACKEND = "brave-free";
+    private static final String DDGS_BACKEND = "ddgs";
     private static final String BRAVE_SEARCH_ENDPOINT =
             "https://api.search.brave.com/res/v1/web/search";
+    private static final String DDGS_SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
+    private static final Pattern DDGS_RESULT_LINK_PATTERN =
+            Pattern.compile(
+                    "(?is)<a\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__a[^'\"]*['\"][^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>");
+    private static final Pattern DDGS_SNIPPET_PATTERN =
+            Pattern.compile(
+                    "(?is)<a\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__snippet[^'\"]*['\"][^>]*>(.*?)</a>|<div\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__snippet[^'\"]*['\"][^>]*>(.*?)</div>");
 
     private static String blockedMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
@@ -185,6 +197,11 @@ public class SolonClawWebTools {
                 checkReturnedUrls(securityPolicyService, document);
                 return document;
             }
+            if (DDGS_BACKEND.equals(normalizedSearchBackend())) {
+                Document document = ddgsSearch(query, numResults);
+                checkReturnedUrls(securityPolicyService, document);
+                return document;
+            }
             Document document =
                     delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
             checkReturnedUrls(securityPolicyService, document);
@@ -241,6 +258,78 @@ public class SolonClawWebTools {
             return new Document(ONode.serialize(result)).title("Web search: " + query);
         }
 
+        private Document ddgsSearch(String query, Integer numResults) {
+            int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
+            String body = executeDdgsSearchRequest(query, limit);
+            List<Map<String, Object>> web = parseDdgsResults(body, limit);
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("web", web);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("success", Boolean.TRUE);
+            result.put("data", data);
+            result.put("provider", DDGS_BACKEND);
+            return new Document(ONode.serialize(result)).title("Web search: " + query);
+        }
+
+        private List<Map<String, Object>> parseDdgsResults(String body, int limit) {
+            String html = StrUtil.nullToEmpty(body);
+            Matcher linkMatcher = DDGS_RESULT_LINK_PATTERN.matcher(html);
+            Matcher snippetMatcher = DDGS_SNIPPET_PATTERN.matcher(html);
+            List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
+            while (linkMatcher.find() && web.size() < limit) {
+                String url = normalizeDdgsUrl(linkMatcher.group(1));
+                if (StrUtil.isBlank(url)) {
+                    continue;
+                }
+                checkUrl(securityPolicyService, url);
+                Map<String, Object> item = new LinkedHashMap<String, Object>();
+                item.put("title", cleanHtmlText(linkMatcher.group(2)));
+                item.put("url", url);
+                item.put("description", nextDdgsSnippet(snippetMatcher));
+                item.put("position", Integer.valueOf(web.size() + 1));
+                web.add(item);
+            }
+            return web;
+        }
+
+        private String nextDdgsSnippet(Matcher snippetMatcher) {
+            if (snippetMatcher == null || !snippetMatcher.find()) {
+                return "";
+            }
+            String value = snippetMatcher.group(1);
+            if (value == null) {
+                value = snippetMatcher.group(2);
+            }
+            return cleanHtmlText(value);
+        }
+
+        private String normalizeDdgsUrl(String rawUrl) {
+            String value = HtmlUtil.unescape(StrUtil.nullToEmpty(rawUrl)).trim();
+            if (value.startsWith("//")) {
+                value = "https:" + value;
+            }
+            int uddg = value.indexOf("uddg=");
+            if (uddg >= 0) {
+                String encoded = value.substring(uddg + 5);
+                int amp = encoded.indexOf('&');
+                if (amp >= 0) {
+                    encoded = encoded.substring(0, amp);
+                }
+                try {
+                    return URLDecoder.decode(encoded, "UTF-8");
+                } catch (Exception ignored) {
+                    return encoded;
+                }
+            }
+            return value;
+        }
+
+        private String cleanHtmlText(String rawHtml) {
+            String text = HtmlUtil.cleanHtmlTag(StrUtil.nullToEmpty(rawHtml));
+            text = HtmlUtil.unescape(text);
+            return text.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
+        }
+
         @SuppressWarnings("unchecked")
         private Map<String, Object> castMap(Object value) {
             if (value instanceof Map) {
@@ -269,6 +358,27 @@ public class SolonClawWebTools {
             }
             if (StrUtil.isBlank(body)) {
                 throw new IllegalStateException("Brave Search returned an empty response");
+            }
+            return body;
+        }
+
+        protected String executeDdgsSearchRequest(String query, int limit) {
+            HttpResponse response =
+                    HttpRequest.get(DDGS_SEARCH_ENDPOINT)
+                            .form("q", query)
+                            .form("kl", "wt-wt")
+                            .form("dc", Integer.valueOf(0))
+                            .header("Accept", "text/html,application/xhtml+xml")
+                            .header("User-Agent", "Mozilla/5.0 Jimuqu-Agent")
+                            .timeout(15000)
+                            .execute();
+            int status = response.getStatus();
+            String body = response.body();
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException("DuckDuckGo search returned HTTP " + status);
+            }
+            if (StrUtil.isBlank(body)) {
+                throw new IllegalStateException("DuckDuckGo search returned an empty response");
             }
             return body;
         }
