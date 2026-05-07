@@ -10,7 +10,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 轻量级 cron 计算辅助类，仅覆盖当前项目需要的 5 段 cron 语义。 */
+/** 轻量级 cron 计算辅助类，覆盖 5 段 cron 与可选年份字段。 */
 public final class CronSupport {
     private static final Pattern RECURRING_INTERVAL_PATTERN =
             Pattern.compile("^every\\s+(\\d+)\\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$");
@@ -22,7 +22,7 @@ public final class CronSupport {
     /**
      * 计算下一次执行时间。
      *
-     * @param cronExpr 5 段 cron 表达式
+     * @param cronExpr 5 段 cron 表达式，或第 6 段为年份
      * @param fromEpochMillis 起算时间
      * @return 下一次执行时间戳
      */
@@ -35,8 +35,8 @@ public final class CronSupport {
             return direct.longValue();
         }
 
-        String[] parts = cronExpr.trim().split("\\s+");
-        if (parts.length != 5) {
+        String[] parts = cronParts(cronExpr);
+        if (parts == null) {
             return fromEpochMillis + 60000L;
         }
         validate(parts);
@@ -52,7 +52,8 @@ public final class CronSupport {
                     && matches(parts[1], candidate.get(Calendar.HOUR_OF_DAY))
                     && matches(parts[2], candidate.get(Calendar.DAY_OF_MONTH))
                     && matches(parts[3], candidate.get(Calendar.MONTH) + 1)
-                    && matchesDayOfWeek(parts[4], candidate.get(Calendar.DAY_OF_WEEK))) {
+                    && matchesDayOfWeek(parts[4], candidate.get(Calendar.DAY_OF_WEEK))
+                    && matchesYear(parts, candidate.get(Calendar.YEAR))) {
                 return candidate.getTimeInMillis();
             }
 
@@ -95,9 +96,9 @@ public final class CronSupport {
         if (nextDirectSchedule(cronExpr, System.currentTimeMillis()) != null) {
             return;
         }
-        String[] parts = cronExpr.trim().split("\\s+");
-        if (parts.length != 5) {
-            throw new IllegalArgumentException("Cron expression must have 5 fields");
+        String[] parts = cronParts(cronExpr);
+        if (parts == null) {
+            throw new IllegalArgumentException("Cron expression must have 5 fields or 6 fields with year");
         }
         validate(parts);
     }
@@ -130,8 +131,8 @@ public final class CronSupport {
         if (StrUtil.isBlank(schedule)) {
             return false;
         }
-        String[] parts = schedule.trim().split("\\s+");
-        if (parts.length != 5) {
+        String[] parts = cronParts(schedule);
+        if (parts == null) {
             return false;
         }
         try {
@@ -237,6 +238,21 @@ public final class CronSupport {
         validateField(parts[2], 1, 31);
         validateField(parts[3], 1, 12);
         validateField(parts[4], 0, 7);
+        if (parts.length == 6) {
+            validateField(parts[5], 1970, 2099);
+        }
+    }
+
+    private static String[] cronParts(String schedule) {
+        if (StrUtil.isBlank(schedule)) {
+            return null;
+        }
+        String[] parts = schedule.trim().split("\\s+");
+        return parts.length == 5 || parts.length == 6 ? parts : null;
+    }
+
+    private static boolean matchesYear(String[] parts, int year) {
+        return parts.length < 6 || matches(parts[5], year);
     }
 
     private static void validateField(String expr, int min, int max) {

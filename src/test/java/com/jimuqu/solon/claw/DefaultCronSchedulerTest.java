@@ -25,6 +25,7 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
+import java.util.Calendar;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -223,6 +224,26 @@ public class DefaultCronSchedulerTest {
         assertThat(cronSchedule.get("kind")).isEqualTo("cron");
         assertThat(cronSchedule.get("expr")).isEqualTo("0 9 * * *");
         assertThat(cronSchedule.get("display")).isEqualTo("0 9 * * *");
+    }
+
+    @Test
+    void shouldSupportCronExpressionWithYearField() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        int year = Calendar.getInstance().get(Calendar.YEAR) + 1;
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "cron-with-year");
+        body.put("schedule", "0 9 * * * " + year);
+        body.put("prompt", "cron prompt");
+
+        CronJobRecord job = service.create("MEMORY:cron:user", body);
+        Map<?, ?> schedule = (Map<?, ?>) service.toView(job).get("schedule");
+
+        assertThat(schedule.get("kind")).isEqualTo("cron");
+        assertThat(schedule.get("expr")).isEqualTo("0 9 * * * " + year);
+        assertThat(schedule.get("display")).isEqualTo("0 9 * * * " + year);
+        assertThat(job.getNextRunAt()).isGreaterThan(System.currentTimeMillis());
     }
 
     @Test
