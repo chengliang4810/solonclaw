@@ -59,6 +59,9 @@ import org.slf4j.LoggerFactory;
 public class DefaultCronScheduler {
     private static final Logger log = LoggerFactory.getLogger(DefaultCronScheduler.class);
     private static final String SILENT_MARKER = "[SILENT]";
+    private static final String EMPTY_AGENT_RESPONSE_ERROR =
+            "Agent completed but produced empty response (model error, timeout, or misconfiguration)";
+    private static final String EMPTY_AGENT_RESPONSE_OUTPUT = "(No response generated)";
     private static final int MAX_CONTEXT_FROM_CHARS = 8000;
     private static final List<String> CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
@@ -519,18 +522,25 @@ public class DefaultCronScheduler {
                 synthetic.setDisabledToolsetsOverride(new ArrayList<String>(CRON_DISABLED_TOOLSETS));
                 reply = runScheduledWithAutoDeliveryContext(job, synthetic);
                 output = reply == null ? "" : reply.getContent();
+                if (StrUtil.isBlank(output)) {
+                    output = EMPTY_AGENT_RESPONSE_OUTPUT;
+                    error = EMPTY_AGENT_RESPONSE_ERROR;
+                    runStatus = "error";
+                }
             }
             cronJobRepository.markRunResult(
                     job.getJobId(),
                     now,
                     nextRunAt,
                     runStatus,
-                    null,
+                    error,
                     AgentRunPreview.safe(output),
                     completed,
                     nextStatus);
-            deliveryError = deliverBestEffort(job, reply);
-            recordRun(job, now, runStatus, null, output, deliveryError, completed, triggerType);
+            if (error == null) {
+                deliveryError = deliverBestEffort(job, reply);
+            }
+            recordRun(job, now, runStatus, error, output, deliveryError, completed, triggerType);
         } catch (Exception e) {
             runStatus = "error";
             error = e.getMessage();

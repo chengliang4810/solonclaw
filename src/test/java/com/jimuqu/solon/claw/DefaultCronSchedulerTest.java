@@ -762,6 +762,37 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldMarkAgentCronEmptyResponseAsError() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobRecord job = job("job-empty-response", "MEMORY:empty-agent:user");
+        job.setDeliverPlatform("origin");
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        new EmptyResponseConversationOrchestrator(),
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById("job-empty-response");
+        assertThat(updated.getLastStatus()).isEqualTo("error");
+        assertThat(updated.getLastError())
+                .contains("Agent completed but produced empty response");
+        assertThat(updated.getLastOutput()).contains("(No response generated)");
+        assertThat(updated.getLastDeliveryError()).isNull();
+        assertThat(env.memoryChannelAdapter.getRequests()).isEmpty();
+        assertThat(env.cronJobRepository.listRuns("job-empty-response", 5)).hasSize(1);
+        assertThat(env.cronJobRepository.listRuns("job-empty-response", 5).get(0).getStatus())
+                .isEqualTo("error");
+        assertThat(env.cronJobRepository.listRuns("job-empty-response", 5).get(0).getError())
+                .contains("empty response");
+    }
+
+    @Test
     void shouldBlockDangerousNoAgentCronScriptWhenCronApprovalModeDenies() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("admin-dm", "admin-user", "hello");
@@ -2703,6 +2734,23 @@ public class DefaultCronSchedulerTest {
         public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
             Thread.sleep(1200L);
             return GatewayReply.ok("slow ok");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class EmptyResponseConversationOrchestrator implements ConversationOrchestrator {
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            return GatewayReply.ok("");
         }
 
         @Override
