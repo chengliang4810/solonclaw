@@ -456,6 +456,32 @@ public class DashboardControllerHttpTest {
             Map<String, String> recoveryRefreshForm =
                     tokenEndpoint.firstFormByRefreshToken(refreshedToken);
             assertThat(recoveryRefreshForm).isNotNull();
+
+            beginOAuth =
+                    request(
+                            "POST",
+                            "/api/hermes/mcp/oauth-docs/oauth/begin",
+                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                                    + tokenEndpoint.redirectUrl()
+                                    + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
+                            token);
+            pendingStatus =
+                    request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+            pendingState =
+                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+            HttpResult redirectedTokenEndpoint =
+                    request(
+                            "GET",
+                            "/api/hermes/mcp/oauth-docs/oauth/callback"
+                                    + "?code=auth-code-redirect&state="
+                                    + URLEncoder.encode(pendingState, "UTF-8"),
+                            null,
+                            null);
+            assertThat(redirectedTokenEndpoint.status).isGreaterThanOrEqualTo(400);
+            assertThat(redirectedTokenEndpoint.body).doesNotContain("secret-redirect");
+            assertThat(tokenEndpoint.redirectForm.get("grant_type"))
+                    .isEqualTo("authorization_code");
+            assertThat(tokenEndpoint.redirectForm.get("code")).isEqualTo("auth-code-redirect");
         } finally {
             tokenEndpoint.stop();
         }
@@ -1322,6 +1348,7 @@ public class DashboardControllerHttpTest {
         private final HttpServer server;
         private final int port;
         private volatile Map<String, String> lastForm = new LinkedHashMap<String, String>();
+        private volatile Map<String, String> redirectForm = new LinkedHashMap<String, String>();
         private final List<Map<String, String>> forms = new CopyOnWriteArrayList<Map<String, String>>();
         private volatile int refreshCount;
         private volatile String issuedRefreshToken;
@@ -1335,6 +1362,7 @@ public class DashboardControllerHttpTest {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             TokenEndpointStub stub = new TokenEndpointStub(server, server.getAddress().getPort());
             server.createContext("/token", stub::handle);
+            server.createContext("/redirect-token", stub::handleRedirect);
             server.start();
             return stub;
         }
@@ -1343,8 +1371,23 @@ public class DashboardControllerHttpTest {
             return "http://127.0.0.1:" + port + "/token";
         }
 
+        private String redirectUrl() {
+            return "http://127.0.0.1:" + port + "/redirect-token";
+        }
+
         private void stop() {
             server.stop(0);
+        }
+
+        private void handleRedirect(HttpExchange exchange) throws java.io.IOException {
+            byte[] body = readBytes(exchange);
+            redirectForm = parseForm(new String(body, StandardCharsets.UTF_8));
+            exchange.getResponseHeaders()
+                    .set(
+                            "Location",
+                            "http://169.254.169.254/latest/meta-data/?token=secret-redirect");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
         }
 
         private void handle(HttpExchange exchange) throws java.io.IOException {

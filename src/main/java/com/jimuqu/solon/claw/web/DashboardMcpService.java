@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -27,6 +28,8 @@ import org.noear.snack4.ONode;
 
 /** Dashboard-first MCP server registry. */
 public class DashboardMcpService {
+    private static final int MAX_OAUTH_TOKEN_REDIRECTS = 5;
+
     private final AppConfig appConfig;
     private final SqliteDatabase database;
     private final McpPackageSecurityService packageSecurityService;
@@ -795,17 +798,12 @@ public class DashboardMcpService {
         }
         appendForm(form, "code_verifier", codeVerifier);
 
-        HttpRequest request =
-                HttpRequest.post(tokenEndpoint)
-                        .timeout(15000)
-                        .contentType("application/x-www-form-urlencoded")
-                        .body(form.toString());
         String clientSecret = string(oauth.get("client_secret"));
         if (StrUtil.isNotBlank(clientSecret)) {
             appendForm(form, "client_secret", clientSecret);
-            request.body(form.toString());
         }
-        HttpResponse response = request.execute();
+        HttpResponse response =
+                executeOAuthTokenRequest(tokenEndpoint, form.toString(), 0, tokenEndpoint);
         try {
             String responseBody = response.body();
             if (response.getStatus() < 200 || response.getStatus() >= 300) {
@@ -834,17 +832,12 @@ public class DashboardMcpService {
         appendForm(form, "refresh_token", refreshToken);
         appendForm(form, "client_id", clientId);
 
-        HttpRequest request =
-                HttpRequest.post(tokenEndpoint)
-                        .timeout(15000)
-                        .contentType("application/x-www-form-urlencoded")
-                        .body(form.toString());
         String clientSecret = string(oauth.get("client_secret"));
         if (StrUtil.isNotBlank(clientSecret)) {
             appendForm(form, "client_secret", clientSecret);
-            request.body(form.toString());
         }
-        HttpResponse response = request.execute();
+        HttpResponse response =
+                executeOAuthTokenRequest(tokenEndpoint, form.toString(), 0, tokenEndpoint);
         try {
             String responseBody = response.body();
             if (response.getStatus() < 200 || response.getStatus() >= 300) {
@@ -862,6 +855,79 @@ public class DashboardMcpService {
         } finally {
             response.close();
         }
+    }
+
+    private HttpResponse executeOAuthTokenRequest(
+            String url, String form, int redirectCount, String initialUrl) {
+        assertSafeRuntimeUrl(url, "MCP OAuth token_endpoint");
+        HttpRequest request =
+                HttpRequest.post(url)
+                        .timeout(15000)
+                        .contentType("application/x-www-form-urlencoded")
+                        .setFollowRedirects(false);
+        if (sameOrigin(initialUrl, url)) {
+            request.body(form);
+        }
+        HttpResponse response = request.execute();
+        int status = response.getStatus();
+        if (!isRedirect(status)) {
+            return response;
+        }
+        try {
+            if (redirectCount >= MAX_OAUTH_TOKEN_REDIRECTS) {
+                throw new IllegalStateException("MCP OAuth token_endpoint redirect count exceeds limit");
+            }
+            String location = response.header("Location");
+            if (StrUtil.isBlank(location)) {
+                throw new IllegalStateException("MCP OAuth token_endpoint redirect missing Location");
+            }
+            String nextUrl = resolveRedirectUrl(url, location);
+            response.close();
+            return executeOAuthTokenRequest(nextUrl, form, redirectCount + 1, initialUrl);
+        } catch (RuntimeException e) {
+            response.close();
+            throw e;
+        }
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private String resolveRedirectUrl(String baseUrl, String location) {
+        try {
+            return URI.create(baseUrl).resolve(location.trim()).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "MCP OAuth token_endpoint redirect URL is invalid: "
+                            + SecretRedactor.maskUrl(location),
+                    e);
+        }
+    }
+
+    private boolean sameOrigin(String initialUrl, String url) {
+        try {
+            URI initial = URI.create(initialUrl);
+            URI current = URI.create(url);
+            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
+                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
+                    && effectivePort(initial) == effectivePort(current);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
     }
 
     private void mergeTokenResponse(Map<String, Object> oauth, Map<String, Object> tokenResponse) {
