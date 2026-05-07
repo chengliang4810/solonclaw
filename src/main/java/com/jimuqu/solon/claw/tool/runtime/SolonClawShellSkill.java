@@ -588,7 +588,8 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private String executeWithStdin(String code, String stdin, Integer timeoutMs) {
-        ForegroundResult result = executeForeground(code, stdin, timeoutMs, workPath.toFile());
+        ForegroundResult result =
+                executeForeground(code, stdin, timeoutMs, resolveForegroundWorkdir(null));
         String output;
         if (result.getError() != null) {
             if (result.isTimedOut()) {
@@ -827,14 +828,15 @@ public class SolonClawShellSkill extends ShellSkill {
             String code, String stdin, Integer timeoutMs, File directory) {
         Path tempScript = null;
         try {
-            tempScript = Files.createTempFile(workPath, "_script_", extension);
+            File safeDirectory = directory == null ? resolveSafeCwd(workPath.toString()) : directory;
+            tempScript = Files.createTempFile(safeDirectory.toPath(), "_script_", extension);
             Files.write(tempScript, prependShellInit(code).getBytes(StandardCharsets.UTF_8));
             java.util.List<String> command =
                     new java.util.ArrayList<String>(
                             java.util.Arrays.asList(shellCmd.split("\\s+")));
             command.add(tempScript.toAbsolutePath().toString());
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(directory == null ? workPath.toFile() : directory);
+            builder.directory(safeDirectory);
             builder.redirectErrorStream(true);
             SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
             Process process = builder.start();
@@ -926,15 +928,38 @@ public class SolonClawShellSkill extends ShellSkill {
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
         }
-        File dir = new File(value);
-        if (!dir.isDirectory()) {
-            throw new IllegalArgumentException("workdir is not a directory: " + value);
-        }
-        return dir;
+        return resolveSafeCwd(value);
     }
 
     private File resolveForegroundWorkdir(String workdir) {
         return resolveBackgroundWorkdir(workdir);
+    }
+
+    public static File resolveSafeCwd(String cwd) {
+        return resolveSafeCwd(cwd, new File(System.getProperty("java.io.tmpdir")));
+    }
+
+    public static File resolveSafeCwd(String cwd, File fallback) {
+        File fallbackDir = fallback == null ? new File(".") : fallback;
+        if (StrUtil.isBlank(cwd)) {
+            return fallbackDir.getAbsoluteFile();
+        }
+        File candidate = new File(cwd).getAbsoluteFile();
+        if (candidate.isDirectory()) {
+            return candidate;
+        }
+        File parent = candidate.getParentFile();
+        while (parent != null) {
+            if (parent.isDirectory()) {
+                return parent.getAbsoluteFile();
+            }
+            File next = parent.getParentFile();
+            if (next == null || next.equals(parent)) {
+                break;
+            }
+            parent = next;
+        }
+        return fallbackDir.getAbsoluteFile();
     }
 
     private String readOutput(Process process) throws Exception {

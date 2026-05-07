@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -340,6 +341,50 @@ public class SolonClawShellSkillTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Blocked")
                 .hasMessageContaining("disallowed character");
+    }
+
+    @Test
+    void shouldResolveSafeCwdToNearestExistingAncestorLikeHermes() throws Exception {
+        Path root = Files.createTempDirectory("jimuqu-safe-cwd");
+        Path nested = root.resolve("child").resolve("grandchild");
+        Files.createDirectories(nested);
+        deleteRecursively(root.resolve("child"));
+
+        File safe = SolonClawShellSkill.resolveSafeCwd(nested.toString());
+
+        assertThat(safe).isEqualTo(root.toFile().getAbsoluteFile());
+    }
+
+    @Test
+    void shouldResolveSafeCwdToFallbackWhenPathIsBlankLikeHermes() throws Exception {
+        Path fallback = Files.createTempDirectory("jimuqu-safe-cwd-fallback");
+
+        File safe = SolonClawShellSkill.resolveSafeCwd("", fallback.toFile());
+
+        assertThat(safe).isEqualTo(fallback.toFile().getAbsoluteFile());
+    }
+
+    @Test
+    void shouldRecoverForegroundTerminalWhenRequestedWorkdirWasDeletedLikeHermes()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        Path root = Files.createTempDirectory("jimuqu-shell-cwd");
+        Path nested = root.resolve("child").resolve("grandchild");
+        Files.createDirectories(nested);
+        SolonClawShellSkill skill = new SolonClawShellSkill(root.toString(), config);
+        deleteRecursively(root.resolve("child"));
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                printWorkingDirectoryCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                nested.toString(),
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(lastOutputLine(result.get("output").getString())).isEqualTo(root.toFile().getCanonicalPath());
     }
 
     @Test
@@ -1338,6 +1383,34 @@ public class SolonClawShellSkillTest {
                 + "+x}\" ]; then printf 'missing\\n'; else printf '%s\\n' \"$"
                 + name
                 + "\"; fi";
+    }
+
+    private String printWorkingDirectoryCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "cd";
+        }
+        return "pwd -P";
+    }
+
+    private String lastOutputLine(String output) {
+        String[] lines = output.replace("\r\n", "\n").trim().split("\n");
+        return lines[lines.length - 1].trim();
+    }
+
+    private void deleteRecursively(Path path) throws Exception {
+        if (path == null || !Files.exists(path)) {
+            return;
+        }
+        Files.walk(path)
+                .sorted(Comparator.reverseOrder())
+                .forEach(
+                        item -> {
+                            try {
+                                Files.deleteIfExists(item);
+                            } catch (Exception e) {
+                                throw new IllegalStateException(e);
+                            }
+                        });
     }
 
     private String repeat(String value, int count) {
