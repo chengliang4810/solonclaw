@@ -703,6 +703,46 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldPrioritizeDangerousApprovalWhenCancelIsUsedLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "slash-confirm-cancel-priority");
+        body.put("name", "Slash Confirm Cancel Priority");
+        body.put("transport", "stdio");
+        body.put("command", "docs-mcp");
+        body.put("tools", Collections.singletonList(Collections.singletonMap("name", "docs_search")));
+        mcpService.save(body);
+
+        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
+        assertThat(prompt.getContent()).contains("确认编号");
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply denied = env.send("admin-chat", "admin-user", "/cancel");
+        SessionRecord updated =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(denied.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
+
+        GatewayReply stillPendingSlashConfirm = env.send("admin-chat", "admin-user", "/cancel");
+        assertThat(stillPendingSlashConfirm.getContent()).contains("已取消 /reload-mcp");
+    }
+
+    @Test
     void shouldSkipReloadMcpPromptWhenConfigDisablesConfirm() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

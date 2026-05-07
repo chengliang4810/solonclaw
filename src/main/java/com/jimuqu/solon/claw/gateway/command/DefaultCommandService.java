@@ -880,6 +880,9 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_CANCEL.equals(command)) {
+            if (hasPendingDangerousApproval(message)) {
+                return handleDangerousDeny(message, args);
+            }
             return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
         }
 
