@@ -452,8 +452,16 @@ public class DefaultCronScheduler {
             } else {
                 String prompt = buildPrompt(job);
                 if (StrUtil.isNotBlank(job.getScript())) {
-                    CronScriptResult scriptResult = runScriptResult(job);
-                    if (!scriptResult.wakeAgent) {
+                    CronScriptResult scriptResult = null;
+                    try {
+                        scriptResult = runScriptResult(job);
+                    } catch (Exception scriptError) {
+                        if (isCronScriptSecurityBlock(scriptError)) {
+                            throw scriptError;
+                        }
+                        prompt = withScriptError(prompt, scriptError.getMessage());
+                    }
+                    if (scriptResult != null && !scriptResult.wakeAgent) {
                         output = silentCronOutput(job, "wakeAgent=false");
                         reply = GatewayReply.ok(SILENT_MARKER);
                         cronJobRepository.markRunResult(
@@ -469,7 +477,7 @@ public class DefaultCronScheduler {
                         recordRun(job, now, runStatus, null, output, deliveryError, completed, triggerType);
                         return;
                     }
-                    if (StrUtil.isBlank(scriptResult.output)) {
+                    if (scriptResult != null && StrUtil.isBlank(scriptResult.output)) {
                         output = silentCronOutput(job, "empty script output");
                         reply = GatewayReply.ok(SILENT_MARKER);
                         cronJobRepository.markRunResult(
@@ -485,7 +493,9 @@ public class DefaultCronScheduler {
                         recordRun(job, now, runStatus, null, output, deliveryError, completed, triggerType);
                         return;
                     }
-                    prompt = prompt + "\n\n脚本输出：\n" + scriptResult.output;
+                    if (scriptResult != null) {
+                        prompt = withScriptOutput(prompt, scriptResult.output);
+                    }
                 }
                 String[] parts = SourceKeySupport.split(job.getSourceKey());
                 GatewayMessage synthetic =
@@ -542,6 +552,29 @@ public class DefaultCronScheduler {
                 + ")"
                 + "\n"
                 + SILENT_MARKER;
+    }
+
+    private boolean isCronScriptSecurityBlock(Exception error) {
+        String message = error == null ? null : error.getMessage();
+        return StrUtil.isNotBlank(message) && message.startsWith("BLOCKED");
+    }
+
+    private String withScriptOutput(String prompt, String output) {
+        return "## Script Output\n"
+                + "The following data was collected by a pre-run script. Use it as context for your analysis.\n\n"
+                + "```\n"
+                + StrUtil.nullToEmpty(output)
+                + "\n```\n\n"
+                + StrUtil.nullToEmpty(prompt);
+    }
+
+    private String withScriptError(String prompt, String error) {
+        return "## Script Error\n"
+                + "The data-collection script failed. Report this to the user.\n\n"
+                + "```\n"
+                + StrUtil.blankToDefault(error, "unknown error")
+                + "\n```\n\n"
+                + StrUtil.nullToEmpty(prompt);
     }
 
     private GatewayReply runScheduledWithInactivityTimeout(

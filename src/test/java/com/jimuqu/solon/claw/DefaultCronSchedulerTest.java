@@ -762,6 +762,52 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldInjectAgentCronScriptFailureIntoPromptLikeHermes() throws Exception {
+        RecordingUserMessageOrchestrator orchestrator = new RecordingUserMessageOrchestrator();
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "missing-dep.py");
+        FileUtil.writeString(
+                "import sys\nprint('partial output')\nprint('missing dependency', file=sys.stderr)\nsys.exit(1)\n",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "script-error");
+        body.put("schedule", "30m");
+        body.put("prompt", "Report status.");
+        body.put("script", "missing-dep.py");
+        body.put("deliver", "local");
+        CronJobRecord job = service.create("MEMORY:script-error-room:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        orchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastStatus()).isEqualTo("ok");
+        assertThat(updated.getLastError()).isNull();
+        assertThat(updated.getLastOutput()).contains("agent saw script error");
+        assertThat(orchestrator.userMessage)
+                .contains("## Script Error")
+                .contains("The data-collection script failed")
+                .contains("Cron script exited 1")
+                .contains("missing dependency")
+                .contains("Report status.");
+    }
+
+    @Test
     void shouldPersistHermesCronFieldsAndRejectUnsafePrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getScheduler().setWrapResponse(false);
@@ -2205,6 +2251,26 @@ public class DefaultCronSchedulerTest {
         @Override
         public List<com.jimuqu.solon.claw.core.model.ChannelStatus> statuses() {
             return java.util.Collections.emptyList();
+        }
+    }
+
+    private static class RecordingUserMessageOrchestrator implements ConversationOrchestrator {
+        private String userMessage;
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            this.userMessage = syntheticMessage.getText();
+            return GatewayReply.ok("agent saw script error");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
         }
     }
 
