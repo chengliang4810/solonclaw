@@ -53,6 +53,17 @@ public class ToolCallLoopGuardrailServiceTest {
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
         assertThat(trace.getLastObservation()).contains("repeated_exact_failure_block");
+        Object haltDecision =
+                trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
+        assertThat(haltDecision).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> haltMetadata = (Map<String, Object>) haltDecision;
+        assertThat(haltMetadata)
+                .containsEntry("action", "block")
+                .containsEntry("code", "repeated_exact_failure_block")
+                .containsEntry("tool_name", "web_search")
+                .containsKey("message");
+        assertThat(String.valueOf(haltMetadata.get("message"))).contains("相同参数");
     }
 
     @Test
@@ -72,6 +83,7 @@ public class ToolCallLoopGuardrailServiceTest {
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getLastObservation()).contains("args_hash").contains("repeated_exact_failure_block");
+        assertThat(trace.getLastObservation()).contains("\"message\"");
         assertThat(trace.getLastObservation())
                 .doesNotContain("secret-token-value")
                 .doesNotContain("☤")

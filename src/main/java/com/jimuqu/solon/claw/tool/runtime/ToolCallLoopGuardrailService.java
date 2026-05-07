@@ -22,6 +22,8 @@ import org.noear.solon.ai.agent.react.ReActTrace;
 /** Per-turn guardrail for repeated failed or non-progressing tool calls. */
 public class ToolCallLoopGuardrailService {
     private static final String STATE_KEY = "solonclaw.tool_loop_guardrail.state";
+    public static final String HALT_DECISION_EXTRA_KEY =
+            "solonclaw.tool_loop_guardrail.halt_decision";
     private static final Set<String> IDEMPOTENT_TOOLS =
             Collections.unmodifiableSet(
                     new HashSet<String>(
@@ -123,6 +125,7 @@ public class ToolCallLoopGuardrailService {
             if (!decision.shouldHalt()) {
                 return;
             }
+            trace.setExtra(HALT_DECISION_EXTRA_KEY, metadata(decision));
             trace.setLastObservation(syntheticResult(decision));
             trace.setRoute(Agent.ID_END);
             trace.setFinalAnswer(haltFinalAnswer(decision), false);
@@ -151,6 +154,7 @@ public class ToolCallLoopGuardrailService {
             }
             if (decision.shouldHalt()) {
                 String rewritten = appendGuidance(original, decision);
+                trace.setExtra(HALT_DECISION_EXTRA_KEY, metadata(decision));
                 trace.setLastObservation(rewritten);
                 trace.setRoute(Agent.ID_END);
                 trace.setFinalAnswer(haltFinalAnswer(decision), false);
@@ -533,6 +537,7 @@ public class ToolCallLoopGuardrailService {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("action", decision.action);
         map.put("code", decision.code);
+        map.put("message", decision.message);
         map.put("tool_name", decision.toolName);
         map.put("count", Integer.valueOf(decision.count));
         if (decision.signature != null) {
