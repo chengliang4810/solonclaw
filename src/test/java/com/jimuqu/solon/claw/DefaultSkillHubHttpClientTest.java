@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -8,6 +9,8 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DefaultSkillHubHttpClientTest {
@@ -79,19 +82,71 @@ public class DefaultSkillHubHttpClientTest {
         }
     }
 
+    @Test
+    void shouldNotForwardAuthorizationAcrossSkillHubRedirectOrigins() throws Exception {
+        CaptureServer target = captureServer();
+        HttpServer redirect = null;
+        try {
+            target.server.start();
+            redirect = redirectServer(target.url("/target"));
+            redirect.start();
+            String url = "http://127.0.0.1:" + redirect.getAddress().getPort() + "/index";
+            DefaultSkillHubHttpClient client =
+                    new DefaultSkillHubHttpClient(
+                            new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig()));
+            Map<String, String> headers =
+                    Collections.singletonMap("Authorization", "Bearer secret-token");
+
+            String body = client.getText(url, headers);
+
+            assertThat(body).isEqualTo("ok");
+            assertThat(target.authorization).isNull();
+        } finally {
+            if (redirect != null) {
+                redirect.stop(0);
+            }
+            target.server.stop(0);
+        }
+    }
+
     private static HttpServer redirectServer() throws Exception {
+        return redirectServer("http://169.254.169.254/latest/meta-data/?token=secret");
+    }
+
+    private static HttpServer redirectServer(String location) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(
                 "/index",
                 exchange -> {
-                    exchange.getResponseHeaders()
-                            .add(
-                                    "Location",
-                                    "http://169.254.169.254/latest/meta-data/?token=secret");
+                    exchange.getResponseHeaders().add("Location", location);
                     exchange.sendResponseHeaders(302, -1);
                     exchange.close();
                 });
         return server;
+    }
+
+    private static CaptureServer captureServer() throws Exception {
+        CaptureServer capture = new CaptureServer();
+        capture.server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        capture.server.createContext(
+                "/target",
+                exchange -> {
+                    capture.authorization = exchange.getRequestHeaders().getFirst("Authorization");
+                    byte[] body = "ok".getBytes("UTF-8");
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                    exchange.close();
+                });
+        return capture;
+    }
+
+    private static class CaptureServer {
+        private HttpServer server;
+        private volatile String authorization;
+
+        private String url(String path) {
+            return "http://127.0.0.1:" + server.getAddress().getPort() + path;
+        }
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {

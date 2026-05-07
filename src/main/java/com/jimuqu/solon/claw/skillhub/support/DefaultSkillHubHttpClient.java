@@ -108,7 +108,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
                 throw new IllegalStateException("Skills Hub HTTP redirect missing Location header");
             }
             String nextUrl = resolveRedirectUrl(url, location);
-            Request nextRequest = redirectRequest(request, nextUrl, response.code());
+            Request nextRequest = redirectRequest(request, url, nextUrl, response.code());
             return executeWithRedirectGuard(nextRequest, nextUrl, redirectCount + 1);
         } finally {
             response.close();
@@ -119,15 +119,53 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
-    private Request redirectRequest(Request request, String nextUrl, int status) {
-        Request.Builder builder = request.newBuilder().url(nextUrl);
+    private Request redirectRequest(Request request, String currentUrl, String nextUrl, int status) {
+        boolean sameOrigin = sameOrigin(currentUrl, nextUrl);
+        Request.Builder builder =
+                sameOrigin ? request.newBuilder().url(nextUrl) : new Request.Builder().url(nextUrl);
         if (status == 303
                 || ((status == 301 || status == 302)
                         && !"GET".equalsIgnoreCase(request.method())
                         && !"HEAD".equalsIgnoreCase(request.method()))) {
             builder.get();
+        } else if (!sameOrigin) {
+            if ("GET".equalsIgnoreCase(request.method())
+                    || "HEAD".equalsIgnoreCase(request.method())) {
+                builder.method(request.method(), null);
+            } else {
+                builder.get();
+            }
         }
         return builder.build();
+    }
+
+    private boolean sameOrigin(String left, String right) {
+        try {
+            URI a = URI.create(left);
+            URI b = URI.create(right);
+            return equalsIgnoreCase(a.getScheme(), b.getScheme())
+                    && equalsIgnoreCase(a.getHost(), b.getHost())
+                    && effectivePort(a) == effectivePort(b);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        return left == null ? right == null : left.equalsIgnoreCase(right);
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
     }
 
     private String resolveRedirectUrl(String baseUrl, String location) {
