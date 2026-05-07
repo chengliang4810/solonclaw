@@ -81,6 +81,8 @@ sudo chmod -R u+rwX runtime
 docker compose up -d
 ```
 
+不要覆盖镜像 entrypoint 后直接以 root 启动 `java -jar /app/solon-claw.jar`。官方镜像的 `/app/docker-entrypoint.sh` 会先把进程降权到 `solonclaw` 用户，再启动服务；如果绕过这一步，程序会默认拒绝启动，避免在 `/app/runtime` 留下 root 拥有的状态文件。只有明确接受这个风险时，才设置 `SOLONCLAW_ALLOW_ROOT_GATEWAY=1`。
+
 如果你希望容器内用户匹配宿主机当前用户，也可以在启动前设置：
 
 ```bash
