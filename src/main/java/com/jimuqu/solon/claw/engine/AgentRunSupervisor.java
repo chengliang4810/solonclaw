@@ -980,6 +980,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         try {
             List<ChatMessage> messages = MessageSupport.loadMessages(base.getNdjson());
             dropTransientAssistantTail(messages);
+            MessageSupport.repairMessageSequence(messages);
             messages.add(ChatMessage.ofAssistant(extractText(recovered.getAssistantMessage())));
             recovered.setNdjson(MessageSupport.toNdjson(messages));
         } catch (Exception e) {

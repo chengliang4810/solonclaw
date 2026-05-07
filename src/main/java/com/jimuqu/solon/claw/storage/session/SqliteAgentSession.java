@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.storage.session;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -114,7 +115,9 @@ public class SqliteAgentSession implements AgentSession {
     private void loadMessages(SessionRecord sessionRecord) {
         try {
             if (StrUtil.isNotBlank(sessionRecord.getNdjson())) {
-                cache.loadNdjson(sessionRecord.getNdjson());
+                List<ChatMessage> messages = MessageSupport.loadMessages(sessionRecord.getNdjson());
+                MessageSupport.repairMessageSequence(messages);
+                cache.addMessage(messages);
             }
         } catch (Exception e) {
             throw new IllegalStateException(

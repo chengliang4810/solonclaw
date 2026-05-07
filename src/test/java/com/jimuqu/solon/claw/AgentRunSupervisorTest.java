@@ -168,11 +168,11 @@ public class AgentRunSupervisorTest {
         assertThat(outcome.getFinalReply()).contains("最终答复");
         assertThat(gateway.prompts).hasSize(2);
         assertThat(gateway.prompts.get(1)).contains("没有输出最终答复");
-        assertThat(persisted).contains("工具结果：已完成");
+        assertThat(persisted).doesNotContain("工具结果：已完成");
         assertThat(persisted).contains("最终答复：工具已经执行完成。");
         assertThat(persisted).doesNotContain("没有输出最终答复");
-        assertThat(messages).hasSize(3);
-        assertThat(messages.get(2).getContent()).isEqualTo("最终答复：工具已经执行完成。");
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(1).getContent()).isEqualTo("最终答复：工具已经执行完成。");
     }
 
     @Test
