@@ -1541,6 +1541,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockFilePathsContainingControlCharactersLikeHermesPathSecurity()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> newlineArgs = new LinkedHashMap<String, Object>();
+        newlineArgs.put("fileName", "credentials/token\n.json");
+        Map<String, Object> escapeArgs = new LinkedHashMap<String, Object>();
+        escapeArgs.put("path", "logs/\u001B]0;hidden\u0007report.txt");
+        Map<String, Object> normalArgs = new LinkedHashMap<String, Object>();
+        normalArgs.put("fileName", "docs/report.txt");
+
+        SecurityPolicyService.FileVerdict newline =
+                securityPolicyService.checkFileToolArgs("file_read", newlineArgs);
+        SecurityPolicyService.FileVerdict escape =
+                securityPolicyService.checkFileToolArgs("file_write", escapeArgs);
+        SecurityPolicyService.FileVerdict normal =
+                securityPolicyService.checkFileToolArgs("file_read", normalArgs);
+
+        assertThat(newline.isAllowed()).isFalse();
+        assertThat(newline.getMessage()).contains("非法字符");
+        assertThat(escape.isAllowed()).isFalse();
+        assertThat(escape.getMessage()).contains("非法字符");
+        assertThat(normal.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSkillsHubInternalCacheReadsLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

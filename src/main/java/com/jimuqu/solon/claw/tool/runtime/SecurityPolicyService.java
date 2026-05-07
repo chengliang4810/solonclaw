@@ -335,7 +335,7 @@ public class SecurityPolicyService {
             return FileVerdict.allow();
         }
         String normalized = normalizePathText(path);
-        if (normalized.indexOf('\0') >= 0) {
+        if (containsControlCharacter(normalized)) {
             return FileVerdict.block(path, "路径包含非法字符");
         }
         if (containsTraversal(normalized)) {
@@ -606,6 +606,19 @@ public class SecurityPolicyService {
             value = value.replace("//", "/");
         }
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    private boolean containsControlCharacter(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isISOControl(ch)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String printableCharacter(String ch) {

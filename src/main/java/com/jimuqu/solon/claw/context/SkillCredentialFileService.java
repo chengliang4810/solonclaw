@@ -196,6 +196,9 @@ public class SkillCredentialFileService {
         if (StrUtil.isBlank(relativePath)) {
             return CredentialFileMount.rejected(rawPath, "empty path");
         }
+        if (containsControlCharacter(relativePath)) {
+            return CredentialFileMount.rejected(rawPath, "path contains control character");
+        }
         String trimmedRawPath = StrUtil.nullToEmpty(rawPath).trim();
         if (isAbsolutePath(trimmedRawPath)) {
             return CredentialFileMount.rejected(rawPath, "absolute path is not allowed");
@@ -370,6 +373,18 @@ public class SkillCredentialFileService {
             value = value.substring(1);
         }
         return value;
+    }
+
+    private boolean containsControlCharacter(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")

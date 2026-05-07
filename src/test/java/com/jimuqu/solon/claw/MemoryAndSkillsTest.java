@@ -395,6 +395,23 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldRejectCredentialFilesContainingControlCharactersLikeHermesPathSecurity()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/\u001Bhidden.json");
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/token\n.json");
+
+        SkillCredentialFileService.CredentialFilePlan plan =
+                new SkillCredentialFileService(env.appConfig).configPlan();
+
+        assertThat(plan.getMounts()).isEmpty();
+        assertThat(plan.getMissing()).isEmpty();
+        assertThat(plan.getRejected()).hasSize(2);
+        assertThat(plan.getRejected().get(0).getReason()).contains("control character");
+        assertThat(plan.getRejected().get(1).getReason()).contains("control character");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void shouldPreferCredentialPathOverName() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
