@@ -834,7 +834,8 @@ public class DangerousCommandApprovalService {
     }
 
     public Map<String, Object> buildDeliveryExtras(PlatformType platform, PendingApproval pending) {
-        if (platform != PlatformType.FEISHU || pending == null) {
+        if ((platform != PlatformType.FEISHU && platform != PlatformType.QQBOT)
+                || pending == null) {
             return Collections.emptyMap();
         }
 

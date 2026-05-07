@@ -13,9 +13,12 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +67,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .followSslRedirects(false)
                         .build();
         setConnectionMode("websocket");
-        setFeatures("text", "attachments", "media-transfer", "platform-asr-text");
+        setFeatures(
+                "text",
+                "attachments",
+                "media-transfer",
+                "platform-asr-text",
+                "inline-keyboard",
+                "approval-card");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
@@ -146,6 +155,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalArgumentException("QQBot chatId is required");
         }
         refreshAccessTokenIfNecessary();
+        if (isApprovalCardRequest(request)) {
+            sendDangerousApprovalKeyboard(request);
+            return;
+        }
         if (StrUtil.isNotBlank(request.getText())) {
             postJson(
                     resolveMessagePath(request),
@@ -160,6 +173,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private ONode buildTextBody(String text, String replyTo) {
+        return buildTextBody(text, replyTo, null);
+    }
+
+    protected ONode buildTextBody(String text, String replyTo, ONode keyboard) {
         ONode body =
                 new ONode()
                         .set("msg_type", config.isMarkdownSupport() ? 2 : 0)
@@ -168,7 +185,58 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isNotBlank(replyTo)) {
             body.set("msg_id", replyTo);
         }
+        if (keyboard != null && !keyboard.isNull()) {
+            body.set("keyboard", keyboard);
+        }
         return body;
+    }
+
+    private boolean isApprovalCardRequest(DeliveryRequest request) {
+        return DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD.equalsIgnoreCase(
+                stringValue(
+                        request.getChannelExtras() == null
+                                ? null
+                                : request.getChannelExtras().get("mode")));
+    }
+
+    private void sendDangerousApprovalKeyboard(DeliveryRequest request) throws Exception {
+        if ("guild".equalsIgnoreCase(request.getChatType())) {
+            throw new IllegalArgumentException("QQBot guild chats do not support inline keyboards");
+        }
+        postJson(resolveMessagePath(request), buildApprovalKeyboardBody(request).toJson());
+    }
+
+    protected ONode buildApprovalKeyboardBody(DeliveryRequest request) {
+        Map<String, Object> extras =
+                request.getChannelExtras() == null
+                        ? new LinkedHashMap<String, Object>()
+                        : request.getChannelExtras();
+        String approvalId = stringValue(extras.get("approvalId"));
+        String text = buildApprovalText(request, extras);
+        boolean allowAlways = Boolean.TRUE.equals(extras.get("approvalAllowAlways"));
+        ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(approvalId, allowAlways);
+        return buildTextBody(text, request.getThreadId(), keyboard);
+    }
+
+    private String buildApprovalText(DeliveryRequest request, Map<String, Object> extras) {
+        if (StrUtil.isNotBlank(request.getText())) {
+            return request.getText().trim();
+        }
+        String command = SecretRedactor.redact(stringValue(extras.get("approvalCommand")), 3000);
+        String description =
+                SecretRedactor.redact(stringValue(extras.get("approvalDescription")), 1000);
+        String toolName = SecretRedactor.redact(stringValue(extras.get("approvalToolName")), 200);
+        StringBuilder buffer = new StringBuilder("🔐 **命令执行审批**");
+        if (StrUtil.isNotBlank(command)) {
+            buffer.append("\n\n```\n").append(command).append("\n```");
+        }
+        if (StrUtil.isNotBlank(description)) {
+            buffer.append("\n📝 ").append(description);
+        }
+        if (StrUtil.isNotBlank(toolName)) {
+            buffer.append("\n🔧 工具: ").append(toolName);
+        }
+        return buffer.toString();
     }
 
     private void sendAttachment(DeliveryRequest request, MessageAttachment attachment)
@@ -326,6 +394,27 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    private ONode putJson(String path, String body) throws Exception {
+        String url = apiDomain() + path;
+        assertSafeUrl(url, "QQBot API URL");
+        Request request =
+                new Request.Builder()
+                        .url(url)
+                        .header("Authorization", "QQBot " + accessToken)
+                        .put(RequestBody.create(JSON, body))
+                        .build();
+        Response response = client.newCall(request).execute();
+        try {
+            String raw = safeBody(response);
+            if (!response.isSuccessful()) {
+                throw new IllegalStateException("QQBot HTTP " + response.code() + ": " + raw);
+            }
+            return StrUtil.isBlank(raw) ? new ONode() : ONode.ofJson(raw);
+        } finally {
+            response.close();
+        }
+    }
+
     private String safeBody(Response response) throws Exception {
         return response.body() == null ? "" : response.body().string();
     }
@@ -389,6 +478,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 new Runnable() {
                     @Override
                     public void run() {
+                        acknowledgeInteractionIfNecessary(raw);
                         GatewayMessage message = toGatewayMessage(raw);
                         if (message == null) {
                             return;
@@ -404,11 +494,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     protected GatewayMessage toGatewayMessage(String raw) {
         ONode root = ONode.ofJson(raw);
+        String eventType = StrUtil.nullToEmpty(root.get("t").getString()).toLowerCase();
+        if ("interaction_create".equals(eventType)) {
+            return toInteractionGatewayMessage(root);
+        }
         ONode data = root.get("d");
         if (data == null || data.isNull()) {
             data = root;
         }
-        String eventType = StrUtil.nullToEmpty(root.get("t").getString()).toLowerCase();
         String chatType =
                 eventType.contains("group")
                                 || StrUtil.isNotBlank(data.get("group_openid").getString())
@@ -446,6 +539,86 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setUserName(userId);
         message.setThreadId(data.get("id").getString());
         return message;
+    }
+
+    private void acknowledgeInteractionIfNecessary(String raw) {
+        try {
+            ONode root = ONode.ofJson(raw);
+            String eventType = StrUtil.nullToEmpty(root.get("t").getString()).toLowerCase();
+            if (!"interaction_create".equals(eventType)) {
+                return;
+            }
+            ONode data = root.get("d");
+            String interactionId = data == null || data.isNull() ? "" : data.get("id").getString();
+            if (StrUtil.isBlank(interactionId)) {
+                return;
+            }
+            putJson("/interactions/" + interactionId, new ONode().set("code", 0).toJson());
+        } catch (Exception e) {
+            log.warn("[QQBOT] interaction ACK failed: {}", e.getMessage(), e);
+        }
+    }
+
+    protected GatewayMessage toInteractionGatewayMessage(ONode root) {
+        ONode data = root.get("d");
+        if (data == null || data.isNull()) {
+            data = root;
+        }
+        String buttonData =
+                firstNonBlank(
+                        data.get("resolved").get("button_data").getString(),
+                        data.get("data").get("resolved").get("button_data").getString(),
+                        data.get("button_data").getString(),
+                        data.get("data").get("button_data").getString());
+        String command = QQBotKeyboardSupport.commandFromButtonData(buttonData);
+        if (StrUtil.isBlank(command)) {
+            return null;
+        }
+        String chatType = resolveInteractionChatType(data);
+        String chatId =
+                firstNonBlank(
+                        data.get("group_openid").getString(),
+                        data.get("group_id").getString(),
+                        data.get("channel_id").getString(),
+                        data.get("openid").getString(),
+                        data.get("user_openid").getString());
+        String userId =
+                firstNonBlank(
+                        data.get("group_member_openid").getString(),
+                        data.get("operator").get("openid").getString(),
+                        data.get("operator").get("user_openid").getString(),
+                        data.get("operator").get("id").getString(),
+                        data.get("user_openid").getString(),
+                        data.get("openid").getString(),
+                        data.get("resolved").get("user_id").getString(),
+                        data.get("data").get("resolved").get("user_id").getString());
+        if (!allowInbound(chatType, chatId, userId) || StrUtil.isBlank(chatId)) {
+            return null;
+        }
+        GatewayMessage message = new GatewayMessage(PlatformType.QQBOT, chatId, userId, command);
+        message.setChatType(chatType);
+        message.setChatName(chatId);
+        message.setUserName(userId);
+        message.setThreadId(data.get("id").getString());
+        return message;
+    }
+
+    private String resolveInteractionChatType(ONode data) {
+        String scene = StrUtil.nullToEmpty(data.get("scene").getString()).toLowerCase();
+        if ("group".equals(scene) || StrUtil.isNotBlank(data.get("group_openid").getString())) {
+            return GatewayBehaviorConstants.CHAT_TYPE_GROUP;
+        }
+        if ("guild".equals(scene) || StrUtil.isNotBlank(data.get("channel_id").getString())) {
+            return "guild";
+        }
+        int chatType = data.get("chat_type").getInt(-1);
+        if (chatType == 1) {
+            return GatewayBehaviorConstants.CHAT_TYPE_GROUP;
+        }
+        if (chatType == 0) {
+            return "guild";
+        }
+        return GatewayBehaviorConstants.CHAT_TYPE_DM;
     }
 
     private boolean allowInbound(String chatType, String chatId, String userId) {
@@ -514,5 +687,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         }
         return "";
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 }

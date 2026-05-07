@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
@@ -14,6 +16,7 @@ import com.jimuqu.solon.claw.gateway.platform.wecom.WeComChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.lark.oapi.core.request.EventReq;
@@ -21,8 +24,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 
 public class DomesticChannelEnhancementTest {
     @Test
@@ -42,6 +48,102 @@ public class DomesticChannelEnhancementTest {
         assertThat(text.getChatId()).isEqualTo("user-a");
         assertThat(voice.getChatType()).isEqualTo("group");
         assertThat(voice.getText()).isEqualTo("语音文本");
+    }
+
+    @Test
+    void shouldBuildQqbotDangerousApprovalInlineKeyboard() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.QQBOT);
+        request.setChatId("user-a");
+        request.setChatType("dm");
+        request.setThreadId("m1");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        extras.put("approvalId", "approval-123");
+        extras.put("approvalCommand", "rm -rf runtime/cache");
+        extras.put("approvalDescription", "recursive delete");
+        extras.put("approvalToolName", "execute_shell");
+        extras.put("approvalAllowAlways", Boolean.TRUE);
+        request.setChannelExtras(extras);
+
+        ONode body = adapter.buildApprovalBody(request);
+
+        assertThat(body.get("content").getString()).contains("命令执行审批");
+        assertThat(body.get("content").getString()).contains("rm -rf runtime/cache");
+        assertThat(body.get("msg_id").getString()).isEqualTo("m1");
+        ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
+        assertThat(buttons.get(0).get("action").get("data").getString())
+                .isEqualTo("approve:approval-123:allow-once");
+        assertThat(buttons.get(1).get("render_data").get("label").getString())
+                .isEqualTo("⭐ 始终允许");
+        assertThat(buttons.get(2).get("action").get("data").getString())
+                .isEqualTo("approve:approval-123:deny");
+        assertThat(buttons.get(2).get("group_id").getString()).isEqualTo("approval");
+    }
+
+    @Test
+    void shouldBuildQqbotSessionApprovalButtonWhenAlwaysIsNotAllowed() {
+        AppConfig config = new AppConfig();
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.QQBOT);
+        request.setChatId("user-a");
+        request.setChatType("dm");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        extras.put("approvalId", "approval-456");
+        extras.put("approvalAllowAlways", Boolean.FALSE);
+        request.setChannelExtras(extras);
+
+        ONode body = adapter.buildApprovalBody(request);
+
+        ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
+        assertThat(buttons.get(1).get("render_data").get("label").getString())
+                .isEqualTo("✅ 本次会话");
+        assertThat(buttons.get(1).get("action").get("data").getString())
+                .isEqualTo("approve:approval-456:allow-session");
+    }
+
+    @Test
+    void shouldParseQqbotInteractionApprovalButtonsAsCommands() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage approve =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-1\",\"scene\":\"group\",\"group_openid\":\"group-a\",\"operator\":{\"openid\":\"user-a\"},\"resolved\":{\"button_data\":\"approve:approval-123:allow-always\"}}}");
+        GatewayMessage deny =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-2\",\"chat_type\":2,\"user_openid\":\"user-b\",\"data\":{\"resolved\":{\"button_data\":\"approve:approval-123:deny\"}}}}");
+
+        assertThat(approve.getText()).isEqualTo("/approve approval-123 always");
+        assertThat(approve.getPlatform()).isEqualTo(PlatformType.QQBOT);
+        assertThat(approve.getChatType()).isEqualTo("group");
+        assertThat(approve.getChatId()).isEqualTo("group-a");
+        assertThat(approve.getUserId()).isEqualTo("user-a");
+        assertThat(approve.getThreadId()).isEqualTo("int-1");
+        assertThat(deny.getText()).isEqualTo("/deny approval-123");
+        assertThat(deny.getChatType()).isEqualTo("dm");
+        assertThat(deny.getChatId()).isEqualTo("user-b");
+    }
+
+    @Test
+    void shouldIgnoreMalformedQqbotInteractionButtonData() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-1\",\"user_openid\":\"user-a\",\"resolved\":{\"button_data\":\"update_prompt:y\"}}}");
+
+        assertThat(message).isNull();
     }
 
     @Test
@@ -360,6 +462,10 @@ public class DomesticChannelEnhancementTest {
 
         private GatewayMessage parse(String raw) {
             return toGatewayMessage(raw);
+        }
+
+        private ONode buildApprovalBody(DeliveryRequest request) {
+            return buildApprovalKeyboardBody(request);
         }
     }
 

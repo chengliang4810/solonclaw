@@ -2160,7 +2160,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBuildFeishuApprovalCardExtrasAndParseCardAction() throws Exception {
+    void shouldBuildNativeApprovalCardExtrasAndParseCardAction() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService.PendingApproval pending =
                 new DangerousCommandApprovalService.PendingApproval();
@@ -2187,6 +2187,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalCommand")).isEqualTo("rm -rf runtime/cache");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isEqualTo("/approve approval-123 always");
+        Map<String, Object> qqbotExtras =
+                env.dangerousCommandApprovalService.buildDeliveryExtras(
+                        PlatformType.QQBOT, pending);
+        assertThat(qqbotExtras.get("mode"))
+                .isEqualTo(DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        assertThat(qqbotExtras.get("approvalId")).isEqualTo("approval-123");
 
         payload.put(
                 DangerousCommandApprovalService.CARD_ACTION_KEY,
