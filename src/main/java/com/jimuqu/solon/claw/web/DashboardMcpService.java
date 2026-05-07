@@ -29,6 +29,11 @@ import org.noear.snack4.ONode;
 /** Dashboard-first MCP server registry. */
 public class DashboardMcpService {
     private static final int MAX_OAUTH_TOKEN_REDIRECTS = 5;
+    private static final String TRANSPORT_STDIO = "stdio";
+    private static final String TRANSPORT_HTTP = "http";
+    private static final String TRANSPORT_STREAMABLE = "streamable";
+    private static final String TRANSPORT_STREAMABLE_STATELESS = "streamable_stateless";
+    private static final String TRANSPORT_SSE = "sse";
 
     private final AppConfig appConfig;
     private final SqliteDatabase database;
@@ -95,11 +100,16 @@ public class DashboardMcpService {
             serverId = IdSupport.newId();
         }
         String name = StrUtil.blankToDefault(read(body, "name"), serverId);
-        String transport = StrUtil.blankToDefault(read(body, "transport"), "stdio");
+        String transport = normalizeTransport(read(body, "transport"));
         String endpoint = read(body, "endpoint");
-        assertSafeRuntimeUrl(endpoint, "MCP endpoint");
+        validateTransportTarget(transport, endpoint, read(body, "command"));
+        if (!TRANSPORT_STDIO.equals(transport)) {
+            assertSafeRuntimeUrl(endpoint, "MCP endpoint");
+        }
         McpPackageSecurityService.SecurityVerdict securityVerdict =
-                checkPackageSecurity(read(body, "command"), body == null ? null : body.get("args"));
+                TRANSPORT_STDIO.equals(transport)
+                        ? checkPackageSecurity(read(body, "command"), body == null ? null : body.get("args"))
+                        : McpPackageSecurityService.SecurityVerdict.allow();
         long now = System.currentTimeMillis();
         Connection connection = database.openConnection();
         try {
@@ -162,6 +172,38 @@ public class DashboardMcpService {
         result.put("server_id", serverId);
         result.put("security", securityMap(securityVerdict));
         return result;
+    }
+
+    private String normalizeTransport(String rawTransport) {
+        String transport = StrUtil.blankToDefault(rawTransport, TRANSPORT_STDIO)
+                .trim()
+                .toLowerCase()
+                .replace('-', '_');
+        if (TRANSPORT_HTTP.equals(transport)) {
+            return TRANSPORT_STREAMABLE;
+        }
+        if (TRANSPORT_STDIO.equals(transport)
+                || TRANSPORT_STREAMABLE.equals(transport)
+                || TRANSPORT_STREAMABLE_STATELESS.equals(transport)
+                || TRANSPORT_SSE.equals(transport)) {
+            return transport;
+        }
+        throw new IllegalArgumentException(
+                "不支持的 MCP transport："
+                        + StrUtil.blankToDefault(rawTransport, "")
+                        + "。可选值：stdio、http、streamable、streamable_stateless、sse。");
+    }
+
+    private void validateTransportTarget(String transport, String endpoint, String command) {
+        if (TRANSPORT_STDIO.equals(transport)) {
+            if (StrUtil.isBlank(command)) {
+                throw new IllegalArgumentException("MCP stdio transport 必须提供 command。");
+            }
+            return;
+        }
+        if (StrUtil.isBlank(endpoint)) {
+            throw new IllegalArgumentException("MCP " + transport + " transport 必须提供 endpoint。");
+        }
     }
 
     public Map<String, Object> check(String serverId) throws Exception {

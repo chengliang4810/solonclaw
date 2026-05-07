@@ -325,6 +325,58 @@ public class McpRuntimeServiceTest {
         new com.jimuqu.solon.claw.web.DashboardMcpService(appConfig, database).save(body);
     }
 
+    @Test
+    void shouldSaveSseMcpServerAndRejectInvalidTransports() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        com.jimuqu.solon.claw.web.DashboardMcpService service =
+                new com.jimuqu.solon.claw.web.DashboardMcpService(
+                        env.appConfig, env.sqliteDatabase);
+
+        Map<String, Object> sse = new LinkedHashMap<String, Object>();
+        sse.put("serverId", "sse-docs");
+        sse.put("name", "SSE Docs");
+        sse.put("transport", "SSE");
+        sse.put("endpoint", "https://example.com/sse");
+        service.save(sse);
+
+        assertThat(readMcpTransport(env.sqliteDatabase, "sse-docs")).isEqualTo("sse");
+
+        Map<String, Object> hyphenated = new LinkedHashMap<String, Object>();
+        hyphenated.put("serverId", "stateless-docs");
+        hyphenated.put("name", "Stateless Docs");
+        hyphenated.put("transport", "streamable-stateless");
+        hyphenated.put("endpoint", "https://example.com/mcp");
+        service.save(hyphenated);
+
+        assertThat(readMcpTransport(env.sqliteDatabase, "stateless-docs"))
+                .isEqualTo("streamable_stateless");
+
+        Map<String, Object> httpAlias = new LinkedHashMap<String, Object>();
+        httpAlias.put("serverId", "http-docs");
+        httpAlias.put("name", "HTTP Docs");
+        httpAlias.put("transport", "http");
+        httpAlias.put("endpoint", "https://example.com/http-mcp");
+        service.save(httpAlias);
+
+        assertThat(readMcpTransport(env.sqliteDatabase, "http-docs")).isEqualTo("streamable");
+
+        Map<String, Object> invalid = new LinkedHashMap<String, Object>();
+        invalid.put("serverId", "bad-docs");
+        invalid.put("transport", "websocket");
+        invalid.put("endpoint", "https://example.com/ws");
+        assertThatThrownBy(() -> service.save(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不支持的 MCP transport");
+
+        Map<String, Object> missingEndpoint = new LinkedHashMap<String, Object>();
+        missingEndpoint.put("serverId", "missing-endpoint");
+        missingEndpoint.put("transport", "sse");
+        assertThatThrownBy(() -> service.save(missingEndpoint))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("必须提供 endpoint");
+    }
+
     private String readToolsJson(SqliteDatabase database) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -335,6 +387,25 @@ public class McpRuntimeServiceTest {
             ResultSet resultSet = statement.executeQuery();
             try {
                 return resultSet.next() ? resultSet.getString("tools_json") : "";
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    private String readMcpTransport(SqliteDatabase database, String serverId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select transport from mcp_servers where server_id = ?");
+            statement.setString(1, serverId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? resultSet.getString("transport") : "";
             } finally {
                 resultSet.close();
                 statement.close();
