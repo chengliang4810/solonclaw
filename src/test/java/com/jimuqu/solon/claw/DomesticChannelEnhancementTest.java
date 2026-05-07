@@ -270,6 +270,29 @@ public class DomesticChannelEnhancementTest {
                 .hasMessageContaining("token=***");
     }
 
+    @Test
+    void shouldBlockUnsafeWeComConfiguredWebsocketBeforeNetworkAccess() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getWecom().setEnabled(true);
+        config.getChannels().getWecom().setBotId("wecom_real");
+        config.getChannels().getWecom().setSecret("real_secret");
+        config.getChannels().getWecom().setWebsocketUrl(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        WeComChannelAdapter adapter =
+                new WeComChannelAdapter(
+                        config.getChannels().getWecom(),
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config));
+
+        assertThatThrownBy(adapter::connect)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("WeCom connect failed");
+        assertThat(adapter.statusSnapshot().getLastErrorMessage())
+                .contains("WeCom websocket URL blocked")
+                .contains("169.254.169.254")
+                .contains("token=***");
+    }
+
     private void assertWeakCredentialRejected(
             com.jimuqu.solon.claw.core.service.ChannelAdapter adapter,
             String expectedErrorCode,

@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -65,7 +66,12 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
         this.securityPolicyService = securityPolicyService;
-        this.client = new OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build();
+        this.client =
+                new OkHttpClient.Builder()
+                        .readTimeout(0, TimeUnit.MILLISECONDS)
+                        .followRedirects(false)
+                        .followSslRedirects(false)
+                        .build();
         setConnectionMode("websocket");
         setFeatures("text", "attachments", "quoted-media", "reply-mode", "aes-media");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
@@ -101,12 +107,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
 
-        String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
-        callbackExecutor = Executors.newSingleThreadExecutor();
-        CountDownLatch latch = new CountDownLatch(1);
-        Request request = new Request.Builder().url(wsUrl).build();
-        webSocket = client.newWebSocket(request, new Listener(latch));
         try {
+            String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL).trim();
+            assertSafeUrl(wsUrl, "WeCom websocket URL");
+            callbackExecutor = Executors.newSingleThreadExecutor();
+            CountDownLatch latch = new CountDownLatch(1);
+            Request request = new Request.Builder().url(wsUrl).build();
+            webSocket = client.newWebSocket(request, new Listener(latch));
             if (!latch.await(10, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("WeCom websocket open timeout");
             }
@@ -397,6 +404,21 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private byte[] downloadBytes(String url, long maxBytes) throws Exception {
         return BoundedAttachmentIO.downloadOkHttp(client, url, maxBytes, securityPolicyService);
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
     }
 
     private void sendAttachment(
