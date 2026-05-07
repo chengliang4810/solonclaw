@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,14 +21,28 @@ public class McpPackageSecurityService {
 
     private final SkillHubHttpClient httpClient;
     private final String endpoint;
+    private final SecurityPolicyService securityPolicyService;
 
     public McpPackageSecurityService(SkillHubHttpClient httpClient) {
-        this(httpClient, System.getenv("OSV_ENDPOINT"));
+        this(httpClient, System.getenv("OSV_ENDPOINT"), null);
     }
 
     public McpPackageSecurityService(SkillHubHttpClient httpClient, String endpoint) {
+        this(httpClient, endpoint, null);
+    }
+
+    public McpPackageSecurityService(
+            SkillHubHttpClient httpClient, SecurityPolicyService securityPolicyService) {
+        this(httpClient, System.getenv("OSV_ENDPOINT"), securityPolicyService);
+    }
+
+    public McpPackageSecurityService(
+            SkillHubHttpClient httpClient,
+            String endpoint,
+            SecurityPolicyService securityPolicyService) {
         this.httpClient = httpClient;
         this.endpoint = StrUtil.blankToDefault(endpoint, DEFAULT_OSV_ENDPOINT);
+        this.securityPolicyService = securityPolicyService;
     }
 
     public SecurityVerdict check(String command, Object argsValue) {
@@ -37,6 +53,10 @@ public class McpPackageSecurityService {
         PackageRef packageRef = parsePackage(argsValue, ecosystem);
         if (packageRef == null || StrUtil.isBlank(packageRef.name)) {
             return SecurityVerdict.allow();
+        }
+        SecurityVerdict endpointVerdict = checkEndpoint();
+        if (!endpointVerdict.isAllowed()) {
+            return endpointVerdict;
         }
         try {
             List<Map<String, Object>> malware = queryOsv(packageRef, ecosystem);
@@ -149,6 +169,17 @@ public class McpPackageSecurityService {
         return new PackageRef(name, version);
     }
 
+    private SecurityVerdict checkEndpoint() {
+        if (securityPolicyService == null) {
+            return SecurityVerdict.allow();
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(endpoint);
+        if (verdict.isAllowed()) {
+            return SecurityVerdict.allow();
+        }
+        return SecurityVerdict.blockEndpoint(verdict.getUrl(), verdict.getMessage());
+    }
+
     private String versionOrNull(String version) {
         String value = StrUtil.nullToEmpty(version).trim();
         if (StrUtil.isBlank(value) || "latest".equalsIgnoreCase(value)) {
@@ -244,6 +275,16 @@ public class McpPackageSecurityService {
                             + ids
                             + ". Details: "
                             + summaries);
+        }
+
+        public static SecurityVerdict blockEndpoint(String endpoint, String reason) {
+            return new SecurityVerdict(
+                    false,
+                    "BLOCKED: OSV endpoint is unsafe: "
+                            + SecretRedactor.maskUrl(endpoint)
+                            + " ("
+                            + reason
+                            + ")");
         }
 
         public boolean isAllowed() {

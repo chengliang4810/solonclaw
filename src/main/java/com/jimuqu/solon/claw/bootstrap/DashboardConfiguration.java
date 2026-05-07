@@ -243,7 +243,8 @@ public class DashboardConfiguration {
                 sqliteDatabase,
                 new McpPackageSecurityService(
                         new com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient(
-                                securityPolicyService)),
+                                securityPolicyService),
+                        securityPolicyService),
                 mcpRuntimeService);
     }
 

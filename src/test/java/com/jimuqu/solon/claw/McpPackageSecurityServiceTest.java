@@ -2,8 +2,10 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import java.util.Arrays;
@@ -42,6 +44,25 @@ public class McpPackageSecurityServiceTest {
                 service.check("uvx", Arrays.asList("demo-mcp==0.1.0"));
 
         assertThat(verdict.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldBlockUnsafeOsvEndpointBeforeNetworkAccess() throws Exception {
+        FakeOsvHttpClient http = new FakeOsvHttpClient("{\"vulns\":[]}");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(
+                        http,
+                        "http://169.254.169.254/latest/meta-data/?token=secret",
+                        new SecurityPolicyService(new AppConfig()));
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("npx", Arrays.asList("-y", "safe-server"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("OSV endpoint is unsafe");
+        assertThat(verdict.getMessage()).contains("169.254.169.254");
+        assertThat(verdict.getMessage()).contains("token=***");
+        assertThat(http.lastBody).isNull();
     }
 
     @Test
