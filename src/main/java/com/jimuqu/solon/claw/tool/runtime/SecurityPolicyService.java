@@ -122,6 +122,10 @@ public class SecurityPolicyService {
             Pattern.compile(
                     "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
                     Pattern.CASE_INSENSITIVE);
+    private static final Pattern SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN =
+            Pattern.compile(
+                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.hermes|\\.codex|\\.qwen|\\.config[/\\\\](?:gh|gcloud))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
+                    Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
                     "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials(?:\\.json)?)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:application_default_credentials\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_./\\\\-])",
@@ -309,6 +313,13 @@ public class SecurityPolicyService {
         String code = StrUtil.nullToEmpty(command);
         if (code.length() == 0) {
             return FileVerdict.allow();
+        }
+        Matcher relativeCredentialMatcher = SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN.matcher(code);
+        while (relativeCredentialMatcher.find()) {
+            FileVerdict verdict = checkPath(relativeCredentialMatcher.group(1), false);
+            if (!verdict.allowed) {
+                return verdict;
+            }
         }
         Matcher matcher = SHELL_PATH_PATTERN.matcher(code);
         while (matcher.find()) {

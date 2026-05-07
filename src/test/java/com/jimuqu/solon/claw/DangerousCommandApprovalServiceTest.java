@@ -2067,6 +2067,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockRelativeCredentialDirectoryPathsInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.FileVerdict sshConfig =
+                securityPolicyService.checkCommandPaths("cat .ssh/config");
+        SecurityPolicyService.FileVerdict awsCredentials =
+                securityPolicyService.checkCommandPaths("Get-Content .aws\\credentials");
+        SecurityPolicyService.FileVerdict nestedDocker =
+                securityPolicyService.checkCommandPaths("type project/.docker/config.json");
+        SecurityPolicyService.FileVerdict gcloud =
+                securityPolicyService.checkCommandPaths(
+                        "cat ./.config/gcloud/application_default_credentials.json");
+        SecurityPolicyService.FileVerdict ghNotes =
+                securityPolicyService.checkCommandPaths("cat docs/.config/gh-notes.md");
+
+        assertThat(sshConfig.isAllowed()).isFalse();
+        assertThat(sshConfig.getMessage()).contains("凭据");
+        assertThat(sshConfig.getPath()).isEqualTo(".ssh/config");
+        assertThat(awsCredentials.isAllowed()).isFalse();
+        assertThat(awsCredentials.getPath()).isEqualTo(".aws\\credentials");
+        assertThat(nestedDocker.isAllowed()).isFalse();
+        assertThat(nestedDocker.getPath()).isEqualTo("project/.docker/config.json");
+        assertThat(gcloud.isAllowed()).isFalse();
+        assertThat(gcloud.getPath())
+                .isEqualTo("./.config/gcloud/application_default_credentials.json");
+        assertThat(ghNotes.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockHermesWriteDeniedPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
