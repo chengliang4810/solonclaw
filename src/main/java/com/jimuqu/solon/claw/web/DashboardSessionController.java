@@ -62,6 +62,11 @@ public class DashboardSessionController {
         return DashboardResponse.ok(sessionService.sessionTree(id));
     }
 
+    @Mapping(value = "/api/sessions/{id}/latest-descendant", method = MethodType.GET)
+    public Map<String, Object> latestDescendant(String id) throws Exception {
+        return DashboardResponse.ok(sessionService.latestDescendant(id));
+    }
+
     @Mapping(value = "/api/sessions/{id}/checkpoints", method = MethodType.GET)
     public Map<String, Object> checkpoints(String id) throws Exception {
         return DashboardResponse.ok(sessionService.checkpoints(id));

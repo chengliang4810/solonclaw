@@ -237,6 +237,66 @@ public class DashboardSessionService {
         return result;
     }
 
+    public Map<String, Object> latestDescendant(String sessionId) throws Exception {
+        SessionRecord root = sessionRepository.findById(sessionId);
+        if (root == null) {
+            Map<String, Object> missing = new LinkedHashMap<String, Object>();
+            missing.put("requested_session_id", sessionId);
+            missing.put("session_id", null);
+            missing.put("path", Collections.emptyList());
+            missing.put("changed", Boolean.FALSE);
+            return missing;
+        }
+
+        List<SessionRecord> records = lineageRecords(root);
+        Map<String, List<SessionRecord>> childrenByParent =
+                new LinkedHashMap<String, List<SessionRecord>>();
+        for (SessionRecord record : records) {
+            String parent = record.getParentSessionId();
+            if (StrUtil.isBlank(parent)) {
+                continue;
+            }
+            List<SessionRecord> children = childrenByParent.get(parent);
+            if (children == null) {
+                children = new ArrayList<SessionRecord>();
+                childrenByParent.put(parent, children);
+            }
+            children.add(record);
+        }
+
+        List<String> path = new ArrayList<String>();
+        String current = root.getSessionId();
+        path.add(current);
+        java.util.HashSet<String> seen = new java.util.HashSet<String>();
+        seen.add(current);
+
+        while (childrenByParent.containsKey(current)) {
+            List<SessionRecord> children = childrenByParent.get(current);
+            SessionRecord newest = null;
+            for (SessionRecord candidate : children) {
+                if (seen.contains(candidate.getSessionId())) {
+                    continue;
+                }
+                if (newest == null || candidate.getCreatedAt() > newest.getCreatedAt()) {
+                    newest = candidate;
+                }
+            }
+            if (newest == null) {
+                break;
+            }
+            current = newest.getSessionId();
+            path.add(current);
+            seen.add(current);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("requested_session_id", root.getSessionId());
+        result.put("session_id", current);
+        result.put("path", path);
+        result.put("changed", Boolean.valueOf(!root.getSessionId().equals(current)));
+        return result;
+    }
+
     private List<SessionRecord> lineageRecords(SessionRecord root) throws Exception {
         int total = Math.max(sessionRepository.countAll(), 1);
         List<SessionRecord> records =

@@ -1,5 +1,5 @@
 import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage, type RunEvent } from '@/api/hermes/chat'
-import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionSummary } from '@/api/hermes/sessions'
+import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionSummary } from '@/api/hermes/sessions'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
@@ -325,6 +325,12 @@ export const useChatStore = defineStore('chat', () => {
     return rec
   }
 
+  async function resolveLatestDescendantId(sessionId: string): Promise<string> {
+    const latest = await fetchLatestSessionDescendant(sessionId)
+    if (!latest?.session_id) return sessionId
+    return sessions.value.some(s => s.id === latest.session_id) ? latest.session_id : sessionId
+  }
+
   function stopPolling(sid: string) {
     const t = pollTimers.get(sid)
     if (t) {
@@ -453,9 +459,10 @@ export const useChatStore = defineStore('chat', () => {
 
       // Restore last active session, fallback to most recent
       const savedId = activeSessionId.value
-      const targetId = savedId && sessions.value.some(s => s.id === savedId)
+      const candidateId = savedId && sessions.value.some(s => s.id === savedId)
         ? savedId
         : sessions.value[0]?.id
+      const targetId = candidateId ? await resolveLatestDescendantId(candidateId) : candidateId
       if (targetId) {
         if (targetId === activeSessionId.value && activeSession.value && streamStates.value.has(targetId)) {
           setItemBestEffort(storageKey(), targetId)

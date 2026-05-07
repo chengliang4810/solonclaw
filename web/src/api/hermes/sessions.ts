@@ -36,6 +36,13 @@ export interface SessionSearchResult extends SessionSummary {
   rank: number
 }
 
+export interface SessionLatestDescendant {
+  requested_session_id: string
+  session_id: string | null
+  path: string[]
+  changed: boolean
+}
+
 export interface SolonClawMessage {
   id: number
   session_id: string
@@ -251,6 +258,14 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
       ...base,
       messages: mapMessages(id, detail.messages),
     }
+  } catch {
+    return null
+  }
+}
+
+export async function fetchLatestSessionDescendant(id: string): Promise<SessionLatestDescendant | null> {
+  try {
+    return await request<SessionLatestDescendant>(`/api/sessions/${id}/latest-descendant`)
   } catch {
     return null
   }

@@ -69,4 +69,51 @@ public class DashboardSessionServiceTest {
                 .extracting(node -> node.get("id"))
                 .contains(root.getSessionId(), child.getSessionId(), grandchild.getSessionId());
     }
+
+    @Test
+    void shouldResolveLatestDescendantThroughNewestChildPath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord root = env.sessionRepository.bindNewSession("MEMORY:lineage-root:user");
+        root.setTitle("root");
+        root.setCreatedAt(100L);
+        root.setUpdatedAt(100L);
+        env.sessionRepository.save(root);
+
+        SessionRecord oldChild =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:lineage-old:user", root.getSessionId(), "old");
+        oldChild.setCreatedAt(200L);
+        oldChild.setUpdatedAt(200L);
+        env.sessionRepository.save(oldChild);
+
+        SessionRecord newChild =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:lineage-new:user", root.getSessionId(), "new");
+        newChild.setCreatedAt(300L);
+        newChild.setUpdatedAt(300L);
+        env.sessionRepository.save(newChild);
+
+        SessionRecord grandchild =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:lineage-grand:user", newChild.getSessionId(), "grand");
+        grandchild.setCreatedAt(400L);
+        grandchild.setUpdatedAt(400L);
+        env.sessionRepository.save(grandchild);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> latest = service.latestDescendant(root.getSessionId());
+
+        assertThat(latest.get("requested_session_id")).isEqualTo(root.getSessionId());
+        assertThat(latest.get("session_id")).isEqualTo(grandchild.getSessionId());
+        assertThat(latest.get("changed")).isEqualTo(Boolean.TRUE);
+        @SuppressWarnings("unchecked")
+        List<String> path = (List<String>) latest.get("path");
+        assertThat(path)
+                .containsExactly(
+                        root.getSessionId(), newChild.getSessionId(), grandchild.getSessionId());
+
+        Map<String, Object> leaf = service.latestDescendant(grandchild.getSessionId());
+        assertThat(leaf.get("session_id")).isEqualTo(grandchild.getSessionId());
+        assertThat(leaf.get("changed")).isEqualTo(Boolean.FALSE);
+    }
 }

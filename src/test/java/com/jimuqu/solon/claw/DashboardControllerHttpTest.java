@@ -206,6 +206,14 @@ public class DashboardControllerHttpTest {
         assertThat(tree.status).isEqualTo(200);
         assertThat(tree.body).contains("\"nodes\"");
 
+        HttpResult latestDescendant =
+                request("GET", "/api/sessions/dashboard-chat/latest-descendant", null, token);
+        assertThat(latestDescendant.status).isEqualTo(200);
+        assertThat(latestDescendant.body)
+                .contains("\"requested_session_id\":\"dashboard-chat\"")
+                .contains("\"path\"")
+                .contains("\"changed\":false");
+
         HttpResult checkpoints =
                 request("GET", "/api/sessions/dashboard-chat/checkpoints", null, token);
         assertThat(checkpoints.status).isEqualTo(200);
