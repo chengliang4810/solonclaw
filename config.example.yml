@@ -361,6 +361,8 @@ solonclaw:
       groupPolicy: allowlist
       # 飞书允许访问的群 ID 列表。
       groupAllowedUsers: []
+      # 群聊会话硬白名单；非空时只响应列表内群聊，私聊不受影响。
+      allowedChats: []
       # 飞书机器人 open_id。
       botOpenId: ""
       # 飞书机器人 user_id。
@@ -401,6 +403,8 @@ solonclaw:
       groupPolicy: open
       # 钉钉允许访问的群 ID 列表。
       groupAllowedUsers: []
+      # 钉钉群聊会话硬白名单；非空时只响应列表内群聊，私聊不受影响。
+      allowedChats: []
       # 钉钉工具进度模式：off、new、all、verbose。
       toolProgress: all
       # 钉钉长任务进度卡片模板 ID；留空时使用文本消息。

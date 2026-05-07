@@ -891,6 +891,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private boolean allowInbound(
             ChatbotMessage message, String conversationId, String chatType, String userId) {
         if ("group".equals(chatType)) {
+            if (!config.getAllowedChats().isEmpty()
+                    && !contains(config.getAllowedChats(), conversationId)) {
+                return false;
+            }
             if (!Boolean.TRUE.equals(message.getInAtList())) {
                 return false;
             }

@@ -1896,6 +1896,7 @@ public class AppConfig {
         target.setDmPolicy(source.getDmPolicy());
         target.setGroupPolicy(source.getGroupPolicy());
         target.setGroupAllowedUsers(new ArrayList<String>(source.getGroupAllowedUsers()));
+        target.setAllowedChats(new ArrayList<String>(source.getAllowedChats()));
         target.setGroupMemberAllowedUsers(cloneGroupAllowMap(source.getGroupMemberAllowedUsers()));
         target.setBotOpenId(source.getBotOpenId());
         target.setBotUserId(source.getBotUserId());
@@ -2010,6 +2011,17 @@ public class AppConfig {
                                 overrides,
                                 "solonclaw.channels." + channelName + ".groupAllowedUsers",
                                 "")));
+        channelConfig.setAllowedChats(
+                resolveList(
+                        readRaw(
+                                props,
+                                overrides,
+                                "solonclaw.channels." + channelName + ".allowedChats",
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels." + channelName + ".allowed_chats",
+                                        ""))));
     }
 
     /** 优先从配置文件解析密钥。 */
@@ -3421,6 +3433,9 @@ public class AppConfig {
 
         /** 群聊允许名单。 */
         private List<String> groupAllowedUsers = new ArrayList<String>();
+
+        /** 群聊会话硬白名单，非空时只响应列表内群聊。 */
+        private List<String> allowedChats = new ArrayList<String>();
 
         /** 企微按群发送者 allowlist。 */
         private Map<String, List<String>> groupMemberAllowedUsers =

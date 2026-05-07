@@ -616,10 +616,12 @@ public class RuntimeConfigResolver {
                 base + "unauthorizedDmBehavior",
                 base + "dmPolicy",
                 base + "groupPolicy",
-                base + "groupAllowedUsers");
+                base + "groupAllowedUsers",
+                base + "allowedChats");
         for (String field : extraFields) {
             add(mappings, base + field);
         }
+        mappings.put(base + "allowed_chats", base + "allowedChats");
     }
 
     private static void addAll(Map<String, String> mappings, String... paths) {

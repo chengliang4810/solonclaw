@@ -15,9 +15,11 @@ import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.lark.oapi.core.request.EventReq;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -200,6 +202,35 @@ public class DomesticChannelEnhancementTest {
         assertThat(status.isEnabled()).isTrue();
         assertThat(status.getSetupState()).isEqualTo("missing_config");
         assertThat(status.getLastErrorCode()).isEqualTo("feishu_missing_credentials");
+    }
+
+    @Test
+    void shouldApplyDingTalkAllowedChatsAsHardGroupWhitelist() throws Throwable {
+        AppConfig config = new AppConfig();
+        config.getChannels().getDingtalk().setAllowedChats(Arrays.asList("cid-allowed"));
+        config.getChannels().getDingtalk().setGroupPolicy("open");
+        DingTalkChannelAdapter adapter =
+                new DingTalkChannelAdapter(
+                        config.getChannels().getDingtalk(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config));
+        Method allowInbound =
+                DingTalkChannelAdapter.class.getDeclaredMethod(
+                        "allowInbound",
+                        ChatbotMessage.class,
+                        String.class,
+                        String.class,
+                        String.class);
+        allowInbound.setAccessible(true);
+        ChatbotMessage mentioned = new ChatbotMessage();
+        mentioned.setInAtList(Boolean.TRUE);
+
+        assertThat((Boolean) invoke(allowInbound, adapter, mentioned, "cid-blocked", "group", "u1"))
+                .isFalse();
+        assertThat((Boolean) invoke(allowInbound, adapter, mentioned, "cid-allowed", "group", "u1"))
+                .isTrue();
+        assertThat((Boolean) invoke(allowInbound, adapter, mentioned, "cid-blocked", "dm", "u1"))
+                .isTrue();
     }
 
     @Test
