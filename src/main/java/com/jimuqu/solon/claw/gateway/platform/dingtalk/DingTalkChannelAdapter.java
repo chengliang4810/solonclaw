@@ -52,6 +52,7 @@ import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAd
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,6 +75,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final Client oauthClient;
     private final com.aliyun.dingtalkrobot_1_0.Client robotClient;
     private final com.aliyun.dingtalkconv_file_1_0.Client convFileClient;
@@ -94,10 +96,19 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
             AttachmentCacheService attachmentCacheService) {
+        this(config, channelStateRepository, attachmentCacheService, null);
+    }
+
+    public DingTalkChannelAdapter(
+            AppConfig.ChannelConfig config,
+            ChannelStateRepository channelStateRepository,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.DINGTALK, config);
         this.config = config;
         this.channelStateRepository = channelStateRepository;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         try {
             com.aliyun.teaopenapi.models.Config teaConfig =
                     new com.aliyun.teaopenapi.models.Config();
@@ -513,7 +524,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             String downloadUrl = resolveDownloadUrl(downloadCode);
             byte[] data =
                     BoundedAttachmentIO.downloadHutool(
-                            downloadUrl, 30000, BoundedAttachmentIO.DEFAULT_MAX_BYTES);
+                            downloadUrl,
+                            30000,
+                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                            securityPolicyService);
             attachments.add(
                     attachmentCacheService.cacheBytes(
                             PlatformType.DINGTALK,

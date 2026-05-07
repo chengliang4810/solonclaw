@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAd
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -35,6 +36,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private final AppConfig.ChannelConfig config;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final OkHttpClient client;
     private volatile WebSocket webSocket;
     private volatile String accessToken;
@@ -43,9 +45,17 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     public QQBotChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
+        this(config, attachmentCacheService, null);
+    }
+
+    public QQBotChannelAdapter(
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.QQBOT, config);
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         this.client = new OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build();
         setConnectionMode("websocket");
         setFeatures("text", "attachments", "media-transfer", "platform-asr-text");
@@ -434,6 +444,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     @SuppressWarnings("unused")
     private MessageAttachment cacheRemoteAttachment(
             String url, String kind, String fileName, String mimeType) throws Exception {
+        BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
         Request request = new Request.Builder().url(url).build();
         Response response = client.newCall(request).execute();
         try {

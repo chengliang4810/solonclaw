@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
@@ -31,11 +32,47 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    public static byte[] downloadHutool(
+            String url,
+            int timeoutMillis,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService) {
+        assertSafeDownloadUrl(url, securityPolicyService);
+        return downloadHutool(url, timeoutMillis, maxBytes);
+    }
+
     public static void downloadHutoolToFile(
             String url, File target, int timeoutMillis, long maxBytes) {
         byte[] data = downloadHutool(url, timeoutMillis, maxBytes);
         FileUtil.mkParentDirs(target);
         FileUtil.writeBytes(data, target);
+    }
+
+    public static void downloadHutoolToFile(
+            String url,
+            File target,
+            int timeoutMillis,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService) {
+        byte[] data = downloadHutool(url, timeoutMillis, maxBytes, securityPolicyService);
+        FileUtil.mkParentDirs(target);
+        FileUtil.writeBytes(data, target);
+    }
+
+    public static void assertSafeDownloadUrl(
+            String url, SecurityPolicyService securityPolicyService) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "Attachment download URL blocked: "
+                            + SecretRedactor.maskUrl(verdict.getUrl())
+                            + " ("
+                            + verdict.getMessage()
+                            + ")");
+        }
     }
 
     public static String readHutoolText(HttpResponse response, long maxBytes) {

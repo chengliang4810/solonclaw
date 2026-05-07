@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.lark.oapi.Client;
 import com.lark.oapi.core.request.EventReq;
 import com.lark.oapi.event.CustomEventHandler;
@@ -65,6 +66,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private final AppConfig.ChannelConfig config;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private volatile String tenantAccessToken;
     private volatile long tokenExpireAt;
     private volatile com.lark.oapi.ws.Client wsClient;
@@ -72,9 +74,17 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     public FeishuChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
+        this(config, attachmentCacheService, null);
+    }
+
+    public FeishuChannelAdapter(
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.FEISHU, config);
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         setConnectionMode("websocket");
         setFeatures(
                 "text", "attachments", "post-media", "group-mention", "card-action", "reactions");
@@ -991,6 +1001,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         refreshTenantTokenIfNecessary();
         String url = String.format(MESSAGE_RESOURCE_URL, messageId, fileKey, resourceType);
+        BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
         HttpResponse response =
                 HttpRequest.get(url)
                         .header("Authorization", "Bearer " + tenantAccessToken)

@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAd
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -42,6 +43,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private final AppConfig.ChannelConfig config;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final OkHttpClient client;
     private final ConcurrentMap<String, CompletableFuture<ONode>> pendingResponses =
             new ConcurrentHashMap<String, CompletableFuture<ONode>>();
@@ -52,9 +54,17 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     public WeComChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
+        this(config, attachmentCacheService, null);
+    }
+
+    public WeComChannelAdapter(
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.WECOM, config);
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         this.client = new OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build();
         setConnectionMode("websocket");
         setFeatures("text", "attachments", "quoted-media", "reply-mode", "aes-media");
@@ -386,6 +396,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private byte[] downloadBytes(String url, long maxBytes) throws Exception {
+        BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
         Request request = new Request.Builder().url(url).build();
         Response response = client.newCall(request).execute();
         try {

@@ -50,6 +50,7 @@ import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
@@ -66,33 +67,42 @@ public class GatewayConfiguration {
     public Map<PlatformType, ChannelAdapter> channelAdapters(
             AppConfig appConfig,
             ChannelStateRepository channelStateRepository,
-            AttachmentCacheService attachmentCacheService) {
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         Map<PlatformType, ChannelAdapter> adapters =
                 new LinkedHashMap<PlatformType, ChannelAdapter>();
         adapters.put(
                 PlatformType.FEISHU,
                 new FeishuChannelAdapter(
-                        appConfig.getChannels().getFeishu(), attachmentCacheService));
+                        appConfig.getChannels().getFeishu(),
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.DINGTALK,
                 new DingTalkChannelAdapter(
                         appConfig.getChannels().getDingtalk(),
                         channelStateRepository,
-                        attachmentCacheService));
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.WECOM,
                 new WeComChannelAdapter(
-                        appConfig.getChannels().getWecom(), attachmentCacheService));
+                        appConfig.getChannels().getWecom(),
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.WEIXIN,
                 new WeiXinChannelAdapter(
                         appConfig.getChannels().getWeixin(),
                         channelStateRepository,
-                        attachmentCacheService));
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.QQBOT,
                 new QQBotChannelAdapter(
-                        appConfig.getChannels().getQqbot(), attachmentCacheService));
+                        appConfig.getChannels().getQqbot(),
+                        attachmentCacheService,
+                        securityPolicyService));
         adapters.put(
                 PlatformType.YUANBAO,
                 new YuanbaoChannelAdapter(appConfig.getChannels().getYuanbao()));

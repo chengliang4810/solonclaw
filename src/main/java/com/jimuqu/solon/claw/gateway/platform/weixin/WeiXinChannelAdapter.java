@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAd
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -65,6 +66,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private final AppConfig.ChannelConfig config;
     private final ChannelStateRepository channelStateRepository;
     private final AttachmentCacheService attachmentCacheService;
+    private final SecurityPolicyService securityPolicyService;
     private final ConcurrentMap<String, Long> recentMessageIds =
             new ConcurrentHashMap<String, Long>();
     private final ConcurrentMap<String, TypingTicketState> typingTickets =
@@ -77,10 +79,19 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             AppConfig.ChannelConfig config,
             ChannelStateRepository channelStateRepository,
             AttachmentCacheService attachmentCacheService) {
+        this(config, channelStateRepository, attachmentCacheService, null);
+    }
+
+    public WeiXinChannelAdapter(
+            AppConfig.ChannelConfig config,
+            ChannelStateRepository channelStateRepository,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.WEIXIN, config);
         this.config = config;
         this.channelStateRepository = channelStateRepository;
         this.attachmentCacheService = attachmentCacheService;
+        this.securityPolicyService = securityPolicyService;
         setConnectionMode("long-poll");
         setFeatures("text", "attachments", "quoted-media", "typing", "qr-login");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
@@ -772,7 +783,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private byte[] downloadBytes(String url) {
         return BoundedAttachmentIO.downloadHutool(
-                url, 60000, BoundedAttachmentIO.DEFAULT_MAX_BYTES);
+                url, 60000, BoundedAttachmentIO.DEFAULT_MAX_BYTES, securityPolicyService);
     }
 
     private byte[] parseAesKey(String hexAesKey, String encodedAesKey) {
