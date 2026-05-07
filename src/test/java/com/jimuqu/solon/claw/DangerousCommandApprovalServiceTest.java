@@ -391,6 +391,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult shAbsoluteExecute =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "chmod +x /tmp/cleanup.sh && sh /tmp/cleanup.sh");
+        DangerousCommandApprovalService.DetectionResult pipeExecute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod +x cleanup.sh | ./cleanup.sh");
+        DangerousCommandApprovalService.DetectionResult backgroundExecute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod +x cleanup.sh & ./cleanup.sh");
         DangerousCommandApprovalService.DetectionResult safeChmod =
                 env.dangerousCommandApprovalService.detect("execute_shell", "chmod +x cleanup.sh");
 
@@ -402,6 +408,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(shellExecute.getPatternKey()).isEqualTo("chmod_execute_script");
         assertThat(shAbsoluteExecute).isNotNull();
         assertThat(shAbsoluteExecute.getPatternKey()).isEqualTo("chmod_execute_script");
+        assertThat(pipeExecute).isNotNull();
+        assertThat(pipeExecute.getPatternKey()).isEqualTo("chmod_execute_script");
+        assertThat(backgroundExecute).isNotNull();
+        assertThat(backgroundExecute.getPatternKey()).isEqualTo("chmod_execute_script");
         assertThat(safeChmod).isNull();
     }
 
