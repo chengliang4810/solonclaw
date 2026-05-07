@@ -531,6 +531,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNormalizeHermesCronApprovalModeAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.appConfig.getApprovals().setCronMode("allow");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+
+        env.appConfig.getApprovals().setCronMode("yes");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+
+        env.appConfig.getApprovals().setCronMode("off");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+
+        env.appConfig.getApprovals().setCronMode("APPROVE");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+
+        env.appConfig.getApprovals().setCronMode("maybe");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+
+        env.appConfig.getApprovals().setCronMode("false");
+        assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+    }
+
+    @Test
     void shouldTreatWindowsTerminalGuardrailsAsHardline() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

@@ -1306,7 +1306,12 @@ public class DangerousCommandApprovalService {
             mode = appConfig.getScheduler().getCronApprovalMode();
         }
         mode = StrUtil.blankToDefault(mode, "deny").trim().toLowerCase(Locale.ROOT);
-        return "approve".equals(mode) || "off".equals(mode) ? "approve" : "deny";
+        return "approve".equals(mode)
+                        || "off".equals(mode)
+                        || "allow".equals(mode)
+                        || "yes".equals(mode)
+                ? "approve"
+                : "deny";
     }
 
     public int approvalTimeoutSeconds() {
