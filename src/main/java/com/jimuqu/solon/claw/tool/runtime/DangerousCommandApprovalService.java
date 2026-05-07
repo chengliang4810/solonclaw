@@ -581,6 +581,7 @@ public class DangerousCommandApprovalService {
                 .onTool(
                         ToolNameConstants.PROCESS,
                         (trace, args) -> evaluateProcessTool(trace, args))
+                .onTool("call_tool", (trace, args) -> evaluateGatewayCallTool(trace, args))
                 .onTool(
                         ToolNameConstants.FILE_READ,
                         (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
@@ -999,6 +1000,125 @@ public class DangerousCommandApprovalService {
                 args.get("command") == null ? null : String.valueOf(args.get("command"));
         return evaluateCommand(
                 trace, ToolNameConstants.PROCESS, ToolNameConstants.EXECUTE_SHELL, command);
+    }
+
+    private String evaluateGatewayCallTool(ReActTrace trace, Map<String, Object> args) {
+        String toolName = gatewayToolName(args);
+        if (StrUtil.isBlank(toolName)) {
+            return null;
+        }
+        String normalized = toolName.trim().toLowerCase(Locale.ROOT);
+        Map<String, Object> toolArgs = gatewayToolArgs(args);
+        boolean hadInnerDecision =
+                trace != null
+                        && trace.getContext() != null
+                        && trace.getContext().getAs(HITL.DECISION_PREFIX + normalized) != null;
+        String result;
+        if (ToolNameConstants.EXECUTE_SHELL.equals(normalized)
+                || ToolNameConstants.EXECUTE_PYTHON.equals(normalized)
+                || ToolNameConstants.EXECUTE_JS.equals(normalized)) {
+            result = evaluate(trace, normalized, toolArgs);
+        } else if (ToolNameConstants.EXECUTE_CODE.equals(normalized)) {
+            result =
+                    evaluateCommand(
+                            trace,
+                            ToolNameConstants.EXECUTE_CODE,
+                            ToolNameConstants.EXECUTE_PYTHON,
+                            codeArg(toolArgs));
+        } else if (ToolNameConstants.TERMINAL.equals(normalized)) {
+            result = evaluateTerminalTool(trace, toolArgs);
+        } else if (ToolNameConstants.PROCESS.equals(normalized)) {
+            result = evaluateProcessTool(trace, toolArgs);
+        } else if (isFileSecurityTool(normalized)) {
+            result = evaluateFileTool(trace, normalized, toolArgs);
+        } else if (isUrlSecurityTool(normalized)) {
+            result = evaluateUrlTool(trace, normalized, toolArgs);
+        } else {
+            return null;
+        }
+        if (hadInnerDecision) {
+            clearGatewayInnerDecisionAfterApproval(trace, normalized, result);
+        }
+        return result;
+    }
+
+    private String gatewayToolName(Map<String, Object> args) {
+        if (args == null) {
+            return "";
+        }
+        Object value = args.get("tool_name");
+        if (value == null) {
+            value = args.get("name");
+        }
+        if (value == null) {
+            value = args.get("tool");
+        }
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> gatewayToolArgs(Map<String, Object> args) {
+        if (args == null) {
+            return new LinkedHashMap<String, Object>();
+        }
+        Object raw = args.get("tool_args");
+        if (raw == null) {
+            raw = args.get("args");
+        }
+        if (raw instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                if (entry.getKey() != null) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+            return result;
+        }
+        String text = raw == null ? "" : String.valueOf(raw).trim();
+        if (text.length() == 0) {
+            return new LinkedHashMap<String, Object>();
+        }
+        try {
+            Object parsed = ONode.deserialize(text, Object.class);
+            if (parsed instanceof Map) {
+                Map<String, Object> result = new LinkedHashMap<String, Object>();
+                for (Map.Entry<?, ?> entry : ((Map<?, ?>) parsed).entrySet()) {
+                    if (entry.getKey() != null) {
+                        result.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                }
+                return result;
+            }
+        } catch (Exception ignored) {
+        }
+        return new LinkedHashMap<String, Object>();
+    }
+
+    private boolean isFileSecurityTool(String toolName) {
+        return ToolNameConstants.FILE_READ.equals(toolName)
+                || ToolNameConstants.FILE_WRITE.equals(toolName)
+                || ToolNameConstants.FILE_LIST.equals(toolName)
+                || ToolNameConstants.FILE_DELETE.equals(toolName)
+                || ToolNameConstants.PATCH.equals(toolName);
+    }
+
+    private boolean isUrlSecurityTool(String toolName) {
+        return ToolNameConstants.WEBFETCH.equals(toolName)
+                || ToolNameConstants.WEBSEARCH.equals(toolName)
+                || ToolNameConstants.CODESEARCH.equals(toolName);
+    }
+
+    private void clearGatewayInnerDecisionAfterApproval(
+            ReActTrace trace, String toolName, String result) {
+        if (trace == null
+                || trace.getContext() == null
+                || StrUtil.isBlank(toolName)
+                || result != null
+                || org.noear.solon.ai.agent.Agent.ID_END.equals(trace.getRoute())) {
+            return;
+        }
+        trace.getContext().remove(HITL.DECISION_PREFIX + toolName);
+        trace.getContext().remove(HITL.LAST_INTERVENED);
     }
 
     private String evaluateCommand(

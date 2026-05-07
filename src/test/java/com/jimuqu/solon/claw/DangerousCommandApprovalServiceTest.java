@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
@@ -2684,6 +2685,87 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForGatewayTerminalCommandApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
+        toolArgs.put("command", "rm -rf runtime/cache");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("tool_name", "terminal");
+        args.put("tool_args", toolArgs);
+
+        service.buildInterceptor().onAction(trace, "call_tool", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+
+        assertThat(trace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("terminal");
+        assertThat(pending.getCommand()).isEqualTo("rm -rf runtime/cache");
+        assertThat(pending.getPatternKeys()).containsExactly("recursive_delete");
+    }
+
+    @Test
+    void shouldLetApprovedGatewayTerminalCommandPassFallbackOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository, env.appConfig, policy);
+        SolonClawShellSkill shell =
+                new SolonClawShellSkill(env.appConfig.getRuntime().getHome(), env.appConfig, policy);
+        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
+        toolArgs.put("command", "git reset --hard");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("tool_name", "terminal");
+        args.put("tool_args", toolArgs);
+
+        TestTrace trace = new TestTrace();
+        service.buildInterceptor().onAction(trace, "call_tool", args);
+        assertThat(service.getPendingApproval(trace.session).getToolName()).isEqualTo("terminal");
+        assertThat(
+                        service.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        TestTrace resumed = new TestTrace(trace.session);
+        service.buildInterceptor().onAction(resumed, "call_tool", args);
+
+        assertThat(resumed.getFinalAnswer()).isNull();
+        Object lastIntervened =
+                resumed.getContext()
+                        .getAs(org.noear.solon.ai.agent.react.intercept.HITL.LAST_INTERVENED);
+        assertThat(lastIntervened).isNull();
+        ONode allowed =
+                ONode.ofJson(
+                        shell.terminal(
+                                "git reset --hard",
+                                Boolean.FALSE,
+                                Integer.valueOf(1),
+                                null,
+                                Boolean.FALSE));
+        assertThat(allowed.toJson()).doesNotContain("危险命令安全规则");
+
+        ONode blocked =
+                ONode.ofJson(
+                        shell.terminal(
+                                "git reset --hard",
+                                Boolean.FALSE,
+                                Integer.valueOf(1),
+                                null,
+                                Boolean.FALSE));
+        assertThat(blocked.get("success").getBoolean()).isFalse();
+        assertThat(blocked.get("error").getString()).contains("危险命令安全规则");
+    }
+
+    @Test
     void shouldPromptForTirithWarningEvenWhenFindingsAreEmptyLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FakeTirithSecurityService tirith =
@@ -2802,6 +2884,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(trace.getFinalAnswer()).isNull();
         assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isTrue();
         assertThat(service.isAlwaysApproved("recursive_delete")).isFalse();
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "execute_shell", "rm -rf runtime/cache"))
+                .isTrue();
     }
 
     @Test
