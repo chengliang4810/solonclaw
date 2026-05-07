@@ -47,4 +47,59 @@ public class LlmProviderSupportTest {
         assertThat(LlmProviderSupport.isDirectOpenAiBaseUrl("https://proxy.example/api.openai.com/v1"))
                 .isFalse();
     }
+
+    @Test
+    void shouldExtractBaseUrlHostnameLikeHermes() {
+        assertThat(LlmProviderSupport.baseUrlHostname(null)).isEqualTo("");
+        assertThat(LlmProviderSupport.baseUrlHostname("")).isEqualTo("");
+        assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com")).isEqualTo("api.openai.com");
+        assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com/v1")).isEqualTo("api.openai.com");
+        assertThat(LlmProviderSupport.baseUrlHostname("https://API.OpenAI.com./v1"))
+                .isEqualTo("api.openai.com");
+        assertThat(LlmProviderSupport.baseUrlHostname("https://api.openai.com:443/v1"))
+                .isEqualTo("api.openai.com");
+        assertThat(LlmProviderSupport.baseUrlHostname("https://proxy.example.test/api.openai.com/v1"))
+                .isEqualTo("proxy.example.test");
+        assertThat(LlmProviderSupport.baseUrlHostname("https://api.openai.com.example/v1"))
+                .isEqualTo("api.openai.com.example");
+    }
+
+    @Test
+    void shouldMatchBaseUrlHostsWithoutSubstringFalsePositivesLikeHermes() {
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://openrouter.ai/api/v1", "openrouter.ai"))
+                .isTrue();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://api.moonshot.ai/v1", "moonshot.ai"))
+                .isTrue();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://OpenRouter.AI/v1", "OPENROUTER.AI"))
+                .isTrue();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://openrouter.ai/v1", "openrouter.ai."))
+                .isTrue();
+
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://evil.test/moonshot.ai/v1", "moonshot.ai"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://proxy.example.test/openrouter.ai/v1", "openrouter.ai"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://moonshot.ai.evil/v1", "moonshot.ai"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://fake-openrouter.ai/v1", "openrouter.ai"))
+                .isFalse();
+    }
+
+    @Test
+    void shouldRejectOllamaHostLookalikesLikeHermesSecurityAdvisory() {
+        assertThat(LlmProviderSupport.baseUrlHostMatches("http://127.0.0.1:9000/ollama.com/v1", "ollama.com"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("http://ollama.com.attacker.test:9000/v1", "ollama.com"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("http://ollama.com.localtest.me:9000/v1", "ollama.com"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://ollama.ai/v1", "ollama.com"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("http://localhost:11434/v1", "ollama.com"))
+                .isFalse();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://ollama.com/api/generate", "ollama.com"))
+                .isTrue();
+        assertThat(LlmProviderSupport.baseUrlHostMatches("https://api.ollama.com/v1", "ollama.com"))
+                .isTrue();
+    }
 }

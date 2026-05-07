@@ -51,16 +51,30 @@ public final class LlmProviderSupport {
     }
 
     public static boolean isDirectOpenAiBaseUrl(String baseUrl) {
+        return baseUrlHostMatches(baseUrl, "api.openai.com");
+    }
+
+    public static String baseUrlHostname(String baseUrl) {
         String raw = normalizedBaseCandidate(baseUrl);
         if (raw.length() == 0) {
-            return false;
+            return "";
         }
+        String candidate = raw.contains("://") ? raw : "https://" + raw;
         try {
-            URI uri = parseProviderUri(raw);
-            return "api.openai.com".equalsIgnoreCase(StrUtil.nullToEmpty(uri.getHost()).trim());
+            URI uri = parseProviderUri(candidate);
+            return normalizeHostname(uri.getHost());
         } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
+
+    public static boolean baseUrlHostMatches(String baseUrl, String domain) {
+        String host = baseUrlHostname(baseUrl);
+        String normalizedDomain = normalizeHostname(domain);
+        if (host.length() == 0 || normalizedDomain.length() == 0) {
             return false;
         }
+        return host.equals(normalizedDomain) || host.endsWith("." + normalizedDomain);
     }
 
     public static String buildApiUrl(String baseUrl, String dialect) {
@@ -228,5 +242,13 @@ public final class LlmProviderSupport {
             authority = StrUtil.nullToEmpty(uri.getAuthority());
         }
         return authority.indexOf('@') >= 0;
+    }
+
+    private static String normalizeHostname(String host) {
+        String value = StrUtil.nullToEmpty(host).trim().toLowerCase(Locale.ROOT);
+        while (value.endsWith(".")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 }
