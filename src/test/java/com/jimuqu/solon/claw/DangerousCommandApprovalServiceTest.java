@@ -2637,11 +2637,19 @@ public class DangerousCommandApprovalServiceTest {
     void shouldBypassNonHardlineDangerousCommandWhenHermesYoloModeIsEnabled()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        CountingTirithSecurityService tirith =
+                new CountingTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("terminal_injection", "HIGH", "Terminal injection", "")),
+                                "terminal injection"));
         DangerousCommandApprovalService service =
                 new YoloDangerousCommandApprovalService(
                         env.globalSettingRepository,
                         env.appConfig,
                         new SecurityPolicyService(env.appConfig),
+                        tirith,
                         "1");
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -2649,6 +2657,7 @@ public class DangerousCommandApprovalServiceTest {
 
         service.buildInterceptor().onAction(trace, "execute_shell", args);
 
+        assertThat(tirith.getCalls()).isEqualTo(0);
         assertThat(service.getPendingApproval(trace.session)).isNull();
         assertThat(trace.getFinalAnswer()).isNull();
     }
@@ -2786,6 +2795,35 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(hardline).isNotNull();
         assertThat(hardline.isHardline()).isTrue();
         assertThat(hardline.getDescription()).contains("shutdown");
+    }
+
+    @Test
+    void shouldSkipTirithScanWhenApprovalModeIsOffLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("off");
+        CountingTirithSecurityService tirith =
+                new CountingTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("terminal_injection", "HIGH", "Terminal injection", "")),
+                                "terminal injection"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(service.approvalMode()).isEqualTo("off");
+        assertThat(tirith.getCalls()).isEqualTo(0);
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
     }
 
     @Test
@@ -2974,6 +3012,25 @@ public class DangerousCommandApprovalServiceTest {
         }
     }
 
+    private static class CountingTirithSecurityService extends FakeTirithSecurityService {
+        private int calls;
+
+        private CountingTirithSecurityService(TirithSecurityService.ScanResult result) {
+            super(result);
+        }
+
+        @Override
+        public TirithSecurityService.ScanResult checkCommandSecurityForTool(
+                String toolName, String command) {
+            calls++;
+            return super.checkCommandSecurityForTool(toolName, command);
+        }
+
+        private int getCalls() {
+            return calls;
+        }
+    }
+
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
         private final String ip;
 
@@ -3012,6 +3069,17 @@ public class DangerousCommandApprovalServiceTest {
                 SecurityPolicyService securityPolicyService,
                 String yoloMode) {
             super(globalSettingRepository, appConfig, securityPolicyService, null);
+            this.yoloMode = yoloMode;
+        }
+
+        private YoloDangerousCommandApprovalService(
+                com.jimuqu.solon.claw.core.repository.GlobalSettingRepository
+                        globalSettingRepository,
+                com.jimuqu.solon.claw.config.AppConfig appConfig,
+                SecurityPolicyService securityPolicyService,
+                TirithSecurityService tirithSecurityService,
+                String yoloMode) {
+            super(globalSettingRepository, appConfig, securityPolicyService, tirithSecurityService);
             this.yoloMode = yoloMode;
         }
 

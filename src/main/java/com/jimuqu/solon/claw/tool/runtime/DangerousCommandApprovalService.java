@@ -964,12 +964,6 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        DetectionResult detection = detectCombined(toolName, code);
-        if (detection == null) {
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
         if (isCompatibilityYoloModeEnabled() || isSessionYoloEnabled(trace.getSession())) {
             persistTraceSnapshot(trace);
             return null;
@@ -977,6 +971,12 @@ public class DangerousCommandApprovalService {
 
         String approvalMode = approvalMode();
         if ("off".equals(approvalMode)) {
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        DetectionResult detection = detectCombined(toolName, code);
+        if (detection == null) {
             persistTraceSnapshot(trace);
             return null;
         }
