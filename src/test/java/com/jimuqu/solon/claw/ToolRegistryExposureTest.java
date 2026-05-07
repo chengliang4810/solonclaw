@@ -659,6 +659,53 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldClampManagedProcessWaitTimeoutToConfiguredLimit() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setProcessWaitTimeoutSeconds(1);
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                javaSleepCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+        long startedAt = System.currentTimeMillis();
+
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(60),
+                                null,
+                                null));
+        long elapsed = System.currentTimeMillis() - startedAt;
+
+        assertThat(waited.get("success").getBoolean()).isTrue();
+        assertThat(waited.get("status").getString()).isEqualTo("timeout");
+        assertThat(waited.get("timeout_note").getString())
+                .contains("Requested wait of 60s was clamped to configured limit of 1s");
+        assertThat(elapsed).isLessThan(5000L);
+
+        assertThat(env.processRegistry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldWriteSubmitAndCloseManagedProcessStdin() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =

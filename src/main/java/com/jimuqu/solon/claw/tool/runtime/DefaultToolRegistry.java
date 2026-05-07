@@ -359,7 +359,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new SolonClawShellSkill(
                         sysWorkDir, appConfig, securityPolicyService, activeProcessRegistry);
         ProcessTools processTools =
-                new ProcessTools(activeProcessRegistry, sysWorkDir, securityPolicyService);
+                new ProcessTools(activeProcessRegistry, sysWorkDir, securityPolicyService, appConfig);
         SolonClawCodeExecutionSkills.SafePythonSkill pythonSkill =
                 new SolonClawCodeExecutionSkills.SafePythonSkill(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);

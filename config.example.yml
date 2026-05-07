@@ -305,6 +305,8 @@ solonclaw:
     foregroundMaxRetries: 3
     # 前台 terminal 异常重试的指数退避基准秒数；默认 2 秒，即 2/4/8。
     foregroundRetryBaseDelaySeconds: 2
+    # 对齐 Hermes TERMINAL_TIMEOUT。限制 process(action=wait) 单次阻塞时长，模型传入更大值时会自动钳制。
+    processWaitTimeoutSeconds: 180
 
   # Agent 行为配置。
   agent:

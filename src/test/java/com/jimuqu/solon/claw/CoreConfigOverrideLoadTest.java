@@ -55,6 +55,7 @@ public class CoreConfigOverrideLoadTest {
                         + "    writeSafeRoot: D:/workspace/runtime\n"
                         + "    foregroundMaxRetries: 4\n"
                         + "    foregroundRetryBaseDelaySeconds: 1\n"
+                        + "    processWaitTimeoutSeconds: 11\n"
                         + "  skills:\n"
                         + "    externalDirs:\n"
                         + "      - external/team-skills\n"
@@ -144,6 +145,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/runtime");
         assertThat(config.getTerminal().getForegroundMaxRetries()).isEqualTo(4);
         assertThat(config.getTerminal().getForegroundRetryBaseDelaySeconds()).isEqualTo(1);
+        assertThat(config.getTerminal().getProcessWaitTimeoutSeconds()).isEqualTo(11);
         assertThat(config.getSkills().getExternalDirs()).containsExactly("external/team-skills");
         assertThat(config.getMcp().isEnabled()).isTrue();
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
@@ -372,6 +374,23 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTerminal().getSudoPassword()).isEqualTo("hermes-pass");
+    }
+
+    @Test
+    void shouldLoadHermesTerminalTimeoutAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-timeout").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "terminal:\n"
+                        + "  timeout: 9\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTerminal().getProcessWaitTimeoutSeconds()).isEqualTo(9);
     }
 
     @Test

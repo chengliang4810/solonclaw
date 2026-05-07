@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -17,14 +18,24 @@ public class ProcessTools {
     private final ProcessRegistry processRegistry;
     private final String defaultWorkDir;
     private final SecurityPolicyService securityPolicyService;
+    private final AppConfig appConfig;
 
     public ProcessTools(
             ProcessRegistry processRegistry,
             String defaultWorkDir,
             SecurityPolicyService securityPolicyService) {
+        this(processRegistry, defaultWorkDir, securityPolicyService, null);
+    }
+
+    public ProcessTools(
+            ProcessRegistry processRegistry,
+            String defaultWorkDir,
+            SecurityPolicyService securityPolicyService,
+            AppConfig appConfig) {
         this.processRegistry = processRegistry;
         this.defaultWorkDir = defaultWorkDir;
         this.securityPolicyService = securityPolicyService;
+        this.appConfig = appConfig;
     }
 
     @ToolMapping(
@@ -51,8 +62,9 @@ public class ProcessTools {
             @Param(
                             name = "timeout",
                             required = false,
-                            defaultValue = "30",
-                            description = "Wait timeout in seconds for action=wait")
+                            defaultValue = "180",
+                            description =
+                                    "Wait timeout in seconds for action=wait. Values above the configured process wait limit are clamped.")
                     Integer timeoutSeconds,
             @Param(
                             name = "offset",
@@ -208,10 +220,26 @@ public class ProcessTools {
 
     private String waitFor(String sessionId, Integer timeoutSeconds) throws Exception {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
-        int seconds = timeoutSeconds == null ? 30 : Math.max(0, timeoutSeconds.intValue());
+        int maxSeconds = resolveProcessWaitTimeoutSeconds();
+        Integer requested = timeoutSeconds == null ? null : Integer.valueOf(Math.max(0, timeoutSeconds.intValue()));
+        int seconds = requested == null ? maxSeconds : requested.intValue();
+        String timeoutNote = null;
+        if (requested != null && requested.intValue() > maxSeconds) {
+            seconds = maxSeconds;
+            timeoutNote =
+                    "Requested wait of "
+                            + requested
+                            + "s was clamped to configured limit of "
+                            + maxSeconds
+                            + "s";
+        }
         boolean finished = processRegistry.waitFor(managed.getId(), seconds * 1000L);
         if (!finished) {
             String output = tail(cleanOutput(managed.getOutput()), 1000);
+            String effectiveTimeoutNote =
+                    timeoutNote == null
+                            ? "Waited " + seconds + "s, process still running"
+                            : timeoutNote;
             return ToolResultEnvelope.ok("后台进程等待超时：" + managed.getId())
                     .data("session_id", managed.getId())
                     .data("status", "timeout")
@@ -219,12 +247,13 @@ public class ProcessTools {
                     .data("running", Boolean.valueOf(true))
                     .data("pid", managed.getPid())
                     .data("output", output)
-                    .data("timeout_note", "Waited " + seconds + "s, process still running")
+                    .data("timeout_note", effectiveTimeoutNote)
                     .preview(output)
                     .toJson();
         }
         String output = tail(cleanOutput(managed.getOutput()), 2000);
-        return ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
+        ToolResultEnvelope envelope =
+                ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("status", "exited")
                 .data("exited", Boolean.valueOf(true))
@@ -234,8 +263,18 @@ public class ProcessTools {
                 .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))
                 .data("output", output)
                 .preview(output)
-                .truncated(managed.isTruncated())
-                .toJson();
+                .truncated(managed.isTruncated());
+        if (timeoutNote != null) {
+            envelope.data("timeout_note", timeoutNote);
+        }
+        return envelope.toJson();
+    }
+
+    private int resolveProcessWaitTimeoutSeconds() {
+        if (appConfig == null || appConfig.getTerminal() == null) {
+            return 180;
+        }
+        return Math.max(1, appConfig.getTerminal().getProcessWaitTimeoutSeconds());
     }
 
     private String stop(String sessionId) {

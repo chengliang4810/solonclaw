@@ -1609,6 +1609,20 @@ public class AppConfig {
                                                         overrides,
                                                         "terminal.foreground_retry_base_delay",
                                                         2)))));
+        config.getTerminal()
+                .setProcessWaitTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.terminal.processWaitTimeoutSeconds",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.timeout",
+                                                        180))),
+                                180));
 
         config.normalizePaths();
         syncRuntimeConfigExample(config.getRuntime().getHome());
@@ -1857,6 +1871,7 @@ public class AppConfig {
         this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
         this.terminal.setForegroundMaxRetries(other.getForegroundMaxRetries());
         this.terminal.setForegroundRetryBaseDelaySeconds(other.getForegroundRetryBaseDelaySeconds());
+        this.terminal.setProcessWaitTimeoutSeconds(other.getProcessWaitTimeoutSeconds());
     }
 
     private void copySecurity(SecurityConfig other) {
@@ -3250,6 +3265,9 @@ public class AppConfig {
 
         /** 前台 terminal 执行异常重试的指数退避基准，单位秒；默认 2 秒，即 2/4/8。 */
         private int foregroundRetryBaseDelaySeconds = 2;
+
+        /** 对齐 Hermes TERMINAL_TIMEOUT，限制 process(wait) 单次阻塞时长，单位秒。 */
+        private int processWaitTimeoutSeconds = 180;
     }
 
     @Getter
