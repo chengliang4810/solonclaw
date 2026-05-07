@@ -447,14 +447,7 @@ public class AcpStdioServer {
                         params,
                         "id",
                         read(params, "permission_id", read(params, "approval_id", read(params, "approvalId", ""))));
-        String outcome =
-                StrUtil.nullToEmpty(
-                                read(
-                                        params,
-                                        "outcome",
-                                        read(params, "choice", read(params, "decision", ""))))
-                        .trim()
-                        .toLowerCase();
+        String outcome = permissionOutcome(params);
         String command = approvalCommand(selector, outcome);
         GatewayReply reply = cliRuntime.send(state.getSessionId(), command, ConversationEventSink.noop());
         sessionManager.refresh(state);
@@ -544,6 +537,37 @@ public class AcpStdioServer {
             return "once";
         }
         return "deny";
+    }
+
+    private String permissionOutcome(ONode params) {
+        String optionId =
+                StrUtil.nullToEmpty(read(params, "option_id", read(params, "optionId", "")))
+                        .trim()
+                        .toLowerCase();
+        String value =
+                StrUtil.nullToEmpty(
+                                read(
+                                        params,
+                                        "outcome",
+                                        read(params, "choice", read(params, "decision", ""))))
+                        .trim()
+                        .toLowerCase();
+        if ("selected".equals(value)) {
+            if ("allow_once".equals(optionId)
+                    || "allow_session".equals(optionId)
+                    || "allow_always".equals(optionId)
+                    || "allow".equals(optionId)
+                    || "once".equals(optionId)
+                    || "session".equals(optionId)
+                    || "always".equals(optionId)) {
+                return optionId;
+            }
+            return "allow_once";
+        }
+        if (StrUtil.isNotBlank(optionId) && StrUtil.isBlank(value)) {
+            return optionId;
+        }
+        return value;
     }
 
     private SqliteAgentSession agentSession(AcpSessionManager.AcpSessionState state)
