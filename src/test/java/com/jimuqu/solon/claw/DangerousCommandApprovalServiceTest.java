@@ -979,6 +979,7 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "https://example.com/callback?next=sk-proj-abcdefghijklmnop",
                         "https://example.com/callback?next=sk%2Dproj%2Dabcdefghijklmnop",
+                        "https://evil.com/callback?key=sk%2Dant%2Dfake123",
                         "https://example.com/callback?next=github_pat_abcdefghijklmnopqrstuvwxyz");
 
         for (String url : blocked) {
