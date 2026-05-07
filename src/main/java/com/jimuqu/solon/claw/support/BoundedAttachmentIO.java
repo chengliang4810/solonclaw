@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -41,11 +42,40 @@ public final class BoundedAttachmentIO {
             int timeoutMillis,
             long maxBytes,
             SecurityPolicyService securityPolicyService) {
+        return downloadHutoolResult(url, timeoutMillis, maxBytes, securityPolicyService).getData();
+    }
+
+    public static HutoolDownloadResult downloadHutoolResult(
+            String url,
+            int timeoutMillis,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService) {
+        return downloadHutoolResult(url, timeoutMillis, maxBytes, securityPolicyService, null);
+    }
+
+    public static HutoolDownloadResult downloadHutoolResult(
+            String url,
+            int timeoutMillis,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService,
+            Map<String, String> headers) {
         if (securityPolicyService == null) {
-            return downloadHutool(url, timeoutMillis, maxBytes);
+            HttpResponse response =
+                    applyHeaders(HttpRequest.get(url).timeout(timeoutMillis), headers)
+                            .executeAsync();
+            try {
+                if (response.getStatus() >= 400) {
+                    throw new IllegalStateException(
+                            "Download failed, HTTP " + response.getStatus());
+                }
+                return new HutoolDownloadResult(
+                        readHutoolResponse(response, maxBytes), response.header("Content-Type"));
+            } finally {
+                response.close();
+            }
         }
         return downloadHutoolWithRedirectGuard(
-                url, timeoutMillis, maxBytes, securityPolicyService, 0);
+                url, url, timeoutMillis, maxBytes, securityPolicyService, headers, 0);
     }
 
     public static void downloadHutoolToFile(
@@ -83,14 +113,39 @@ public final class BoundedAttachmentIO {
     }
 
     private static byte[] downloadHutoolWithRedirectGuard(
+            String initialUrl,
             String url,
             int timeoutMillis,
             long maxBytes,
             SecurityPolicyService securityPolicyService,
             int redirectCount) {
+        return downloadHutoolWithRedirectGuard(
+                        initialUrl,
+                        url,
+                        timeoutMillis,
+                        maxBytes,
+                        securityPolicyService,
+                        null,
+                        redirectCount)
+                .getData();
+    }
+
+    private static HutoolDownloadResult downloadHutoolWithRedirectGuard(
+            String initialUrl,
+            String url,
+            int timeoutMillis,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService,
+            Map<String, String> headers,
+            int redirectCount) {
         assertSafeDownloadUrl(url, securityPolicyService);
         HttpResponse response =
-                HttpRequest.get(url).timeout(timeoutMillis).setFollowRedirects(false).executeAsync();
+                applyHeaders(
+                                HttpRequest.get(url)
+                                        .timeout(timeoutMillis)
+                                        .setFollowRedirects(false),
+                                shouldForwardHeaders(initialUrl, url) ? headers : null)
+                        .executeAsync();
         try {
             int status = response.getStatus();
             if (isRedirect(status)) {
@@ -104,16 +159,19 @@ public final class BoundedAttachmentIO {
                 }
                 String nextUrl = resolveRedirectUrl(url, location);
                 return downloadHutoolWithRedirectGuard(
+                        initialUrl,
                         nextUrl,
                         timeoutMillis,
                         maxBytes,
                         securityPolicyService,
+                        headers,
                         redirectCount + 1);
             }
             if (status >= 400) {
                 throw new IllegalStateException("Download failed, HTTP " + status);
             }
-            return readHutoolResponse(response, maxBytes);
+            return new HutoolDownloadResult(
+                    readHutoolResponse(response, maxBytes), response.header("Content-Type"));
         } finally {
             response.close();
         }
@@ -130,6 +188,44 @@ public final class BoundedAttachmentIO {
             throw new IllegalStateException(
                     "Download redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
         }
+    }
+
+    private static HttpRequest applyHeaders(HttpRequest request, Map<String, String> headers) {
+        if (headers == null || headers.isEmpty()) {
+            return request;
+        }
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (StrUtil.isBlank(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+            request.header(entry.getKey(), entry.getValue());
+        }
+        return request;
+    }
+
+    private static boolean shouldForwardHeaders(String initialUrl, String url) {
+        try {
+            URI initial = URI.create(initialUrl);
+            URI current = URI.create(url);
+            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
+                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
+                    && effectivePort(initial) == effectivePort(current);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
     }
 
     public static String readHutoolText(HttpResponse response, long maxBytes) {
@@ -235,6 +331,24 @@ public final class BoundedAttachmentIO {
         private final String contentType;
 
         private OkHttpDownloadResult(byte[] data, String contentType) {
+            this.data = data;
+            this.contentType = contentType;
+        }
+
+        public byte[] getData() {
+            return data;
+        }
+
+        public String getContentType() {
+            return contentType;
+        }
+    }
+
+    public static final class HutoolDownloadResult {
+        private final byte[] data;
+        private final String contentType;
+
+        private HutoolDownloadResult(byte[] data, String contentType) {
             this.data = data;
             this.contentType = contentType;
         }

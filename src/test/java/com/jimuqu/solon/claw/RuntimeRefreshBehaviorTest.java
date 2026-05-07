@@ -1,8 +1,10 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
@@ -12,9 +14,13 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -173,6 +179,67 @@ public class RuntimeRefreshBehaviorTest {
         assertThat(env.appConfig.getLlm().getModel()).isEqualTo(previousModel);
     }
 
+    @Test
+    void shouldBlockUnsafeProviderModelListUrlBeforeNetworkAccess() {
+        AppConfig config = new AppConfig();
+        DashboardProviderService providerService =
+                new DashboardProviderService(
+                        config,
+                        null,
+                        new LlmProviderService(config),
+                        new SecurityPolicyService(config) {
+                            @Override
+                            public UrlVerdict checkUrl(String url) {
+                                return UrlVerdict.block(url, "blocked-by-test");
+                            }
+                        });
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("baseUrl", "https://api.example.test");
+        body.put("dialect", "openai");
+        body.put("apiKey", "test-key");
+
+        assertThatThrownBy(() -> providerService.listRemoteModels(body))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Provider model list URL blocked")
+                .hasMessageContaining("blocked-by-test");
+    }
+
+    @Test
+    void shouldBlockUnsafeProviderModelListRedirectTarget() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/v1/models",
+                    exchange -> {
+                        exchange.getResponseHeaders()
+                                .add(
+                                        "Location",
+                                        "http://169.254.169.254/latest/meta-data/?token=secret");
+                        exchange.sendResponseHeaders(302, -1);
+                        exchange.close();
+                    });
+            server.start();
+            AppConfig config = new AppConfig();
+            DashboardProviderService providerService =
+                    new DashboardProviderService(
+                            config,
+                            null,
+                            new LlmProviderService(config),
+                            new AllowLocalButBlockMetadataSecurityPolicyService(config));
+            Map<String, Object> body = new LinkedHashMap<String, Object>();
+            body.put("baseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            body.put("dialect", "openai");
+
+            assertThatThrownBy(() -> providerService.listRemoteModels(body))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Provider model list URL blocked")
+                    .hasMessageContaining("169.254.169.254")
+                    .hasMessageContaining("token=***");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private RuntimeSettingsService runtimeSettingsService(
             TestEnvironment env, RecordingChannelAdapter adapter) {
         Map<PlatformType, ChannelAdapter> adapters =
@@ -199,6 +266,21 @@ public class RuntimeRefreshBehaviorTest {
                 new AppVersionService(env.appConfig),
                 llmProviderService,
                 providerService);
+    }
+
+    private static class AllowLocalButBlockMetadataSecurityPolicyService
+            extends SecurityPolicyService {
+        private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        protected InetAddress[] resolveHost(String host) throws Exception {
+            if ("127.0.0.1".equals(host)) {
+                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
+            }
+            return new InetAddress[] {InetAddress.getByName(host)};
+        }
     }
 
     private static class RecordingChannelAdapter implements ChannelAdapter {

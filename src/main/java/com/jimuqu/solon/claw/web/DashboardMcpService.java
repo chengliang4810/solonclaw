@@ -123,8 +123,9 @@ public class DashboardMcpService {
                 query.close();
             }
             String toolsJson = json(body.get("tools"));
+            String toolsHash = hash(toolsJson);
             String lastToolsHash =
-                    previousToolsJson.equals(StrUtil.nullToEmpty(toolsJson))
+                    StrUtil.isNotBlank(toolsHash) && toolsHash.equals(previousToolsHash)
                             ? previousToolsHash
                             : "";
             PreparedStatement statement =

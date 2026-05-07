@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -8,6 +9,9 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.Test;
 
@@ -72,6 +76,84 @@ public class BoundedAttachmentIOTest {
                                             1000,
                                             BoundedAttachmentIO.DEFAULT_MAX_BYTES,
                                             securityPolicyService))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Attachment download URL blocked")
+                    .hasMessageContaining("169.254.169.254")
+                    .hasMessageContaining("token=***");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldReturnHutoolContentTypeAndSendHeaders() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/media",
+                    exchange -> {
+                        if (!"Bearer token-a".equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                            exchange.sendResponseHeaders(401, -1);
+                            exchange.close();
+                            return;
+                        }
+                        byte[] body = "hello".getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "image/png");
+                        exchange.sendResponseHeaders(200, body.length);
+                        exchange.getResponseBody().write(body);
+                        exchange.close();
+                    });
+            server.start();
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
+            SecurityPolicyService securityPolicyService =
+                    new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig());
+            Map<String, String> headers = new LinkedHashMap<String, String>();
+            headers.put("Authorization", "Bearer token-a");
+
+            BoundedAttachmentIO.HutoolDownloadResult result =
+                    BoundedAttachmentIO.downloadHutoolResult(
+                            url,
+                            1000,
+                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                            securityPolicyService,
+                            headers);
+
+            assertThat(result.getContentType()).isEqualTo("image/png");
+            assertThat(new String(result.getData(), StandardCharsets.UTF_8)).isEqualTo("hello");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldBlockUnsafeHutoolResultRedirectTargetBeforeFollowingIt() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/media",
+                    exchange -> {
+                        exchange.getResponseHeaders()
+                                .add(
+                                        "Location",
+                                        "http://169.254.169.254/latest/meta-data/?token=secret");
+                        exchange.sendResponseHeaders(302, -1);
+                        exchange.close();
+                    });
+            server.start();
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
+            SecurityPolicyService securityPolicyService =
+                    new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig());
+            Map<String, String> headers = new LinkedHashMap<String, String>();
+            headers.put("Authorization", "Bearer token-a");
+
+            assertThatThrownBy(
+                            () ->
+                                    BoundedAttachmentIO.downloadHutoolResult(
+                                            url,
+                                            1000,
+                                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                                            securityPolicyService,
+                                            headers))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Attachment download URL blocked")
                     .hasMessageContaining("169.254.169.254")

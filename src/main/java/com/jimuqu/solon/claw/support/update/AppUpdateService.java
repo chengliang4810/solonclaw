@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.net.Proxy;
 import java.net.URI;
@@ -272,10 +273,18 @@ public class AppUpdateService {
     protected void downloadAsset(String assetUrl, File target) {
         ensureTrustedUpdateAssetUrl(assetUrl);
         BoundedAttachmentIO.downloadHutoolToFile(
-                assetUrl, target, 60000, BoundedAttachmentIO.UPDATE_JAR_MAX_BYTES);
+                assetUrl,
+                target,
+                60000,
+                BoundedAttachmentIO.UPDATE_JAR_MAX_BYTES,
+                updateAssetSecurityPolicy());
     }
 
-    private void ensureTrustedUpdateAssetUrl(String assetUrl) {
+    protected SecurityPolicyService updateAssetSecurityPolicy() {
+        return new TrustedUpdateAssetSecurityPolicyService(appConfig);
+    }
+
+    protected void ensureTrustedUpdateAssetUrl(String assetUrl) {
         try {
             URI uri = URI.create(assetUrl);
             String scheme = uri.getScheme();
@@ -284,10 +293,7 @@ public class AppUpdateService {
                 throw new IllegalArgumentException("Update asset URL must be HTTPS");
             }
             String normalizedHost = host.toLowerCase();
-            if (!("github.com".equals(normalizedHost)
-                    || "api.github.com".equals(normalizedHost)
-                    || "objects.githubusercontent.com".equals(normalizedHost)
-                    || normalizedHost.endsWith(".githubusercontent.com"))) {
+            if (!isTrustedUpdateAssetHost(normalizedHost)) {
                 throw new IllegalArgumentException(
                         "Update asset URL host is not trusted: " + normalizedHost);
             }
@@ -295,6 +301,45 @@ public class AppUpdateService {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid update asset URL");
+        }
+    }
+
+    protected boolean isTrustedUpdateAssetHost(String normalizedHost) {
+        return "github.com".equals(normalizedHost)
+                || "api.github.com".equals(normalizedHost)
+                || "objects.githubusercontent.com".equals(normalizedHost)
+                || "release-assets.githubusercontent.com".equals(normalizedHost)
+                || "github-releases.githubusercontent.com".equals(normalizedHost)
+                || normalizedHost.endsWith(".githubusercontent.com");
+    }
+
+    private class TrustedUpdateAssetSecurityPolicyService extends SecurityPolicyService {
+        private TrustedUpdateAssetSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            UrlVerdict verdict = super.checkUrl(url);
+            if (!verdict.isAllowed()) {
+                return verdict;
+            }
+            try {
+                URI uri = URI.create(url);
+                String scheme = uri.getScheme();
+                String host = uri.getHost();
+                if (!"https".equalsIgnoreCase(scheme) || StrUtil.isBlank(host)) {
+                    return UrlVerdict.block(url, "Update asset URL must be HTTPS");
+                }
+                String normalizedHost = host.toLowerCase();
+                if (!isTrustedUpdateAssetHost(normalizedHost)) {
+                    return UrlVerdict.block(
+                            url, "Update asset URL host is not trusted: " + normalizedHost);
+                }
+                return UrlVerdict.allow();
+            } catch (Exception e) {
+                return UrlVerdict.block(url, "Invalid update asset URL");
+            }
         }
     }
 

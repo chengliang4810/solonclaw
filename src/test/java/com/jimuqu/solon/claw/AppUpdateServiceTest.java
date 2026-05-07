@@ -1,10 +1,13 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import java.io.File;
 import org.junit.jupiter.api.Test;
 
 public class AppUpdateServiceTest {
@@ -69,6 +72,38 @@ public class AppUpdateServiceTest {
         assertThat(result.getMessage()).contains("docker compose pull");
     }
 
+    @Test
+    void shouldTrustKnownGithubReleaseAssetHosts() {
+        FakeVersionService versionService = new FakeVersionService(new AppConfig());
+        FakeUpdateService service = new FakeUpdateService(new AppConfig(), versionService);
+
+        service.exposeEnsureTrustedUpdateAssetUrl(
+                "https://release-assets.githubusercontent.com/github-production-release-asset/file.jar");
+
+        assertThatThrownBy(
+                        () ->
+                                service.exposeEnsureTrustedUpdateAssetUrl(
+                                        "https://downloads.example.com/file.jar"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not trusted");
+    }
+
+    @Test
+    void shouldApplySecurityPolicyWhenDownloadingUpdateAsset() {
+        FakeVersionService versionService = new FakeVersionService(new AppConfig());
+        PolicyBlockingUpdateService service =
+                new PolicyBlockingUpdateService(new AppConfig(), versionService);
+
+        assertThatThrownBy(
+                        () ->
+                                service.exposeDownloadAsset(
+                                        "https://github.com/chengliang4810/solon-claw/releases/download/v1/app.jar",
+                                        new File("target/update-test/app.jar")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Attachment download URL blocked")
+                .hasMessageContaining("blocked-by-test");
+    }
+
     private static class FakeUpdateService extends AppUpdateService {
         private int releaseStatus = 200;
         private String releaseBody = "";
@@ -105,6 +140,30 @@ public class AppUpdateServiceTest {
 
         private void setTagsBody(String tagsBody) {
             this.tagsBody = tagsBody;
+        }
+
+        private void exposeEnsureTrustedUpdateAssetUrl(String assetUrl) {
+            ensureTrustedUpdateAssetUrl(assetUrl);
+        }
+    }
+
+    private static class PolicyBlockingUpdateService extends AppUpdateService {
+        private PolicyBlockingUpdateService(AppConfig appConfig, AppVersionService versionService) {
+            super(appConfig, versionService);
+        }
+
+        @Override
+        protected SecurityPolicyService updateAssetSecurityPolicy() {
+            return new SecurityPolicyService(new AppConfig()) {
+                @Override
+                public UrlVerdict checkUrl(String url) {
+                    return UrlVerdict.block(url, "blocked-by-test");
+                }
+            };
+        }
+
+        private void exposeDownloadAsset(String assetUrl, File target) {
+            downloadAsset(assetUrl, target);
         }
     }
 

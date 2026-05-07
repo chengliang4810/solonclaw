@@ -1001,36 +1001,29 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         refreshTenantTokenIfNecessary();
         String url = String.format(MESSAGE_RESOURCE_URL, messageId, fileKey, resourceType);
-        BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
-        HttpResponse response =
-                HttpRequest.get(url)
-                        .header("Authorization", "Bearer " + tenantAccessToken)
-                        .timeout(30000)
-                        .execute();
-        try {
-            if (response.getStatus() >= 400) {
-                throw new IllegalStateException(
-                        "Feishu resource download failed: " + response.body());
-            }
-            String fileName = fallbackName;
-            if (StrUtil.isBlank(fileName)) {
-                fileName = fileKey;
-            }
-            String mimeType =
-                    AttachmentCacheService.normalizeMimeType(
-                            response.header("Content-Type"), fileName);
-            return attachmentCacheService.cacheBytes(
-                    PlatformType.FEISHU,
-                    AttachmentCacheService.normalizeKind(resourceType, fileName, mimeType),
-                    fileName,
-                    mimeType,
-                    false,
-                    null,
-                    BoundedAttachmentIO.readHutoolResponse(
-                            response, BoundedAttachmentIO.DEFAULT_MAX_BYTES));
-        } finally {
-            response.close();
+        Map<String, String> headers = new LinkedHashMap<String, String>();
+        headers.put("Authorization", "Bearer " + tenantAccessToken);
+        BoundedAttachmentIO.HutoolDownloadResult result =
+                BoundedAttachmentIO.downloadHutoolResult(
+                        url,
+                        30000,
+                        BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                        securityPolicyService,
+                        headers);
+        String fileName = fallbackName;
+        if (StrUtil.isBlank(fileName)) {
+            fileName = fileKey;
         }
+        String mimeType =
+                AttachmentCacheService.normalizeMimeType(result.getContentType(), fileName);
+        return attachmentCacheService.cacheBytes(
+                PlatformType.FEISHU,
+                AttachmentCacheService.normalizeKind(resourceType, fileName, mimeType),
+                fileName,
+                mimeType,
+                false,
+                null,
+                result.getData());
     }
 
     private void sendText(String chatId, String text) {

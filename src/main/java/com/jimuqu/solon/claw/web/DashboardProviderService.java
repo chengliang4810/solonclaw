@@ -11,7 +11,9 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,16 +30,30 @@ public class DashboardProviderService {
             gatewayRuntimeRefreshService;
     private final LlmProviderService llmProviderService;
     private final ModelMetadataService modelMetadataService;
+    private final SecurityPolicyService securityPolicyService;
 
     public DashboardProviderService(
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService) {
+        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, null);
+    }
+
+    public DashboardProviderService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            LlmProviderService llmProviderService,
+            SecurityPolicyService securityPolicyService) {
         this.appConfig = appConfig;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.llmProviderService = llmProviderService;
         this.modelMetadataService = new ModelMetadataService(appConfig);
+        this.securityPolicyService =
+                securityPolicyService == null
+                        ? new SecurityPolicyService(appConfig)
+                        : securityPolicyService;
     }
 
     public Map<String, Object> listProviders() {
@@ -240,8 +256,36 @@ public class DashboardProviderService {
         }
 
         String url = LlmProviderSupport.buildModelListUrl(baseUrl, dialect);
-        HttpRequest request = HttpRequest.get(url).timeout(15000);
-        if (StrUtil.isNotBlank(apiKey)) {
+        HttpResponse response = executeModelListRequest(url, apiKey, dialect, 0);
+        String body;
+        try {
+            int status = response.getStatus();
+            body = response.body();
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException(
+                        "获取模型列表失败：HTTP " + status + " " + trimForError(body));
+            }
+        } finally {
+            response.close();
+        }
+
+        List<String> models = parseModels(body, dialect);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("url", url);
+        result.put("models", models);
+        return result;
+    }
+
+    protected HttpResponse executeModelListRequest(
+            String url, String apiKey, String dialect, int redirectCount) {
+        return executeModelListRequest(url, url, apiKey, dialect, redirectCount);
+    }
+
+    private HttpResponse executeModelListRequest(
+            String initialUrl, String url, String apiKey, String dialect, int redirectCount) {
+        assertSafeProviderUrl(url);
+        HttpRequest request = HttpRequest.get(url).timeout(15000).setFollowRedirects(false);
+        if (StrUtil.isNotBlank(apiKey) && shouldForwardCredentials(initialUrl, url)) {
             if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
                 request.form("key", apiKey);
             } else {
@@ -252,19 +296,76 @@ public class DashboardProviderService {
                 request.header("anthropic-version", "2023-06-01");
             }
         }
-
         HttpResponse response = request.execute();
         int status = response.getStatus();
-        String body = response.body();
-        if (status < 200 || status >= 300) {
-            throw new IllegalStateException("获取模型列表失败：HTTP " + status + " " + trimForError(body));
+        if (isRedirect(status)) {
+            try {
+                if (redirectCount >= 5) {
+                    throw new IllegalStateException("获取模型列表重定向次数过多。");
+                }
+                String location = response.header("Location");
+                if (StrUtil.isBlank(location)) {
+                    throw new IllegalStateException("获取模型列表重定向缺少 Location。");
+                }
+                String nextUrl = resolveRedirectUrl(url, location);
+                response.close();
+                return executeModelListRequest(
+                        initialUrl, nextUrl, apiKey, dialect, redirectCount + 1);
+            } catch (RuntimeException e) {
+                response.close();
+                throw e;
+            }
         }
+        return response;
+    }
 
-        List<String> models = parseModels(body, dialect);
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("url", url);
-        result.put("models", models);
-        return result;
+    private void assertSafeProviderUrl(String url) {
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "Provider model list URL blocked: "
+                            + com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(verdict.getUrl())
+                            + " ("
+                            + verdict.getMessage()
+                            + ")");
+        }
+    }
+
+    private boolean shouldForwardCredentials(String initialUrl, String url) {
+        try {
+            URI initial = URI.create(initialUrl);
+            URI current = URI.create(url);
+            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
+                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
+                    && effectivePort(initial) == effectivePort(current);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        if ("http".equalsIgnoreCase(uri.getScheme())) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return 443;
+        }
+        return -1;
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private String resolveRedirectUrl(String baseUrl, String location) {
+        try {
+            return URI.create(baseUrl).resolve(location.trim()).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("获取模型列表重定向 URL 无效。", e);
+        }
     }
 
     private Map<String, Object> toProviderMap(
