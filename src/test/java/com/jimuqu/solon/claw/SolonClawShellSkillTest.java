@@ -14,6 +14,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -384,7 +385,8 @@ public class SolonClawShellSkillTest {
                                 Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(0);
-        assertThat(lastOutputLine(result.get("output").getString())).isEqualTo(root.toFile().getCanonicalPath());
+        assertThat(Paths.get(lastOutputLine(result.get("output").getString())).toRealPath())
+                .isEqualTo(root.toRealPath());
     }
 
     @Test

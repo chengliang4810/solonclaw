@@ -1314,7 +1314,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from kanban_runs where task_id = ? order by started_at desc, run_id desc limit 1");
+                            "select * from kanban_runs where task_id = ? order by started_at desc, rowid desc limit 1");
             statement.setString(1, taskId);
             ResultSet resultSet = statement.executeQuery();
             try {

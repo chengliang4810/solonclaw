@@ -1511,6 +1511,49 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldDefaultCronjobToolDeliveryToOrigin() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-origin-room:tool-user");
+
+        Map<?, ?> created =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-origin",
+                                                "30m",
+                                                "origin prompt",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+
+        assertThat(created.get("deliver")).isEqualTo("origin");
+        Map<?, ?> job = (Map<?, ?>) created.get("job");
+        assertThat(job.get("deliver")).isEqualTo("origin");
+        String jobId = String.valueOf(created.get("job_id"));
+        CronJobRecord record = env.cronJobRepository.findById(jobId);
+        assertThat(record.getDeliverPlatform()).isEqualTo("origin");
+        Map<?, ?> origin = (Map<?, ?>) ONode.ofJson(record.getOriginJson()).toData();
+        assertThat(origin.get("platform")).isEqualTo("MEMORY");
+        assertThat(origin.get("chat_id")).isEqualTo("tool-origin-room");
+        assertThat(origin.get("user_id")).isEqualTo("tool-user");
+    }
+
+    @Test
     void shouldExposeHermesCronjobSchemaGuidance() throws Exception {
         Method method = cronjobToolMethod();
         ToolMapping mapping = method.getAnnotation(ToolMapping.class);

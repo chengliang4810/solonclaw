@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,27 @@ public class CronjobTools {
         }
 
         if ("create".equals(normalized)) {
-            CronJobRecord job = cronJobService.create(sourceKey, body(name, schedule, prompt, deliver, skill, skills, repeat, wrapResponse, script, workdir, noAgent, contextFrom, dependsOn, enabledToolsets, model, provider, baseUrl));
+            Map<String, Object> createBody =
+                    body(
+                            name,
+                            schedule,
+                            prompt,
+                            deliver,
+                            skill,
+                            skills,
+                            repeat,
+                            wrapResponse,
+                            script,
+                            workdir,
+                            noAgent,
+                            contextFrom,
+                            dependsOn,
+                            enabledToolsets,
+                            model,
+                            provider,
+                            baseUrl);
+            applyDefaultOriginDelivery(createBody);
+            CronJobRecord job = cronJobService.create(sourceKey, createBody);
             Map<String, Object> view = formattedView(job);
             return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
                     .data("job_id", job.getJobId())
@@ -345,6 +366,24 @@ public class CronjobTools {
         if (value != null) {
             body.put(key, value);
         }
+    }
+
+    private void applyDefaultOriginDelivery(Map<String, Object> body) {
+        if (!body.containsKey("deliver")) {
+            body.put("deliver", "origin");
+        }
+        if (!body.containsKey("origin")) {
+            body.put("origin", originFromSourceKey());
+        }
+    }
+
+    private Map<String, Object> originFromSourceKey() {
+        String[] parts = SourceKeySupport.split(sourceKey);
+        Map<String, Object> origin = new LinkedHashMap<String, Object>();
+        origin.put("platform", parts[0]);
+        origin.put("chat_id", parts[1]);
+        origin.put("user_id", parts[2]);
+        return origin;
     }
 
     private List<Map<String, Object>> views(List<CronJobRecord> jobs) {
