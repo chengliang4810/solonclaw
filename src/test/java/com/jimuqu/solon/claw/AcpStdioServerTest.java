@@ -22,11 +22,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.session.InMemoryChatSession;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class AcpStdioServerTest {
     private static final byte[] ONE_PX_PNG =
@@ -880,6 +884,45 @@ public class AcpStdioServerTest {
                 .doesNotContain("\"session_updates\"");
     }
 
+    @Test
+    void shouldReplayPersistedAcpToolCallHistory() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord record = env.sessionRepository.bindNewSession("MEMORY:cli:persisted-acp-tools");
+        record.setTitle("Persisted ACP Tool Session");
+        record.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser("need a file"),
+                                assistantWithToolCall("call_1", "read_file", "path", "README.md"),
+                                ChatMessage.ofTool("file content", "read_file", "call_1"),
+                                ChatMessage.ofAssistant("done"))));
+        env.sessionRepository.save(record);
+
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + record.getSessionId()
+                                + "\",\"cwd\":\"D:/projects/jimuqu-agent\"}}");
+
+        assertThat(loaded)
+                .contains("\"id\":10")
+                .contains("\"session_updates\"")
+                .contains("\"tool_call_start\"")
+                .contains("\"tool_call_update\"")
+                .contains("\"tool_call_id\":\"call_1\"")
+                .contains("\"toolName\":\"read_file\"")
+                .contains("\"path\":\"README.md\"")
+                .contains("file content")
+                .contains("\"agent_message_chunk\"")
+                .contains("done");
+    }
+
     private String newAcpSession(AcpStdioServer server, int id) {
         return server.handle(
                 "{\"jsonrpc\":\"2.0\",\"id\":"
@@ -929,6 +972,19 @@ public class AcpStdioServerTest {
                                     + Character.digit(value.charAt(i + 1), 16));
         }
         return data;
+    }
+
+    private static AssistantMessage assistantWithToolCall(
+            String id, String name, String argKey, String argValue) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put(argKey, argValue);
+        return new AssistantMessage(
+                "",
+                false,
+                null,
+                null,
+                Collections.singletonList(new ToolCall("0", id, name, null, args)),
+                null);
     }
 
     private static class ModelEchoGateway extends FakeLlmGateway {

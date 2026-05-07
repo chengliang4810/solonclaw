@@ -10,7 +10,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** ACP session state backed by the normal session repository when available. */
 public class AcpSessionManager {
@@ -174,9 +178,62 @@ public class AcpSessionManager {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("role", String.valueOf(message.getRole()).toLowerCase());
             item.put("content", StrUtil.nullToEmpty(message.getContent()));
+            if (message instanceof AssistantMessage) {
+                appendAssistantToolCalls(item, (AssistantMessage) message);
+            }
+            if (message instanceof ToolMessage) {
+                ToolMessage toolMessage = (ToolMessage) message;
+                item.put("tool_name", StrUtil.nullToEmpty(toolMessage.getName()));
+                item.put("tool_call_id", StrUtil.nullToEmpty(toolMessage.getToolCallId()));
+            }
             history.add(item);
         }
         return history;
+    }
+
+    private void appendAssistantToolCalls(Map<String, Object> item, AssistantMessage message) {
+        List<ToolCall> calls = message.getToolCalls();
+        if (calls == null || calls.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> toolCalls = new ArrayList<Map<String, Object>>();
+        for (ToolCall call : calls) {
+            if (call == null) {
+                continue;
+            }
+            Map<String, Object> function = new LinkedHashMap<String, Object>();
+            function.put("name", StrUtil.blankToDefault(call.getName(), "unknown_tool"));
+            function.put("arguments", toolCallArguments(call));
+
+            Map<String, Object> toolCall = new LinkedHashMap<String, Object>();
+            toolCall.put("id", StrUtil.nullToEmpty(call.getId()));
+            toolCall.put("type", "function");
+            toolCall.put("function", function);
+            toolCalls.add(toolCall);
+        }
+        if (!toolCalls.isEmpty()) {
+            item.put("tool_calls", toolCalls);
+        }
+    }
+
+    private Object toolCallArguments(ToolCall call) {
+        if (call == null) {
+            return new LinkedHashMap<String, Object>();
+        }
+        Map<String, Object> arguments = call.getArguments();
+        if (arguments != null && !arguments.isEmpty()) {
+            return arguments;
+        }
+        String raw = call.getArgumentsStr();
+        if (StrUtil.isBlank(raw)) {
+            return new LinkedHashMap<String, Object>();
+        }
+        try {
+            Object parsed = ONode.ofJson(raw).toData();
+            return parsed == null ? raw : parsed;
+        } catch (Exception e) {
+            return raw;
+        }
     }
 
     public static class AcpSessionState {

@@ -911,27 +911,224 @@ public class AcpStdioServer {
         if (state == null) {
             return updates;
         }
+        Map<String, Map<String, Object>> activeToolCalls = new LinkedHashMap<String, Map<String, Object>>();
         for (Map<String, Object> message : state.getHistory()) {
             if (message == null) {
                 continue;
             }
             String role = StrUtil.nullToEmpty(String.valueOf(message.get("role"))).trim().toLowerCase();
-            if (!"user".equals(role) && !"assistant".equals(role)) {
-                continue;
+            if ("user".equals(role) || "assistant".equals(role)) {
+                String text = historyMessageText(message.get("content"));
+                if (StrUtil.isNotBlank(text)) {
+                    Map<String, Object> update = new LinkedHashMap<String, Object>();
+                    update.put(
+                            "session_update",
+                            "user".equals(role) ? "user_message_chunk" : "agent_message_chunk");
+                    update.put("type", update.get("session_update"));
+                    update.put("content", textBlock(text));
+                    updates.add(update);
+                }
             }
-            String text = historyMessageText(message.get("content"));
-            if (StrUtil.isBlank(text)) {
-                continue;
+            if ("assistant".equals(role)) {
+                updates.addAll(historyToolStartUpdates(message.get("tool_calls"), activeToolCalls));
             }
-            Map<String, Object> update = new LinkedHashMap<String, Object>();
-            update.put(
-                    "session_update",
-                    "user".equals(role) ? "user_message_chunk" : "agent_message_chunk");
-            update.put("type", update.get("session_update"));
-            update.put("content", textBlock(text));
-            updates.add(update);
+            if ("tool".equals(role)) {
+                Map<String, Object> update = historyToolCompleteUpdate(message, activeToolCalls);
+                if (update != null) {
+                    updates.add(update);
+                }
+            }
         }
         return updates;
+    }
+
+    private List<Map<String, Object>> historyToolStartUpdates(
+            Object rawToolCalls, Map<String, Map<String, Object>> activeToolCalls) {
+        List<Map<String, Object>> updates = new ArrayList<Map<String, Object>>();
+        if (!(rawToolCalls instanceof List)) {
+            return updates;
+        }
+        for (Object raw : (List<?>) rawToolCalls) {
+            if (!(raw instanceof Map)) {
+                continue;
+            }
+            Map<?, ?> toolCall = (Map<?, ?>) raw;
+            String toolCallId = historyToolCallId(toolCall);
+            if (StrUtil.isBlank(toolCallId)) {
+                continue;
+            }
+            String toolName = historyToolCallName(toolCall);
+            Map<String, Object> args = historyToolCallArgs(toolCall);
+            Map<String, Object> active = new LinkedHashMap<String, Object>();
+            active.put("tool_name", toolName);
+            active.put("args", args);
+            activeToolCalls.put(toolCallId, active);
+            updates.add(toolStartUpdate(toolCallId, toolName, args));
+        }
+        return updates;
+    }
+
+    private Map<String, Object> historyToolCompleteUpdate(
+            Map<String, Object> message, Map<String, Map<String, Object>> activeToolCalls) {
+        String toolCallId = StrUtil.nullToEmpty(String.valueOf(message.get("tool_call_id"))).trim();
+        String toolName = StrUtil.nullToEmpty(String.valueOf(message.get("tool_name"))).trim();
+        Map<String, Object> active = StrUtil.isBlank(toolCallId) ? null : activeToolCalls.remove(toolCallId);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        if (active != null) {
+            toolName = StrUtil.blankToDefault(toolName, String.valueOf(active.get("tool_name")));
+            Object rawArgs = active.get("args");
+            if (rawArgs instanceof Map) {
+                args.putAll((Map<String, Object>) rawArgs);
+            }
+        }
+        if (StrUtil.isBlank(toolCallId) || StrUtil.isBlank(toolName)) {
+            return null;
+        }
+        return toolCompleteUpdate(toolCallId, toolName, historyMessageText(message.get("content")), args, 0L);
+    }
+
+    private String historyToolCallId(Map<?, ?> toolCall) {
+        if (toolCall == null) {
+            return "";
+        }
+        Object id = toolCall.get("id");
+        if (id == null) {
+            id = toolCall.get("call_id");
+        }
+        if (id == null) {
+            id = toolCall.get("tool_call_id");
+        }
+        return StrUtil.nullToEmpty(String.valueOf(id)).trim();
+    }
+
+    private String historyToolCallName(Map<?, ?> toolCall) {
+        Object function = toolCall == null ? null : toolCall.get("function");
+        if (function instanceof Map) {
+            Object name = ((Map<?, ?>) function).get("name");
+            if (name != null && StrUtil.isNotBlank(String.valueOf(name))) {
+                return String.valueOf(name);
+            }
+        }
+        Object name = toolCall == null ? null : toolCall.get("name");
+        return StrUtil.blankToDefault(name == null ? "" : String.valueOf(name), "unknown_tool");
+    }
+
+    private Map<String, Object> historyToolCallArgs(Map<?, ?> toolCall) {
+        Object function = toolCall == null ? null : toolCall.get("function");
+        Object rawArgs = null;
+        if (function instanceof Map) {
+            rawArgs = ((Map<?, ?>) function).get("arguments");
+        }
+        if (rawArgs == null && toolCall != null) {
+            rawArgs = toolCall.get("arguments");
+        }
+        if (rawArgs == null && toolCall != null) {
+            rawArgs = toolCall.get("args");
+        }
+        return objectMap(rawArgs);
+    }
+
+    private Map<String, Object> objectMap(Object value) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (value instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (entry.getKey() != null) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+            return result;
+        }
+        if (value instanceof String && StrUtil.isNotBlank((String) value)) {
+            try {
+                Object parsed = ONode.ofJson((String) value).toData();
+                if (parsed instanceof Map) {
+                    return objectMap(parsed);
+                }
+            } catch (Exception e) {
+                result.put("raw", value);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, Object> toolStartUpdate(
+            String toolCallId, String toolName, Map<String, Object> args) {
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("session_update", "tool_call_start");
+        update.put("type", "tool_call_start");
+        update.put("tool_call_id", toolCallId);
+        update.put("toolCallId", toolCallId);
+        update.put("tool_name", StrUtil.blankToDefault(toolName, "tool"));
+        update.put("toolName", StrUtil.blankToDefault(toolName, "tool"));
+        update.put("kind", toolKind(toolName));
+        update.put("title", toolTitle(toolName, args));
+        update.put("args", args == null ? new LinkedHashMap<String, Object>() : args);
+        return update;
+    }
+
+    private Map<String, Object> toolCompleteUpdate(
+            String toolCallId,
+            String toolName,
+            String result,
+            Map<String, Object> args,
+            long durationMs) {
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("session_update", "tool_call_update");
+        update.put("type", "tool_call_update");
+        update.put("tool_call_id", toolCallId);
+        update.put("toolCallId", toolCallId);
+        update.put("tool_name", StrUtil.blankToDefault(toolName, "tool"));
+        update.put("toolName", StrUtil.blankToDefault(toolName, "tool"));
+        update.put("kind", toolKind(toolName));
+        update.put("status", "completed");
+        update.put("duration_ms", Long.valueOf(durationMs));
+        update.put("durationMs", Long.valueOf(durationMs));
+        update.put("content", textBlock(truncate(result, 5000)));
+        if (args != null && !args.isEmpty()) {
+            update.put("args", args);
+        }
+        return update;
+    }
+
+    private String toolKind(String toolName) {
+        String name = StrUtil.nullToEmpty(toolName);
+        if ("read_file".equals(name) || "skill_view".equals(name) || "skills_list".equals(name)) {
+            return "read";
+        }
+        if ("write_file".equals(name) || "patch".equals(name) || "skill_manage".equals(name)) {
+            return "edit";
+        }
+        if ("search_files".equals(name) || "session_search".equals(name)) {
+            return "search";
+        }
+        if ("terminal".equals(name)
+                || "execute_shell".equals(name)
+                || "process".equals(name)
+                || "execute_code".equals(name)
+                || "delegate_task".equals(name)) {
+            return "execute";
+        }
+        if ("web_search".equals(name) || "web_extract".equals(name)) {
+            return "fetch";
+        }
+        return "other";
+    }
+
+    private String toolTitle(String toolName, Map<String, Object> args) {
+        String name = StrUtil.blankToDefault(toolName, "tool");
+        Object command = args == null ? null : args.get("command");
+        Object path = args == null ? null : args.get("path");
+        Object query = args == null ? null : args.get("query");
+        if (command != null && StrUtil.isNotBlank(String.valueOf(command))) {
+            return name + ": " + truncate(String.valueOf(command), 100);
+        }
+        if (path != null && StrUtil.isNotBlank(String.valueOf(path))) {
+            return name + ": " + String.valueOf(path);
+        }
+        if (query != null && StrUtil.isNotBlank(String.valueOf(query))) {
+            return name + ": " + truncate(String.valueOf(query), 100);
+        }
+        return name;
     }
 
     private String historyMessageText(Object content) {
@@ -1678,6 +1875,17 @@ public class AcpStdioServer {
         block.put("type", "text");
         block.put("text", StrUtil.nullToEmpty(text));
         return block;
+    }
+
+    private String truncate(String value, int limit) {
+        String text = StrUtil.nullToEmpty(value);
+        if (text.length() <= limit) {
+            return text;
+        }
+        return text.substring(0, Math.max(0, limit - 40))
+                + "\n... ("
+                + text.length()
+                + " chars total, truncated)";
     }
 
     private String read(ONode node, String key, String fallback) {
