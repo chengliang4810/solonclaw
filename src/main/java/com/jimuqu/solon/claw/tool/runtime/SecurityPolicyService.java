@@ -172,8 +172,11 @@ public class SecurityPolicyService {
         }
 
         String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
-        if (!"http".equals(scheme) && !"https".equals(scheme)) {
-            return UrlVerdict.block(raw, "仅允许 http/https URL");
+        if (!"http".equals(scheme)
+                && !"https".equals(scheme)
+                && !"ws".equals(scheme)
+                && !"wss".equals(scheme)) {
+            return UrlVerdict.block(raw, "仅允许 http/https/ws/wss URL");
         }
         if (hasUserInfo(uri)) {
             return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
@@ -235,7 +238,9 @@ public class SecurityPolicyService {
                                 && appConfig.getSecurity() != null
                                 && appConfig.getSecurity().isAllowPrivateUrls()
                         : allowPrivateOverride.booleanValue();
-        boolean trustedPrivateHost = "https".equals(scheme) && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
+        boolean trustedPrivateHost =
+                ("https".equals(scheme) || "wss".equals(scheme))
+                        && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
         int[] hostIpv4 = parseObfuscatedIpv4(host);
         if (hostIpv4 != null) {
             String ip = formatIpv4(hostIpv4);

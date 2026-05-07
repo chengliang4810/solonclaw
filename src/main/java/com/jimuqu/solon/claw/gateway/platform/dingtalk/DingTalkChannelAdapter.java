@@ -51,6 +51,7 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -814,13 +815,20 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         attachment.getOriginalName(),
                         attachment.getMimeType());
         String type = "image".equals(kind) ? "image" : ("voice".equals(kind) ? "voice" : "file");
-        String response =
-                HttpRequest.post(
-                                MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type)
+        String uploadUrl = MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type;
+        assertSafeUrl(uploadUrl, "DingTalk media upload URL");
+        HttpResponse uploadResponse =
+                HttpRequest.post(uploadUrl)
                         .form("media", file)
                         .timeout(30000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(uploadResponse, "DingTalk media upload");
+        } finally {
+            uploadResponse.close();
+        }
         ONode node = ONode.ofJson(response);
         int errCode = node.get("errcode").getInt(0);
         if (errCode != 0) {
@@ -1091,7 +1099,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException("DingTalk upload info missing signed resource url");
         }
         String uploadUrl = body.getHeaderSignatureInfo().getResourceUrls().get(0);
-        HttpRequest request = HttpRequest.put(uploadUrl).timeout(120000).body(data);
+        assertSafeUrl(uploadUrl, "DingTalk signed upload URL");
+        HttpRequest request =
+                HttpRequest.put(uploadUrl).timeout(120000).setFollowRedirects(false).body(data);
         Map<String, String> headers = body.getHeaderSignatureInfo().getHeaders();
         if (headers != null) {
             for (Map.Entry<String, String> entry : headers.entrySet()) {
@@ -1100,6 +1110,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         HttpResponse response = request.execute();
         try {
+            if (response.getStatus() >= 300 && response.getStatus() < 400) {
+                throw new IllegalStateException(
+                        "DingTalk upload bytes blocked redirect: HTTP "
+                                + response.getStatus()
+                                + " -> "
+                                + SecretRedactor.maskUrl(response.header("Location")));
+            }
             if (response.getStatus() >= 400) {
                 throw new IllegalStateException(
                         "DingTalk upload bytes failed: HTTP " + response.getStatus());
@@ -1162,6 +1179,37 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private boolean notBlank(String value) {
         return !isBlank(value);
+    }
+
+    private String guardedResponseBody(HttpResponse response, String purpose) {
+        int status = response.getStatus();
+        if (status >= 300 && status < 400) {
+            throw new IllegalStateException(
+                    purpose
+                            + " blocked redirect: HTTP "
+                            + status
+                            + " -> "
+                            + SecretRedactor.maskUrl(response.header("Location")));
+        }
+        if (status >= 400) {
+            throw new IllegalStateException(purpose + " failed: HTTP " + status);
+        }
+        return response.body();
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
     }
 
     private String resolveMarkdownTitle(String content) {

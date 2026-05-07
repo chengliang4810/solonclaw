@@ -896,12 +896,20 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private ONode fetchMessageMeta(String messageId) {
         refreshTenantTokenIfNecessary();
-        String response =
-                HttpRequest.get("https://open.feishu.cn/open-apis/im/v1/messages/" + messageId)
+        String url = "https://open.feishu.cn/open-apis/im/v1/messages/" + messageId;
+        assertSafeUrl(url, "Feishu message lookup URL");
+        HttpResponse httpResponse =
+                HttpRequest.get(url)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .timeout(15000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu message lookup");
+        } finally {
+            httpResponse.close();
+        }
         return ensureOk(response, "Feishu message lookup failed");
     }
 
@@ -961,12 +969,19 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     protected Map<String, String> fetchBotInfo() {
         refreshTenantTokenIfNecessary();
-        String response =
+        assertSafeUrl(BOT_INFO_URL, "Feishu bot info URL");
+        HttpResponse httpResponse =
                 HttpRequest.get(BOT_INFO_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .timeout(15000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu bot info");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ONode.ofJson(response);
         if (node.get("code").getInt(-1) != 0) {
             return null;
@@ -1299,14 +1314,21 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String uploadImage(File file) {
-        String response =
+        assertSafeUrl(IMAGE_UPLOAD_URL, "Feishu image upload URL");
+        HttpResponse httpResponse =
                 HttpRequest.post(IMAGE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .form("image_type", "message")
                         .form("image", file)
                         .timeout(30000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu image upload");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ensureOk(response, "Feishu image upload failed");
         String imageKey = node.get("data").get("image_key").getString();
         if (StrUtil.isBlank(imageKey)) {
@@ -1316,15 +1338,22 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String uploadFile(File file, String uploadType) {
-        String response =
+        assertSafeUrl(FILE_UPLOAD_URL, "Feishu file upload URL");
+        HttpResponse httpResponse =
                 HttpRequest.post(FILE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
                         .form("file_type", uploadType)
                         .form("file_name", file.getName())
                         .form("file", file)
                         .timeout(30000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu file upload");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ensureOk(response, "Feishu file upload failed");
         String fileKey = node.get("data").get("file_key").getString();
         if (StrUtil.isBlank(fileKey)) {
@@ -1378,13 +1407,20 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String postJson(String url, String body) {
-        return HttpRequest.post(url)
-                .contentType(ContentType.JSON.toString())
-                .header("Authorization", "Bearer " + tenantAccessToken)
-                .body(body)
-                .timeout(15000)
-                .execute()
-                .body();
+        assertSafeUrl(url, "Feishu API URL");
+        HttpResponse response =
+                HttpRequest.post(url)
+                        .contentType(ContentType.JSON.toString())
+                        .header("Authorization", "Bearer " + tenantAccessToken)
+                        .body(body)
+                        .timeout(15000)
+                        .setFollowRedirects(false)
+                        .execute();
+        try {
+            return guardedResponseBody(response, "Feishu API request");
+        } finally {
+            response.close();
+        }
     }
 
     private ONode ensureOk(String response, String defaultMessage) {
@@ -1406,13 +1442,20 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("app_id", config.getAppId())
                         .set("app_secret", config.getAppSecret())
                         .toJson();
-        String response =
+        assertSafeUrl(TOKEN_URL, "Feishu token URL");
+        HttpResponse httpResponse =
                 HttpRequest.post(TOKEN_URL)
                         .contentType(ContentType.JSON.toString())
                         .body(body)
                         .timeout(15000)
-                        .execute()
-                        .body();
+                        .setFollowRedirects(false)
+                        .execute();
+        String response;
+        try {
+            response = guardedResponseBody(httpResponse, "Feishu token request");
+        } finally {
+            httpResponse.close();
+        }
         ONode node = ONode.ofJson(response);
         int code = node.get("code").getInt(0);
         if (code != 0) {
@@ -1448,6 +1491,37 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             log.debug("[FEISHU] websocket shutdown cleanup failed: {}", e.getMessage(), e);
         } finally {
             wsClient = null;
+        }
+    }
+
+    private String guardedResponseBody(HttpResponse response, String purpose) {
+        int status = response.getStatus();
+        if (status >= 300 && status < 400) {
+            throw new IllegalStateException(
+                    purpose
+                            + " blocked redirect: HTTP "
+                            + status
+                            + " -> "
+                            + SecretRedactor.maskUrl(response.header("Location")));
+        }
+        if (status >= 400) {
+            throw new IllegalStateException(purpose + " failed: HTTP " + status);
+        }
+        return response.body();
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
         }
     }
 

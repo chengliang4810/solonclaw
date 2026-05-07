@@ -1156,6 +1156,26 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldApplyUrlSafetyToWebsocketSchemes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService publicWs =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+        SecurityPolicyService metadataWs =
+                new FixedDnsSecurityPolicyService(env.appConfig, "169.254.169.254");
+
+        assertThat(publicWs.checkUrl("wss://gateway.example/ws").isAllowed()).isTrue();
+        SecurityPolicyService.UrlVerdict blocked =
+                metadataWs.checkUrl("wss://gateway.example/ws");
+        SecurityPolicyService.UrlVerdict userInfo =
+                publicWs.checkUrl("wss://user:secret@gateway.example/ws");
+
+        assertThat(blocked.isAllowed()).isFalse();
+        assertThat(blocked.getMessage()).contains("元数据");
+        assertThat(userInfo.isAllowed()).isFalse();
+        assertThat(userInfo.getMessage()).contains("userinfo");
+    }
+
+    @Test
     void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeHermesUrlSafety()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
