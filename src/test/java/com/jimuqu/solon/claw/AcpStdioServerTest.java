@@ -864,13 +864,20 @@ public class AcpStdioServerTest {
                 .contains("\"id\":8")
                 .contains(record.getSessionId())
                 .contains("Persisted ACP Session")
+                .contains("\"session_updates\"")
+                .contains("\"available_commands_update\"")
+                .contains("\"user_message_chunk\"")
+                .contains("\"agent_message_chunk\"")
                 .contains("persisted user")
                 .contains("persisted assistant");
 
         String listed =
                 server.handle(
                         "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"session/list\",\"params\":{}}");
-        assertThat(listed).contains("\"id\":9").contains(record.getSessionId());
+        assertThat(listed)
+                .contains("\"id\":9")
+                .contains(record.getSessionId())
+                .doesNotContain("\"session_updates\"");
     }
 
     private String newAcpSession(AcpStdioServer server, int id) {

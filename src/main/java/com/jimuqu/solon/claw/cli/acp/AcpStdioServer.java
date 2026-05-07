@@ -349,7 +349,7 @@ public class AcpStdioServer {
             state.setMcpServers(readMcpServers(params));
             registerMcpServers(state);
         }
-        return state == null ? null : sessionResult(state);
+        return state == null ? null : sessionResultWithUpdates(state, true);
     }
 
     private Map<String, Object> resumeSession(ONode params) throws Exception {
@@ -366,7 +366,7 @@ public class AcpStdioServer {
             state.setMcpServers(readMcpServers(params));
         }
         registerMcpServers(state);
-        return sessionResult(state);
+        return sessionResultWithUpdates(state, true);
     }
 
     private Map<String, Object> forkSession(ONode params) throws Exception {
@@ -374,7 +374,7 @@ public class AcpStdioServer {
         AcpSessionManager.AcpSessionState state =
                 sessionManager.fork(readSessionId(params), cwd, readMcpServers(params));
         registerMcpServers(state);
-        return sessionResult(state);
+        return sessionResultWithUpdates(state, true);
     }
 
     private Map<String, Object> cancel(ONode params) throws Exception {
@@ -481,6 +481,15 @@ public class AcpStdioServer {
             result.put("config_options", state.getConfigOptions());
             result.put("configOptions", state.getConfigOptions());
         }
+        return result;
+    }
+
+    private Map<String, Object> sessionResultWithUpdates(
+            AcpSessionManager.AcpSessionState state, boolean includeHistory) throws Exception {
+        Map<String, Object> result = sessionResult(state);
+        List<Map<String, Object>> updates = sessionLifecycleUpdates(state, includeHistory);
+        result.put("session_updates", updates);
+        result.put("sessionUpdates", updates);
         return result;
     }
 
@@ -869,6 +878,17 @@ public class AcpStdioServer {
     private List<Map<String, Object>> promptUpdates(
             AcpSessionManager.AcpSessionState state, AcpEventSink sink, GatewayReply reply)
             throws Exception {
+        List<Map<String, Object>> updates = sessionLifecycleUpdates(state, false);
+        updates.addAll(sink.updates());
+        Map<String, Object> usageUpdate = usageUpdate(reply, state);
+        if (!usageUpdate.isEmpty()) {
+            updates.add(usageUpdate);
+        }
+        return updates;
+    }
+
+    private List<Map<String, Object>> sessionLifecycleUpdates(
+            AcpSessionManager.AcpSessionState state, boolean includeHistory) throws Exception {
         List<Map<String, Object>> updates = new ArrayList<Map<String, Object>>();
         Map<String, Object> commandsUpdate = new LinkedHashMap<String, Object>();
         commandsUpdate.put("session_update", "available_commands_update");
@@ -876,12 +896,72 @@ public class AcpStdioServer {
         commandsUpdate.put("available_commands", commands());
         commandsUpdate.put("availableCommands", commandsUpdate.get("available_commands"));
         updates.add(commandsUpdate);
-        updates.addAll(sink.updates());
-        Map<String, Object> usageUpdate = usageUpdate(reply, state);
+        if (includeHistory && state != null) {
+            updates.addAll(historyReplayUpdates(state));
+        }
+        Map<String, Object> usageUpdate = usageUpdate(null, state);
         if (!usageUpdate.isEmpty()) {
             updates.add(usageUpdate);
         }
         return updates;
+    }
+
+    private List<Map<String, Object>> historyReplayUpdates(AcpSessionManager.AcpSessionState state) {
+        List<Map<String, Object>> updates = new ArrayList<Map<String, Object>>();
+        if (state == null) {
+            return updates;
+        }
+        for (Map<String, Object> message : state.getHistory()) {
+            if (message == null) {
+                continue;
+            }
+            String role = StrUtil.nullToEmpty(String.valueOf(message.get("role"))).trim().toLowerCase();
+            if (!"user".equals(role) && !"assistant".equals(role)) {
+                continue;
+            }
+            String text = historyMessageText(message.get("content"));
+            if (StrUtil.isBlank(text)) {
+                continue;
+            }
+            Map<String, Object> update = new LinkedHashMap<String, Object>();
+            update.put(
+                    "session_update",
+                    "user".equals(role) ? "user_message_chunk" : "agent_message_chunk");
+            update.put("type", update.get("session_update"));
+            update.put("content", textBlock(text));
+            updates.add(update);
+        }
+        return updates;
+    }
+
+    private String historyMessageText(Object content) {
+        if (content == null) {
+            return "";
+        }
+        if (content instanceof List) {
+            StringBuilder builder = new StringBuilder();
+            List<?> values = (List<?>) content;
+            for (Object value : values) {
+                String part = historyMessageText(value);
+                if (StrUtil.isBlank(part)) {
+                    continue;
+                }
+                if (builder.length() > 0) {
+                    builder.append('\n');
+                }
+                builder.append(part.trim());
+            }
+            return builder.toString();
+        }
+        if (content instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) content;
+            Object text = map.get("text");
+            if (text == null) {
+                text = map.get("content");
+            }
+            return historyMessageText(text);
+        }
+        return StrUtil.nullToEmpty(String.valueOf(content)).trim();
     }
 
     private Map<String, Object> usageUpdate(GatewayReply reply, AcpSessionManager.AcpSessionState state)
@@ -1589,11 +1669,15 @@ public class AcpStdioServer {
 
     private List<Map<String, Object>> contentBlocks(String text) {
         List<Map<String, Object>> blocks = new ArrayList<Map<String, Object>>();
+        blocks.add(textBlock(text));
+        return blocks;
+    }
+
+    private Map<String, Object> textBlock(String text) {
         Map<String, Object> block = new LinkedHashMap<String, Object>();
         block.put("type", "text");
         block.put("text", StrUtil.nullToEmpty(text));
-        blocks.add(block);
-        return blocks;
+        return block;
     }
 
     private String read(ONode node, String key, String fallback) {
