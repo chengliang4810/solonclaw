@@ -552,7 +552,7 @@ public class CronJobService {
         return path;
     }
 
-    private void scanPrompt(String prompt) {
+    public void scanPrompt(String prompt) {
         if (StrUtil.isBlank(prompt)) {
             return;
         }

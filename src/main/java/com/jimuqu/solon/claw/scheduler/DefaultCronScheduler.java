@@ -72,6 +72,7 @@ public class DefaultCronScheduler {
                     "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SAFE_CONTEXT_JOB_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
+    private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: Cron assembled prompt";
 
     private final AppConfig appConfig;
     private final CronJobRepository cronJobRepository;
@@ -470,6 +471,7 @@ public class DefaultCronScheduler {
                             throw scriptError;
                         }
                         prompt = withScriptError(prompt, scriptError.getMessage());
+                        scanAssembledPrompt(prompt, job);
                     }
                     if (scriptResult != null && !scriptResult.wakeAgent) {
                         output = silentCronOutput(job, "wakeAgent=false");
@@ -505,6 +507,7 @@ public class DefaultCronScheduler {
                     }
                     if (scriptResult != null) {
                         prompt = withScriptOutput(prompt, scriptResult.output);
+                        scanAssembledPrompt(prompt, job);
                     }
                 }
                 String[] parts = SourceKeySupport.split(job.getSourceKey());
@@ -579,6 +582,10 @@ public class DefaultCronScheduler {
     private boolean isCronScriptSecurityBlock(Exception error) {
         String message = error == null ? null : error.getMessage();
         return StrUtil.isNotBlank(message) && message.startsWith("BLOCKED");
+    }
+
+    private boolean isCronPromptSecurityBlock(String error) {
+        return StrUtil.isNotBlank(error) && error.startsWith(CRON_PROMPT_BLOCK_PREFIX);
     }
 
     private String withScriptOutput(String prompt, String output) {
@@ -1080,7 +1087,26 @@ public class DefaultCronScheduler {
             }
         }
         prompt.append(StrUtil.nullToEmpty(job.getPrompt()));
-        return prompt.toString();
+        return scanAssembledPrompt(prompt.toString(), job);
+    }
+
+    private String scanAssembledPrompt(String prompt, CronJobRecord job) {
+        if (cronJobService == null || StrUtil.isBlank(prompt)) {
+            return prompt;
+        }
+        try {
+            cronJobService.scanPrompt(prompt);
+            return prompt;
+        } catch (IllegalStateException e) {
+            String jobLabel =
+                    job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId());
+            String reason = StrUtil.blankToDefault(e.getMessage(), "cron prompt injection scanner");
+            log.warn(
+                    "Cron job '{}' blocked by assembled prompt scanner: {}",
+                    jobLabel,
+                    reason);
+            throw new IllegalStateException(CRON_PROMPT_BLOCK_PREFIX + " matched scanner: " + reason);
+        }
     }
 
     private String safeContextJobId(Object ref) {
@@ -1314,7 +1340,16 @@ public class DefaultCronScheduler {
 
     private String deliverErrorBestEffort(CronJobRecord job, String error) {
         if (!job.isNoAgent()) {
-            return null;
+            if (!isCronPromptSecurityBlock(error)) {
+                return null;
+            }
+            try {
+                deliver(job, GatewayReply.error(blockedPromptFailureMessage(job, error)));
+                return null;
+            } catch (Exception e) {
+                markDeliveryErrorBestEffort(job.getJobId(), e.getMessage());
+                return e.getMessage();
+            }
         }
         try {
             deliver(job, GatewayReply.error(noAgentScriptFailureMessage(job, error)));
@@ -1323,6 +1358,26 @@ public class DefaultCronScheduler {
             markDeliveryErrorBestEffort(job.getJobId(), e.getMessage());
             return e.getMessage();
         }
+    }
+
+    private String blockedPromptFailureMessage(CronJobRecord job, String error) {
+        String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
+        String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        return "# Cron Job: "
+                + taskName
+                + "\n\n"
+                + "**Job ID:** "
+                + job.getJobId()
+                + "\n"
+                + "**Run Time:** "
+                + time
+                + "\n"
+                + "**Status:** BLOCKED\n\n"
+                + "The assembled prompt, including loaded skill content and script context, matched the cron injection scanner and the agent was not run.\n\n"
+                + "**Scanner result:** "
+                + StrUtil.blankToDefault(error, "unknown scanner result")
+                + "\n\n"
+                + "Audit the skill(s) or script output attached to this job before resuming it.";
     }
 
     private String noAgentScriptFailureMessage(CronJobRecord job, String error) {
