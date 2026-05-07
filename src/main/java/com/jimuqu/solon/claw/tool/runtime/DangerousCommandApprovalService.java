@@ -730,6 +730,19 @@ public class DangerousCommandApprovalService {
         return true;
     }
 
+    public int rejectAll(AgentSession session, String approver) {
+        List<PendingApproval> pendingApprovals = listPendingApprovals(session);
+        int rejected = 0;
+        for (PendingApproval pending : pendingApprovals) {
+            String selector =
+                    StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
+            if (reject(session, selector, approver)) {
+                rejected++;
+            }
+        }
+        return rejected;
+    }
+
     public DetectionResult detect(String toolName, String code) {
         String normalized = normalize(code);
         if (StrUtil.isBlank(normalized)) {

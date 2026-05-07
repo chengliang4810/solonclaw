@@ -2659,6 +2659,15 @@ public class DefaultCommandService implements CommandService {
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         String selector = firstToken(args);
+        if ("all".equalsIgnoreCase(selector)) {
+            int rejected =
+                    dangerousCommandApprovalService.rejectAll(
+                            agentSession, message.getUserName());
+            if (rejected <= 0) {
+                return GatewayReply.error("当前没有待审批的危险命令。");
+            }
+            return conversationOrchestrator.resumePending(message.sourceKey());
+        }
         DangerousCommandApprovalService.PendingApproval pending =
                 selectPendingApproval(agentSession, selector);
         if (pending == null) {
@@ -3213,7 +3222,7 @@ public class DefaultCommandService implements CommandService {
                                         + " [#序号|审批ID|all] [session|always]",
                                 "批准待审批危险命令"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID]",
+                                GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID|all]",
                                 "拒绝待审批危险命令"),
                         helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"),
                         helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息")));
