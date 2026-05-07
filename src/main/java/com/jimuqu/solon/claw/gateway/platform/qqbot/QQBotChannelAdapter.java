@@ -16,6 +16,9 @@ import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +40,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final String TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken";
     private static final String DEFAULT_API_DOMAIN = "https://api.sgroup.qq.com";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+    public static final String DELIVERY_MODE_UPDATE_PROMPT = "update_prompt";
+    public static final String UPDATE_RESPONSE_FILE_NAME = ".update_response";
 
     private final AppConfig.ChannelConfig config;
+    private final AppConfig appConfig;
     private final AttachmentCacheService attachmentCacheService;
     private final SecurityPolicyService securityPolicyService;
     private final OkHttpClient client;
@@ -49,14 +55,23 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     public QQBotChannelAdapter(
             AppConfig.ChannelConfig config, AttachmentCacheService attachmentCacheService) {
-        this(config, attachmentCacheService, null);
+        this(null, config, attachmentCacheService, null);
     }
 
     public QQBotChannelAdapter(
             AppConfig.ChannelConfig config,
             AttachmentCacheService attachmentCacheService,
             SecurityPolicyService securityPolicyService) {
+        this(null, config, attachmentCacheService, securityPolicyService);
+    }
+
+    public QQBotChannelAdapter(
+            AppConfig appConfig,
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.QQBOT, config);
+        this.appConfig = appConfig;
         this.config = config;
         this.attachmentCacheService = attachmentCacheService;
         this.securityPolicyService = securityPolicyService;
@@ -73,7 +88,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 "media-transfer",
                 "platform-asr-text",
                 "inline-keyboard",
-                "approval-card");
+                "approval-card",
+                "update-prompt");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
     }
 
@@ -159,6 +175,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             sendDangerousApprovalKeyboard(request);
             return;
         }
+        if (isUpdatePromptRequest(request)) {
+            sendUpdatePromptKeyboard(request);
+            return;
+        }
         if (StrUtil.isNotBlank(request.getText())) {
             postJson(
                     resolveMessagePath(request),
@@ -199,11 +219,26 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 : request.getChannelExtras().get("mode")));
     }
 
+    private boolean isUpdatePromptRequest(DeliveryRequest request) {
+        return DELIVERY_MODE_UPDATE_PROMPT.equalsIgnoreCase(
+                stringValue(
+                        request.getChannelExtras() == null
+                                ? null
+                                : request.getChannelExtras().get("mode")));
+    }
+
     private void sendDangerousApprovalKeyboard(DeliveryRequest request) throws Exception {
         if ("guild".equalsIgnoreCase(request.getChatType())) {
             throw new IllegalArgumentException("QQBot guild chats do not support inline keyboards");
         }
         postJson(resolveMessagePath(request), buildApprovalKeyboardBody(request).toJson());
+    }
+
+    private void sendUpdatePromptKeyboard(DeliveryRequest request) throws Exception {
+        if ("guild".equalsIgnoreCase(request.getChatType())) {
+            throw new IllegalArgumentException("QQBot guild chats do not support inline keyboards");
+        }
+        postJson(resolveMessagePath(request), buildUpdatePromptKeyboardBody(request).toJson());
     }
 
     protected ONode buildApprovalKeyboardBody(DeliveryRequest request) {
@@ -216,6 +251,26 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         boolean allowAlways = Boolean.TRUE.equals(extras.get("approvalAllowAlways"));
         ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(approvalId, allowAlways);
         return buildTextBody(text, request.getThreadId(), keyboard);
+    }
+
+    protected ONode buildUpdatePromptKeyboardBody(DeliveryRequest request) {
+        Map<String, Object> extras =
+                request.getChannelExtras() == null
+                        ? new LinkedHashMap<String, Object>()
+                        : request.getChannelExtras();
+        String prompt =
+                StrUtil.blankToDefault(
+                        request.getText(), stringValue(extras.get("updatePrompt"))).trim();
+        String defaultAnswer = stringValue(extras.get("updateDefault"));
+        StringBuilder text = new StringBuilder("⚕ **更新需要确认**");
+        if (StrUtil.isNotBlank(prompt)) {
+            text.append("\n\n").append(SecretRedactor.redact(prompt, 3000));
+        }
+        if (StrUtil.isNotBlank(defaultAnswer)) {
+            text.append("\n默认: ").append(SecretRedactor.redact(defaultAnswer, 20));
+        }
+        ONode keyboard = QQBotKeyboardSupport.buildUpdatePromptKeyboard();
+        return buildTextBody(text.toString(), request.getThreadId(), keyboard);
     }
 
     private String buildApprovalText(DeliveryRequest request, Map<String, Object> extras) {
@@ -571,7 +626,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         data.get("button_data").getString(),
                         data.get("data").get("button_data").getString());
         String command = QQBotKeyboardSupport.commandFromButtonData(buttonData);
+        String updateAnswer = QQBotKeyboardSupport.updatePromptAnswerFromButtonData(buttonData);
         if (StrUtil.isBlank(command)) {
+            if (StrUtil.isBlank(updateAnswer)) {
+                return null;
+            }
+        }
+        if (StrUtil.isNotBlank(command) && StrUtil.isNotBlank(updateAnswer)) {
             return null;
         }
         String chatType = resolveInteractionChatType(data);
@@ -593,6 +654,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         data.get("resolved").get("user_id").getString(),
                         data.get("data").get("resolved").get("user_id").getString());
         if (!allowInbound(chatType, chatId, userId) || StrUtil.isBlank(chatId)) {
+            return null;
+        }
+        if (StrUtil.isNotBlank(updateAnswer)) {
+            writeUpdateResponse(updateAnswer);
             return null;
         }
         GatewayMessage message = new GatewayMessage(PlatformType.QQBOT, chatId, userId, command);
@@ -619,6 +684,42 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             return "guild";
         }
         return GatewayBehaviorConstants.CHAT_TYPE_DM;
+    }
+
+    protected void writeUpdateResponse(String answer) {
+        String normalized = QQBotKeyboardSupport.updatePromptAnswerFromButtonData(
+                "update_prompt:" + StrUtil.nullToEmpty(answer).trim());
+        if (StrUtil.isBlank(normalized)) {
+            return;
+        }
+        try {
+            File responsePath = updateResponseFile();
+            FileUtil.mkParentDirs(responsePath);
+            File temp = new File(responsePath.getParentFile(), responsePath.getName() + ".tmp");
+            FileUtil.writeUtf8String(normalized, temp);
+            try {
+                Files.move(
+                        temp.toPath(),
+                        responsePath.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(
+                        temp.toPath(),
+                        responsePath.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Exception e) {
+            log.warn("[QQBOT] update prompt response write failed: {}", e.getMessage(), e);
+        }
+    }
+
+    protected File updateResponseFile() {
+        String home =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? "runtime"
+                        : StrUtil.blankToDefault(appConfig.getRuntime().getHome(), "runtime");
+        return new File(home, UPDATE_RESPONSE_FILE_NAME).getAbsoluteFile();
     }
 
     private boolean allowInbound(String chatType, String chatId, String userId) {

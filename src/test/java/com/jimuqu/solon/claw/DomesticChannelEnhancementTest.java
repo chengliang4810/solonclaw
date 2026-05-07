@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.lark.oapi.core.request.EventReq;
+import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -28,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.noear.snack4.ONode;
 
 public class DomesticChannelEnhancementTest {
@@ -134,6 +136,51 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldBuildQqbotUpdatePromptInlineKeyboard() {
+        AppConfig config = new AppConfig();
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.QQBOT);
+        request.setChatId("user-a");
+        request.setChatType("dm");
+        request.setThreadId("m1");
+        request.setText("是否继续升级？");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("mode", QQBotChannelAdapter.DELIVERY_MODE_UPDATE_PROMPT);
+        extras.put("updateDefault", "y");
+        request.setChannelExtras(extras);
+
+        ONode body = adapter.buildUpdatePromptBody(request);
+
+        assertThat(body.get("content").getString()).contains("更新需要确认");
+        assertThat(body.get("content").getString()).contains("是否继续升级？");
+        assertThat(body.get("content").getString()).contains("默认: y");
+        assertThat(body.get("msg_id").getString()).isEqualTo("m1");
+        ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(2);
+        assertThat(buttons.get(0).get("action").get("data").getString())
+                .isEqualTo("update_prompt:y");
+        assertThat(buttons.get(1).get("action").get("data").getString())
+                .isEqualTo("update_prompt:n");
+    }
+
+    @Test
+    void shouldWriteQqbotUpdatePromptInteractionResponse(@TempDir File runtimeHome) {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-1\",\"user_openid\":\"user-a\",\"resolved\":{\"button_data\":\"update_prompt:y\"}}}");
+
+        assertThat(message).isNull();
+        assertThat(new File(runtimeHome, QQBotChannelAdapter.UPDATE_RESPONSE_FILE_NAME))
+                .hasContent("y");
+    }
+
+    @Test
     void shouldIgnoreMalformedQqbotInteractionButtonData() {
         AppConfig config = new AppConfig();
         config.getChannels().getQqbot().setAllowAllUsers(true);
@@ -141,7 +188,7 @@ public class DomesticChannelEnhancementTest {
 
         GatewayMessage message =
                 adapter.parse(
-                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-1\",\"user_openid\":\"user-a\",\"resolved\":{\"button_data\":\"update_prompt:y\"}}}");
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-1\",\"user_openid\":\"user-a\",\"resolved\":{\"button_data\":\"unknown:data\"}}}");
 
         assertThat(message).isNull();
     }
@@ -457,7 +504,11 @@ public class DomesticChannelEnhancementTest {
 
     private static class TestQQBotAdapter extends QQBotChannelAdapter {
         private TestQQBotAdapter(AppConfig config) {
-            super(config.getChannels().getQqbot(), new AttachmentCacheService(config));
+            super(
+                    config,
+                    config.getChannels().getQqbot(),
+                    new AttachmentCacheService(config),
+                    null);
         }
 
         private GatewayMessage parse(String raw) {
@@ -466,6 +517,10 @@ public class DomesticChannelEnhancementTest {
 
         private ONode buildApprovalBody(DeliveryRequest request) {
             return buildApprovalKeyboardBody(request);
+        }
+
+        private ONode buildUpdatePromptBody(DeliveryRequest request) {
+            return buildUpdatePromptKeyboardBody(request);
         }
     }
 

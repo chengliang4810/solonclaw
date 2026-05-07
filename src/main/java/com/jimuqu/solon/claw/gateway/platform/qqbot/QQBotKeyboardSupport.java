@@ -11,6 +11,8 @@ import org.noear.snack4.ONode;
 final class QQBotKeyboardSupport {
     private static final Pattern APPROVAL_DATA_PATTERN =
             Pattern.compile("^approve:(.+):(allow-once|allow-always|allow-session|session|deny)$");
+    private static final Pattern UPDATE_PROMPT_DATA_PATTERN =
+            Pattern.compile("^update_prompt:([yn])$");
 
     private QQBotKeyboardSupport() {}
 
@@ -76,6 +78,24 @@ final class QQBotKeyboardSupport {
             return "/approve " + approvalId + " session";
         }
         return StrUtil.isBlank(approvalId) ? "/approve" : "/approve " + approvalId;
+    }
+
+    static ONode buildUpdatePromptKeyboard() {
+        List<Object> buttons = new ArrayList<Object>();
+        buttons.add(button("yes", "✅ 是", "已选择是", "update_prompt:y", 1, "update"));
+        buttons.add(button("no", "❌ 否", "已选择否", "update_prompt:n", 0, "update"));
+
+        List<Object> rows = new ArrayList<Object>();
+        rows.add(new ONode().set("buttons", buttons).toData());
+        ONode root = new ONode();
+        root.getOrNew("content").set("rows", rows);
+        return root;
+    }
+
+    static String updatePromptAnswerFromButtonData(String buttonData) {
+        Matcher matcher =
+                UPDATE_PROMPT_DATA_PATTERN.matcher(StrUtil.nullToEmpty(buttonData).trim());
+        return matcher.matches() ? matcher.group(1) : null;
     }
 
     private static Object button(

@@ -100,6 +100,7 @@ public class GatewayConfiguration {
         adapters.put(
                 PlatformType.QQBOT,
                 new QQBotChannelAdapter(
+                        appConfig,
                         appConfig.getChannels().getQqbot(),
                         attachmentCacheService,
                         securityPolicyService));
