@@ -85,6 +85,29 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldSendUnknownAcpSlashCommandToModel() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        String sessionId = extractSessionId(newAcpSession(server, 62));
+
+        String prompted =
+                prompt(
+                        server,
+                        63,
+                        sessionId,
+                        "[{\"type\":\"text\",\"text\":\"/not-a-real-command keep this as prose\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":63")
+                .contains("\"stop_reason\":\"end_turn\"")
+                .contains("echo:/not-a-real-command keep this as prose");
+    }
+
+    @Test
     void shouldInlineAcpResourceLinkTextFile(@TempDir Path tempDir) throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =

@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.List;
+import java.util.Locale;
 
 /** Shared local console runtime that reuses the normal command and conversation chain. */
 public class CliRuntime {
@@ -48,7 +49,7 @@ public class CliRuntime {
         ConversationEventSink sink = eventSink == null ? ConversationEventSink.noop() : eventSink;
         GatewayMessage message = message(sessionId, sanitized, attachments);
         String text = StrUtil.nullToEmpty(sanitized).trim();
-        if (text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
+        if (isSupportedSlashCommand(text)) {
             GatewayReply reply = commandService.handle(message, text, sink);
             if (reply != null) {
                 reply.setCommandHandled(true);
@@ -67,6 +68,19 @@ public class CliRuntime {
 
     public String sourceKey(String sessionId) {
         return "MEMORY:cli:" + StrUtil.blankToDefault(sessionId, "cli");
+    }
+
+    private boolean isSupportedSlashCommand(String text) {
+        if (!text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
+            return false;
+        }
+        String withoutSlash = text.substring(GatewayCommandConstants.COMMAND_PREFIX.length()).trim();
+        if (StrUtil.isBlank(withoutSlash)) {
+            return false;
+        }
+        String[] parts = withoutSlash.split("\\s+", 2);
+        String commandName = parts[0].toLowerCase(Locale.ROOT);
+        return commandService.supports(commandName);
     }
 
     private GatewayMessage message(String sessionId, String input) {

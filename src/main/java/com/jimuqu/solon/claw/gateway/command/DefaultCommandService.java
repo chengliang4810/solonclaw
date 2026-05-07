@@ -578,6 +578,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_TRAJECTORY,
                         GatewayCommandConstants.COMMAND_PLATFORMS,
                         GatewayCommandConstants.COMMAND_COMPRESS,
+                        GatewayCommandConstants.COMMAND_COMPACT,
                         GatewayCommandConstants.COMMAND_ROLLBACK,
                         GatewayCommandConstants.COMMAND_SETHOME,
                         GatewayCommandConstants.COMMAND_PAIRING,
