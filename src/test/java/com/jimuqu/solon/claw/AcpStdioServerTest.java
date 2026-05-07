@@ -59,6 +59,11 @@ public class AcpStdioServerTest {
                 .contains("\"slash_commands\":true")
                 .contains("context")
                 .contains("\"name\":\"compact\"")
+                .contains("\"name\":\"steer\"")
+                .contains("\"name\":\"queue\"")
+                .contains("\"name\":\"version\"")
+                .contains("给运行中任务的修正或引导")
+                .contains("下一轮要执行的提示")
                 .doesNotContain("\"name\":\"compress\"")
                 .contains("reload-mcp");
 
@@ -477,6 +482,10 @@ public class AcpStdioServerTest {
                 .contains("\"id\":39")
                 .contains("\"session_updates\"")
                 .contains("\"available_commands_update\"")
+                .contains("\"name\":\"compact\"")
+                .contains("\"name\":\"steer\"")
+                .contains("\"name\":\"queue\"")
+                .contains("\"name\":\"version\"")
                 .contains("\"tool_call_start\"")
                 .contains("\"tool_call_update\"")
                 .contains("\"agent_thought_chunk\"")
