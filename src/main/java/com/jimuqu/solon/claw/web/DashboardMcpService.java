@@ -7,7 +7,9 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -29,6 +31,7 @@ public class DashboardMcpService {
     private final SqliteDatabase database;
     private final McpPackageSecurityService packageSecurityService;
     private final McpRuntimeService mcpRuntimeService;
+    private final SecurityPolicyService securityPolicyService;
 
     public DashboardMcpService(AppConfig appConfig, SqliteDatabase database) {
         this(appConfig, database, null, null);
@@ -54,6 +57,7 @@ public class DashboardMcpService {
                         : packageSecurityService;
         this.mcpRuntimeService =
                 mcpRuntimeService == null ? new McpRuntimeService(appConfig, database) : mcpRuntimeService;
+        this.securityPolicyService = new SecurityPolicyService(appConfig);
     }
 
     public Map<String, Object> list() throws Exception {
@@ -87,6 +91,8 @@ public class DashboardMcpService {
         }
         String name = StrUtil.blankToDefault(read(body, "name"), serverId);
         String transport = StrUtil.blankToDefault(read(body, "transport"), "stdio");
+        String endpoint = read(body, "endpoint");
+        assertSafeRuntimeUrl(endpoint, "MCP endpoint");
         McpPackageSecurityService.SecurityVerdict securityVerdict =
                 checkPackageSecurity(read(body, "command"), body == null ? null : body.get("args"));
         long now = System.currentTimeMillis();
@@ -98,7 +104,7 @@ public class DashboardMcpService {
             statement.setString(1, serverId);
             statement.setString(2, name);
             statement.setString(3, transport);
-            statement.setString(4, read(body, "endpoint"));
+            statement.setString(4, endpoint);
             statement.setString(5, read(body, "command"));
             statement.setString(6, json(body.get("args")));
             statement.setString(7, json(body.get("auth")));
@@ -243,6 +249,7 @@ public class DashboardMcpService {
         if (StrUtil.isBlank(authorizationEndpoint)) {
             throw new IllegalStateException("authorization_endpoint is required for MCP OAuth");
         }
+        assertSafeRuntimeUrl(authorizationEndpoint, "MCP OAuth authorization_endpoint");
         if (StrUtil.isBlank(clientId)) {
             throw new IllegalStateException("client_id is required for MCP OAuth");
         }
@@ -323,6 +330,7 @@ public class DashboardMcpService {
         if (StrUtil.isBlank(tokenEndpoint)) {
             throw new IllegalStateException("token_endpoint is required for MCP OAuth callback");
         }
+        assertSafeRuntimeUrl(tokenEndpoint, "MCP OAuth token_endpoint");
         if (StrUtil.isBlank(clientId)) {
             throw new IllegalStateException("client_id is required for MCP OAuth callback");
         }
@@ -363,6 +371,7 @@ public class DashboardMcpService {
         if (StrUtil.isBlank(tokenEndpoint)) {
             throw new IllegalStateException("token_endpoint is required for MCP OAuth refresh");
         }
+        assertSafeRuntimeUrl(tokenEndpoint, "MCP OAuth token_endpoint");
         if (StrUtil.isBlank(clientId)) {
             throw new IllegalStateException("client_id is required for MCP OAuth refresh");
         }
@@ -750,6 +759,7 @@ public class DashboardMcpService {
             String codeVerifier,
             Map<String, Object> oauth)
             throws Exception {
+        assertSafeRuntimeUrl(tokenEndpoint, "MCP OAuth token_endpoint");
         StringBuilder form = new StringBuilder();
         appendForm(form, "grant_type", "authorization_code");
         appendForm(form, "code", code);
@@ -792,6 +802,7 @@ public class DashboardMcpService {
     private Map<String, Object> exchangeRefreshToken(
             String tokenEndpoint, String clientId, String refreshToken, Map<String, Object> oauth)
             throws Exception {
+        assertSafeRuntimeUrl(tokenEndpoint, "MCP OAuth token_endpoint");
         StringBuilder form = new StringBuilder();
         appendForm(form, "grant_type", "refresh_token");
         appendForm(form, "refresh_token", refreshToken);
@@ -1040,6 +1051,21 @@ public class DashboardMcpService {
 
     private String urlEncode(String value) throws Exception {
         return URLEncoder.encode(StrUtil.nullToEmpty(value), "UTF-8").replace("+", "%20");
+    }
+
+    private void assertSafeRuntimeUrl(String url, String label) {
+        if (StrUtil.isBlank(url)) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrlAllowingPrivate(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    label
+                            + " 被 URL 安全策略阻止："
+                            + verdict.getMessage()
+                            + " URL: "
+                            + SecretRedactor.maskUrl(verdict.getUrl()));
+        }
     }
 
     private String string(Object value) {

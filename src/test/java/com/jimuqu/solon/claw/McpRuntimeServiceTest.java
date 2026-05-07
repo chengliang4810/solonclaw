@@ -247,6 +247,25 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldGuardRemoteMcpEndpointBeforeProviderCreation() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveRemoteMcpServerDirectly(
+                env.sqliteDatabase,
+                "http://169.254.169.254/latest/meta-data/?token=secret-endpoint");
+        CountingMcpFactory factory = new CountingMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        assertThatThrownBy(() -> mcpRuntimeService.connect("remote-docs"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MCP endpoint")
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageNotContaining("secret-endpoint");
+        assertThat(factory.createCount).isEqualTo(0);
+    }
+
+    @Test
     void shouldReturnStructuredReauthResultWhenMcpToolReportsAuthFailure() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
@@ -340,6 +359,39 @@ public class McpRuntimeServiceTest {
         }
     }
 
+    private void saveRemoteMcpServerDirectly(SqliteDatabase database, String endpoint)
+            throws Exception {
+        long now = System.currentTimeMillis();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            statement.setString(1, "remote-docs");
+            statement.setString(2, "Remote Docs");
+            statement.setString(3, "sse");
+            statement.setString(4, endpoint);
+            statement.setString(5, "");
+            statement.setString(6, "[]");
+            statement.setString(7, "{}");
+            statement.setString(8, "{}");
+            statement.setString(9, "{}");
+            statement.setString(10, "configured");
+            statement.setString(11, "[]");
+            statement.setString(12, "");
+            statement.setString(13, null);
+            statement.setInt(14, 1);
+            statement.setLong(15, now);
+            statement.setLong(16, now);
+            statement.setLong(17, 0L);
+            statement.setLong(18, 0L);
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
     private FunctionTool toolByName(ToolProvider provider, String name) {
         for (FunctionTool tool : provider.getTools()) {
             if (name.equals(tool.name())) {
@@ -356,6 +408,16 @@ public class McpRuntimeServiceTest {
         public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
             provider = new FakeMcpClientProvider();
             return provider;
+        }
+    }
+
+    private static class CountingMcpFactory implements McpClientProviderFactory {
+        private int createCount;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            createCount++;
+            return new FakeMcpClientProvider();
         }
     }
 

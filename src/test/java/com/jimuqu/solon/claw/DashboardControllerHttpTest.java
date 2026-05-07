@@ -310,7 +310,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/hermes/mcp",
-                        "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://mcp.example/sse\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(updateMcpOAuth.status).isEqualTo(200);
 
@@ -332,17 +332,26 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/hermes/mcp/oauth-docs/oauth/begin",
-                        "{\"authorization_endpoint\":\"https://auth.example/oauth/authorize\",\"token_endpoint\":\""
-                                + "https://auth.example/oauth/token"
+                        "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                                + "https://example.com/oauth/token"
                                 + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                         token);
         assertThat(beginOAuth.status).isEqualTo(200);
         assertThat(beginOAuth.body).contains("\"status\":\"pending\"");
-        assertThat(beginOAuth.body).contains("https://auth.example/oauth/authorize");
+        assertThat(beginOAuth.body).contains("https://example.com/oauth/authorize");
         assertThat(beginOAuth.body).contains("code_challenge_method=S256");
         assertThat(beginOAuth.body).contains("scope=repo%20read%3Auser");
         assertThat(beginOAuth.body).contains("\"has_code_verifier\":true");
         assertThat(beginOAuth.body).doesNotContain("\"code_verifier\":\"");
+
+        HttpResult blockedAuthorizationEndpoint =
+                request(
+                        "POST",
+                        "/api/hermes/mcp/oauth-docs/oauth/begin",
+                        "{\"authorization_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-auth\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\"}",
+                        token);
+        assertThat(blockedAuthorizationEndpoint.status).isGreaterThanOrEqualTo(400);
+        assertThat(blockedAuthorizationEndpoint.body).doesNotContain("secret-auth");
 
         HttpResult pendingStatus =
                 request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
@@ -352,6 +361,17 @@ public class DashboardControllerHttpTest {
 
         String pendingState = ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
         assertThat(pendingState).isNotBlank();
+
+        HttpResult blockedTokenEndpoint =
+                request(
+                        "POST",
+                        "/api/hermes/mcp/oauth-docs/oauth/callback",
+                        "{\"code\":\"auth-code-blocked\",\"state\":\""
+                                + pendingState
+                                + "\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-token\"}",
+                        token);
+        assertThat(blockedTokenEndpoint.status).isGreaterThanOrEqualTo(400);
+        assertThat(blockedTokenEndpoint.body).doesNotContain("secret-token");
 
         HttpResult stateMismatch =
                 request(
@@ -367,7 +387,7 @@ public class DashboardControllerHttpTest {
                     request(
                             "POST",
                             "/api/hermes/mcp/oauth-docs/oauth/begin",
-                            "{\"authorization_endpoint\":\"https://auth.example/oauth/authorize\",\"token_endpoint\":\""
+                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
@@ -436,6 +456,22 @@ public class DashboardControllerHttpTest {
         } finally {
             tokenEndpoint.stop();
         }
+
+        HttpResult blockedRefreshServer =
+                request(
+                        "POST",
+                        "/api/hermes/mcp",
+                        "{\"serverId\":\"blocked-oauth-docs\",\"name\":\"Blocked OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"authenticated\",\"client_id\":\"client-1\",\"access_token\":\"secret-access\",\"refresh_token\":\"refresh-secret\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-refresh-url\"},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        token);
+        assertThat(blockedRefreshServer.status).isEqualTo(200);
+        HttpResult blockedRefresh =
+                request(
+                        "POST",
+                        "/api/hermes/mcp/blocked-oauth-docs/oauth/refresh",
+                        "{}",
+                        token);
+        assertThat(blockedRefresh.status).isGreaterThanOrEqualTo(400);
+        assertThat(blockedRefresh.body).doesNotContain("secret-refresh-url");
 
         HttpResult clearOAuth =
                 request("POST", "/api/hermes/mcp/oauth-docs/oauth/clear", "{}", token);

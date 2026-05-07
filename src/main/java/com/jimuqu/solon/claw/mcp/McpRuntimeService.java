@@ -163,6 +163,7 @@ public class McpRuntimeService implements Closeable {
         if (current != null) {
             return current;
         }
+        assertSafeProviderEndpoint(config);
         McpClientProvider created = providerFactory.create(config);
         McpClientProvider existing = providers.putIfAbsent(config.getServerId(), created);
         if (existing != null) {
@@ -170,6 +171,22 @@ public class McpRuntimeService implements Closeable {
             return existing;
         }
         return created;
+    }
+
+    private void assertSafeProviderEndpoint(McpServerConfig config) {
+        String transport = StrUtil.nullToEmpty(config.getTransport()).trim();
+        if ("stdio".equalsIgnoreCase(transport) || StrUtil.isBlank(config.getEndpoint())) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrlAllowingPrivate(config.getEndpoint());
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "MCP endpoint 被 URL 安全策略阻止："
+                            + verdict.getMessage()
+                            + " URL: "
+                            + SecretRedactor.maskUrl(verdict.getUrl()));
+        }
     }
 
     private void closeProvider(String serverId) {
