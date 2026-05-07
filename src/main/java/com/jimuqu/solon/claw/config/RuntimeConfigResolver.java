@@ -403,6 +403,7 @@ public class RuntimeConfigResolver {
                 "solonclaw.compression.tailRatio",
                 "solonclaw.learning.enabled",
                 "solonclaw.learning.toolCallThreshold",
+                "solonclaw.learning.auxiliaryTimeoutSeconds",
                 "solonclaw.skills.curator.enabled",
                 "solonclaw.skills.curator.intervalHours",
                 "solonclaw.skills.curator.minIdleHours",

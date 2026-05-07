@@ -23,6 +23,8 @@ import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import java.io.File;
 import java.util.Map;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
@@ -1013,13 +1015,62 @@ public class MemoryAndSkillsTest {
         assertThat(content).doesNotContain("```");
     }
 
+    @Test
+    void shouldTimeoutBlockedAuxiliarySkillLearningCall() throws Exception {
+        BlockingAuxiliaryGateway gateway = new BlockingAuxiliaryGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        env.appConfig.getLearning().setAuxiliaryTimeoutSeconds(1);
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
+        session.setTitle("blocked auxiliary task");
+        session.setCompressedSummary("阻塞辅助调用后的降级流程摘要");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "shell", "1"))));
+        env.sessionRepository.save(session);
+
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.llmGateway);
+        try {
+            learningService.schedulePostReplyLearning(
+                    session,
+                    env.message("room", "user", "把阻塞场景沉淀为 skill"),
+                    GatewayReply.ok("done"));
+
+            String content =
+                    waitSkillContent(
+                            env,
+                            "blocked-auxiliary-task",
+                            "阻塞辅助调用后的降级流程摘要",
+                            3500L);
+            assertThat(content).contains("参考下述已验证流程");
+            assertThat(content).contains("阻塞辅助调用后的降级流程摘要");
+            assertThat(gateway.callCount.get()).isGreaterThanOrEqualTo(2);
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
     private String waitSkillContent(TestEnvironment env, String name) throws Exception {
         return waitSkillContent(env, name, "当前任务验证点");
     }
 
     private String waitSkillContent(TestEnvironment env, String name, String expected)
             throws Exception {
-        long deadline = System.currentTimeMillis() + 2000L;
+        return waitSkillContent(env, name, expected, 2000L);
+    }
+
+    private String waitSkillContent(TestEnvironment env, String name, String expected, long timeoutMs)
+            throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
         String content = "";
         while (System.currentTimeMillis() < deadline) {
             try {
@@ -1081,6 +1132,34 @@ public class MemoryAndSkillsTest {
         @Override
         public LlmResult resume(
                 SessionRecord session, String systemPrompt, List<Object> toolObjects)
+                throws Exception {
+            return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    private static class BlockingAuxiliaryGateway implements LlmGateway {
+        private final AtomicInteger callCount = new AtomicInteger();
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            int call = callCount.incrementAndGet();
+            if (call == 1) {
+                TimeUnit.SECONDS.sleep(30);
+            }
+            LlmResult result = new LlmResult();
+            result.setAssistantMessage(ChatMessage.ofAssistant(""));
+            result.setRawResponse("");
+            result.setNdjson("");
+            return result;
+        }
+
+        @Override
+        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, "", toolObjects);
         }

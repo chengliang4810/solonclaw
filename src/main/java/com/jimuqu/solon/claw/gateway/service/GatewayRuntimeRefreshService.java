@@ -443,6 +443,7 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.scheduler.tickSeconds",
                     "solonclaw.compression.protectHeadMessages",
                     "solonclaw.learning.toolCallThreshold",
+                    "solonclaw.learning.auxiliaryTimeoutSeconds",
                     "solonclaw.skills.curator.intervalHours",
                     "solonclaw.skills.curator.staleAfterDays",
                     "solonclaw.skills.curator.archiveAfterDays",

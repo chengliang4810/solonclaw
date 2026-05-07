@@ -183,6 +183,12 @@ public class DashboardConfigService {
                         "learning.toolCallThreshold", "number", "agent", "触发学习所需的最少工具调用数"));
         addField(
                 new FieldDefinition(
+                        "learning.auxiliaryTimeoutSeconds",
+                        "number",
+                        "agent",
+                        "自动学习辅助模型调用总超时（秒）"));
+        addField(
+                new FieldDefinition(
                         "skills.curator.enabled", "boolean", "agent", "启用技能后台维护 Curator"));
         addField(
                 new FieldDefinition(

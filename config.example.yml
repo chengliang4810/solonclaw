@@ -141,6 +141,8 @@ solonclaw:
     enabled: true
     # 触发自动学习所需的最少工具调用数。
     toolCallThreshold: 5
+    # 自动学习分类/技能总结等辅助模型调用的总超时，单位秒。
+    auxiliaryTimeoutSeconds: 60
 
   # 技能后台维护配置。
   skills:

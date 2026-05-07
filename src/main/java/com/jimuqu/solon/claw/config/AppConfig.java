@@ -286,6 +286,16 @@ public class AppConfig {
                                         overrides,
                                         "solonclaw.learning.toolCallThreshold",
                                         5)));
+        config.getLearning()
+                .setAuxiliaryTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.learning.auxiliaryTimeoutSeconds",
+                                                60)),
+                                60));
         config.getCurator()
                 .setEnabled(
                         resolveBoolean(
@@ -1753,6 +1763,7 @@ public class AppConfig {
     private void copyLearning(LearningConfig other) {
         this.learning.setEnabled(other.isEnabled());
         this.learning.setToolCallThreshold(other.getToolCallThreshold());
+        this.learning.setAuxiliaryTimeoutSeconds(other.getAuxiliaryTimeoutSeconds());
     }
 
     private void copyCurator(CuratorConfig other) {
@@ -2915,6 +2926,9 @@ public class AppConfig {
 
         /** 触发自动学习的最少工具调用数。 */
         private int toolCallThreshold = 5;
+
+        /** 辅助模型分类/总结调用总超时，单位秒。 */
+        private int auxiliaryTimeoutSeconds = 60;
     }
 
     /** 技能后台维护配置。 */

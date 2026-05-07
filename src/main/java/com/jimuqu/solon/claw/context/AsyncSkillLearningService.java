@@ -25,7 +25,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 
@@ -41,6 +45,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
     private final SqliteDatabase database;
     private final ExecutorService executorService =
             BoundedExecutorFactory.fixed("async-skill-learning", 1, 64);
+    private final ExecutorService auxiliaryExecutorService =
+            BoundedExecutorFactory.fixed("async-skill-auxiliary", 2, 16);
 
     public AsyncSkillLearningService(
             AppConfig appConfig,
@@ -61,6 +67,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
 
     public void shutdown() {
         executorService.shutdownNow();
+        auxiliaryExecutorService.shutdownNow();
     }
 
     @Override
@@ -164,19 +171,20 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + "-"
                             + System.currentTimeMillis());
             rubricSession.setSourceKey(session.getSourceKey());
+            String userMessage =
+                    "请从以下类别中选择一个：no_change, new_skill, update_loaded_skill, update_existing_skill, memory_only。\n"
+                            + "用户请求："
+                            + StrUtil.blankToDefault(message == null ? "" : message.getText(), "")
+                            + "\n工具消息数量满足阈值，checkpoint="
+                            + hasRecentCheckpoint
+                            + "\n会话摘要："
+                            + SecretRedactor.redact(
+                                    StrUtil.blankToDefault(session.getCompressedSummary(), ""), 2000);
             LlmResult result =
-                    llmGateway.chat(
+                    callAuxiliaryChat(
                             rubricSession,
                             "你是 SolonClaw 的 self-improvement rubric 分类器。只输出一个类别。",
-                            "请从以下类别中选择一个：no_change, new_skill, update_loaded_skill, update_existing_skill, memory_only。\n"
-                                    + "用户请求："
-                                    + StrUtil.blankToDefault(message == null ? "" : message.getText(), "")
-                                    + "\n工具消息数量满足阈值，checkpoint="
-                                    + hasRecentCheckpoint
-                                    + "\n会话摘要："
-                                    + SecretRedactor.redact(
-                                            StrUtil.blankToDefault(session.getCompressedSummary(), ""), 2000),
-                            Collections.emptyList());
+                            userMessage);
             String text = extractAssistantText(result).trim().toLowerCase();
             String firstToken = text.split("[\\s,，。:：]+", 2)[0];
             for (String candidate :
@@ -387,7 +395,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
             learningSession.setSourceKey(session.getSourceKey());
 
             LlmResult result =
-                    llmGateway.chat(
+                    callAuxiliaryChat(
                             learningSession,
                             "你是 SolonClaw 的技能沉淀器。只输出可直接写入 SKILL.md 的 Markdown，不要寒暄。",
                             buildLearningPrompt(
@@ -396,13 +404,37 @@ public class AsyncSkillLearningService implements SkillLearningService {
                                     hasRecentCheckpoint,
                                     existingContent,
                                     skillName,
-                                    description),
-                            Collections.emptyList());
+                                    description));
             String raw = extractAssistantText(result);
             return normalizeModelSkillContent(raw, skillName, description);
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private LlmResult callAuxiliaryChat(
+            final SessionRecord session, final String systemPrompt, final String userMessage)
+            throws Exception {
+        Future<LlmResult> future =
+                auxiliaryExecutorService.submit(
+                        new Callable<LlmResult>() {
+                            @Override
+                            public LlmResult call() throws Exception {
+                                return llmGateway.chat(
+                                        session, systemPrompt, userMessage, Collections.emptyList());
+                            }
+                        });
+        try {
+            return future.get(auxiliaryTimeoutSeconds(), TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw e;
+        }
+    }
+
+    private int auxiliaryTimeoutSeconds() {
+        int configured = appConfig.getLearning().getAuxiliaryTimeoutSeconds();
+        return configured > 0 ? configured : 60;
     }
 
     private String buildLearningPrompt(

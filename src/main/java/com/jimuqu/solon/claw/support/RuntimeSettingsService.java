@@ -57,6 +57,7 @@ public class RuntimeSettingsService {
                     "compression.tailRatio",
                     "learning.enabled",
                     "learning.toolCallThreshold",
+                    "learning.auxiliaryTimeoutSeconds",
                     "skills.curator.enabled",
                     "skills.curator.intervalHours",
                     "skills.curator.minIdleHours",
@@ -439,6 +440,7 @@ public class RuntimeSettingsService {
         if (key.endsWith("sendChunkRetries")
                 || "scheduler.tickSeconds".equals(key)
                 || "learning.toolCallThreshold".equals(key)
+                || "learning.auxiliaryTimeoutSeconds".equals(key)
                 || "agent.heartbeat.intervalMinutes".equals(key)
                 || "rollback.maxCheckpointsPerSource".equals(key)
                 || "rollback.maxFileSizeMb".equals(key)
