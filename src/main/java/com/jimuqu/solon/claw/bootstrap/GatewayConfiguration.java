@@ -105,7 +105,8 @@ public class GatewayConfiguration {
                         securityPolicyService));
         adapters.put(
                 PlatformType.YUANBAO,
-                new YuanbaoChannelAdapter(appConfig.getChannels().getYuanbao()));
+                new YuanbaoChannelAdapter(
+                        appConfig.getChannels().getYuanbao(), securityPolicyService));
         return adapters;
     }
 

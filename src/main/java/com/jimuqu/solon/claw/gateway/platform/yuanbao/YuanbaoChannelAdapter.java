@@ -12,7 +12,9 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -37,14 +39,26 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private final AppConfig.ChannelConfig config;
+    private final SecurityPolicyService securityPolicyService;
     private final OkHttpClient client;
     private volatile WebSocket webSocket;
     private ExecutorService callbackExecutor;
 
     public YuanbaoChannelAdapter(AppConfig.ChannelConfig config) {
+        this(config, null);
+    }
+
+    public YuanbaoChannelAdapter(
+            AppConfig.ChannelConfig config, SecurityPolicyService securityPolicyService) {
         super(PlatformType.YUANBAO, config);
         this.config = config;
-        this.client = new OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build();
+        this.securityPolicyService = securityPolicyService;
+        this.client =
+                new OkHttpClient.Builder()
+                        .readTimeout(0, TimeUnit.MILLISECONDS)
+                        .followRedirects(false)
+                        .followSslRedirects(false)
+                        .build();
         setConnectionMode("websocket");
         setFeatures("text", "attachments", "media-transfer", "platform-asr-text");
         setSetupState(config != null && config.isEnabled() ? "configured" : "disabled");
@@ -73,8 +87,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         try {
-            callbackExecutor = Executors.newSingleThreadExecutor();
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
+            assertSafeUrl(wsUrl, "Yuanbao websocket URL");
+            callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
                             .url(wsUrl)
@@ -186,9 +201,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private ONode postJson(String path, String body) throws Exception {
+        String url = apiDomain() + path;
+        assertSafeUrl(url, "Yuanbao API URL");
         Request request =
                 new Request.Builder()
-                        .url(apiDomain() + path)
+                        .url(url)
                         .header("X-App-Id", config.getAppId())
                         .header("X-Signature", sign(body))
                         .post(RequestBody.create(JSON, body))
@@ -206,7 +223,26 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String apiDomain() {
-        return StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN);
+        String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private void assertSafeUrl(String url, String purpose) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    purpose
+                            + " blocked: "
+                            + SecretRedactor.maskUrl(url)
+                            + "，"
+                            + verdict.getMessage());
+        }
     }
 
     private String sign(String payload) {

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -13,7 +14,10 @@ import com.jimuqu.solon.claw.gateway.platform.wecom.WeComChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.lark.oapi.core.request.EventReq;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -198,6 +202,39 @@ public class DomesticChannelEnhancementTest {
         assertThat(status.getLastErrorCode()).isEqualTo("feishu_missing_credentials");
     }
 
+    @Test
+    void shouldBlockUnsafeYuanbaoConfiguredUrlsBeforeNetworkAccess() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getChannels().getYuanbao().setEnabled(true);
+        config.getChannels().getYuanbao().setAppId("yb_real");
+        config.getChannels().getYuanbao().setAppSecret("real_secret");
+        config.getChannels().getYuanbao().setWebsocketUrl(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        YuanbaoChannelAdapter adapter =
+                new YuanbaoChannelAdapter(
+                        config.getChannels().getYuanbao(), new SecurityPolicyService(config));
+
+        assertThat(adapter.connect()).isFalse();
+        assertThat(adapter.statusSnapshot().getLastErrorMessage())
+                .contains("Yuanbao websocket URL blocked")
+                .contains("169.254.169.254")
+                .contains("token=***");
+
+        config.getChannels().getYuanbao().setWebsocketUrl(null);
+        config.getChannels().getYuanbao().setApiDomain(
+                "http://169.254.169.254/latest/meta-data/?token=secret");
+        Method postJson =
+                YuanbaoChannelAdapter.class.getDeclaredMethod(
+                        "postJson", String.class, String.class);
+        postJson.setAccessible(true);
+
+        assertThatThrownBy(() -> invoke(postJson, adapter, "/openapi/bot/messages", "{}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Yuanbao API URL blocked")
+                .hasMessageContaining("169.254.169.254")
+                .hasMessageContaining("token=***");
+    }
+
     private void assertWeakCredentialRejected(
             com.jimuqu.solon.claw.core.service.ChannelAdapter adapter,
             String expectedErrorCode,
@@ -211,6 +248,14 @@ public class DomesticChannelEnhancementTest {
         assertThat(status.getLastErrorCode()).isEqualTo(expectedErrorCode);
         assertThat(status.getLastErrorMessage()).contains("placeholder credential");
         assertThat(status.getDetail()).contains(expectedField);
+    }
+
+    private Object invoke(Method method, Object target, Object... args) throws Throwable {
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
     }
 
     private static class TestQQBotAdapter extends QQBotChannelAdapter {
