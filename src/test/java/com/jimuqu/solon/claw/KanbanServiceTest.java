@@ -669,18 +669,63 @@ public class KanbanServiceTest {
         assertThat(service.handleCommand(
                         "notify-unsubscribe " + taskId + " dingtalk chat-2 thread-2", "tester"))
                 .contains("已取消任务通知");
+        assertThat(service.handleCommand(
+                        "notify-subscribe "
+                                + taskId
+                                + " --platform feishu --chat-id chat-3 --thread-id thread-3 --user-id user-3",
+                        "tester"))
+                .contains("已订阅任务通知");
+        assertThat(service.handleCommand("notify-list " + taskId + " --json", "tester"))
+                .contains("\"platform\":\"feishu\"")
+                .contains("\"chat_id\":\"chat-3\"")
+                .contains("\"thread_id\":\"thread-3\"");
+        assertThat(service.handleCommand(
+                        "notify-unsubscribe "
+                                + taskId
+                                + " --platform feishu --chat-id chat-3 --thread-id thread-3",
+                        "tester"))
+                .contains("已取消任务通知");
 
         File logFile = FileUtil.file(env.appConfig.getRuntime().getLogsDir(), "kanban", taskId + ".log");
         FileUtil.mkParentDirs(logFile);
         FileUtil.writeUtf8String("line-one\nline-two\n", logFile);
         assertThat(String.valueOf(service.log(taskId, 9))).contains("line-two");
         assertThat(service.handleCommand("log " + taskId + " 9", "tester")).contains("line-two");
+        assertThat(service.handleCommand("log " + taskId + " --tail 9", "tester")).contains("line-two");
 
         Map<String, Object> gc = new LinkedHashMap<String, Object>();
         gc.put("event_retention_days", 1);
         gc.put("log_retention_days", 1);
         assertThat(String.valueOf(service.gc(gc))).contains("removed_events").contains("removed_logs");
         assertThat(service.handleCommand("gc 1 1", "tester")).contains("Kanban GC 完成");
+        assertThat(service.handleCommand("gc --event-retention-days 1 --log-retention-days 1", "tester"))
+                .contains("Kanban GC 完成");
+    }
+
+    @Test
+    void shouldSupportHermesStyleKanbanRecoveryAndWorkerFlags() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "运行参数任务", "alice", "planner");
+        service.status(taskId, "ready", null);
+
+        assertThat(service.handleCommand("claim " + taskId + " --ttl 30", "worker-a"))
+                .contains("已认领任务");
+        assertThat(service.handleCommand("heartbeat " + taskId + " --note still-running", "worker-a"))
+                .contains("已刷新任务心跳");
+        assertThat(String.valueOf(service.task(taskId).get("events"))).contains("still-running");
+
+        assertThat(service.handleCommand("reclaim " + taskId + " --reason worker timeout", "tester"))
+                .contains("已收回执行权");
+        assertThat(String.valueOf(service.task(taskId).get("events"))).contains("worker timeout");
+
+        service.handleCommand("claim " + taskId + " --ttl 30", "worker-a");
+        assertThat(service.handleCommand(
+                        "reassign " + taskId + " bob --reclaim --reason handoff requested", "tester"))
+                .contains("-> bob");
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(detail.get("assignee")).isEqualTo("bob");
+        assertThat(detail.get("status")).isEqualTo("ready");
+        assertThat(String.valueOf(detail.get("events"))).contains("handoff requested");
     }
 
     private KanbanService service() throws Exception {

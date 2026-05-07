@@ -766,29 +766,22 @@ public class KanbanService {
             return "已移除依赖：" + tokens[0] + " -> " + tokens[1];
         }
         if ("reclaim".equals(action)) {
-            String[] tokens = rest.split("\\s+", 2);
-            reclaim(requireArg(tokens[0], "/kanban reclaim <task-id> [reason]"),
-                    tokens.length > 1 ? tokens[1] : null);
-            return "已收回执行权：" + tokens[0];
+            ParsedKanbanOptions parsed = parseCommandOptions(rest);
+            List<String> tokens = positionalTokens(parsed);
+            String taskId = requireArg(firstToken(tokens), "/kanban reclaim <task-id> [--reason text]");
+            reclaim(taskId, firstNonBlank(parsed.value("reason"), joinTokens(tokens, 1)));
+            return "已收回执行权：" + taskId;
         }
         if ("reassign".equals(action)) {
-            String[] tokens = rest.split("\\s+", 4);
-            if (tokens.length < 2) {
-                return "用法：/kanban reassign <task-id> <assignee|none> [--reclaim] [reason]";
+            ParsedKanbanOptions parsed = parseCommandOptions(rest);
+            List<String> tokens = positionalTokens(parsed);
+            if (tokens.size() < 2) {
+                return "用法：/kanban reassign <task-id> <assignee|none> [--reclaim] [--reason text]";
             }
-            boolean reclaimFirst = false;
-            String reason = null;
-            if (tokens.length > 2) {
-                if ("--reclaim".equals(tokens[2])) {
-                    reclaimFirst = true;
-                    reason = tokens.length > 3 ? tokens[3] : null;
-                } else {
-                    reason = tokens[2] + (tokens.length > 3 ? " " + tokens[3] : "");
-                }
-            }
-            String assignee = normalizeAssigneeOption(tokens[1]);
-            reassign(tokens[0], assignee, reclaimFirst, reason);
-            return "已重新分配任务：" + tokens[0] + " -> " + displayAssignee(assignee);
+            String assignee = normalizeAssigneeOption(tokens.get(1));
+            reassign(tokens.get(0), assignee, parsed.hasFlag("reclaim"),
+                    firstNonBlank(parsed.value("reason"), joinTokens(tokens, 2)));
+            return "已重新分配任务：" + tokens.get(0) + " -> " + displayAssignee(assignee);
         }
         if ("retry".equals(action)) {
             String[] tokens = rest.split("\\s+", 2);
@@ -836,20 +829,27 @@ public class KanbanService {
             return Boolean.TRUE.equals(result.get("removed")) ? "已取消任务通知：" + result.get("task_id") : "没有匹配的任务通知订阅。";
         }
         if ("log".equals(action)) {
-            String[] tokens = rest.split("\\s+", 3);
-            String taskId = requireArg(tokens[0], "/kanban log <task-id> [tail_bytes]");
-            int tailBytes = tokens.length > 1 ? parseInt(tokens[1], 0) : 0;
+            ParsedKanbanOptions parsed = parseCommandOptions(rest);
+            List<String> tokens = positionalTokens(parsed);
+            String taskId = requireArg(firstToken(tokens), "/kanban log <task-id> [--tail bytes]");
+            int tailBytes = parseInt(firstNonBlank(parsed.value("tail"), tokenAt(tokens, 1)), 0);
             return formatLog(log(taskId, tailBytes));
         }
         if ("gc".equals(action)) {
             return formatGc(gc(parseGcOptions(rest)));
         }
         if ("claim".equals(action)) {
-            String[] tokens = rest.split("\\s+", 2);
+            ParsedKanbanOptions parsed = parseCommandOptions(rest);
+            List<String> tokens = positionalTokens(parsed);
+            String taskId = requireArg(firstToken(tokens), "/kanban claim <task-id> [--ttl seconds]");
             Map<String, Object> body = new LinkedHashMap<String, Object>();
             body.put("claimer", author);
-            claim(requireArg(tokens[0], "/kanban claim <task-id> [ttl_seconds]"), claimTtlBody(tokens, body));
-            return "已认领任务：" + tokens[0];
+            String ttl = firstNonBlank(parsed.value("ttl"), tokenAt(tokens, 1));
+            if (StrUtil.isNotBlank(ttl)) {
+                body.put("ttl_seconds", ttl);
+            }
+            claim(taskId, body);
+            return "已认领任务：" + taskId;
         }
         if ("next".equals(action) || "claim-next".equals(action)) {
             Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -866,15 +866,18 @@ public class KanbanService {
             return "已认领任务：" + task.get("id");
         }
         if ("heartbeat".equals(action)) {
-            String[] tokens = rest.split("\\s+", 2);
+            ParsedKanbanOptions parsed = parseCommandOptions(rest);
+            List<String> tokens = positionalTokens(parsed);
+            String taskId = requireArg(firstToken(tokens), "/kanban heartbeat <task-id> [--note text]");
             Map<String, Object> body = new LinkedHashMap<String, Object>();
             body.put("claimer", author);
-            if (tokens.length > 1) {
-                body.put("note", tokens[1]);
+            String note = firstNonBlank(parsed.value("note"), joinTokens(tokens, 1));
+            if (StrUtil.isNotBlank(note)) {
+                body.put("note", note);
             }
-            heartbeatClaim(requireArg(tokens[0], "/kanban heartbeat <task-id> [note]"), body);
-            heartbeatWorker(tokens[0], body);
-            return "已刷新任务心跳：" + tokens[0];
+            heartbeatClaim(taskId, body);
+            heartbeatWorker(taskId, body);
+            return "已刷新任务心跳：" + taskId;
         }
         if ("release-stale".equals(action)) {
             return "已收回过期认领：" + releaseStaleClaims().get("reclaimed");
@@ -1358,7 +1361,8 @@ public class KanbanService {
         return "json".equals(key)
                 || "triage".equals(key)
                 || "archived".equals(key)
-                || "mine".equals(key);
+                || "mine".equals(key)
+                || "reclaim".equals(key);
     }
 
     private String handleDaemonCommand(String rest) {
@@ -1915,31 +1919,45 @@ public class KanbanService {
     }
 
     private Map<String, Object> notifyBody(String rest, boolean subscribe) {
-        String[] tokens = StrUtil.nullToEmpty(rest).trim().split("\\s+");
-        if (tokens.length < 3) {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<String> tokens = positionalTokens(parsed);
+        String taskId = firstToken(tokens);
+        String platform = firstNonBlank(parsed.value("platform"), tokenAt(tokens, 1));
+        String chatId = firstNonBlank(parsed.value("chat-id"), tokenAt(tokens, 2));
+        String threadId = firstNonBlank(parsed.value("thread-id"), tokenAt(tokens, 3));
+        String userId = parsed.value("user-id");
+        if (StrUtil.isBlank(taskId) || StrUtil.isBlank(platform) || StrUtil.isBlank(chatId)) {
             throw new IllegalArgumentException(
                     subscribe
-                            ? "用法：/kanban notify-subscribe <task-id> <platform> <chat-id> [thread-id]"
-                            : "用法：/kanban notify-unsubscribe <task-id> <platform> <chat-id> [thread-id]");
+                            ? "用法：/kanban notify-subscribe <task-id> --platform <platform> --chat-id <chat-id> [--thread-id id]"
+                            : "用法：/kanban notify-unsubscribe <task-id> --platform <platform> --chat-id <chat-id> [--thread-id id]");
         }
         Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("task_id", tokens[0]);
-        body.put("platform", tokens[1]);
-        body.put("chat_id", tokens[2]);
-        if (tokens.length > 3) {
-            body.put("thread_id", tokens[3]);
+        body.put("task_id", taskId);
+        body.put("platform", platform);
+        body.put("chat_id", chatId);
+        if (StrUtil.isNotBlank(threadId)) {
+            body.put("thread_id", threadId);
+        }
+        if (StrUtil.isNotBlank(userId)) {
+            body.put("user_id", userId);
         }
         return body;
     }
 
     private Map<String, Object> parseGcOptions(String rest) {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
-        String[] tokens = StrUtil.nullToEmpty(rest).trim().split("\\s+");
-        if (tokens.length > 0 && StrUtil.isNotBlank(tokens[0])) {
-            body.put("event_retention_days", tokens[0]);
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<String> tokens = positionalTokens(parsed);
+        String eventRetentionDays =
+                firstNonBlank(parsed.value("event-retention-days"), tokenAt(tokens, 0));
+        String logRetentionDays =
+                firstNonBlank(parsed.value("log-retention-days"), tokenAt(tokens, 1));
+        if (StrUtil.isNotBlank(eventRetentionDays)) {
+            body.put("event_retention_days", eventRetentionDays);
         }
-        if (tokens.length > 1 && StrUtil.isNotBlank(tokens[1])) {
-            body.put("log_retention_days", tokens[1]);
+        if (StrUtil.isNotBlank(logRetentionDays)) {
+            body.put("log_retention_days", logRetentionDays);
         }
         return body;
     }
@@ -2048,15 +2066,52 @@ public class KanbanService {
         return !candidatePath.equals(rootPath) && candidatePath.startsWith(rootPath + File.separator);
     }
 
-    private Map<String, Object> claimTtlBody(String[] tokens, Map<String, Object> body) {
-        if (tokens.length > 1 && StrUtil.isNotBlank(tokens[1])) {
-            body.put("ttl_seconds", tokens[1]);
-        }
-        return body;
-    }
-
     private String taskId(Map<String, Object> task) {
         return String.valueOf(task.get("id"));
+    }
+
+    private List<String> positionalTokens(ParsedKanbanOptions parsed) {
+        List<String> result = new ArrayList<String>();
+        String text = parsed == null ? "" : parsed.positionalText();
+        if (StrUtil.isBlank(text)) {
+            return result;
+        }
+        String[] tokens = text.trim().split("\\s+");
+        for (String token : tokens) {
+            if (StrUtil.isNotBlank(token)) {
+                result.add(token);
+            }
+        }
+        return result;
+    }
+
+    private String firstToken(List<String> tokens) {
+        return tokenAt(tokens, 0);
+    }
+
+    private String tokenAt(List<String> tokens, int index) {
+        if (tokens == null || index < 0 || index >= tokens.size()) {
+            return null;
+        }
+        return tokens.get(index);
+    }
+
+    private String joinTokens(List<String> tokens, int start) {
+        if (tokens == null || start < 0 || start >= tokens.size()) {
+            return null;
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (int i = start; i < tokens.size(); i++) {
+            if (buffer.length() > 0) {
+                buffer.append(' ');
+            }
+            buffer.append(tokens.get(i));
+        }
+        return buffer.toString();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return StrUtil.isNotBlank(first) ? first : second;
     }
 
     private String requireArg(String value, String usage) {
