@@ -749,6 +749,65 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldApplyTerminalGuardrailsToManagedProcessStdinForShells() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                interactiveShellCommand(),
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        String sessionId = started.get("session_id").getString();
+
+        ONode blocked =
+                ONode.ofJson(
+                        tools.process(
+                                "submit",
+                                null,
+                                sessionId,
+                                null,
+                                "curl http://169.254.169.254/latest/meta-data/?token=secret",
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(blocked.get("success").getBoolean()).isFalse();
+        assertThat(blocked.get("error").getString())
+                .contains("process stdin")
+                .contains("URL 安全策略")
+                .contains("169.254.169.254")
+                .contains("token=***");
+
+        ONode dangerous =
+                ONode.ofJson(
+                        tools.process(
+                                "submit",
+                                null,
+                                sessionId,
+                                null,
+                                "rm -rf runtime/cache",
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertThat(dangerous.get("success").getBoolean()).isFalse();
+        assertThat(dangerous.get("error").getString())
+                .contains("process stdin")
+                .contains("危险命令安全规则");
+
+        assertThat(env.processRegistry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldDropFileSkillWhenAllFileToolsAreDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.toolRegistry.disableTools(
@@ -1536,6 +1595,13 @@ public class ToolRegistryExposureTest {
             return "findstr /n .*";
         }
         return "cat";
+    }
+
+    private String interactiveShellCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "cmd";
+        }
+        return "sh";
     }
 
     private String multiLineEchoCommand() {

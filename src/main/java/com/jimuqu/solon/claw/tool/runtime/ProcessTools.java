@@ -266,6 +266,7 @@ public class ProcessTools {
         if (appendNewline) {
             payload = payload + "\n";
         }
+        assertStdinSafe(managed, payload);
         processRegistry.writeStdin(managed.getId(), payload);
         return ToolResultEnvelope.ok(
                         appendNewline ? "已向后台进程提交输入：" + managed.getId() : "已写入后台进程 stdin：" + managed.getId())
@@ -302,6 +303,107 @@ public class ProcessTools {
                 .data("exited", Boolean.valueOf(true))
                 .data("running", Boolean.valueOf(false))
                 .toJson();
+    }
+
+    private void assertStdinSafe(ProcessRegistry.ManagedProcess managed, String payload) {
+        if (managed == null || StrUtil.isBlank(payload)) {
+            return;
+        }
+        String toolName = stdinExecutionToolName(managed.getCommand());
+        if (StrUtil.isBlank(toolName)) {
+            return;
+        }
+        try {
+            SolonClawCodeExecutionSkills.assertSafe(toolName, payload, securityPolicyService);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "BLOCKED: process stdin 会被 "
+                            + executableLabel(managed.getCommand())
+                            + " 当作命令或脚本执行，已套用同等终端安全策略。\n"
+                            + e.getMessage(),
+                    e);
+        }
+    }
+
+    private String stdinExecutionToolName(String command) {
+        String executable = executableLabel(command).toLowerCase(java.util.Locale.ROOT);
+        if (executable.length() == 0) {
+            return "";
+        }
+        if ("sh".equals(executable)
+                || "bash".equals(executable)
+                || "zsh".equals(executable)
+                || "ksh".equals(executable)
+                || "dash".equals(executable)
+                || "cmd".equals(executable)
+                || "cmd.exe".equals(executable)
+                || "powershell".equals(executable)
+                || "powershell.exe".equals(executable)
+                || "pwsh".equals(executable)
+                || "pwsh.exe".equals(executable)) {
+            return ToolNameConstants.EXECUTE_SHELL;
+        }
+        if ("python".equals(executable)
+                || "python.exe".equals(executable)
+                || "python3".equals(executable)
+                || "python3.exe".equals(executable)
+                || executable.startsWith("python3.")) {
+            return ToolNameConstants.EXECUTE_PYTHON;
+        }
+        if ("node".equals(executable) || "node.exe".equals(executable)) {
+            return ToolNameConstants.EXECUTE_JS;
+        }
+        return "";
+    }
+
+    private String executableLabel(String command) {
+        String token = firstCommandToken(command);
+        if (token.length() == 0) {
+            return "";
+        }
+        return new File(token).getName();
+    }
+
+    private String firstCommandToken(String command) {
+        String text = StrUtil.nullToEmpty(command).trim();
+        if (text.length() == 0) {
+            return "";
+        }
+        int i = 0;
+        while (i < text.length()) {
+            while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
+                i++;
+            }
+            if (i >= text.length()) {
+                return "";
+            }
+            boolean quoted = text.charAt(i) == '"' || text.charAt(i) == '\'';
+            char quote = quoted ? text.charAt(i++) : 0;
+            StringBuilder token = new StringBuilder();
+            while (i < text.length()) {
+                char ch = text.charAt(i);
+                if (quoted) {
+                    if (ch == quote) {
+                        i++;
+                        break;
+                    }
+                    token.append(ch);
+                    i++;
+                    continue;
+                }
+                if (Character.isWhitespace(ch)) {
+                    break;
+                }
+                token.append(ch);
+                i++;
+            }
+            String value = token.toString();
+            if (value.indexOf('=') > 0 && !value.startsWith("=")) {
+                continue;
+            }
+            return value;
+        }
+        return "";
     }
 
     private void addNotificationMetadata(
