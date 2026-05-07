@@ -67,14 +67,40 @@ public class SecurityPolicyService {
                     "credentials",
                     "credentials.json",
                     ".credentials.json",
+                    "auth.json",
                     ".anthropic_oauth.json",
                     "oauth_creds.json",
+                    "client_secret.json",
+                    "client_secrets.json",
                     "application_default_credentials.json",
+                    "service_account.json",
+                    "service-account.json",
+                    "token.json",
                     "authorized_keys",
                     "hosts.yml",
+                    "kubeconfig",
+                    "id_dsa",
+                    "id_ecdsa",
+                    "id_ecdsa_sk",
                     "id_rsa",
+                    "id_ed25519_sk",
                     "id_ed25519",
                     "known_hosts");
+    private static final List<String> SENSITIVE_KEY_FILE_EXTENSIONS =
+            Arrays.asList(".pem", ".key", ".p12", ".pfx");
+    private static final List<String> SENSITIVE_KEY_FILE_MARKERS =
+            Arrays.asList(
+                    "private",
+                    "secret",
+                    "credential",
+                    "credentials",
+                    "token",
+                    "oauth",
+                    "service-account",
+                    "service_account",
+                    "api-key",
+                    "apikey",
+                    "id_");
     private static final List<String> CREDENTIAL_PATH_SUFFIXES =
             Arrays.asList(
                     ".claude/.credentials.json",
@@ -128,7 +154,7 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials(?:\\.json)?)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:application_default_credentials\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_./\\\\-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials(?:\\.json)?)|(?:auth\\.json)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:client_secrets?\\.json)|(?:application_default_credentials\\.json)|(?:service[_-]account\\.json)|(?:token\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:kubeconfig)|(?:id_(?:dsa|ecdsa(?:_sk)?|rsa|ed25519(?:_sk)?))|(?:(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx)))(?![A-Za-z0-9_./\\\\-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
@@ -756,7 +782,24 @@ public class SecurityPolicyService {
         if (fileName.startsWith(".env.") && !".env.example".equals(fileName)) {
             return true;
         }
+        if (matchesSensitiveKeyFileName(fileName)) {
+            return true;
+        }
         return matchesConfiguredCredentialPath(normalized, path);
+    }
+
+    private boolean matchesSensitiveKeyFileName(String fileName) {
+        for (String extension : SENSITIVE_KEY_FILE_EXTENSIONS) {
+            if (!fileName.endsWith(extension)) {
+                continue;
+            }
+            for (String marker : SENSITIVE_KEY_FILE_MARKERS) {
+                if (fileName.contains(marker)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean matchesConfiguredCredentialPath(String normalized, String strippedPath) {

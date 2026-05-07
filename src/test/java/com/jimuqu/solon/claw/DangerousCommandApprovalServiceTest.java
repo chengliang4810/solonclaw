@@ -292,6 +292,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult credentialsWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf token > credentials");
+        DangerousCommandApprovalService.DetectionResult serviceAccountWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp service-account.template.json service_account.json");
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
@@ -331,6 +334,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(credentialsJsonReadVerdict.getPath()).isEqualTo("credentials.json");
         assertThat(credentialsWrite).isNotNull();
         assertThat(credentialsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(serviceAccountWrite).isNotNull();
+        assertThat(serviceAccountWrite.getPatternKey()).isEqualTo("copy_into_project_sensitive");
     }
 
     @Test
@@ -2005,8 +2010,18 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("Get-Content .netrc");
         SecurityPolicyService.FileVerdict gitCredentials =
                 securityPolicyService.checkCommandPaths("grep github.com ~/.git-credentials");
+        SecurityPolicyService.FileVerdict ecdsaSk =
+                securityPolicyService.checkCommandPaths("type id_ecdsa_sk");
+        SecurityPolicyService.FileVerdict serviceAccount =
+                securityPolicyService.checkCommandPaths("cat service_account.json");
+        SecurityPolicyService.FileVerdict privatePem =
+                securityPolicyService.checkCommandPaths("openssl rsa -in private-prod.pem -check");
+        SecurityPolicyService.FileVerdict kubeconfig =
+                securityPolicyService.checkCommandPaths("kubectl --kubeconfig kubeconfig get pods");
         SecurityPolicyService.FileVerdict safe =
                 securityPolicyService.checkCommandPaths("cat config.example.yml > backup.yml");
+        SecurityPolicyService.FileVerdict safeCertificate =
+                securityPolicyService.checkCommandPaths("openssl x509 -in public-cert.pem -text");
 
         assertThat(dotenv.isAllowed()).isFalse();
         assertThat(dotenv.getMessage()).contains("凭据");
@@ -2015,7 +2030,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(netrc.getPath()).isEqualTo(".netrc");
         assertThat(gitCredentials.isAllowed()).isFalse();
         assertThat(gitCredentials.getPath()).isEqualTo("~/.git-credentials");
+        assertThat(ecdsaSk.isAllowed()).isFalse();
+        assertThat(ecdsaSk.getPath()).isEqualTo("id_ecdsa_sk");
+        assertThat(serviceAccount.isAllowed()).isFalse();
+        assertThat(serviceAccount.getPath()).isEqualTo("service_account.json");
+        assertThat(privatePem.isAllowed()).isFalse();
+        assertThat(privatePem.getPath()).isEqualTo("private-prod.pem");
+        assertThat(kubeconfig.isAllowed()).isFalse();
+        assertThat(kubeconfig.getPath()).isEqualTo("kubeconfig");
         assertThat(safe.isAllowed()).isTrue();
+        assertThat(safeCertificate.isAllowed()).isTrue();
     }
 
     @Test
@@ -2053,6 +2077,9 @@ public class DangerousCommandApprovalServiceTest {
 
         SecurityPolicyService.FileVerdict powershell =
                 securityPolicyService.checkCommandPaths("type $env:USERPROFILE\\.ssh\\id_rsa");
+        SecurityPolicyService.FileVerdict powershellSk =
+                securityPolicyService.checkCommandPaths(
+                        "type $env:USERPROFILE\\.ssh\\id_ed25519_sk");
         SecurityPolicyService.FileVerdict cmd =
                 securityPolicyService.checkCommandPaths("type %APPDATA%\\gh\\hosts.yml");
         SecurityPolicyService.FileVerdict powershellAppData =
@@ -2060,6 +2087,8 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(powershell.isAllowed()).isFalse();
         assertThat(powershell.getMessage()).contains("凭据");
+        assertThat(powershellSk.isAllowed()).isFalse();
+        assertThat(powershellSk.getPath()).isEqualTo("$env:USERPROFILE\\.ssh\\id_ed25519_sk");
         assertThat(cmd.isAllowed()).isFalse();
         assertThat(cmd.getMessage()).contains("凭据");
         assertThat(powershellAppData.isAllowed()).isFalse();
