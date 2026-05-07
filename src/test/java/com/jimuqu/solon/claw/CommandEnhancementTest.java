@@ -456,6 +456,52 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldParseCronActionJobIdBeforeTrailingFlags() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Trailing flag check\"");
+        String jobId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .get(0)
+                        .getJobId();
+
+        GatewayReply paused = env.send("admin-chat", "admin-user", "/cron pause " + jobId);
+        assertThat(paused.getContent()).contains("已暂停定时任务：" + jobId);
+
+        GatewayReply resumed =
+                env.send("admin-chat", "admin-user", "/cron resume \"" + jobId + "\" --ignored-flag");
+        assertThat(resumed.getContent()).contains("已恢复定时任务：" + jobId);
+        assertThat(cronJobView(env, jobId)).contains("state=scheduled");
+
+        GatewayReply run = env.send("admin-chat", "admin-user", "/cron run " + jobId + " --accept-hooks");
+        assertThat(run.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
+
+        GatewayReply removed =
+                env.send("admin-chat", "admin-user", "/cron delete \"" + jobId + "\" --force");
+        assertThat(removed.getContent()).contains("已删除定时任务：" + jobId);
+        assertThat(env.cronJobRepository.findById(jobId)).isNull();
+    }
+
+    @Test
+    void shouldRequireCronActionJobIds() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply resume = env.send("admin-chat", "admin-user", "/cron resume");
+        GatewayReply run = env.send("admin-chat", "admin-user", "/cron run");
+        GatewayReply remove = env.send("admin-chat", "admin-user", "/cron remove");
+
+        assertThat(resume.isError()).isTrue();
+        assertThat(resume.getContent()).contains("用法：/cron resume <job-id>");
+        assertThat(run.isError()).isTrue();
+        assertThat(run.getContent()).contains("用法：/cron run <job-id>");
+        assertThat(remove.isError()).isTrue();
+        assertThat(remove.getContent()).contains("用法：/cron remove <job-id>");
+    }
+
+    @Test
     void shouldMatchHermesCronListAllSemantics() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

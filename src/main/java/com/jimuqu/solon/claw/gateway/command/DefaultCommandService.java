@@ -1799,13 +1799,23 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.ACTION_RESUME.equalsIgnoreCase(action)) {
-            cronJobService.resume(tail);
-            return GatewayReply.ok("已恢复定时任务：" + tail);
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            if (options.positionals.isEmpty()) {
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " resume <job-id>");
+            }
+            String jobId = options.positionals.get(0);
+            cronJobService.resume(jobId);
+            return GatewayReply.ok("已恢复定时任务：" + jobId);
         }
 
         if (GatewayCommandConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
-            cronJobService.remove(tail);
-            return GatewayReply.ok("已删除定时任务：" + tail);
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            if (options.positionals.isEmpty()) {
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " remove <job-id>");
+            }
+            String jobId = options.positionals.get(0);
+            cronJobService.remove(jobId);
+            return GatewayReply.ok("已删除定时任务：" + jobId);
         }
 
         if (GatewayCommandConstants.ACTION_UPDATE.equalsIgnoreCase(action)) {
@@ -1821,13 +1831,18 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
-            cronJobService.require(tail);
-            if (cronScheduler == null) {
-                cronJobService.trigger(tail);
-                return GatewayReply.ok("已标记定时任务将在下一次 tick 执行：" + tail);
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            if (options.positionals.isEmpty()) {
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run <job-id>");
             }
-            cronScheduler.runNow(tail);
-            return GatewayReply.ok("已执行定时任务：" + tail);
+            String jobId = options.positionals.get(0);
+            cronJobService.require(jobId);
+            if (cronScheduler == null) {
+                cronJobService.trigger(jobId);
+                return GatewayReply.ok("已标记定时任务将在下一次 tick 执行：" + jobId);
+            }
+            cronScheduler.runNow(jobId);
+            return GatewayReply.ok("已执行定时任务：" + jobId);
         }
 
         return GatewayReply.error(
