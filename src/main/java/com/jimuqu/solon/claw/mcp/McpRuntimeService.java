@@ -275,12 +275,16 @@ public class McpRuntimeService implements Closeable {
                 StrUtil.isNotBlank(nextHash)
                         && !nextHash.equals(config.getLastToolsHash())
                         && !initialBaseline;
+        List<String> previousTools = toolNames(config.getToolsJson());
+        List<String> nextTools = toolNames(toolsJson);
         updateStatus(serverId, status, lastError, toolsJson, toolsChanged);
         return new McpToolRefreshResult(
                 serverId,
                 nextHash,
                 toolsChanged,
                 countTools(toolsJson),
+                difference(nextTools, previousTools),
+                difference(previousTools, nextTools),
                 StrUtil.blankToDefault(status, "ready"),
                 lastError);
     }
@@ -610,6 +614,41 @@ public class McpRuntimeService implements Closeable {
         return StrUtil.isBlank(toolsJson) ? 0 : 1;
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> toolNames(String toolsJson) {
+        Object parsed = parse(toolsJson);
+        List<String> result = new ArrayList<String>();
+        if (!(parsed instanceof List)) {
+            return result;
+        }
+        for (Object item : (List<?>) parsed) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> map = (Map<String, Object>) item;
+            String name = firstText(map, "prefixed_name", "name");
+            if (StrUtil.isNotBlank(name) && !result.contains(name)) {
+                result.add(name);
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
+    private List<String> difference(List<String> left, List<String> right) {
+        List<String> result = new ArrayList<String>();
+        List<String> safeRight = right == null ? Collections.<String>emptyList() : right;
+        if (left == null) {
+            return result;
+        }
+        for (String item : left) {
+            if (StrUtil.isNotBlank(item) && !safeRight.contains(item) && !result.contains(item)) {
+                result.add(item);
+            }
+        }
+        return result;
+    }
+
     private String safeError(Throwable e) {
         String message = e == null ? "" : String.valueOf(e.getMessage());
         if (StrUtil.isBlank(message) && e != null) {
@@ -844,6 +883,8 @@ public class McpRuntimeService implements Closeable {
         private final String nextHash;
         private final boolean toolsChanged;
         private final int toolCount;
+        private final List<String> addedTools;
+        private final List<String> removedTools;
         private final String status;
         private final String error;
 
@@ -852,12 +893,22 @@ public class McpRuntimeService implements Closeable {
                 String nextHash,
                 boolean toolsChanged,
                 int toolCount,
+                List<String> addedTools,
+                List<String> removedTools,
                 String status,
                 String error) {
             this.serverId = serverId;
             this.nextHash = nextHash;
             this.toolsChanged = toolsChanged;
             this.toolCount = toolCount;
+            this.addedTools =
+                    addedTools == null
+                            ? Collections.<String>emptyList()
+                            : Collections.unmodifiableList(new ArrayList<String>(addedTools));
+            this.removedTools =
+                    removedTools == null
+                            ? Collections.<String>emptyList()
+                            : Collections.unmodifiableList(new ArrayList<String>(removedTools));
             this.status = status;
             this.error = error;
         }
@@ -876,6 +927,14 @@ public class McpRuntimeService implements Closeable {
 
         public int getToolCount() {
             return toolCount;
+        }
+
+        public List<String> getAddedTools() {
+            return addedTools;
+        }
+
+        public List<String> getRemovedTools() {
+            return removedTools;
         }
 
         public String getStatus() {

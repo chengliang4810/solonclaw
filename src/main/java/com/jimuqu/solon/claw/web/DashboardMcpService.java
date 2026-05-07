@@ -136,6 +136,8 @@ public class DashboardMcpService {
         result.put("schema_sanitizer", "snack4");
         result.put("tools_hash", state.getNextHash());
         result.put("tool_changed_notification", state.isToolsChanged());
+        result.put("added_tools", state.getAddedTools());
+        result.put("removed_tools", state.getRemovedTools());
         result.put("security", securityMap(state.getSecurityVerdict()));
         if (StrUtil.isNotBlank(state.getError())) {
             result.put("error", state.getError());
@@ -473,6 +475,8 @@ public class DashboardMcpService {
                             refresh.getNextHash(),
                             refresh.isToolsChanged(),
                             refresh.getToolCount(),
+                            refresh.getAddedTools(),
+                            refresh.getRemovedTools(),
                             securityVerdict,
                             refresh.getStatus(),
                             refresh.getError());
@@ -485,6 +489,8 @@ public class DashboardMcpService {
                             refresh.getNextHash(),
                             refresh.isToolsChanged(),
                             refresh.getToolCount(),
+                            refresh.getAddedTools(),
+                            refresh.getRemovedTools(),
                             securityVerdict,
                             "error",
                             error);
@@ -498,6 +504,10 @@ public class DashboardMcpService {
                             && StrUtil.isNotBlank(nextHash)
                             && !nextHash.equals(previousHash)
                             && !initialBaseline;
+            List<String> addedTools =
+                    toolsChanged && StrUtil.isBlank(previousHash)
+                            ? toolNames(toolsJson)
+                            : Collections.<String>emptyList();
             PreparedStatement statement =
                     connection.prepareStatement(
                             "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_hash = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end where server_id = ?");
@@ -526,6 +536,8 @@ public class DashboardMcpService {
                     nextHash,
                     toolsChanged,
                     countTools(toolsJson),
+                    addedTools,
+                    Collections.<String>emptyList(),
                     securityVerdict,
                     securityVerdict.isAllowed()
                             ? (appConfig.getMcp().isEnabled() ? "ready" : "disabled")
@@ -882,6 +894,8 @@ public class DashboardMcpService {
         result.put("tools_hash", state.getNextHash());
         result.put("tool_count", Integer.valueOf(state.getToolCount()));
         result.put("tool_changed_notification", Boolean.valueOf(state.isToolsChanged()));
+        result.put("added_tools", state.getAddedTools());
+        result.put("removed_tools", state.getRemovedTools());
         result.put("schema_sanitizer", "snack4");
         if (StrUtil.isNotBlank(state.getError())) {
             result.put("error", state.getError());
@@ -1040,10 +1054,33 @@ public class DashboardMcpService {
         return StrUtil.isBlank(toolsJson) ? 0 : 1;
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> toolNames(String toolsJson) {
+        Object parsed = parse(toolsJson);
+        List<String> result = new ArrayList<String>();
+        if (!(parsed instanceof List)) {
+            return result;
+        }
+        for (Object item : (List<?>) parsed) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> map = (Map<String, Object>) item;
+            String name = firstText(map, "prefixed_name", "name");
+            if (StrUtil.isNotBlank(name) && !result.contains(name)) {
+                result.add(name);
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
     private static class McpCheckState {
         private final String nextHash;
         private final boolean toolsChanged;
         private final int toolCount;
+        private final List<String> addedTools;
+        private final List<String> removedTools;
         private final McpPackageSecurityService.SecurityVerdict securityVerdict;
         private final String status;
         private final String error;
@@ -1052,12 +1089,22 @@ public class DashboardMcpService {
                 String nextHash,
                 boolean toolsChanged,
                 int toolCount,
+                List<String> addedTools,
+                List<String> removedTools,
                 McpPackageSecurityService.SecurityVerdict securityVerdict,
                 String status,
                 String error) {
             this.nextHash = nextHash;
             this.toolsChanged = toolsChanged;
             this.toolCount = toolCount;
+            this.addedTools =
+                    addedTools == null
+                            ? Collections.<String>emptyList()
+                            : Collections.unmodifiableList(new ArrayList<String>(addedTools));
+            this.removedTools =
+                    removedTools == null
+                            ? Collections.<String>emptyList()
+                            : Collections.unmodifiableList(new ArrayList<String>(removedTools));
             this.securityVerdict = securityVerdict;
             this.status = status;
             this.error = error;
@@ -1073,6 +1120,14 @@ public class DashboardMcpService {
 
         private int getToolCount() {
             return toolCount;
+        }
+
+        private List<String> getAddedTools() {
+            return addedTools;
+        }
+
+        private List<String> getRemovedTools() {
+            return removedTools;
         }
 
         private McpPackageSecurityService.SecurityVerdict getSecurityVerdict() {

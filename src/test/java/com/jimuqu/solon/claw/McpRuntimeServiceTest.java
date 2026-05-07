@@ -50,6 +50,9 @@ public class McpRuntimeServiceTest {
 
         assertThat(refresh.getToolCount()).isEqualTo(2);
         assertThat(refresh.isToolsChanged()).isTrue();
+        assertThat(refresh.getAddedTools())
+                .containsExactly("mcp_local-docs_docs_fetch", "mcp_local-docs_docs_search");
+        assertThat(refresh.getRemovedTools()).isEmpty();
         assertThat(readToolsJson(env.sqliteDatabase))
                 .contains("mcp_local-docs_docs_search")
                 .contains("mcp_local-docs_docs_fetch");
@@ -94,6 +97,29 @@ public class McpRuntimeServiceTest {
                         "mcp_local-docs_read_resource",
                         "mcp_local-docs_list_prompts",
                         "mcp_local-docs_get_prompt");
+    }
+
+    @Test
+    void shouldReportAddedAndRemovedMcpToolsWhenLiveToolsChange() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        MutableMcpFactory factory = new MutableMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        McpRuntimeService.McpToolRefreshResult first =
+                mcpRuntimeService.refreshLiveTools("local-docs", false);
+        factory.provider.setToolNames(Arrays.asList("docs_fetch", "docs_new"));
+        McpRuntimeService.McpToolRefreshResult second =
+                mcpRuntimeService.refreshLiveTools("local-docs", false);
+
+        assertThat(first.getAddedTools())
+                .containsExactly("mcp_local-docs_docs_fetch", "mcp_local-docs_docs_search");
+        assertThat(first.getRemovedTools()).isEmpty();
+        assertThat(second.isToolsChanged()).isTrue();
+        assertThat(second.getAddedTools()).containsExactly("mcp_local-docs_docs_new");
+        assertThat(second.getRemovedTools()).containsExactly("mcp_local-docs_docs_search");
     }
 
     @Test
@@ -413,6 +439,45 @@ public class McpRuntimeServiceTest {
             properties.setCommand("fake-mcp");
             return properties;
         }
+    }
+
+    private static class MutableMcpFactory implements McpClientProviderFactory {
+        private MutableMcpClientProvider provider;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            provider = new MutableMcpClientProvider();
+            return provider;
+        }
+    }
+
+    private static class MutableMcpClientProvider extends McpClientProvider {
+        private List<String> toolNames = Arrays.asList("docs_search", "docs_fetch");
+
+        MutableMcpClientProvider() {
+            super(FakeMcpClientProvider.properties());
+        }
+
+        private void setToolNames(List<String> toolNames) {
+            this.toolNames = new ArrayList<String>(toolNames);
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools() {
+            List<FunctionTool> result = new ArrayList<FunctionTool>();
+            for (String name : toolNames) {
+                FunctionToolDesc tool = new FunctionToolDesc(name);
+                tool.title(name);
+                tool.description(name);
+                tool.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+                tool.doHandle(args -> Collections.singletonMap("ok", Boolean.TRUE));
+                result.add(tool);
+            }
+            return result;
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static class SchemaEdgeMcpFactory implements McpClientProviderFactory {

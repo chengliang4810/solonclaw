@@ -275,6 +275,8 @@ public class DashboardControllerHttpTest {
         assertThat(checkMcp.status).isEqualTo(200);
         assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
         assertThat(checkMcp.body).contains("\"tool_changed_notification\":true");
+        assertThat(stringsAt(checkMcp.body, "added_tools")).containsExactly("docs_search");
+        assertThat(stringsAt(checkMcp.body, "removed_tools")).isEmpty();
         assertThat(checkMcp.body).contains("\"schema_sanitizer\":\"snack4\"");
 
         HttpResult checkMcpAgain = request("POST", "/api/hermes/mcp/local-docs/check", "{}", token);
@@ -293,6 +295,9 @@ public class DashboardControllerHttpTest {
         assertThat(changedMcp.status).isEqualTo(200);
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
+        assertThat(stringsAt(changedMcp.body, "added_tools"))
+                .containsExactly("docs_fetch", "docs_search");
+        assertThat(stringsAt(changedMcp.body, "removed_tools")).isEmpty();
 
         HttpResult mcpList = request("GET", "/api/hermes/mcp", null, token);
         assertThat(mcpList.status).isEqualTo(200);
@@ -996,6 +1001,15 @@ public class DashboardControllerHttpTest {
         Matcher matcher = Pattern.compile("__APP_SESSION_TOKEN__=\\\"([^\\\"]+)\\\"").matcher(html);
         assertThat(matcher.find()).isTrue();
         return matcher.group(1);
+    }
+
+    private static List<String> stringsAt(String body, String field) {
+        List<String> result = new java.util.ArrayList<String>();
+        ONode array = ONode.ofJson(body).get("data").get(field);
+        for (int i = 0; i < array.size(); i++) {
+            result.add(array.get(i).getString());
+        }
+        return result;
     }
 
     private static HttpResult request(String method, String path, String body, String token)
