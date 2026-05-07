@@ -194,8 +194,12 @@ public class CronJobService {
             record.setWrapResponse(bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
         }
         if (body.containsKey("enabled")) {
-            record.setStatus(bool(body.get("enabled"), true) ? STATUS_ACTIVE : STATUS_PAUSED);
-            record.setPausedAt(bool(body.get("enabled"), true) ? 0L : System.currentTimeMillis());
+            boolean enabled = bool(body.get("enabled"), true);
+            record.setStatus(enabled ? STATUS_ACTIVE : STATUS_PAUSED);
+            record.setPausedAt(enabled ? 0L : System.currentTimeMillis());
+            if (enabled) {
+                record.setPausedReason(null);
+            }
         }
         if (record.isNoAgent() && StrUtil.isBlank(record.getScript())) {
             throw new IllegalStateException("no_agent requires script");
@@ -461,6 +465,11 @@ public class CronJobService {
             return;
         }
         String value = script.trim();
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                throw new IllegalStateException("script path contains control character");
+            }
+        }
         if (value.startsWith("/") || value.startsWith("~") || (value.length() > 1 && value.charAt(1) == ':')) {
             throw new IllegalStateException("script must be relative to runtime/scripts");
         }

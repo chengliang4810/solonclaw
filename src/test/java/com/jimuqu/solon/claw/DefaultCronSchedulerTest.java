@@ -891,6 +891,66 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldClearPausedReasonWhenCronEnabledViaUpdate() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "reenable-cron");
+        body.put("schedule", "every 1h");
+        body.put("prompt", "check status");
+        CronJobRecord job = service.create("MEMORY:room:user", body);
+        service.pause(job.getJobId(), "operator pause");
+
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("enabled", Boolean.TRUE);
+        CronJobRecord enabled = service.update(job.getJobId(), update);
+
+        assertThat(enabled.getStatus()).isEqualTo("ACTIVE");
+        assertThat(enabled.getPausedAt()).isEqualTo(0L);
+        assertThat(enabled.getPausedReason()).isNull();
+        assertThat(service.toView(enabled).get("paused_reason")).isNull();
+    }
+
+    @Test
+    void shouldRejectCronScriptPathsContainingControlCharacters() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        Map<String, Object> unsafeCreate = new LinkedHashMap<String, Object>();
+        unsafeCreate.put("name", "unsafe-script");
+        unsafeCreate.put("schedule", "30m");
+        unsafeCreate.put("prompt", "inspect");
+        unsafeCreate.put("script", "report\u0000.py");
+
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.create("MEMORY:room:user", unsafeCreate);
+                            }
+                        })
+                .hasMessageContaining("script path contains control character");
+
+        Map<String, Object> safeCreate = new LinkedHashMap<String, Object>();
+        safeCreate.put("name", "safe-script");
+        safeCreate.put("schedule", "30m");
+        safeCreate.put("prompt", "inspect");
+        CronJobRecord job = service.create("MEMORY:room:user", safeCreate);
+
+        Map<String, Object> unsafeUpdate = new LinkedHashMap<String, Object>();
+        unsafeUpdate.put("script", "nested/report\u001F.py");
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.update(job.getJobId(), unsafeUpdate);
+                            }
+                        })
+                .hasMessageContaining("script path contains control character");
+    }
+
+    @Test
     void shouldMatchHermesCronjobToolIncludeDisabledAndWrapResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
