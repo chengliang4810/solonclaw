@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
@@ -50,6 +51,132 @@ public class DomesticChannelEnhancementTest {
         assertThat(text.getChatId()).isEqualTo("user-a");
         assertThat(voice.getChatType()).isEqualTo("group");
         assertThat(voice.getText()).isEqualTo("语音文本");
+    }
+
+    @Test
+    void shouldParseQqbotQuotedMessageTextAndAttachments() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{"
+                                + "\"t\":\"GROUP_AT_MESSAGE_CREATE\","
+                                + "\"d\":{"
+                                + "\"id\":\"m3\","
+                                + "\"group_openid\":\"group-a\","
+                                + "\"author\":{\"user_openid\":\"user-a\"},"
+                                + "\"message_type\":103,"
+                                + "\"content\":\"请看这个\","
+                                + "\"msg_elements\":[{"
+                                + "\"content\":\"原消息\","
+                                + "\"attachments\":[{"
+                                + "\"content_type\":\"application/pdf\","
+                                + "\"url\":\"https://cdn.qq/report\","
+                                + "\"filename\":\"quarterly-report.pdf\""
+                                + "}]"
+                                + "}]"
+                                + "}"
+                                + "}");
+
+        assertThat(message.getText())
+                .isEqualTo("[Quoted message]:\n原消息\n\n请看这个");
+        assertThat(message.getAttachments()).hasSize(1);
+        assertThat(message.getAttachments().get(0).isFromQuote()).isTrue();
+        assertThat(message.getAttachments().get(0).getOriginalName())
+                .isEqualTo("quarterly-report.pdf");
+        assertThat(message.getAttachments().get(0).getKind()).isEqualTo("file");
+    }
+
+    @Test
+    void shouldSurfaceQqbotImageOnlyQuoteAsMessageContext() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{"
+                                + "\"t\":\"C2C_MESSAGE_CREATE\","
+                                + "\"d\":{"
+                                + "\"id\":\"m4\","
+                                + "\"openid\":\"user-a\","
+                                + "\"message_type\":103,"
+                                + "\"msg_elements\":[{"
+                                + "\"attachments\":[{"
+                                + "\"content_type\":\"image/png\","
+                                + "\"url\":\"https://cdn.qq/image\","
+                                + "\"filename\":\"screen.png\""
+                                + "}]"
+                                + "}]"
+                                + "}"
+                                + "}");
+
+        assertThat(message.getText()).isEqualTo("[Quoted message]: (image)");
+        assertThat(message.getAttachments()).hasSize(1);
+        assertThat(message.getAttachments().get(0).getKind()).isEqualTo("image");
+        assertThat(message.getAttachments().get(0).isFromQuote()).isTrue();
+    }
+
+    @Test
+    void shouldParseQqbotMainAttachmentsWithoutText() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{"
+                                + "\"t\":\"C2C_MESSAGE_CREATE\","
+                                + "\"d\":{"
+                                + "\"id\":\"m5\","
+                                + "\"openid\":\"user-a\","
+                                + "\"asr_refer_text\":\"语音转写\","
+                                + "\"attachments\":[{"
+                                + "\"content_type\":\"audio/silk\","
+                                + "\"url\":\"https://cdn.qq/voice\","
+                                + "\"filename\":\"voice.silk\""
+                                + "}]"
+                                + "}"
+                                + "}");
+
+        assertThat(message.getText()).isEqualTo("语音转写");
+        assertThat(message.getAttachments()).hasSize(1);
+        assertThat(message.getAttachments().get(0).getKind()).isEqualTo("voice");
+        assertThat(message.getAttachments().get(0).isFromQuote()).isFalse();
+        assertThat(message.getAttachments().get(0).getTranscribedText()).isEqualTo("语音转写");
+    }
+
+    @Test
+    void shouldParseQqbotQuotedVoiceTranscriptOnce() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{"
+                                + "\"t\":\"C2C_MESSAGE_CREATE\","
+                                + "\"d\":{"
+                                + "\"id\":\"m6\","
+                                + "\"openid\":\"user-a\","
+                                + "\"message_type\":103,"
+                                + "\"msg_elements\":[{"
+                                + "\"asr_refer_text\":\"引用语音文本\","
+                                + "\"attachments\":[{"
+                                + "\"content_type\":\"audio/silk\","
+                                + "\"url\":\"https://cdn.qq/quoted-voice\","
+                                + "\"filename\":\"quoted.silk\""
+                                + "}]"
+                                + "}]"
+                                + "}"
+                                + "}");
+
+        assertThat(message.getText()).isEqualTo("[Quoted message]:\n引用语音文本");
+        assertThat(message.getAttachments()).hasSize(1);
+        assertThat(message.getAttachments().get(0).isFromQuote()).isTrue();
+        assertThat(message.getAttachments().get(0).getTranscribedText()).isEqualTo("引用语音文本");
     }
 
     @Test
@@ -513,6 +640,24 @@ public class DomesticChannelEnhancementTest {
 
         private GatewayMessage parse(String raw) {
             return toGatewayMessage(raw);
+        }
+
+        @Override
+        protected MessageAttachment cacheRemoteAttachment(
+                String url,
+                String kind,
+                String fileName,
+                String mimeType,
+                boolean fromQuote,
+                String transcribedText) {
+            MessageAttachment attachment = new MessageAttachment();
+            attachment.setKind(AttachmentCacheService.normalizeKind(kind, fileName, mimeType));
+            attachment.setLocalPath("runtime/cache/media/qqbot/" + fileName);
+            attachment.setOriginalName(fileName);
+            attachment.setMimeType(AttachmentCacheService.normalizeMimeType(mimeType, fileName));
+            attachment.setFromQuote(fromQuote);
+            attachment.setTranscribedText(transcribedText);
+            return attachment;
         }
 
         private ONode buildApprovalBody(DeliveryRequest request) {

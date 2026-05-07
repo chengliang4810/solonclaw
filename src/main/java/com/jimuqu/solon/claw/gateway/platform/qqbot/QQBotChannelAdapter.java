@@ -19,6 +19,7 @@ import java.io.File;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -578,13 +579,18 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         data.get("user_openid").getString(),
                         data.get("openid").getString());
         String text =
-                firstNonBlank(
-                        data.get("content").getString(),
-                        data.get("text").getString(),
-                        data.get("asr_refer_text").getString());
+                firstNonBlank(data.get("content").getString(), data.get("text").getString());
+        String asrText = data.get("asr_refer_text").getString();
+        if (StrUtil.isBlank(text)) {
+            text = asrText;
+        }
+        List<MessageAttachment> attachments = extractAttachments(data, false, asrText);
+        QuotedContext quoted = processQuotedContext(data);
+        text = mergeQuoteInto(text, quoted.getQuoteBlock());
+        attachments.addAll(quoted.getAttachments());
         if (!allowInbound(chatType, chatId, userId)
                 || StrUtil.isBlank(chatId)
-                || StrUtil.isBlank(text)) {
+                || (StrUtil.isBlank(text) && attachments.isEmpty())) {
             return null;
         }
         GatewayMessage message =
@@ -593,7 +599,152 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatName(chatId);
         message.setUserName(userId);
         message.setThreadId(data.get("id").getString());
+        message.setAttachments(attachments);
         return message;
+    }
+
+    private QuotedContext processQuotedContext(ONode data) {
+        QuotedContext empty = new QuotedContext();
+        if (data == null || data.isNull()) {
+            return empty;
+        }
+        try {
+            if (data.get("message_type").getInt(0) != 103) {
+                return empty;
+            }
+        } catch (Exception e) {
+            return empty;
+        }
+        ONode elements = data.get("msg_elements");
+        if (elements == null || !elements.isArray() || elements.size() == 0) {
+            return empty;
+        }
+        List<String> lines = new ArrayList<String>();
+        List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
+        for (int i = 0; i < elements.size(); i++) {
+            ONode element = elements.get(i);
+            String text =
+                    firstNonBlank(
+                            element.get("content").getString(), element.get("text").getString());
+            if (StrUtil.isNotBlank(text)) {
+                lines.add(text);
+            }
+            String asrText = element.get("asr_refer_text").getString();
+            List<MessageAttachment> elementAttachments = extractAttachments(element, true, asrText);
+            for (MessageAttachment attachment : elementAttachments) {
+                if (StrUtil.isNotBlank(attachment.getTranscribedText())) {
+                    lines.add(attachment.getTranscribedText());
+                }
+                attachments.add(attachment);
+            }
+            if (StrUtil.isBlank(text)
+                    && elementAttachments.isEmpty()
+                    && StrUtil.isNotBlank(asrText)) {
+                lines.add(asrText);
+            }
+        }
+        if (lines.isEmpty() && attachments.isEmpty()) {
+            return empty;
+        }
+        StringBuilder quote = new StringBuilder("[Quoted message]:");
+        if (lines.isEmpty()) {
+            quote.append(containsImage(attachments) ? " (image)" : " (attachment)");
+        } else {
+            for (String line : lines) {
+                quote.append('\n').append(line);
+            }
+        }
+        return new QuotedContext(quote.toString(), attachments);
+    }
+
+    private List<MessageAttachment> extractAttachments(
+            ONode data, boolean fromQuote, String transcribedText) {
+        List<MessageAttachment> result = new ArrayList<MessageAttachment>();
+        if (data == null || data.isNull()) {
+            return result;
+        }
+        collectAttachmentNodes(data.get("attachments"), result, fromQuote, transcribedText);
+        collectAttachmentNodes(data.get("attachment"), result, fromQuote, transcribedText);
+        collectAttachmentNodes(data.get("media"), result, fromQuote, transcribedText);
+        collectAttachmentNodes(data.get("file"), result, fromQuote, transcribedText);
+        collectAttachmentNodes(data.get("image"), result, fromQuote, transcribedText);
+        return result;
+    }
+
+    private void collectAttachmentNodes(
+            ONode node,
+            List<MessageAttachment> result,
+            boolean fromQuote,
+            String fallbackTranscribedText) {
+        if (node == null || node.isNull()) {
+            return;
+        }
+        if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                collectAttachmentNodes(node.get(i), result, fromQuote, fallbackTranscribedText);
+            }
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        String url =
+                firstNonBlank(
+                        node.get("url").getString(),
+                        node.get("file_url").getString(),
+                        node.get("download_url").getString(),
+                        node.get("downloadUrl").getString());
+        if (StrUtil.isBlank(url)) {
+            return;
+        }
+        String fileName =
+                firstNonBlank(
+                        node.get("filename").getString(),
+                        node.get("file_name").getString(),
+                        node.get("name").getString());
+        String mimeType =
+                firstNonBlank(
+                        node.get("content_type").getString(),
+                        node.get("mime_type").getString(),
+                        node.get("mimeType").getString());
+        String kind =
+                AttachmentCacheService.normalizeKind(
+                        firstNonBlank(node.get("kind").getString(), node.get("type").getString()),
+                        fileName,
+                        mimeType);
+        String transcript =
+                firstNonBlank(
+                        node.get("asr_refer_text").getString(),
+                        node.get("transcribed_text").getString(),
+                        node.get("text").getString(),
+                        fallbackTranscribedText);
+        try {
+            result.add(cacheRemoteAttachment(url, kind, fileName, mimeType, fromQuote, transcript));
+        } catch (Exception e) {
+            log.warn("[QQBOT] attachment cache failed: {}", e.getMessage());
+        }
+    }
+
+    private String mergeQuoteInto(String text, String quoteBlock) {
+        if (StrUtil.isBlank(quoteBlock)) {
+            return StrUtil.nullToEmpty(text).trim();
+        }
+        if (StrUtil.isBlank(text)) {
+            return quoteBlock.trim();
+        }
+        return quoteBlock.trim() + "\n\n" + text.trim();
+    }
+
+    private boolean containsImage(List<MessageAttachment> attachments) {
+        if (attachments == null) {
+            return false;
+        }
+        for (MessageAttachment attachment : attachments) {
+            if (attachment != null && "image".equalsIgnoreCase(attachment.getKind())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void acknowledgeInteractionIfNecessary(String raw) {
@@ -749,9 +900,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 || contains(config.getAllowedUsers(), userId);
     }
 
-    @SuppressWarnings("unused")
-    private MessageAttachment cacheRemoteAttachment(
-            String url, String kind, String fileName, String mimeType) throws Exception {
+    protected MessageAttachment cacheRemoteAttachment(
+            String url,
+            String kind,
+            String fileName,
+            String mimeType,
+            boolean fromQuote,
+            String transcribedText)
+            throws Exception {
         BoundedAttachmentIO.OkHttpDownloadResult download =
                 BoundedAttachmentIO.downloadOkHttpResult(
                         client, url, BoundedAttachmentIO.DEFAULT_MAX_BYTES, securityPolicyService);
@@ -760,9 +916,34 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 AttachmentCacheService.normalizeKind(kind, fileName, mimeType),
                 StrUtil.blankToDefault(fileName, "qqbot-attachment.bin"),
                 AttachmentCacheService.normalizeMimeType(download.getContentType(), fileName),
-                false,
-                null,
+                fromQuote,
+                transcribedText,
                 download.getData());
+    }
+
+    private static class QuotedContext {
+        private final String quoteBlock;
+        private final List<MessageAttachment> attachments;
+
+        private QuotedContext() {
+            this("", new ArrayList<MessageAttachment>());
+        }
+
+        private QuotedContext(String quoteBlock, List<MessageAttachment> attachments) {
+            this.quoteBlock = StrUtil.nullToEmpty(quoteBlock).trim();
+            this.attachments =
+                    attachments == null
+                            ? new ArrayList<MessageAttachment>()
+                            : new ArrayList<MessageAttachment>(attachments);
+        }
+
+        private String getQuoteBlock() {
+            return quoteBlock;
+        }
+
+        private List<MessageAttachment> getAttachments() {
+            return attachments;
+        }
     }
 
     private boolean contains(List<String> values, String target) {
