@@ -204,10 +204,36 @@ public class AcpStdioServer {
         capabilities.put("list_session", true);
         capabilities.put("slash_commands", true);
         capabilities.put("mcp_servers", true);
+        capabilities.put("prompt_capabilities", promptCapabilities());
+        capabilities.put("session_capabilities", sessionCapabilities());
         result.put("capabilities", capabilities);
-        result.put("agent_capabilities", capabilities);
+        result.put("agent_capabilities", agentCapabilities(capabilities));
         result.put("auth_methods", new ArrayList<Object>());
         result.put("commands", commands());
+        return result;
+    }
+
+    private Map<String, Object> agentCapabilities(Map<String, Object> flatCapabilities) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.putAll(flatCapabilities);
+        result.put("prompt_capabilities", promptCapabilities());
+        result.put("promptCapabilities", result.get("prompt_capabilities"));
+        result.put("session_capabilities", sessionCapabilities());
+        result.put("sessionCapabilities", result.get("session_capabilities"));
+        return result;
+    }
+
+    private Map<String, Object> promptCapabilities() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("image", Boolean.TRUE);
+        return result;
+    }
+
+    private Map<String, Object> sessionCapabilities() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("fork", new LinkedHashMap<String, Object>());
+        result.put("list", new LinkedHashMap<String, Object>());
+        result.put("resume", new LinkedHashMap<String, Object>());
         return result;
     }
 

@@ -50,6 +50,8 @@ public class AcpStdioServerTest {
                 .contains("\"id\":1")
                 .contains("\"protocol_version\":1")
                 .contains("\"agent_capabilities\"")
+                .contains("\"prompt_capabilities\":{\"image\":true}")
+                .contains("\"session_capabilities\":{\"fork\":{},\"list\":{},\"resume\":{}}")
                 .contains("\"slash_commands\":true")
                 .contains("context")
                 .contains("reload-mcp");
