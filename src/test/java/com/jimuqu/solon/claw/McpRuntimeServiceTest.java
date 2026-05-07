@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -359,6 +360,33 @@ public class McpRuntimeServiceTest {
                 .hasMessageContaining("operation: slow_tool");
         assertThat(factory.provider.interrupted.await(2, TimeUnit.SECONDS)).isTrue();
         mcpRuntimeService.shutdown();
+    }
+
+    @Test
+    void shouldIncludeExceptionTypeWhenMcpToolErrorMessageIsBlank() throws Throwable {
+        for (String mode : Arrays.asList("blank-error", "space-error")) {
+            TestEnvironment env = TestEnvironment.withFakeLlm();
+            env.appConfig.getMcp().setEnabled(true);
+            saveMcpServer(env.appConfig, env.sqliteDatabase);
+            RecoveringMcpFactory factory = new RecoveringMcpFactory(mode);
+            McpRuntimeService mcpRuntimeService =
+                    new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+            ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+            FunctionTool docsFetch = toolByName(provider, "mcp_local-docs_docs_fetch");
+
+            Throwable thrown = catchThrowable(() -> docsFetch.handle(Collections.<String, Object>emptyMap()));
+
+            assertThat(thrown).as(mode).isInstanceOf(IllegalStateException.class);
+            assertThat(thrown.getMessage())
+                    .contains("MCP call failed")
+                    .contains(
+                            "blank-error".equals(mode)
+                                    ? "BlankMcpError"
+                                    : "WhitespaceMcpError")
+                    .doesNotEndWith(": ");
+            mcpRuntimeService.shutdown();
+        }
     }
 
     private void saveMcpServer(AppConfig appConfig, SqliteDatabase database) throws Exception {
@@ -764,6 +792,12 @@ public class McpRuntimeServiceTest {
                                 && generation == 1) {
                             throw new IllegalStateException(mode.substring("transport:".length()));
                         }
+                        if ("blank-error".equals(mode)) {
+                            throw new BlankMcpError();
+                        }
+                        if ("space-error".equals(mode)) {
+                            throw new WhitespaceMcpError();
+                        }
                         return Collections.singletonMap("content", "recovered");
                     });
             return Collections.<FunctionTool>singletonList(fetch);
@@ -772,6 +806,24 @@ public class McpRuntimeServiceTest {
         @Override
         public void close() {
             closed = true;
+        }
+    }
+
+    private static class BlankMcpError extends RuntimeException {
+        @Override
+        public String getMessage() {
+            return "";
+        }
+
+        @Override
+        public String toString() {
+            return "";
+        }
+    }
+
+    private static class WhitespaceMcpError extends RuntimeException {
+        private WhitespaceMcpError() {
+            super("   ");
         }
     }
 

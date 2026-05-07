@@ -676,11 +676,18 @@ public class McpRuntimeService implements Closeable {
     }
 
     private String safeError(Throwable e) {
-        String message = e == null ? "" : String.valueOf(e.getMessage());
-        if (StrUtil.isBlank(message) && e != null) {
-            message = e.getClass().getSimpleName();
+        return SecretRedactor.redact(diagnosticError(e), 500);
+    }
+
+    private static String diagnosticError(Throwable e) {
+        if (e == null) {
+            return "";
         }
-        return SecretRedactor.redact(message, 500);
+        String message = String.valueOf(e.getMessage());
+        if (StrUtil.isNotBlank(message)) {
+            return message;
+        }
+        return e.getClass().getSimpleName();
     }
 
     private static String prefixedName(String serverId, String toolName) {
@@ -1396,6 +1403,9 @@ public class McpRuntimeService implements Closeable {
 
         private void throwUnchecked(Throwable error) {
             if (error instanceof RuntimeException) {
+                if (StrUtil.isBlank(error.getMessage())) {
+                    throw new IllegalStateException("MCP call failed: " + diagnosticError(error), error);
+                }
                 throw (RuntimeException) error;
             }
             if (error instanceof Error) {
