@@ -137,6 +137,33 @@ public class AttachmentAwareConversationTest {
                                 "C:\\Users\\chengliang\\.ssh\\id_rsa",
                                 false,
                                 null));
+        message.getAttachments()
+                .add(
+                        attachment(
+                                "file",
+                                ".credentials.json",
+                                "application/json",
+                                "C:\\Users\\chengliang\\.claude\\.credentials.json",
+                                false,
+                                null));
+        message.getAttachments()
+                .add(
+                        attachment(
+                                "file",
+                                "auth.json",
+                                "application/json",
+                                "C:\\Users\\chengliang\\.codex\\auth.json",
+                                false,
+                                null));
+        message.getAttachments()
+                .add(
+                        attachment(
+                                "file",
+                                "application_default_credentials.json",
+                                "application/json",
+                                "/home/user/.config/gcloud/application_default_credentials.json",
+                                false,
+                                null));
 
         env.conversationOrchestrator.handleIncoming(message);
 
@@ -145,6 +172,12 @@ public class AttachmentAwareConversationTest {
         assertThat(llmGateway.lastUserMessage).contains("[redacted-sensitive-path]");
         assertThat(llmGateway.lastUserMessage).doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(llmGateway.lastUserMessage).doesNotContain(".ssh");
+        assertThat(llmGateway.lastUserMessage).doesNotContain(".claude");
+        assertThat(llmGateway.lastUserMessage).doesNotContain(".codex");
+        assertThat(llmGateway.lastUserMessage).doesNotContain(".config/gcloud");
+        assertThat(llmGateway.lastUserMessage).doesNotContain(".credentials.json");
+        assertThat(llmGateway.lastUserMessage)
+                .doesNotContain("application_default_credentials.json");
         assertThat(llmGateway.lastUserMessage).doesNotContain("C:\\Users\\chengliang");
     }
 

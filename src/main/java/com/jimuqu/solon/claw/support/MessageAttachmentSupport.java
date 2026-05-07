@@ -96,14 +96,24 @@ public final class MessageAttachmentSupport {
                 || lower.contains("/.kube/")
                 || lower.contains("/.docker/")
                 || lower.contains("/.azure/")
+                || lower.contains("/.claude/")
+                || lower.contains("/.hermes/")
+                || lower.contains("/.codex/")
+                || lower.contains("/.qwen/")
                 || lower.contains("/.config/gh/")
+                || lower.contains("/.config/gcloud/")
                 || lower.endsWith("/.ssh")
                 || lower.endsWith("/.aws")
                 || lower.endsWith("/.gnupg")
                 || lower.endsWith("/.kube")
                 || lower.endsWith("/.docker")
                 || lower.endsWith("/.azure")
-                || lower.endsWith("/.config/gh");
+                || lower.endsWith("/.claude")
+                || lower.endsWith("/.hermes")
+                || lower.endsWith("/.codex")
+                || lower.endsWith("/.qwen")
+                || lower.endsWith("/.config/gh")
+                || lower.endsWith("/.config/gcloud");
     }
 
     private static boolean isSensitiveFileName(String value) {
