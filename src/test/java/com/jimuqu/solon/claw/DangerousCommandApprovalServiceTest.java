@@ -2375,6 +2375,57 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldAcceptHermesDescriptionApprovalAliasesForImportedAllowlists() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+
+        trace.session.getContext()
+                .put(
+                        "_dangerous_command_session_approvals_",
+                        Collections.singletonList("execute_shell:recursive delete"));
+        env.globalSettingRepository.set(
+                com.jimuqu.solon.claw.support.constants.AgentSettingConstants
+                        .DANGEROUS_COMMAND_ALWAYS_PATTERNS,
+                ONode.serialize(
+                        Collections.singletonList("execute_shell:git reset --hard (destroys uncommitted changes)")));
+
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "recursive_delete"))
+                .isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.isAlwaysApproved(
+                                "git_reset_hard"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "find_delete"))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("git_force_push"))
+                .isFalse();
+
+        Map<String, Object> sessionArgs = new LinkedHashMap<String, Object>();
+        sessionArgs.put("code", "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.buildInterceptor()
+                .onAction(trace, "execute_shell", sessionArgs);
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+
+        TestTrace alwaysTrace = new TestTrace();
+        Map<String, Object> alwaysArgs = new LinkedHashMap<String, Object>();
+        alwaysArgs.put("code", "git reset --hard origin/main");
+        env.dangerousCommandApprovalService.buildInterceptor()
+                .onAction(alwaysTrace, "execute_shell", alwaysArgs);
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(alwaysTrace.session))
+                .isNull();
+        assertThat(alwaysTrace.getFinalAnswer()).isNull();
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "execute_shell", "rm -rf runtime/cache"))
+                .isTrue();
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "execute_shell", "git reset --hard origin/main"))
+                .isTrue();
+    }
+
+    @Test
     void shouldNotifyApprovalObserversForRequestAndResponseLikeHermesHooks() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =

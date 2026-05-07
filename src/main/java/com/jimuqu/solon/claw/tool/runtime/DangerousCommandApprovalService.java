@@ -503,6 +503,8 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c|(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:-Command|-c))\\s+)?(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL)));
+    private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES =
+            buildApprovalKeyAliases();
 
     private final GlobalSettingRepository globalSettingRepository;
     private final AppConfig appConfig;
@@ -1958,20 +1960,24 @@ public class DangerousCommandApprovalService {
                 if (StrUtil.isBlank(patternKey)) {
                     continue;
                 }
-                String pattern = approvalPattern(parts.toolName, patternKey);
-                if (!loadSessionApprovals(context).contains(pattern)
-                        && !loadAlwaysApprovedPatterns().contains(pattern)) {
+                if (!containsApprovalForPattern(
+                        loadSessionApprovals(context),
+                        loadAlwaysApprovedPatterns(),
+                        parts.toolName,
+                        patternKey)) {
                     return false;
                 }
             }
             return true;
         }
 
-        String approvalPattern = approvalPattern(parts.toolName, parts.patternKey);
-        return loadSessionApprovals(context).contains(approvalPattern)
-                || loadSessionApprovals(context).contains(approvalKey)
-                || loadAlwaysApprovedPatterns().contains(approvalPattern)
-                || loadAlwaysApprovedPatterns().contains(approvalKey);
+        return containsApprovalForPattern(
+                        loadSessionApprovals(context),
+                        loadAlwaysApprovedPatterns(),
+                        parts.toolName,
+                        parts.patternKey)
+                || containsApprovalKey(loadSessionApprovals(context), approvalKey)
+                || containsApprovalKey(loadAlwaysApprovedPatterns(), approvalKey);
     }
 
     private void addSessionApproval(FlowContext context, String patternKey) {
@@ -2049,13 +2055,64 @@ public class DangerousCommandApprovalService {
         if (approvals == null || StrUtil.isBlank(patternKey)) {
             return false;
         }
-        String normalizedPattern = patternKey.trim();
-        if (approvals.contains(normalizedPattern)) {
-            return true;
+        return containsApprovalForPattern(approvals, Collections.<String>emptySet(), "", patternKey);
+    }
+
+    private boolean containsApprovalForPattern(
+            Set<String> sessionApprovals,
+            Set<String> alwaysApprovals,
+            String toolName,
+            String patternKey) {
+        for (String alias : approvalKeyAliases(patternKey)) {
+            if (containsApprovalKey(sessionApprovals, alias)
+                    || containsApprovalKey(alwaysApprovals, alias)) {
+                return true;
+            }
+            if (StrUtil.isNotBlank(toolName)) {
+                String toolPattern = approvalPattern(toolName, alias);
+                if (containsApprovalKey(sessionApprovals, toolPattern)
+                        || containsApprovalKey(alwaysApprovals, toolPattern)) {
+                    return true;
+                }
+            } else if (containsApprovalPatternAnyTool(sessionApprovals, alias)
+                    || containsApprovalPatternAnyTool(alwaysApprovals, alias)) {
+                return true;
+            }
         }
+        return false;
+    }
+
+    private boolean containsApprovalPatternAnyTool(Set<String> approvals, String patternKey) {
+        if (approvals == null || StrUtil.isBlank(patternKey)) {
+            return false;
+        }
+        Set<String> aliases = approvalKeyAliases(patternKey);
         for (String approval : approvals) {
             ApprovalKeyParts parts = parseApprovalKey(approval);
-            if (parts != null && normalizedPattern.equals(parts.patternKey)) {
+            if (parts != null && aliases.contains(parts.patternKey)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsApprovalKey(Set<String> approvals, String approvalKey) {
+        if (approvals == null || StrUtil.isBlank(approvalKey)) {
+            return false;
+        }
+        String normalizedKey = approvalKey.trim();
+        if (approvals.contains(normalizedKey)) {
+            return true;
+        }
+        ApprovalKeyParts expected = parseApprovalKey(normalizedKey);
+        if (expected == null) {
+            return false;
+        }
+        for (String approval : approvals) {
+            ApprovalKeyParts actual = parseApprovalKey(approval);
+            if (actual != null
+                    && expected.toolName.equals(actual.toolName)
+                    && approvalKeyAliases(expected.patternKey).contains(actual.patternKey)) {
                 return true;
             }
         }
@@ -2320,6 +2377,62 @@ public class DangerousCommandApprovalService {
 
     private static Pattern caseSensitivePattern(String regex) {
         return Pattern.compile(regex, Pattern.DOTALL);
+    }
+
+    private static Map<String, Set<String>> buildApprovalKeyAliases() {
+        Map<String, Set<String>> aliases = new LinkedHashMap<String, Set<String>>();
+        addApprovalKeyAliases(aliases, RULES);
+        addApprovalKeyAliases(aliases, HARDLINE_RULES);
+        return Collections.unmodifiableMap(aliases);
+    }
+
+    private static void addApprovalKeyAliases(
+            Map<String, Set<String>> aliases, Collection<DangerRule> rules) {
+        if (rules == null) {
+            return;
+        }
+        for (DangerRule rule : rules) {
+            if (rule == null) {
+                continue;
+            }
+            addApprovalKeyAliasPair(aliases, rule.getPatternKey(), rule.getDescription());
+        }
+    }
+
+    private static void addApprovalKeyAliasPair(
+            Map<String, Set<String>> aliases, String left, String right) {
+        if (StrUtil.isBlank(left) || StrUtil.isBlank(right)) {
+            return;
+        }
+        String leftValue = left.trim();
+        String rightValue = right.trim();
+        Set<String> leftAliases = aliases.get(leftValue);
+        if (leftAliases == null) {
+            leftAliases = new LinkedHashSet<String>();
+            aliases.put(leftValue, leftAliases);
+        }
+        leftAliases.add(leftValue);
+        leftAliases.add(rightValue);
+
+        Set<String> rightAliases = aliases.get(rightValue);
+        if (rightAliases == null) {
+            rightAliases = new LinkedHashSet<String>();
+            aliases.put(rightValue, rightAliases);
+        }
+        rightAliases.add(leftValue);
+        rightAliases.add(rightValue);
+    }
+
+    private Set<String> approvalKeyAliases(String patternKey) {
+        if (StrUtil.isBlank(patternKey)) {
+            return Collections.emptySet();
+        }
+        String normalized = patternKey.trim();
+        Set<String> aliases = APPROVAL_KEY_ALIASES.get(normalized);
+        if (aliases != null) {
+            return aliases;
+        }
+        return Collections.singleton(normalized);
     }
 
     public enum ApprovalScope {
