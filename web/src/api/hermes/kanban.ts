@@ -157,9 +157,27 @@ export async function switchKanbanBoard(slug: string) {
   })
 }
 
-export async function fetchKanbanTasks(board?: string): Promise<KanbanTask[]> {
-  const query = board ? `?board=${encodeURIComponent(board)}` : ''
-  return request<KanbanTask[]>(`/api/kanban/tasks${query}`)
+export interface KanbanTaskQuery {
+  board?: string
+  status?: KanbanStatus
+  assignee?: string
+  tenant?: string
+  archived?: boolean
+}
+
+export async function fetchKanbanTasks(query: string | KanbanTaskQuery = ''): Promise<KanbanTask[]> {
+  const params = new URLSearchParams()
+  if (typeof query === 'string') {
+    if (query) params.set('board', query)
+  } else {
+    if (query.board) params.set('board', query.board)
+    if (query.status) params.set('status', query.status)
+    if (query.assignee) params.set('assignee', query.assignee)
+    if (query.tenant) params.set('tenant', query.tenant)
+    if (query.archived) params.set('archived', 'true')
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return request<KanbanTask[]>(`/api/kanban/tasks${suffix}`)
 }
 
 export async function fetchKanbanTask(taskId: string): Promise<KanbanTask> {

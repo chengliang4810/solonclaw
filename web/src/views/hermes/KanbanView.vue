@@ -43,6 +43,9 @@ const daemonBusy = ref(false)
 const daemon = ref<KanbanDaemonStatus | null>(null)
 const daemonInterval = ref(60)
 const daemonMaxSpawn = ref(3)
+const tenantFilter = ref<string | null>('')
+const assigneeFilter = ref<string | null>('')
+const search = ref('')
 const taskForm = ref({
   title: '',
   body: '',
@@ -72,10 +75,43 @@ const boardOptions = computed(() => boards.value.map(board => ({
   value: board.slug,
 })))
 
+const tenantOptions = computed(() => {
+  const values = new Set<string>()
+  tasks.value.forEach(task => {
+    const tenant = task.tenant?.trim()
+    if (tenant) values.add(tenant)
+  })
+  return Array.from(values).sort().map(value => ({ label: value, value }))
+})
+
+const assigneeOptions = computed(() => {
+  const values = new Set<string>()
+  tasks.value.forEach(task => {
+    const assignee = task.assignee?.trim()
+    if (assignee) values.add(assignee)
+  })
+  return Array.from(values).sort().map(value => ({ label: value, value }))
+})
+
+const filteredTasks = computed(() => {
+  const tenant = filterText(tenantFilter.value)
+  const assignee = filterText(assigneeFilter.value)
+  const q = search.value.trim().toLowerCase()
+  return tasks.value.filter(task => {
+    if (tenant && task.tenant !== tenant) return false
+    if (assignee && task.assignee !== assignee) return false
+    if (q) {
+      const hay = `${task.id} ${task.title || ''} ${task.assignee || ''} ${task.tenant || ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
+    return true
+  })
+})
+
 const taskColumns = computed(() => {
   const grouped = new Map<KanbanStatus, KanbanTask[]>()
   visibleStatuses.forEach(status => grouped.set(status, []))
-  tasks.value.forEach(task => {
+  filteredTasks.value.forEach(task => {
     if (grouped.has(task.status)) {
       grouped.get(task.status)!.push(task)
     }
@@ -94,7 +130,7 @@ async function loadKanban() {
   try {
     boards.value = await fetchKanbanBoards()
     activeBoard.value = boards.value.find(board => board.current)?.slug || boards.value[0]?.slug || ''
-    tasks.value = await fetchKanbanTasks(activeBoard.value)
+    tasks.value = await fetchKanbanTasks(taskQuery())
     daemon.value = await fetchKanbanDaemon()
   } finally {
     loading.value = false
@@ -102,9 +138,25 @@ async function loadKanban() {
 }
 
 async function reloadTasks() {
-  tasks.value = await fetchKanbanTasks(activeBoard.value)
+  tasks.value = await fetchKanbanTasks(taskQuery())
   boards.value = await fetchKanbanBoards()
   daemon.value = await fetchKanbanDaemon()
+}
+
+function taskQuery() {
+  return {
+    board: activeBoard.value,
+    tenant: filterText(tenantFilter.value),
+    assignee: filterText(assigneeFilter.value),
+  }
+}
+
+function filterText(value: string | null | undefined) {
+  return (value || '').trim()
+}
+
+async function handleFilterChange() {
+  await reloadTasks()
 }
 
 async function handleBoardChange(slug: string) {
@@ -347,6 +399,35 @@ function hasWarnings(task: KanbanTask): boolean {
           class="board-select"
           @update:value="handleBoardChange"
         />
+        <NSelect
+          v-model:value="tenantFilter"
+          :options="tenantOptions"
+          size="small"
+          clearable
+          filterable
+          tag
+          class="filter-select"
+          placeholder="租户"
+          @update:value="handleFilterChange"
+        />
+        <NSelect
+          v-model:value="assigneeFilter"
+          :options="assigneeOptions"
+          size="small"
+          clearable
+          filterable
+          tag
+          class="filter-select"
+          placeholder="执行人"
+          @update:value="handleFilterChange"
+        />
+        <NInput
+          v-model:value="search"
+          size="small"
+          clearable
+          class="search-input"
+          placeholder="搜索任务"
+        />
         <NButton size="small" @click="showBoardModal = true">新建看板</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(true)">预检派发</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(false)">派发执行</NButton>
@@ -570,6 +651,14 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .board-select {
   width: 220px;
+}
+
+.filter-select {
+  width: 150px;
+}
+
+.search-input {
+  width: 180px;
 }
 
 .kanban-board {
@@ -850,6 +939,11 @@ function hasWarnings(task: KanbanTask): boolean {
   }
 
   .board-select {
+    width: 100%;
+  }
+
+  .filter-select,
+  .search-input {
     width: 100%;
   }
 
