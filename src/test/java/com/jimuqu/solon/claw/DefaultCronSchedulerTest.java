@@ -1676,6 +1676,54 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldSkipTamperedCronContextFromReferencesDuringPromptBuild() throws Exception {
+        RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        long now = System.currentTimeMillis();
+
+        CronJobRecord upstream = job("job-safe-upstream", "MEMORY:upstream-room:user");
+        upstream.setLastOutput("trusted context");
+        upstream.setLastStatus("ok");
+        upstream.setLastRunAt(now - 1000L);
+        upstream.setNextRunAt(now + 60000L);
+        env.cronJobRepository.save(upstream);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "dependent");
+        body.put("schedule", "30m");
+        body.put("prompt", "Process only safe context");
+        body.put("context_from", upstream.getJobId());
+        CronJobRecord job = service.create("MEMORY:dependent-room:user", body);
+        job.setContextFromJson(
+                ONode.serialize(
+                        java.util.Arrays.asList(
+                                "../../../etc/passwd",
+                                "job-safe-upstream;rm -rf runtime",
+                                upstream.getJobId())));
+        job.setNextRunAt(now - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        assertThat(gateway.userMessage)
+                .contains("trusted context")
+                .contains("Process only safe context")
+                .doesNotContain("etc/passwd")
+                .doesNotContain("rm -rf");
+        assertThat(env.cronJobRepository.listRuns(job.getJobId(), 5)).hasSize(1);
+    }
+
+    @Test
     void shouldApplyCronWorkdirToAgentPromptAndTools() throws Exception {
         RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);

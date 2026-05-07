@@ -59,6 +59,7 @@ public class DefaultCronScheduler {
             Pattern.compile(
                     "[`\"']?MEDIA:\\s*(?<path>`[^`\\n]+`|\"[^\"\\n]+\"|'[^'\\n]+'|\\S+)[`\"']?",
                     Pattern.CASE_INSENSITIVE);
+    private static final Pattern SAFE_CONTEXT_JOB_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
 
     private final AppConfig appConfig;
     private final CronJobRepository cronJobRepository;
@@ -811,7 +812,11 @@ public class DefaultCronScheduler {
         Object contextFrom = view.get("context_from");
         if (contextFrom instanceof Iterable) {
             for (Object ref : (Iterable<?>) contextFrom) {
-                CronJobRecord upstream = cronJobRepository.findById(String.valueOf(ref));
+                String upstreamJobId = safeContextJobId(ref);
+                if (upstreamJobId == null) {
+                    continue;
+                }
+                CronJobRecord upstream = cronJobRepository.findById(upstreamJobId);
                 if (upstream != null && StrUtil.isNotBlank(upstream.getLastOutput())) {
                     prompt.append("上游任务 ")
                             .append(upstream.getJobId())
@@ -823,6 +828,17 @@ public class DefaultCronScheduler {
         }
         prompt.append(StrUtil.nullToEmpty(job.getPrompt()));
         return prompt.toString();
+    }
+
+    private String safeContextJobId(Object ref) {
+        if (ref == null) {
+            return null;
+        }
+        String value = String.valueOf(ref).trim();
+        if (StrUtil.isBlank(value) || !SAFE_CONTEXT_JOB_ID.matcher(value).matches()) {
+            return null;
+        }
+        return value;
     }
 
     private String loadSkillPromptParts(CronJobRecord job, List<String> skills) {
