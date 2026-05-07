@@ -316,6 +316,43 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldAdvertiseAndValidateAcpRuntimeAuthMethod() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getProviders().get("default").setApiKey("sk-test-acp-auth");
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.appConfig);
+
+        String init =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"initialize\",\"params\":{\"protocolVersion\":1}}");
+        assertThat(init)
+                .contains("\"id\":20")
+                .contains("\"auth_methods\":[{\"id\":\"default\"")
+                .contains("default runtime credentials");
+
+        String authenticated =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"authenticate\",\"params\":{\"method_id\":\"Default\"}}");
+        assertThat(authenticated)
+                .contains("\"id\":21")
+                .contains("\"ok\":true")
+                .contains("\"authenticated\":true")
+                .contains("\"method_id\":\"default\"");
+
+        String rejected =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"authenticate\",\"params\":{\"method_id\":\"other\"}}");
+        assertThat(rejected)
+                .contains("\"id\":22")
+                .contains("\"ok\":false")
+                .contains("\"authenticated\":false");
+    }
+
+    @Test
     void shouldAcceptHermesEditorSessionModelModeAndConfigMethods() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AppConfig.ProviderConfig fallbackProvider = new AppConfig.ProviderConfig();

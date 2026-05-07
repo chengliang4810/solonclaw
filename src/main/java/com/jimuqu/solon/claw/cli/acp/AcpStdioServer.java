@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.BufferedInputStream;
@@ -240,7 +241,7 @@ public class AcpStdioServer {
         capabilities.put("session_capabilities", sessionCapabilities());
         result.put("capabilities", capabilities);
         result.put("agent_capabilities", agentCapabilities(capabilities));
-        result.put("auth_methods", new ArrayList<Object>());
+        result.put("auth_methods", authMethods());
         result.put("commands", commands());
         return result;
     }
@@ -270,6 +271,18 @@ public class AcpStdioServer {
     }
 
     private Map<String, Object> authenticate(ONode params) {
+        String provider = detectAuthProvider();
+        String methodId = read(params, "method_id", read(params, "methodId", ""));
+        if (StrUtil.isNotBlank(provider)
+                && StrUtil.isNotBlank(methodId)
+                && provider.equals(methodId.trim().toLowerCase())) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("ok", true);
+            result.put("authenticated", true);
+            result.put("method_id", provider);
+            result.put("methodId", provider);
+            return result;
+        }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", false);
         result.put("authenticated", false);
@@ -277,6 +290,46 @@ public class AcpStdioServer {
                 "message",
                 "No ACP auth method is required because jimuqu-agent uses local runtime credentials.");
         return result;
+    }
+
+    private List<Map<String, Object>> authMethods() {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        String provider = detectAuthProvider();
+        if (StrUtil.isBlank(provider)) {
+            return result;
+        }
+        Map<String, Object> method = new LinkedHashMap<String, Object>();
+        method.put("id", provider);
+        method.put("name", provider + " runtime credentials");
+        method.put(
+                "description",
+                "Authenticate jimuqu-agent using the currently configured "
+                        + provider
+                        + " runtime credentials.");
+        result.add(method);
+        return result;
+    }
+
+    private String detectAuthProvider() {
+        if (appConfig == null || appConfig.getProviders() == null || llmProviderService == null) {
+            return null;
+        }
+        String providerKey = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
+        if (StrUtil.isBlank(providerKey)) {
+            providerKey = StrUtil.nullToEmpty(appConfig.getLlm().getProvider()).trim();
+        }
+        if (StrUtil.isBlank(providerKey)) {
+            return null;
+        }
+        try {
+            LlmProviderService.ResolvedProvider resolved = llmProviderService.resolveProvider(providerKey, "");
+            if (resolved != null && SecretValueGuard.hasUsableSecret(resolved.getApiKey())) {
+                return StrUtil.nullToEmpty(resolved.getProviderKey()).trim().toLowerCase();
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
     }
 
     private Map<String, Object> newSession(ONode params) throws Exception {
