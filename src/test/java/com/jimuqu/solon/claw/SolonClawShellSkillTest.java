@@ -768,6 +768,93 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldQueueWatchMatchEventsForManagedBackgroundProcesses() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                watchReadyCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                Collections.singletonList("ready")));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(registry.waitFor(sessionId, 5000L)).isTrue();
+
+        List<Map<String, Object>> events = registry.drainEvents();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).get("type")).isEqualTo("watch_match");
+        assertThat(events.get(0).get("session_id")).isEqualTo(sessionId);
+        assertThat(events.get(0).get("pattern")).isEqualTo("ready");
+        assertThat(String.valueOf(events.get(0).get("output"))).contains("ready");
+        assertThat(registry.get(sessionId).getWatchHits()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldDisableNoisyWatchPatternsAndFallBackToCompletionLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry(null, 250L, 2, 100, 1000L, 1000L);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                repeatedReadyCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                Collections.singletonList("ready")));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(registry.waitFor(sessionId, 10000L)).isTrue();
+
+        List<Map<String, Object>> events = registry.drainEvents(10);
+
+        assertThat(eventTypes(events))
+                .containsExactly("watch_match", "watch_match", "watch_disabled", "completion");
+        assertThat(registry.get(sessionId).isWatchDisabled()).isTrue();
+        assertThat(registry.get(sessionId).isNotifyOnComplete()).isTrue();
+        assertThat(String.valueOf(events.get(2).get("message"))).contains("Falling back");
+        assertThat(String.valueOf(events.get(3).get("output"))).contains("done");
+    }
+
+    @Test
+    void shouldSkipCompletionEventWhenWaitAlreadyConsumedItLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                watchReadyCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.TRUE,
+                                Boolean.FALSE,
+                                null));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(registry.waitFor(sessionId, 5000L)).isTrue();
+        registry.markCompletionConsumed(sessionId);
+
+        assertThat(registry.drainEvents()).isEmpty();
+    }
+
+    @Test
     void shouldReturnHermesJsonForForegroundTerminalCommands() throws Exception {
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -1324,6 +1411,28 @@ public class SolonClawShellSkillTest {
             return "ping -n 30 127.0.0.1 > nul";
         }
         return "sleep 30";
+    }
+
+    private String watchReadyCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo ready";
+        }
+        return "printf 'ready\\n'";
+    }
+
+    private String repeatedReadyCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "powershell -NoProfile -Command \"Write-Output 'ready-1'; Start-Sleep -Milliseconds 100; Write-Output 'ready-2'; Start-Sleep -Milliseconds 500; Write-Output 'ready-3'; Start-Sleep -Milliseconds 100; Write-Output 'ready-4'; Start-Sleep -Milliseconds 100; Write-Output 'done'\"";
+        }
+        return "printf 'ready-1\\n'; sleep 0.1; printf 'ready-2\\n'; sleep 0.5; printf 'ready-3\\n'; sleep 0.1; printf 'ready-4\\n'; sleep 0.1; printf 'done\\n'";
+    }
+
+    private List<String> eventTypes(List<Map<String, Object>> events) {
+        List<String> types = new java.util.ArrayList<String>();
+        for (Map<String, Object> event : events) {
+            types.add(String.valueOf(event.get("type")));
+        }
+        return types;
     }
 
     private String javaSleepWithLongLivedCommentCommand() {

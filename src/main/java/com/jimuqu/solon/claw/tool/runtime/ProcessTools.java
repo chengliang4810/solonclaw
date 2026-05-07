@@ -41,9 +41,9 @@ public class ProcessTools {
     @ToolMapping(
             name = "process",
             description =
-                    "Manage tracked background processes. Actions: start, list, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
+                    "Manage tracked background processes. Actions: start, list, events/drain, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
     public String process(
-            @Param(name = "action", description = "start, list, poll, log, wait, kill, stop, write, submit, close")
+            @Param(name = "action", description = "start, list, events, drain, poll, log, wait, kill, stop, write, submit, close")
                     String action,
             @Param(name = "command", required = false, description = "Command for action=start")
                     String command,
@@ -85,6 +85,9 @@ public class ProcessTools {
             }
             if ("list".equals(normalized)) {
                 return list();
+            }
+            if ("events".equals(normalized) || "drain".equals(normalized)) {
+                return events(limit);
             }
             if ("poll".equals(normalized)) {
                 return poll(sessionId);
@@ -166,6 +169,9 @@ public class ProcessTools {
         }
         List<String> selected = lines.subList(start, end);
         String output = joinLines(selected);
+        if (managed.isExited()) {
+            processRegistry.markCompletionConsumed(managed.getId());
+        }
         return ToolResultEnvelope.ok(
                         managed.isExited()
                                 ? "后台进程日志已读取：" + managed.getId()
@@ -192,6 +198,16 @@ public class ProcessTools {
                 .toJson();
     }
 
+    private String events(Integer limit) {
+        int safeLimit = limit == null ? 100 : Math.max(1, limit.intValue());
+        List<Map<String, Object>> events = processRegistry.drainEvents(safeLimit);
+        return ToolResultEnvelope.ok("后台进程事件：" + events.size() + " 个")
+                .data("events", events)
+                .data("count", Integer.valueOf(events.size()))
+                .data("limit", Integer.valueOf(safeLimit))
+                .toJson();
+    }
+
     private String poll(String sessionId) {
         ProcessRegistry.ManagedProcess managed = requireProcess(sessionId);
         String output = cleanOutput(managed.outputPreview(1000));
@@ -215,6 +231,9 @@ public class ProcessTools {
                 .preview(output)
                 .truncated(managed.isTruncated());
         addNotificationMetadata(envelope, managed);
+        if (managed.isExited()) {
+            processRegistry.markCompletionConsumed(managed.getId());
+        }
         return envelope.toJson();
     }
 
@@ -251,6 +270,7 @@ public class ProcessTools {
                     .preview(output)
                     .toJson();
         }
+        processRegistry.markCompletionConsumed(managed.getId());
         String output = tail(cleanOutput(managed.getOutput()), 2000);
         ToolResultEnvelope envelope =
                 ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())

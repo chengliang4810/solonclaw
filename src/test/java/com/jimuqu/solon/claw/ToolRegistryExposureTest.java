@@ -291,6 +291,42 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldExposeManagedProcessEventsThroughProcessTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        ProcessRegistry.ManagedProcess managed =
+                registry.start(
+                        shortEchoCommand(),
+                        new File(env.appConfig.getRuntime().getHome()),
+                        true,
+                        java.util.Collections.<String>emptyList());
+        ProcessTools tools =
+                new ProcessTools(
+                        registry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        assertThat(registry.waitFor(managed.getId(), 5000L)).isTrue();
+        ONode events =
+                ONode.ofJson(
+                        tools.process(
+                                "events",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(10)));
+
+        assertThat(events.get("success").getBoolean()).isTrue();
+        assertThat(events.get("count").getInt()).isEqualTo(1);
+        assertThat(events.get("events").get(0).get("type").getString()).isEqualTo("completion");
+        assertThat(events.get("events").get(0).get("session_id").getString())
+                .isEqualTo(managed.getId());
+    }
+
+    @Test
     void shouldAttachHermesExitCodeMeaningToManagedProcessResults() throws Exception {
         assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();

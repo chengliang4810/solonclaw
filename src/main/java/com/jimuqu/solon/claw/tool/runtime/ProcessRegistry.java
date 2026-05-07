@@ -13,37 +13,88 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 /** Hermes 风格的受管后台进程注册表。 */
 public class ProcessRegistry {
     private static final int MAX_OUTPUT_CHARS = 200000;
+    private static final long WATCH_MIN_INTERVAL_MILLIS = 15000L;
+    private static final int WATCH_STRIKE_LIMIT = 3;
+    private static final int WATCH_GLOBAL_MAX_PER_WINDOW = 15;
+    private static final long WATCH_GLOBAL_WINDOW_MILLIS = 10000L;
+    private static final long WATCH_GLOBAL_COOLDOWN_MILLIS = 30000L;
     private final AppConfig appConfig;
+    private final long watchMinIntervalMillis;
+    private final int watchStrikeLimit;
+    private final int watchGlobalMaxPerWindow;
+    private final long watchGlobalWindowMillis;
+    private final long watchGlobalCooldownMillis;
     private final Map<String, ManagedProcess> processes =
             Collections.synchronizedMap(new LinkedHashMap<String, ManagedProcess>());
+    private final Queue<Map<String, Object>> processEvents =
+            new ConcurrentLinkedQueue<Map<String, Object>>();
+    private final Set<String> completionConsumed =
+            Collections.synchronizedSet(new HashSet<String>());
+    private final Object globalWatchLock = new Object();
+    private long globalWatchWindowStart;
+    private int globalWatchWindowHits;
+    private long globalWatchTrippedUntil;
+    private int globalWatchSuppressedDuringTrip;
 
     public ProcessRegistry() {
         this(null);
     }
 
     public ProcessRegistry(AppConfig appConfig) {
+        this(
+                appConfig,
+                WATCH_MIN_INTERVAL_MILLIS,
+                WATCH_STRIKE_LIMIT,
+                WATCH_GLOBAL_MAX_PER_WINDOW,
+                WATCH_GLOBAL_WINDOW_MILLIS,
+                WATCH_GLOBAL_COOLDOWN_MILLIS);
+    }
+
+    public ProcessRegistry(
+            AppConfig appConfig,
+            long watchMinIntervalMillis,
+            int watchStrikeLimit,
+            int watchGlobalMaxPerWindow,
+            long watchGlobalWindowMillis,
+            long watchGlobalCooldownMillis) {
         this.appConfig = appConfig;
+        this.watchMinIntervalMillis = Math.max(1L, watchMinIntervalMillis);
+        this.watchStrikeLimit = Math.max(1, watchStrikeLimit);
+        this.watchGlobalMaxPerWindow = Math.max(1, watchGlobalMaxPerWindow);
+        this.watchGlobalWindowMillis = Math.max(1L, watchGlobalWindowMillis);
+        this.watchGlobalCooldownMillis = Math.max(1L, watchGlobalCooldownMillis);
     }
 
     public String add(Process process) {
         String id = IdSupport.newId();
         ManagedProcess managed =
-                new ManagedProcess(id, "", null, process, System.currentTimeMillis(), MAX_OUTPUT_CHARS);
+                new ManagedProcess(
+                        this, id, "", null, process, System.currentTimeMillis(), MAX_OUTPUT_CHARS);
         managed.setPid(resolvePid(process));
         processes.put(id, managed);
         return id;
     }
 
     public ManagedProcess start(String command, File workDir) throws Exception {
+        return start(command, workDir, false, Collections.<String>emptyList());
+    }
+
+    public ManagedProcess start(
+            String command, File workDir, boolean notifyOnComplete, List<String> watchPatterns)
+            throws Exception {
         validateCommand(command);
         String executableCommand = isWindows() ? command : rewriteCompoundBackground(command);
         List<String> shellCommand =
@@ -58,6 +109,7 @@ public class ProcessRegistry {
         String id = "proc_" + IdSupport.newId();
         ManagedProcess managed =
                 new ManagedProcess(
+                        this,
                         id,
                         executableCommand,
                         workDir == null ? null : workDir.getAbsolutePath(),
@@ -65,6 +117,8 @@ public class ProcessRegistry {
                         System.currentTimeMillis(),
                         MAX_OUTPUT_CHARS);
         managed.setPid(resolvePid(process));
+        managed.setNotifyOnComplete(notifyOnComplete);
+        managed.setWatchPatterns(watchPatterns);
         processes.put(id, managed);
         managed.startReader();
         return managed;
@@ -166,6 +220,281 @@ public class ProcessRegistry {
             }
         }
         return count;
+    }
+
+    public List<Map<String, Object>> drainEvents() {
+        return drainEvents(100);
+    }
+
+    public List<Map<String, Object>> drainEvents(int maxEvents) {
+        int safeMax = maxEvents <= 0 ? 100 : maxEvents;
+        List<Map<String, Object>> events = new ArrayList<Map<String, Object>>();
+        while (events.size() < safeMax) {
+            Map<String, Object> event = processEvents.poll();
+            if (event == null) {
+                break;
+            }
+            if (isConsumedCompletion(event)) {
+                continue;
+            }
+            events.add(new LinkedHashMap<String, Object>(event));
+        }
+        return events;
+    }
+
+    public void markCompletionConsumed(String sessionId) {
+        if (StrUtil.isNotBlank(sessionId)) {
+            completionConsumed.add(sessionId);
+        }
+    }
+
+    private boolean isConsumedCompletion(Map<String, Object> event) {
+        Object type = event.get("type");
+        Object sessionId = event.get("session_id");
+        return "completion".equals(type)
+                && sessionId instanceof String
+                && completionConsumed.contains(sessionId);
+    }
+
+    private void checkWatchPatterns(ManagedProcess managed, String newText) {
+        if (managed == null || StrUtil.isBlank(newText)) {
+            return;
+        }
+        List<String> patterns;
+        synchronized (managed) {
+            if (managed.exited || managed.watchDisabled || managed.watchPatterns.isEmpty()) {
+                return;
+            }
+            patterns = new ArrayList<String>(managed.watchPatterns);
+        }
+
+        List<String> matchedLines = new ArrayList<String>();
+        String matchedPattern = null;
+        String[] lines = newText.split("\\r?\\n");
+        for (String line : lines) {
+            for (String pattern : patterns) {
+                if (line.contains(pattern)) {
+                    matchedLines.add(trimTrailingCarriageReturn(line));
+                    if (matchedPattern == null) {
+                        matchedPattern = pattern;
+                    }
+                    break;
+                }
+            }
+        }
+        if (matchedLines.isEmpty()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        boolean returnEarly;
+        boolean shouldDisable = false;
+        int suppressed = 0;
+        synchronized (managed) {
+            if (managed.exited || managed.watchDisabled || managed.watchPatterns.isEmpty()) {
+                return;
+            }
+            if (managed.watchCooldownUntil > 0L && now < managed.watchCooldownUntil) {
+                managed.watchSuppressed += matchedLines.size();
+                if (!managed.watchStrikeCandidate) {
+                    managed.watchStrikeCandidate = true;
+                    managed.watchConsecutiveStrikes++;
+                    if (managed.watchConsecutiveStrikes >= watchStrikeLimit) {
+                        managed.watchDisabled = true;
+                        managed.notifyOnComplete = true;
+                        shouldDisable = true;
+                    }
+                }
+                returnEarly = true;
+            } else {
+                if (managed.watchCooldownUntil > 0L && !managed.watchStrikeCandidate) {
+                    managed.watchConsecutiveStrikes = 0;
+                }
+                managed.watchStrikeCandidate = false;
+                managed.watchLastEmitAt = now;
+                managed.watchCooldownUntil = now + watchMinIntervalMillis;
+                managed.watchHits++;
+                suppressed = managed.watchSuppressed;
+                managed.watchSuppressed = 0;
+                returnEarly = false;
+            }
+        }
+
+        if (returnEarly) {
+            if (shouldDisable) {
+                enqueueWatchDisabled(managed);
+            }
+            return;
+        }
+
+        if (!globalWatchAdmit(now)) {
+            return;
+        }
+
+        Map<String, Object> event = baseEvent("watch_match", managed);
+        event.put("pattern", matchedPattern);
+        event.put("output", SecretRedactor.redact(limitWatchOutput(matchedLines)));
+        event.put("lines", redactLines(matchedLines));
+        event.put("suppressed", Integer.valueOf(suppressed));
+        enqueueEvent(event);
+    }
+
+    private boolean globalWatchAdmit(long now) {
+        Map<String, Object> releaseEvent = null;
+        Map<String, Object> tripEvent = null;
+        boolean admit;
+        synchronized (globalWatchLock) {
+            if (globalWatchTrippedUntil > 0L && now >= globalWatchTrippedUntil) {
+                int suppressed = globalWatchSuppressedDuringTrip;
+                globalWatchTrippedUntil = 0L;
+                globalWatchSuppressedDuringTrip = 0;
+                globalWatchWindowStart = now;
+                globalWatchWindowHits = 0;
+                if (suppressed > 0) {
+                    releaseEvent = summaryEvent("watch_overflow_released");
+                    releaseEvent.put("suppressed", Integer.valueOf(suppressed));
+                    releaseEvent.put(
+                            "message",
+                            "Watch-pattern notifications resumed. "
+                                    + suppressed
+                                    + " match event(s) were suppressed during the flood.");
+                }
+            }
+
+            if (globalWatchTrippedUntil > 0L && now < globalWatchTrippedUntil) {
+                globalWatchSuppressedDuringTrip++;
+                admit = false;
+            } else {
+                if (now - globalWatchWindowStart >= watchGlobalWindowMillis) {
+                    globalWatchWindowStart = now;
+                    globalWatchWindowHits = 0;
+                }
+                if (globalWatchWindowHits >= watchGlobalMaxPerWindow) {
+                    globalWatchTrippedUntil = now + watchGlobalCooldownMillis;
+                    globalWatchSuppressedDuringTrip++;
+                    tripEvent = summaryEvent("watch_overflow_tripped");
+                    tripEvent.put(
+                            "message",
+                            "Watch-pattern overflow: >"
+                                    + watchGlobalMaxPerWindow
+                                    + " notifications in "
+                                    + (watchGlobalWindowMillis / 1000L)
+                                    + "s across all processes. Suppressing further watch_match events for "
+                                    + (watchGlobalCooldownMillis / 1000L)
+                                    + "s.");
+                    admit = false;
+                } else {
+                    globalWatchWindowHits++;
+                    admit = true;
+                }
+            }
+        }
+        if (releaseEvent != null) {
+            enqueueEvent(releaseEvent);
+        }
+        if (tripEvent != null) {
+            enqueueEvent(tripEvent);
+        }
+        return admit;
+    }
+
+    private void enqueueWatchDisabled(ManagedProcess managed) {
+        Map<String, Object> event = baseEvent("watch_disabled", managed);
+        event.put("suppressed", Integer.valueOf(managed.getWatchSuppressed()));
+        event.put("watch_disabled", Boolean.TRUE);
+        event.put("notify_on_complete", Boolean.TRUE);
+        event.put(
+                "message",
+                "Watch patterns disabled for process "
+                        + managed.getId()
+                        + " after "
+                        + watchStrikeLimit
+                        + " consecutive rate-limit windows. Falling back to notify_on_complete semantics.");
+        enqueueEvent(event);
+    }
+
+    private void enqueueCompletionIfNeeded(ManagedProcess managed) {
+        boolean shouldQueue;
+        synchronized (managed) {
+            shouldQueue =
+                    managed.notifyOnComplete && managed.exited && !managed.completionEventQueued;
+            if (shouldQueue) {
+                managed.completionEventQueued = true;
+            }
+        }
+        if (!shouldQueue) {
+            return;
+        }
+        Map<String, Object> event = baseEvent("completion", managed);
+        event.put("exit_code", managed.getExitCode());
+        event.put("output", SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(tail(managed.getOutput(), 2000))));
+        enqueueEvent(event);
+    }
+
+    private Map<String, Object> baseEvent(String type, ManagedProcess managed) {
+        Map<String, Object> event = new LinkedHashMap<String, Object>();
+        event.put("type", type);
+        event.put("session_id", managed.getId());
+        event.put("id", managed.getId());
+        event.put("command", SecretRedactor.redact(managed.getCommand()));
+        event.put("status", managed.isExited() ? "exited" : "running");
+        event.put("pid", managed.getPid());
+        event.put("created_at", Long.valueOf(System.currentTimeMillis()));
+        return event;
+    }
+
+    private Map<String, Object> summaryEvent(String type) {
+        Map<String, Object> event = new LinkedHashMap<String, Object>();
+        event.put("type", type);
+        event.put("session_id", "");
+        event.put("id", "");
+        event.put("command", "");
+        event.put("status", "summary");
+        event.put("created_at", Long.valueOf(System.currentTimeMillis()));
+        return event;
+    }
+
+    private void enqueueEvent(Map<String, Object> event) {
+        processEvents.offer(event);
+    }
+
+    private String limitWatchOutput(List<String> matchedLines) {
+        StringBuilder buffer = new StringBuilder();
+        int count = Math.min(20, matchedLines.size());
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                buffer.append('\n');
+            }
+            buffer.append(matchedLines.get(i));
+        }
+        String output = buffer.toString();
+        if (output.length() <= 2000) {
+            return output;
+        }
+        return output.substring(0, 2000) + "\n...(truncated)";
+    }
+
+    private List<String> redactLines(List<String> lines) {
+        List<String> redacted = new ArrayList<String>();
+        for (String line : lines) {
+            redacted.add(SecretRedactor.redact(line));
+        }
+        return redacted;
+    }
+
+    private static String tail(String text, int maxChars) {
+        String value = StrUtil.nullToEmpty(text);
+        if (value.length() <= maxChars) {
+            return value;
+        }
+        return value.substring(value.length() - maxChars);
+    }
+
+    private static String trimTrailingCarriageReturn(String value) {
+        if (value != null && value.endsWith("\r")) {
+            return value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 
     static List<String> shellCommand(String command, List<String> shellInitFiles, boolean windows) {
@@ -386,6 +715,7 @@ public class ProcessRegistry {
     }
 
     public static class ManagedProcess {
+        private final ProcessRegistry owner;
         private final String id;
         private final String command;
         private final String cwd;
@@ -400,14 +730,24 @@ public class ProcessRegistry {
         private boolean stdinClosed;
         private boolean notifyOnComplete;
         private List<String> watchPatterns = Collections.emptyList();
+        private int watchHits;
+        private int watchSuppressed;
+        private boolean watchDisabled;
+        private long watchLastEmitAt;
+        private long watchCooldownUntil;
+        private boolean watchStrikeCandidate;
+        private int watchConsecutiveStrikes;
+        private boolean completionEventQueued;
 
         ManagedProcess(
+                ProcessRegistry owner,
                 String id,
                 String command,
                 String cwd,
                 Process process,
                 long startedAt,
                 int maxOutputChars) {
+            this.owner = owner;
             this.id = id;
             this.command = command;
             this.cwd = cwd;
@@ -459,17 +799,25 @@ public class ProcessRegistry {
                 output.delete(0, overflow);
                 truncated = true;
             }
+            if (owner != null) {
+                owner.checkWatchPatterns(this, text);
+            }
         }
 
-        synchronized void refreshExitState() {
+        synchronized boolean refreshExitState() {
             if (exited) {
-                return;
+                return false;
             }
             try {
                 exitCode = Integer.valueOf(process.exitValue());
                 exited = true;
+                if (owner != null) {
+                    owner.enqueueCompletionIfNeeded(this);
+                }
+                return true;
             } catch (IllegalThreadStateException ignored) {
                 exited = false;
+                return false;
             }
         }
 
@@ -550,6 +898,9 @@ public class ProcessRegistry {
             if (!watchPatterns.isEmpty()) {
                 map.put("watch_patterns", new ArrayList<String>(watchPatterns));
             }
+            map.put("watch_hits", Integer.valueOf(watchHits));
+            map.put("watch_suppressed", Integer.valueOf(watchSuppressed));
+            map.put("watch_disabled", Boolean.valueOf(watchDisabled));
             map.put("output", getOutput());
             map.put("output_preview", outputPreview(200));
             map.put("truncated", Boolean.valueOf(truncated));
@@ -637,6 +988,9 @@ public class ProcessRegistry {
 
         public synchronized void setNotifyOnComplete(boolean notifyOnComplete) {
             this.notifyOnComplete = notifyOnComplete;
+            if (notifyOnComplete && exited && owner != null) {
+                owner.enqueueCompletionIfNeeded(this);
+            }
         }
 
         public synchronized List<String> getWatchPatterns() {
@@ -650,6 +1004,18 @@ public class ProcessRegistry {
                 this.watchPatterns =
                         Collections.unmodifiableList(new ArrayList<String>(watchPatterns));
             }
+        }
+
+        public synchronized int getWatchHits() {
+            return watchHits;
+        }
+
+        public synchronized int getWatchSuppressed() {
+            return watchSuppressed;
+        }
+
+        public synchronized boolean isWatchDisabled() {
+            return watchDisabled;
         }
 
         private static String isoLocal(long timestamp) {

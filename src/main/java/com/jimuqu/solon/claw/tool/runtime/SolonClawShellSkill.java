@@ -330,7 +330,6 @@ public class SolonClawShellSkill extends ShellSkill {
                             + "(for example gh auth login --with-token). For local background "
                             + "processes, call process(action='close') after writing so it receives EOF.";
         }
-        ProcessRegistry.ManagedProcess managed = processRegistry.start(command, dir);
         List<String> normalizedWatchPatterns = normalizeWatchPatterns(watchPatterns);
         String conflictNote = null;
         if (Boolean.TRUE.equals(notifyOnComplete) && !normalizedWatchPatterns.isEmpty()) {
@@ -339,8 +338,12 @@ public class SolonClawShellSkill extends ShellSkill {
                             + "these two flags produce duplicate notifications when combined";
             normalizedWatchPatterns = Collections.emptyList();
         }
-        managed.setNotifyOnComplete(Boolean.TRUE.equals(notifyOnComplete));
-        managed.setWatchPatterns(normalizedWatchPatterns);
+        ProcessRegistry.ManagedProcess managed =
+                processRegistry.start(
+                        command,
+                        dir,
+                        Boolean.TRUE.equals(notifyOnComplete),
+                        normalizedWatchPatterns);
         ToolResultEnvelope envelope = ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
