@@ -2723,6 +2723,55 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldHardBlockExecuteCodeShellHardlineTextLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "import os\nos.system('sudo reboot')\n");
+
+        service.buildInterceptor().onAction(trace, "execute_code", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
+    void shouldHardBlockExecuteCodeSubprocessArgvHardlineLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "import subprocess\nsubprocess.run(['sudo', 'reboot'])\n");
+
+        service.buildInterceptor().onAction(trace, "execute_code", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("shutdown");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
+    void shouldNotHardBlockExecuteCodePlainStringMentions() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult result =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_python", "print('sudo reboot')");
+
+        assertThat(result).isNull();
+    }
+
+    @Test
     void shouldPromptForTerminalDangerousCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =

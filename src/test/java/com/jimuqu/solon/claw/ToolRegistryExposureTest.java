@@ -1178,6 +1178,55 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReturnErrorWhenExecuteCodeContainsShellHardlineCommand() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "import os\nos.system('sudo reboot')\nprint('after')\n",
+                                Integer.valueOf(5)));
+
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("error").getString())
+                .contains("硬阻断安全规则")
+                .contains("shutdown");
+        assertThat(result.get("output").getString()).doesNotContain("after");
+    }
+
+    @Test
+    void shouldReturnErrorWhenExecuteCodeSubprocessArgvContainsHardlineCommand()
+            throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "import subprocess\nsubprocess.run(['sudo', 'reboot'])\nprint('after')\n",
+                                Integer.valueOf(5)));
+
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("error").getString())
+                .contains("硬阻断安全规则")
+                .contains("shutdown");
+        assertThat(result.get("output").getString()).doesNotContain("after");
+    }
+
+    @Test
     void shouldReturnHermesStyleExecuteCodeErrorsWithStderr() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();

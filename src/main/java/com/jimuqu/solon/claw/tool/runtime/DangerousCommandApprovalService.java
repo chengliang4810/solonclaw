@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.AgentSession;
@@ -83,6 +84,9 @@ public class DangerousCommandApprovalService {
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
+    private static final Pattern PYTHON_SHELL_EXEC_CALL =
+            pattern(
+                    "\\b(?:os\\.system|subprocess\\.(?:run|Popen|call|check_call|check_output))\\s*\\(");
     private static final List<Pattern> LONG_LIVED_FOREGROUND_PATTERNS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -572,10 +576,9 @@ public class DangerousCommandApprovalService {
                 .onTool(
                         ToolNameConstants.EXECUTE_CODE,
                         (trace, args) ->
-                                evaluateCommand(
+                                evaluateCodeCommand(
                                         trace,
                                         ToolNameConstants.EXECUTE_CODE,
-                                        ToolNameConstants.EXECUTE_PYTHON,
                                         codeArg(args)))
                 .onTool(
                         ToolNameConstants.TERMINAL,
@@ -806,6 +809,15 @@ public class DangerousCommandApprovalService {
             result.setHardline(true);
             return result;
         }
+        if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
+            for (String shellCommand : extractPythonShellCommands(normalized)) {
+                DetectionResult result =
+                        detectHardline(ToolNameConstants.EXECUTE_SHELL, shellCommand);
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
         return null;
     }
 
@@ -1023,10 +1035,9 @@ public class DangerousCommandApprovalService {
             result = evaluate(trace, normalized, toolArgs);
         } else if (ToolNameConstants.EXECUTE_CODE.equals(normalized)) {
             result =
-                    evaluateCommand(
+                    evaluateCodeCommand(
                             trace,
                             ToolNameConstants.EXECUTE_CODE,
-                            ToolNameConstants.EXECUTE_PYTHON,
                             codeArg(toolArgs));
         } else if (ToolNameConstants.TERMINAL.equals(normalized)) {
             result = evaluateTerminalTool(trace, toolArgs);
@@ -1133,7 +1144,23 @@ public class DangerousCommandApprovalService {
             persistTraceSnapshot(trace);
             return null;
         }
+        return evaluateCommandWithoutHardline(trace, approvalToolName, ruleToolName, code);
+    }
 
+    private String evaluateCodeCommand(ReActTrace trace, String approvalToolName, String code) {
+        DetectionResult hardline = detectHardline(ToolNameConstants.EXECUTE_PYTHON, code);
+        if (hardline != null) {
+            trace.setFinalAnswer(buildHardlineMessage(approvalToolName, hardline, code));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+        return evaluateCommandWithoutHardline(
+                trace, approvalToolName, ToolNameConstants.EXECUTE_PYTHON, code);
+    }
+
+    private String evaluateCommandWithoutHardline(
+            ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
         SecurityPolicyService.FileVerdict fileVerdict = detectUnsafeCommandPath(code);
         if (fileVerdict != null) {
             trace.setFinalAnswer(buildFilePolicyMessage(approvalToolName, fileVerdict));
@@ -2260,6 +2287,142 @@ public class DangerousCommandApprovalService {
         normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC);
         normalized = normalized.replaceAll("\\\\\\r?\\n", " ");
         return normalized.trim();
+    }
+
+    private static List<String> extractPythonShellCommands(String code) {
+        if (StrUtil.isBlank(code)) {
+            return Collections.emptyList();
+        }
+        List<String> commands = new ArrayList<String>();
+        Matcher matcher = PYTHON_SHELL_EXEC_CALL.matcher(code);
+        while (matcher.find()) {
+            String command = readFirstShellCommandArgument(code, matcher.end());
+            if (StrUtil.isNotBlank(command)) {
+                commands.add(command);
+            }
+        }
+        return commands;
+    }
+
+    private static String readFirstShellCommandArgument(String code, int offset) {
+        int index = skipWhitespace(code, offset);
+        if (index < 0 || index >= code.length()) {
+            return null;
+        }
+        char current = code.charAt(index);
+        if (current == '\'' || current == '"') {
+            return readQuotedString(code, index);
+        }
+        if (current == '[') {
+            return readQuotedStringListCommand(code, index + 1);
+        }
+        return null;
+    }
+
+    private static String readQuotedStringListCommand(String code, int offset) {
+        List<String> parts = new ArrayList<String>();
+        int index = offset;
+        while (index >= 0 && index < code.length()) {
+            index = skipWhitespace(code, index);
+            if (index < 0 || index >= code.length() || code.charAt(index) == ']') {
+                break;
+            }
+            char quote = code.charAt(index);
+            if (quote != '\'' && quote != '"') {
+                return null;
+            }
+            String value = readQuotedString(code, index);
+            if (value == null) {
+                return null;
+            }
+            parts.add(value);
+            index = skipQuotedString(code, index);
+            index = skipWhitespace(code, index);
+            if (index < 0 || index >= code.length() || code.charAt(index) == ']') {
+                break;
+            }
+            if (code.charAt(index) != ',') {
+                return null;
+            }
+            index++;
+        }
+        if (parts.isEmpty()) {
+            return null;
+        }
+        StringBuilder command = new StringBuilder();
+        for (String part : parts) {
+            if (command.length() > 0) {
+                command.append(' ');
+            }
+            command.append(part);
+        }
+        return command.toString();
+    }
+
+    private static String readQuotedString(String code, int offset) {
+        if (code == null || offset < 0 || offset >= code.length()) {
+            return null;
+        }
+        char quote = code.charAt(offset);
+        if (quote != '\'' && quote != '"') {
+            return null;
+        }
+        StringBuilder value = new StringBuilder();
+        boolean escaped = false;
+        for (int i = offset + 1; i < code.length(); i++) {
+            char current = code.charAt(i);
+            if (escaped) {
+                value.append(current);
+                escaped = false;
+                continue;
+            }
+            if (current == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (current == quote) {
+                return value.toString();
+            }
+            value.append(current);
+        }
+        return null;
+    }
+
+    private static int skipQuotedString(String code, int offset) {
+        if (code == null || offset < 0 || offset >= code.length()) {
+            return -1;
+        }
+        char quote = code.charAt(offset);
+        if (quote != '\'' && quote != '"') {
+            return -1;
+        }
+        boolean escaped = false;
+        for (int i = offset + 1; i < code.length(); i++) {
+            char current = code.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (current == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (current == quote) {
+                return i + 1;
+            }
+        }
+        return -1;
+    }
+
+    private static int skipWhitespace(String code, int offset) {
+        if (code == null || offset < 0 || offset > code.length()) {
+            return -1;
+        }
+        int index = offset;
+        while (index < code.length() && Character.isWhitespace(code.charAt(index))) {
+            index++;
+        }
+        return index;
     }
 
     private boolean looksLikeHelpOrVersionCommand(String command) {
