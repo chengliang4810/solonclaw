@@ -36,6 +36,10 @@ public interface SessionRepository {
     /** 按更新时间分页列出最近会话。 */
     List<SessionRecord> listRecent(int limit, int offset) throws Exception;
 
+    /** 列出最近仍处于 Agent pending 状态的会话，用于启动恢复。 */
+    List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit)
+            throws Exception;
+
     /** 返回会话总数。 */
     int countAll() throws Exception;
 

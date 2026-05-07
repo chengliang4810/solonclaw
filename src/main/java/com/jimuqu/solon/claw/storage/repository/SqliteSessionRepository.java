@@ -361,6 +361,37 @@ public class SqliteSessionRepository implements SessionRepository {
     }
 
     @Override
+    public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit)
+            throws Exception {
+        List<SessionRecord> results = new ArrayList<SessionRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select "
+                                    + SELECT_COLUMNS
+                                    + " "
+                                    + "from sessions where updated_at >= ? "
+                                    + "and agent_snapshot_json like ? order by updated_at desc limit ?");
+            statement.setLong(1, Math.max(0L, updatedAfterMillis));
+            statement.setString(2, "%\"_agent_pending_\":true%");
+            statement.setInt(3, Math.max(1, limit));
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    results.add(map(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return results;
+    }
+
+    @Override
     public int countAll() throws Exception {
         Connection connection = database.openConnection();
         try {

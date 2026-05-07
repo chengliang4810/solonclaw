@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
+import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import org.noear.solon.annotation.Bean;
@@ -86,9 +87,21 @@ public class SchedulerConfiguration {
 
     @Bean
     public Object staleRunRecoveryBootstrap(
-            AppConfig appConfig, AgentRunSupervisor agentRunSupervisor) {
+            AppConfig appConfig,
+            AgentRunSupervisor agentRunSupervisor,
+            PendingSessionRecoveryService pendingSessionRecoveryService) {
         long staleAfterMinutes = Math.max(1, appConfig.getTask().getStaleAfterMinutes());
         agentRunSupervisor.recoverStaleRuns(staleAfterMinutes * 60L * 1000L);
+        pendingSessionRecoveryService.recoverRecentPendingSessions();
         return new Object();
+    }
+
+    @Bean
+    public PendingSessionRecoveryService pendingSessionRecoveryService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.core.repository.SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator) {
+        return new PendingSessionRecoveryService(
+                appConfig, sessionRepository, conversationOrchestrator);
     }
 }

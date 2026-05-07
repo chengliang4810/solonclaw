@@ -31,6 +31,7 @@ import com.jimuqu.solon.claw.support.RuntimeFooterService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.MessageDeliveryTracker;
 import java.io.File;
@@ -298,12 +299,29 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
+            clearAgentPending(session);
             syncMemory(session.getSourceKey(), resumedUserMessage, finalReply);
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             applyRuntimeMetadata(reply, outcome);
             return reply;
+        }
+    }
+
+    private void clearAgentPending(SessionRecord session) {
+        if (session == null) {
+            return;
+        }
+        try {
+            SqliteAgentSession agentSession =
+                    new SqliteAgentSession(session, sessionRepository);
+            if (agentSession.isPending()) {
+                agentSession.pending(false, null);
+                agentSession.updateSnapshot();
+            }
+        } catch (Exception e) {
+            log.warn("clear agent pending failed: sessionId={}", session.getSessionId(), e);
         }
     }
 
