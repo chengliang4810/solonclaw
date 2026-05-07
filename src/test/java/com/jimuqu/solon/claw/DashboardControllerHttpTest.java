@@ -431,8 +431,8 @@ public class DashboardControllerHttpTest {
             assertThat(refreshOAuth.body).contains("\"refreshed\":true");
             assertThat(refreshOAuth.body).contains("\"reconnect_required\":true");
             assertThat(refreshOAuth.body).contains("\"has_access_token\":true");
-            assertThat(refreshOAuth.body).doesNotContain("token-secret-2");
-            assertThat(refreshOAuth.body).doesNotContain("refresh-secret-2");
+            assertThat(refreshOAuth.body).doesNotContain("token-secret-");
+            assertThat(refreshOAuth.body).doesNotContain("refresh-secret-");
             Map<String, String> firstRefreshForm =
                     tokenEndpoint.firstFormByRefreshToken("refresh-secret-1");
             assertThat(firstRefreshForm).isNotNull();
@@ -451,8 +451,11 @@ public class DashboardControllerHttpTest {
             assertThat(handle401.body).contains("\"recovered\":true");
             assertThat(handle401.body).contains("\"needs_reauth\":false");
             assertThat(handle401.body).contains("\"reconnect_required\":true");
-            assertThat(handle401.body).doesNotContain("token-secret-3");
-            assertThat(tokenEndpoint.lastForm.get("refresh_token")).isEqualTo(refreshedToken);
+            assertThat(handle401.body).doesNotContain("token-secret-");
+            assertThat(handle401.body).doesNotContain("refresh-secret-");
+            Map<String, String> recoveryRefreshForm =
+                    tokenEndpoint.firstFormByRefreshToken(refreshedToken);
+            assertThat(recoveryRefreshForm).isNotNull();
         } finally {
             tokenEndpoint.stop();
         }
@@ -1075,9 +1078,7 @@ public class DashboardControllerHttpTest {
             return false;
         }
         String safePath = path == null ? "" : path;
-        if (safePath.contains("/oauth/refresh")
-                || safePath.contains("/oauth/handle-401")
-                || safePath.contains("/oauth/callback")) {
+        if (safePath.contains("/oauth/callback")) {
             return false;
         }
         return true;
