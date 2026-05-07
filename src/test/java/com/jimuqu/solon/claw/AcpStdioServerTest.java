@@ -17,13 +17,22 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.session.InMemoryChatSession;
 
 public class AcpStdioServerTest {
+    private static final byte[] ONE_PX_PNG =
+            hex(
+                    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+                            + "890000000a49444154789c6300010000000500010d0a2db40000000049454e44ae426082");
+
     @Test
     void shouldHandleInitializeNewSessionAndPrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -59,6 +68,179 @@ public class AcpStdioServerTest {
                 .contains("\"id\":3")
                 .contains("\"stop_reason\":\"end_turn\"")
                 .contains("echo:hello acp");
+    }
+
+    @Test
+    void shouldInlineAcpResourceLinkTextFile(@TempDir Path tempDir) throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        Path attached = tempDir.resolve("notes.md");
+        Files.write(attached, "# Notes\n\nAttached file body".getBytes(StandardCharsets.UTF_8));
+        String sessionId = extractSessionId(newAcpSession(server, 50));
+
+        String prompted =
+                prompt(
+                        server,
+                        51,
+                        sessionId,
+                        "[{\"type\":\"text\",\"text\":\"Please read this file\"},"
+                                + "{\"type\":\"resource_link\",\"name\":\"notes.md\",\"title\":\"Project notes\","
+                                + "\"uri\":\""
+                                + jsonEscape(attached.toUri().toString())
+                                + "\",\"mimeType\":\"text/markdown\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":51")
+                .contains("Please read this file")
+                .contains("[Attached file: Project notes (notes.md)]")
+                .contains("# Notes")
+                .contains("Attached file body");
+    }
+
+    @Test
+    void shouldPreserveAcpResourceLinkImageFileAsAttachmentNote(@TempDir Path tempDir)
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        Path attached = tempDir.resolve("shot.png");
+        Files.write(attached, ONE_PX_PNG);
+        String sessionId = extractSessionId(newAcpSession(server, 52));
+
+        String prompted =
+                prompt(
+                        server,
+                        53,
+                        sessionId,
+                        "[{\"type\":\"text\",\"text\":\"Look at this screenshot\"},"
+                                + "{\"type\":\"resource_link\",\"name\":\"shot.png\","
+                                + "\"uri\":\""
+                                + jsonEscape(attached.toUri().toString())
+                                + "\",\"mimeType\":\"image/png\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":53")
+                .contains("Look at this screenshot")
+                .contains("[Attached image: shot.png]")
+                .contains("MIME: image/png")
+                .contains("Bytes: " + ONE_PX_PNG.length);
+    }
+
+    @Test
+    void shouldInferAcpResourceLinkImageMimeFromSuffix(@TempDir Path tempDir) throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        Path attached = tempDir.resolve("pic.jpg");
+        Files.write(attached, ONE_PX_PNG);
+        String sessionId = extractSessionId(newAcpSession(server, 54));
+
+        String prompted =
+                prompt(
+                        server,
+                        55,
+                        sessionId,
+                        "[{\"type\":\"resource_link\",\"name\":\"pic.jpg\",\"uri\":\""
+                                + jsonEscape(attached.toUri().toString())
+                                + "\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":55")
+                .contains("[Attached image: pic.jpg]")
+                .contains("MIME: image/jpeg");
+    }
+
+    @Test
+    void shouldInlineAcpEmbeddedTextResource() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        String sessionId = extractSessionId(newAcpSession(server, 56));
+
+        String prompted =
+                prompt(
+                        server,
+                        57,
+                        sessionId,
+                        "[{\"type\":\"resource\",\"resource\":{\"uri\":\"file:///workspace/todo.txt\","
+                                + "\"mimeType\":\"text/plain\",\"text\":\"first\\nsecond\"}}]");
+
+        assertThat(prompted)
+                .contains("\"id\":57")
+                .contains("[Attached file: todo.txt]")
+                .contains("first")
+                .contains("second");
+    }
+
+    @Test
+    void shouldPreserveAcpEmbeddedBlobImageAsAttachmentNote() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        String sessionId = extractSessionId(newAcpSession(server, 58));
+        String b64 = Base64.getEncoder().encodeToString(ONE_PX_PNG);
+
+        String prompted =
+                prompt(
+                        server,
+                        59,
+                        sessionId,
+                        "[{\"type\":\"resource\",\"resource\":{\"uri\":\"file:///tmp/embed.png\","
+                                + "\"mimeType\":\"image/png\",\"blob\":\""
+                                + b64
+                                + "\"}}]");
+
+        assertThat(prompted)
+                .contains("\"id\":59")
+                .contains("[Attached image: embed.png]")
+                .contains("MIME: image/png")
+                .contains("Bytes: " + ONE_PX_PNG.length);
+    }
+
+    @Test
+    void shouldPreserveAcpDirectImageBlockAsAttachmentNote() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        String sessionId = extractSessionId(newAcpSession(server, 60));
+        String b64 = Base64.getEncoder().encodeToString(ONE_PX_PNG);
+
+        String prompted =
+                prompt(
+                        server,
+                        61,
+                        sessionId,
+                        "[{\"type\":\"text\",\"text\":\"Describe it\"},"
+                                + "{\"type\":\"image\",\"name\":\"direct.png\",\"mimeType\":\"image/png\","
+                                + "\"data\":\""
+                                + b64
+                                + "\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":61")
+                .contains("Describe it")
+                .contains("[Attached image: direct.png]")
+                .contains("MIME: image/png")
+                .contains("Bytes: " + ONE_PX_PNG.length);
     }
 
     @Test
@@ -627,6 +809,17 @@ public class AcpStdioServerTest {
                         + ",\"method\":\"session/new\",\"params\":{\"cwd\":\"D:/projects/jimuqu-agent\"}}");
     }
 
+    private String prompt(AcpStdioServer server, int id, String sessionId, String promptJson) {
+        return server.handle(
+                "{\"jsonrpc\":\"2.0\",\"id\":"
+                        + id
+                        + ",\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                        + sessionId
+                        + "\",\"prompt\":"
+                        + promptJson
+                        + "}}");
+    }
+
     private String extractSessionId(String json) {
         return extractJsonString(json, "session_id");
     }
@@ -642,6 +835,22 @@ public class AcpStdioServerTest {
         int end = json.indexOf('"', valueStart);
         assertThat(end).isGreaterThan(valueStart);
         return json.substring(valueStart, end);
+    }
+
+    private static String jsonEscape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static byte[] hex(String value) {
+        int len = value.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] =
+                    (byte)
+                            ((Character.digit(value.charAt(i), 16) << 4)
+                                    + Character.digit(value.charAt(i + 1), 16));
+        }
+        return data;
     }
 
     private static class ModelEchoGateway extends FakeLlmGateway {

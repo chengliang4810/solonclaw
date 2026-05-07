@@ -17,8 +17,17 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.CharacterCodingException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +35,8 @@ import org.noear.snack4.ONode;
 
 /** Minimal ACP JSON-RPC stdio server. Stdout is reserved for protocol frames. */
 public class AcpStdioServer {
+    private static final int MAX_ACP_RESOURCE_BYTES = 512 * 1024;
+
     private final CliRuntime cliRuntime;
     private final AcpSessionManager sessionManager;
     private final SessionRepository sessionRepository;
@@ -755,22 +766,375 @@ public class AcpStdioServer {
         if (prompt.isArray()) {
             StringBuilder buffer = new StringBuilder();
             for (int i = 0; i < prompt.size(); i++) {
-                ONode block = prompt.get(i);
-                if (buffer.length() > 0) {
-                    buffer.append('\n');
-                }
-                String text = read(block, "text", read(block, "content", ""));
-                if (StrUtil.isBlank(text) && block.isValue()) {
-                    text = block.getString();
-                }
-                buffer.append(StrUtil.nullToEmpty(text));
+                appendPromptPart(buffer, promptBlockText(prompt.get(i)));
             }
             return buffer.toString().trim();
         }
         if (prompt.isObject()) {
-            return read(prompt, "text", read(prompt, "content", ""));
+            return promptBlockText(prompt);
         }
         return StrUtil.nullToEmpty(prompt.getString());
+    }
+
+    private void appendPromptPart(StringBuilder buffer, String text) {
+        if (StrUtil.isBlank(text)) {
+            return;
+        }
+        if (buffer.length() > 0) {
+            buffer.append('\n');
+        }
+        buffer.append(text.trim());
+    }
+
+    private String promptBlockText(ONode block) {
+        if (block == null || block.isNull()) {
+            return "";
+        }
+        if (block.isValue()) {
+            return StrUtil.nullToEmpty(block.getString());
+        }
+        if (!block.isObject()) {
+            return "";
+        }
+        String type = read(block, "type", "");
+        if ("resource_link".equals(type)) {
+            return resourceLinkText(block);
+        }
+        if ("resource".equals(type)) {
+            return embeddedResourceText(block);
+        }
+        if ("image".equals(type)) {
+            return directImageText(block);
+        }
+        return read(block, "text", read(block, "content", ""));
+    }
+
+    private String resourceLinkText(ONode block) {
+        String uri = read(block, "uri", "");
+        if (StrUtil.isBlank(uri)) {
+            return "";
+        }
+        String name = read(block, "name", "");
+        String title = read(block, "title", "");
+        String mimeType = readMimeType(block);
+        Path path = localResourcePath(uri);
+        if (path == null) {
+            return formatResourceText(
+                    uri,
+                    name,
+                    title,
+                    "[Resource link only; cannot read non-file ACP resource URI directly]");
+        }
+        String imageMime = StrUtil.blankToDefault(imageMime(mimeType), imageMimeFromPath(path));
+        if (StrUtil.isNotBlank(imageMime)) {
+            return imageResourceNote(uri, name, title, path, imageMime);
+        }
+        try {
+            long size = Files.size(path);
+            int readSize = (int) Math.min(size, (long) MAX_ACP_RESOURCE_BYTES);
+            byte[] data = readFilePrefix(path, readSize);
+            String text = decodeText(data, mimeType);
+            if (text == null) {
+                return formatResourceText(
+                        uri,
+                        name,
+                        title,
+                        "[Binary file omitted: " + size + " bytes, mime=" + displayMime(mimeType) + "]");
+            }
+            String body = text;
+            if (size > MAX_ACP_RESOURCE_BYTES) {
+                body = body + "\n\n[Truncated to " + MAX_ACP_RESOURCE_BYTES + " of " + size + " bytes]";
+            }
+            return formatResourceText(uri, name, title, body);
+        } catch (Exception e) {
+            return formatResourceText(
+                    uri,
+                    name,
+                    title,
+                    "[File read failed: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()) + "]");
+        }
+    }
+
+    private String embeddedResourceText(ONode block) {
+        ONode resource = block.get("resource");
+        if (resource == null || resource.isNull() || !resource.isObject()) {
+            return "";
+        }
+        String uri = read(resource, "uri", "");
+        String name = read(resource, "name", "");
+        String title = read(resource, "title", "");
+        String mimeType = readMimeType(resource);
+        String text = read(resource, "text", "");
+        if (StrUtil.isNotBlank(text)) {
+            return formatResourceText(uri, name, title, text);
+        }
+        String blob = read(resource, "blob", read(resource, "data", ""));
+        if (StrUtil.isBlank(blob)) {
+            return "";
+        }
+        byte[] data = decodeBase64OrUtf8(blob);
+        String imageMime = imageMime(mimeType);
+        if (StrUtil.isNotBlank(imageMime)) {
+            if (data.length > MAX_ACP_RESOURCE_BYTES) {
+                return formatResourceText(
+                        uri,
+                        name,
+                        title,
+                        "[Embedded image too large to inline: "
+                                + data.length
+                                + " bytes, cap="
+                                + MAX_ACP_RESOURCE_BYTES
+                                + "]");
+            }
+            return "[Attached image: " + resourceDisplayName(uri, name, title) + "]"
+                    + (StrUtil.isBlank(uri) ? "" : "\nURI: " + uri)
+                    + "\nMIME: "
+                    + imageMime
+                    + "\nBytes: "
+                    + data.length;
+        }
+        int readSize = Math.min(data.length, MAX_ACP_RESOURCE_BYTES);
+        byte[] prefix = new byte[readSize];
+        System.arraycopy(data, 0, prefix, 0, readSize);
+        String decoded = decodeText(prefix, mimeType);
+        if (decoded == null) {
+            return formatResourceText(
+                    uri,
+                    name,
+                    title,
+                    "[Binary embedded file omitted: "
+                            + data.length
+                            + " bytes, mime="
+                            + displayMime(mimeType)
+                            + "]");
+        }
+        if (data.length > MAX_ACP_RESOURCE_BYTES) {
+            decoded =
+                    decoded
+                            + "\n\n[Truncated to "
+                            + MAX_ACP_RESOURCE_BYTES
+                            + " of "
+                            + data.length
+                            + " bytes]";
+        }
+        return formatResourceText(uri, name, title, decoded);
+    }
+
+    private String directImageText(ONode block) {
+        String uri = read(block, "uri", "");
+        String name = read(block, "name", "");
+        String title = read(block, "title", "");
+        String mimeType = StrUtil.blankToDefault(readMimeType(block), "image/png");
+        String data = read(block, "data", "");
+        int bytes = StrUtil.isBlank(data) ? 0 : decodeBase64OrUtf8(data).length;
+        StringBuilder note = new StringBuilder();
+        note.append("[Attached image: ").append(resourceDisplayName(uri, name, title)).append(']');
+        if (StrUtil.isNotBlank(uri)) {
+            note.append("\nURI: ").append(uri);
+        }
+        note.append("\nMIME: ").append(mimeType);
+        if (bytes > 0) {
+            note.append("\nBytes: ").append(bytes);
+        }
+        return note.toString();
+    }
+
+    private String imageResourceNote(
+            String uri, String name, String title, Path path, String imageMime) {
+        try {
+            long size = Files.size(path);
+            if (size > MAX_ACP_RESOURCE_BYTES) {
+                return formatResourceText(
+                        uri,
+                        name,
+                        title,
+                        "[Image too large to inline: "
+                                + size
+                                + " bytes, cap="
+                                + MAX_ACP_RESOURCE_BYTES
+                                + "]");
+            }
+            return "[Attached image: "
+                    + resourceDisplayName(uri, name, title)
+                    + "]\nURI: "
+                    + uri
+                    + "\nMIME: "
+                    + imageMime
+                    + "\nBytes: "
+                    + size;
+        } catch (Exception e) {
+            return formatResourceText(
+                    uri,
+                    name,
+                    title,
+                    "[Image read failed: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()) + "]");
+        }
+    }
+
+    private String formatResourceText(String uri, String name, String title, String body) {
+        StringBuilder result = new StringBuilder();
+        result.append("[Attached file: ").append(resourceDisplayName(uri, name, title)).append(']');
+        if (StrUtil.isNotBlank(uri)) {
+            result.append("\nURI: ").append(uri);
+        }
+        result.append("\n\n").append(StrUtil.nullToEmpty(body));
+        return result.toString();
+    }
+
+    private String resourceDisplayName(String uri, String name, String title) {
+        if (StrUtil.isNotBlank(title) && StrUtil.isNotBlank(name) && !title.trim().equals(name.trim())) {
+            return title.trim() + " (" + name.trim() + ")";
+        }
+        if (StrUtil.isNotBlank(title)) {
+            return title.trim();
+        }
+        if (StrUtil.isNotBlank(name)) {
+            return name.trim();
+        }
+        Path path = localResourcePath(uri);
+        if (path != null && path.getFileName() != null) {
+            return path.getFileName().toString();
+        }
+        String value = StrUtil.nullToEmpty(uri).trim();
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < value.length()) {
+            return value.substring(slash + 1);
+        }
+        return StrUtil.blankToDefault(value, "attachment");
+    }
+
+    private String readMimeType(ONode node) {
+        return read(node, "mimeType", read(node, "mime_type", ""));
+    }
+
+    private String displayMime(String mimeType) {
+        return StrUtil.blankToDefault(mimeType, "unknown");
+    }
+
+    private Path localResourcePath(String uri) {
+        if (StrUtil.isBlank(uri)) {
+            return null;
+        }
+        try {
+            URI parsed = URI.create(uri);
+            if ("file".equalsIgnoreCase(parsed.getScheme())) {
+                return Paths.get(parsed);
+            }
+            if (parsed.getScheme() != null) {
+                return null;
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            return Paths.get(uri);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private byte[] readFilePrefix(Path path, int maxBytes) throws IOException {
+        InputStream in = Files.newInputStream(path);
+        try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] chunk = new byte[Math.min(8192, Math.max(maxBytes, 1))];
+            int remaining = maxBytes;
+            while (remaining > 0) {
+                int read = in.read(chunk, 0, Math.min(chunk.length, remaining));
+                if (read < 0) {
+                    break;
+                }
+                buffer.write(chunk, 0, read);
+                remaining -= read;
+            }
+            return buffer.toByteArray();
+        } finally {
+            in.close();
+        }
+    }
+
+    private String decodeText(byte[] data, String mimeType) {
+        if (data == null) {
+            return "";
+        }
+        if (!isTextMime(mimeType) && looksBinary(data)) {
+            return null;
+        }
+        CharsetDecoder decoder =
+                StandardCharsets.UTF_8
+                        .newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT);
+        try {
+            return decoder.decode(ByteBuffer.wrap(data)).toString();
+        } catch (CharacterCodingException e) {
+            if (isTextMime(mimeType)) {
+                return new String(data, StandardCharsets.UTF_8);
+            }
+            return null;
+        }
+    }
+
+    private boolean isTextMime(String mimeType) {
+        String value = StrUtil.nullToEmpty(mimeType).trim().toLowerCase();
+        if (value.startsWith("text/")) {
+            return true;
+        }
+        return "application/json".equals(value)
+                || "application/javascript".equals(value)
+                || "application/typescript".equals(value)
+                || "application/xml".equals(value)
+                || "application/x-yaml".equals(value)
+                || "application/yaml".equals(value)
+                || "application/toml".equals(value)
+                || "application/x-ndjson".equals(value);
+    }
+
+    private boolean looksBinary(byte[] data) {
+        int limit = Math.min(data.length, 4096);
+        for (int i = 0; i < limit; i++) {
+            if (data[i] == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private byte[] decodeBase64OrUtf8(String value) {
+        String data = StrUtil.nullToEmpty(value).trim();
+        int comma = data.indexOf(',');
+        if (data.startsWith("data:") && comma >= 0) {
+            data = data.substring(comma + 1);
+        }
+        try {
+            return Base64.getDecoder().decode(data);
+        } catch (Exception e) {
+            return value.getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
+    private String imageMime(String mimeType) {
+        String value = StrUtil.nullToEmpty(mimeType).trim().toLowerCase();
+        return value.startsWith("image/") ? value : "";
+    }
+
+    private String imageMimeFromPath(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return "";
+        }
+        String name = path.getFileName().toString().toLowerCase();
+        if (name.endsWith(".png")) {
+            return "image/png";
+        }
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (name.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (name.endsWith(".webp")) {
+            return "image/webp";
+        }
+        return "";
     }
 
     private String readSessionId(ONode params) {
