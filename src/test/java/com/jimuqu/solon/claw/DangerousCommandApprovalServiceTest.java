@@ -51,6 +51,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult heredoc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "python3 <<'PY'\nprint('x')\nPY");
+        DangerousCommandApprovalService.DetectionResult stdinHeredoc =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "python3 - <<'PY'\nprint('x')\nPY");
+        DangerousCommandApprovalService.DetectionResult compactPythonEval =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "python3 -c'import os; os.system(\"whoami\")'");
+        DangerousCommandApprovalService.DetectionResult compactNodeEval =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "node -e\"require('child_process').execSync('whoami')\"");
         DangerousCommandApprovalService.DetectionResult branchDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git branch -D old-feature");
@@ -66,6 +75,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(shellEval.getPatternKey()).isEqualTo("shell_command_flag");
         assertThat(heredoc).isNotNull();
         assertThat(heredoc.getPatternKey()).isEqualTo("script_heredoc");
+        assertThat(stdinHeredoc).isNotNull();
+        assertThat(stdinHeredoc.getPatternKey()).isEqualTo("script_heredoc");
+        assertThat(compactPythonEval).isNotNull();
+        assertThat(compactPythonEval.getPatternKey()).isEqualTo("script_eval_flag");
+        assertThat(compactNodeEval).isNotNull();
+        assertThat(compactNodeEval.getPatternKey()).isEqualTo("script_eval_flag");
         assertThat(branchDelete).isNotNull();
         assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_force_delete");
         assertThat(safeBranchDelete).isNull();

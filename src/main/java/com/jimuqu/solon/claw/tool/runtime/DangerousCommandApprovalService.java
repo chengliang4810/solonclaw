@@ -174,7 +174,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "script_eval_flag",
                                     "script execution via -e/-c flag",
-                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+-[ec]\\s+"),
+                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+-[ec](?:\\s+|(?=['\"]))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "remote_script_process_substitution",
@@ -279,7 +279,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "script_heredoc",
                                     "script execution via heredoc",
-                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+<<"),
+                                    pattern("\\b(python[23]?|perl|ruby|node)\\s+(?:-\\s+)?<<"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "curl_pipe_shell",
