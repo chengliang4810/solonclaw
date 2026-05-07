@@ -168,7 +168,7 @@ public class McpRuntimeServiceTest {
         tools.put("resources", Boolean.FALSE);
         tools.put("prompts", Boolean.FALSE);
         auth.put("tools", tools);
-        saveMcpServer(env.appConfig, env.sqliteDatabase, auth);
+        saveMcpServer(env.appConfig, env.sqliteDatabase, auth, fullMcpCapabilities());
 
         McpRuntimeService mcpRuntimeService =
                 new McpRuntimeService(env.appConfig, env.sqliteDatabase, new FakeMcpFactory());
@@ -184,6 +184,46 @@ public class McpRuntimeServiceTest {
         assertThat(provider.getTools())
                 .extracting(FunctionTool::name)
                 .containsExactly("mcp_local-docs_docs_search");
+    }
+
+    @Test
+    void shouldGateMcpUtilityToolsByAdvertisedCapabilities() throws Exception {
+        assertUtilityToolsForCapabilities(
+                capabilities(Boolean.FALSE, Boolean.FALSE),
+                "mcp_local-docs_docs_search",
+                "mcp_local-docs_docs_fetch");
+        assertUtilityToolsForCapabilities(
+                capabilities(Boolean.TRUE, Boolean.FALSE),
+                "mcp_local-docs_docs_search",
+                "mcp_local-docs_docs_fetch",
+                "mcp_local-docs_list_resources",
+                "mcp_local-docs_read_resource");
+        assertUtilityToolsForCapabilities(
+                capabilities(Boolean.FALSE, Boolean.TRUE),
+                "mcp_local-docs_docs_search",
+                "mcp_local-docs_docs_fetch",
+                "mcp_local-docs_list_prompts",
+                "mcp_local-docs_get_prompt");
+        assertUtilityToolsForCapabilities(
+                fullMcpCapabilities(),
+                "mcp_local-docs_docs_search",
+                "mcp_local-docs_docs_fetch",
+                "mcp_local-docs_list_resources",
+                "mcp_local-docs_read_resource",
+                "mcp_local-docs_list_prompts",
+                "mcp_local-docs_get_prompt");
+    }
+
+    @Test
+    void shouldKeepLegacyMcpUtilityToolsWhenCapabilitiesAreUnknown() throws Exception {
+        assertUtilityToolsForCapabilities(
+                null,
+                "mcp_local-docs_docs_search",
+                "mcp_local-docs_docs_fetch",
+                "mcp_local-docs_list_resources",
+                "mcp_local-docs_read_resource",
+                "mcp_local-docs_list_prompts",
+                "mcp_local-docs_get_prompt");
     }
 
     @Test
@@ -421,6 +461,15 @@ public class McpRuntimeServiceTest {
     private void saveMcpServer(
             AppConfig appConfig, SqliteDatabase database, Map<String, Object> auth)
             throws Exception {
+        saveMcpServer(appConfig, database, auth, null);
+    }
+
+    private void saveMcpServer(
+            AppConfig appConfig,
+            SqliteDatabase database,
+            Map<String, Object> auth,
+            Map<String, Object> capabilities)
+            throws Exception {
         appConfig.getMcp().setEnabled(true);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("serverId", "local-docs");
@@ -430,7 +479,39 @@ public class McpRuntimeServiceTest {
         if (auth != null) {
             body.put("auth", auth);
         }
+        if (capabilities != null) {
+            body.put("capabilities", capabilities);
+        }
         new com.jimuqu.solon.claw.web.DashboardMcpService(appConfig, database).save(body);
+    }
+
+    private void assertUtilityToolsForCapabilities(
+            Map<String, Object> capabilities, String... expectedNames) throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase, null, capabilities);
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, new FakeMcpFactory());
+        try {
+            ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+            assertThat(provider.getTools())
+                    .extracting(FunctionTool::name)
+                    .containsExactly(expectedNames);
+        } finally {
+            mcpRuntimeService.shutdown();
+        }
+    }
+
+    private Map<String, Object> fullMcpCapabilities() {
+        return capabilities(Boolean.TRUE, Boolean.TRUE);
+    }
+
+    private Map<String, Object> capabilities(Boolean resources, Boolean prompts) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("tools", Boolean.TRUE);
+        result.put("resources", resources);
+        result.put("prompts", prompts);
+        return result;
     }
 
     @Test

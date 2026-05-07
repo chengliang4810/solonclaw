@@ -265,6 +265,7 @@ public class McpRuntimeService implements Closeable {
         config.setArgs(parseStringList(resultSet.getString("args_json")));
         config.setAuth(parseMap(resultSet.getString("auth_json")));
         config.setOauth(parseMap(resultSet.getString("oauth_json")));
+        config.setCapabilities(parseMap(resultSet.getString("capabilities_json")));
         config.setToolOptions(resolveToolOptions(config.getAuth()));
         config.setToolsJson(resultSet.getString("tools_json"));
         config.setLastToolsHash(StrUtil.nullToEmpty(resultSet.getString("last_tools_hash")));
@@ -725,6 +726,7 @@ public class McpRuntimeService implements Closeable {
         private List<String> args = new ArrayList<String>();
         private Map<String, Object> auth = new LinkedHashMap<String, Object>();
         private Map<String, Object> oauth = new LinkedHashMap<String, Object>();
+        private Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         private Map<String, String> headers = new LinkedHashMap<String, String>();
         private Map<String, String> env = new LinkedHashMap<String, String>();
         private McpToolOptions toolOptions = new McpToolOptions();
@@ -797,6 +799,15 @@ public class McpRuntimeService implements Closeable {
 
         public void setOauth(Map<String, Object> oauth) {
             this.oauth = oauth == null ? new LinkedHashMap<String, Object>() : oauth;
+        }
+
+        public Map<String, Object> getCapabilities() {
+            return capabilities;
+        }
+
+        public void setCapabilities(Map<String, Object> capabilities) {
+            this.capabilities =
+                    capabilities == null ? new LinkedHashMap<String, Object>() : capabilities;
         }
 
         public Map<String, String> getHeaders() {
@@ -1011,15 +1022,60 @@ public class McpRuntimeService implements Closeable {
                         });
                 result.add(desc);
             }
-            if (config.getToolOptions().isResourcesEnabled()) {
+            if (supportsResourcesUtility()) {
                 result.add(listResourcesTool());
                 result.add(readResourceTool());
             }
-            if (config.getToolOptions().isPromptsEnabled()) {
+            if (supportsPromptsUtility()) {
                 result.add(listPromptsTool());
                 result.add(getPromptTool());
             }
             return result;
+        }
+
+        private boolean supportsResourcesUtility() {
+            return config.getToolOptions().isResourcesEnabled()
+                    && advertisedCapabilityEnabled("resources");
+        }
+
+        private boolean supportsPromptsUtility() {
+            return config.getToolOptions().isPromptsEnabled()
+                    && advertisedCapabilityEnabled("prompts");
+        }
+
+        private boolean advertisedCapabilityEnabled(String name) {
+            Map<String, Object> capabilities = config.getCapabilities();
+            if (capabilities == null || capabilities.isEmpty()) {
+                return true;
+            }
+            Object capability;
+            if (capabilities.containsKey(name)) {
+                capability = capabilities.get(name);
+            } else {
+                Object nested = capabilities.get("capabilities");
+                if (nested instanceof Map) {
+                    Map<?, ?> nestedCapabilities = (Map<?, ?>) nested;
+                    if (!nestedCapabilities.containsKey(name)) {
+                        return false;
+                    }
+                    capability = nestedCapabilities.get(name);
+                } else {
+                    return false;
+                }
+            }
+            if (capability == null) {
+                return false;
+            }
+            if (capability instanceof Boolean) {
+                return ((Boolean) capability).booleanValue();
+            }
+            if (capability instanceof Map) {
+                return true;
+            }
+            if (capability instanceof Collection) {
+                return !((Collection<?>) capability).isEmpty();
+            }
+            return asBoolean(capability, false);
         }
 
         private FunctionTool listResourcesTool() {
