@@ -155,6 +155,7 @@ public class KanbanService {
         task.setWorkspacePath(text(body, "workspace_path"));
         task.setCreatedBy(StrUtil.blankToDefault(text(body, "created_by"), "user"));
         task.setIdempotencyKey(idempotencyKey);
+        task.setMaxRetries(optionalPositiveInt(body, "max_retries"));
         task.setMaxRuntimeSeconds(longValue(body, "max_runtime_seconds", 0));
         if (body.containsKey("skills") || body.containsKey("skills_json")) {
             Object skills = body.containsKey("skills") ? body.get("skills") : body.get("skills_json");
@@ -222,6 +223,9 @@ public class KanbanService {
         }
         if (body.containsKey("spawn_failures")) {
             task.setSpawnFailures(intValue(body, "spawn_failures", task.getSpawnFailures()));
+        }
+        if (body.containsKey("max_retries") || body.containsKey("maxRetries")) {
+            task.setMaxRetries(optionalPositiveInt(body, "max_retries"));
         }
         if (body.containsKey("max_runtime_seconds")) {
             task.setMaxRuntimeSeconds(longValue(body, "max_runtime_seconds", task.getMaxRuntimeSeconds()));
@@ -917,11 +921,12 @@ public class KanbanService {
     }
 
     private String createCommand(String rest, String author) throws Exception {
-        String raw = requireArg(rest, "/kanban create <title> [--body text] [--assignee name] [--parent task-id]");
+        String createUsage = "/kanban create <title> [--body text] [--assignee name] [--parent task-id] [--max-retries N]";
+        String raw = requireArg(rest, createUsage);
         ParsedKanbanOptions parsed = parseCommandOptions(raw);
         String title = parsed.positionalText();
         if (StrUtil.isBlank(title)) {
-            return "用法：/kanban create <title> [--body text] [--assignee name] [--parent task-id]";
+            return "用法：" + createUsage;
         }
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("title", title);
@@ -946,6 +951,10 @@ public class KanbanService {
         String maxRuntime = parsed.value("max-runtime");
         if (StrUtil.isNotBlank(maxRuntime)) {
             body.put("max_runtime_seconds", Long.valueOf(parseDurationSeconds(maxRuntime)));
+        }
+        String maxRetries = parsed.value("max-retries");
+        if (StrUtil.isNotBlank(maxRetries)) {
+            body.put("max_retries", Integer.valueOf(parsePositiveInt(maxRetries, "max-retries")));
         }
         List<String> parents = parsed.values("parent");
         if (!parents.isEmpty()) {
@@ -1197,6 +1206,33 @@ public class KanbanService {
         String value = parsed.value(optionKey);
         if (StrUtil.isNotBlank(value)) {
             body.put(bodyKey, value);
+        }
+    }
+
+    private Integer optionalPositiveInt(Map<String, Object> body, String key) {
+        if (body == null) {
+            return null;
+        }
+        Object value = body.containsKey(key) ? body.get(key) : body.get("maxRetries");
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        if (StrUtil.isBlank(text)) {
+            return null;
+        }
+        return Integer.valueOf(parsePositiveInt(text, key));
+    }
+
+    private int parsePositiveInt(String value, String label) {
+        try {
+            int parsed = Integer.parseInt(String.valueOf(value).trim());
+            if (parsed < 1) {
+                throw new IllegalArgumentException(label + " must be >= 1");
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(label + " must be a positive integer");
         }
     }
 
@@ -1496,6 +1532,7 @@ public class KanbanService {
         result.put("worker_pid", task.getWorkerPid() <= 0 ? null : Long.valueOf(task.getWorkerPid()));
         result.put("last_spawn_error", task.getLastSpawnError());
         result.put("spawn_failures", Integer.valueOf(task.getSpawnFailures()));
+        result.put("max_retries", task.getMaxRetries());
         result.put(
                 "max_runtime_seconds",
                 task.getMaxRuntimeSeconds() <= 0 ? null : Long.valueOf(task.getMaxRuntimeSeconds()));
@@ -1576,7 +1613,9 @@ public class KanbanService {
         buffer.append("assignee=")
                 .append(StrUtil.blankToDefault((String) task.get("assignee"), "-"))
                 .append(", priority=")
-                .append(task.get("priority"));
+                .append(task.get("priority"))
+                .append(", max_retries=")
+                .append(task.get("max_retries") == null ? "-" : task.get("max_retries"));
         List<Map<String, Object>> comments =
                 (List<Map<String, Object>>) task.get("comments");
         if (comments != null && !comments.isEmpty()) {

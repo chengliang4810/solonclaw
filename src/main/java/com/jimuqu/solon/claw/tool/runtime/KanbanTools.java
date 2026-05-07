@@ -171,6 +171,8 @@ public class KanbanTools {
             @Param(name = "idempotency_key", description = "Optional idempotency key.", required = false)
                     String idempotencyKey,
             @Param(name = "skills", description = "Comma-separated skills.", required = false) String skills,
+            @Param(name = "max_retries", description = "Per-task max spawn retries.", required = false)
+                    Integer maxRetries,
             @Param(name = "max_runtime_seconds", description = "Runtime limit in seconds.", required = false)
                     Long maxRuntimeSeconds) {
         if (StrUtil.isBlank(title)) {
@@ -188,6 +190,9 @@ public class KanbanTools {
             request.put("parents", splitList(parents));
             request.put("idempotency_key", idempotencyKey);
             request.put("skills", splitList(skills));
+            if (maxRetries != null) {
+                request.put("max_retries", maxRetries);
+            }
             if (maxRuntimeSeconds != null) {
                 request.put("max_runtime_seconds", maxRuntimeSeconds);
             }

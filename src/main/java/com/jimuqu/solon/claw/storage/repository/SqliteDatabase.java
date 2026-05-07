@@ -846,6 +846,7 @@ public class SqliteDatabase {
                             + "worker_pid integer not null default 0,"
                             + "last_spawn_error text,"
                             + "spawn_failures integer not null default 0,"
+                            + "max_retries integer,"
                             + "max_runtime_seconds integer not null default 0,"
                             + "last_heartbeat_at integer not null default 0,"
                             + "current_run_id text,"
@@ -867,6 +868,7 @@ public class SqliteDatabase {
             addColumn(statement, "kanban_tasks", "worker_pid integer not null default 0");
             addColumn(statement, "kanban_tasks", "last_spawn_error text");
             addColumn(statement, "kanban_tasks", "spawn_failures integer not null default 0");
+            addColumn(statement, "kanban_tasks", "max_retries integer");
             addColumn(statement, "kanban_tasks", "max_runtime_seconds integer not null default 0");
             addColumn(statement, "kanban_tasks", "last_heartbeat_at integer not null default 0");
             addColumn(statement, "kanban_tasks", "current_run_id text");

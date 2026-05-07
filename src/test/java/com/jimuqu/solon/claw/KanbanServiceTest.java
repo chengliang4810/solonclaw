@@ -81,7 +81,7 @@ public class KanbanServiceTest {
 
         String parentOutput =
                 service.handleCommand(
-                        "create 父任务 --body 父任务正文 --assignee alice --priority 7 --tenant demo --created-by planner --skill research --max-runtime 30m",
+                        "create 父任务 --body 父任务正文 --assignee alice --priority 7 --tenant demo --created-by planner --skill research --max-runtime 30m --max-retries 4",
                         "tester");
         String parentId = firstTaskId(parentOutput);
         Map<String, Object> parent = service.task(parentId);
@@ -91,6 +91,7 @@ public class KanbanServiceTest {
         assertThat(parent.get("priority")).isEqualTo(7);
         assertThat(parent.get("tenant")).isEqualTo("demo");
         assertThat(parent.get("created_by")).isEqualTo("planner");
+        assertThat(parent.get("max_retries")).isEqualTo(Integer.valueOf(4));
         assertThat(parent.get("max_runtime_seconds")).isEqualTo(1800L);
         assertThat(String.valueOf(parent.get("skills"))).contains("research");
 
@@ -481,6 +482,26 @@ public class KanbanServiceTest {
         Map<String, Object> linked = service.updateTask(linkedChildId, update);
         assertThat(String.valueOf(linked.get("parents"))).contains(childId).contains("子任务");
         assertThat(String.valueOf(service.task(childId).get("children"))).contains(linkedChildId).contains("后置检查");
+    }
+
+    @Test
+    void shouldPersistTaskMaxRetriesOverride() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "需要自定义重试次数");
+        body.put("assignee", "worker");
+        body.put("max_retries", 5);
+
+        Map<String, Object> created = service.createTask(body);
+        String taskId = String.valueOf(created.get("id"));
+
+        assertThat(created.get("max_retries")).isEqualTo(Integer.valueOf(5));
+        assertThat(service.handleCommand("show " + taskId, "tester")).contains("max_retries=5");
+
+        Map<String, Object> clear = new LinkedHashMap<String, Object>();
+        clear.put("max_retries", null);
+        Map<String, Object> updated = service.updateTask(taskId, clear);
+        assertThat(updated.get("max_retries")).isNull();
     }
 
     @Test

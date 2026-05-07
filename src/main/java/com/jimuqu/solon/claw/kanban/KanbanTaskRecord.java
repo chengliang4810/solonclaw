@@ -21,6 +21,7 @@ public class KanbanTaskRecord {
     private long workerPid;
     private String lastSpawnError;
     private int spawnFailures;
+    private Integer maxRetries;
     private long maxRuntimeSeconds;
     private long lastHeartbeatAt;
     private String currentRunId;
@@ -182,6 +183,14 @@ public class KanbanTaskRecord {
 
     public void setSpawnFailures(int spawnFailures) {
         this.spawnFailures = spawnFailures;
+    }
+
+    public Integer getMaxRetries() {
+        return maxRetries;
+    }
+
+    public void setMaxRetries(Integer maxRetries) {
+        this.maxRetries = maxRetries;
     }
 
     public long getMaxRuntimeSeconds() {

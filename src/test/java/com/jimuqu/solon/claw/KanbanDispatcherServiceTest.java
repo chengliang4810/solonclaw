@@ -100,7 +100,36 @@ public class KanbanDispatcherServiceTest {
         Map<String, Object> detail = service.task(taskId);
         assertThat(detail.get("status")).isEqualTo("blocked");
         assertThat(detail.get("spawn_failures")).isEqualTo(Integer.valueOf(2));
-        assertThat(String.valueOf(detail.get("events"))).contains("gave_up");
+        assertThat(String.valueOf(detail.get("events")))
+                .contains("gave_up")
+                .contains("effective_limit=2")
+                .contains("limit_source=dispatcher");
+    }
+
+    @Test
+    void shouldUseTaskMaxRetriesBeforeDispatcherFailureLimit() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        FailingSpawner spawner = new FailingSpawner();
+        KanbanDispatcherService dispatcher = new KanbanDispatcherService(repository, service, spawner);
+
+        String taskId = createTask(service, "快速放弃任务", "worker", "planner", "ready", null);
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("max_retries", 1);
+        service.updateTask(taskId, update);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("failure_limit", 99);
+
+        Map<String, Object> result = dispatcher.dispatch(body);
+
+        assertThat(String.valueOf(result.get("auto_blocked"))).contains(taskId);
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(detail.get("status")).isEqualTo("blocked");
+        assertThat(String.valueOf(detail.get("events")))
+                .contains("gave_up")
+                .contains("effective_limit=1")
+                .contains("limit_source=task");
     }
 
     @Test

@@ -316,7 +316,7 @@ public class SqliteKanbanRepository implements KanbanRepository {
         try {
             PreparedStatement statement =
                 connection.prepareStatement(
-                            "insert or replace into kanban_tasks (task_id, board_slug, title, body, assignee, status, priority, tenant, workspace_kind, workspace_path, created_by, result, idempotency_key, claim_lock, claim_expires_at, worker_id, worker_pid, last_spawn_error, spawn_failures, max_runtime_seconds, last_heartbeat_at, current_run_id, workflow_template_id, current_step_key, skills_json, created_at, updated_at, started_at, completed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into kanban_tasks (task_id, board_slug, title, body, assignee, status, priority, tenant, workspace_kind, workspace_path, created_by, result, idempotency_key, claim_lock, claim_expires_at, worker_id, worker_pid, last_spawn_error, spawn_failures, max_retries, max_runtime_seconds, last_heartbeat_at, current_run_id, workflow_template_id, current_step_key, skills_json, created_at, updated_at, started_at, completed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, task.getTaskId());
             statement.setString(2, task.getBoardSlug());
             statement.setString(3, task.getTitle());
@@ -336,16 +336,21 @@ public class SqliteKanbanRepository implements KanbanRepository {
             statement.setLong(17, task.getWorkerPid());
             statement.setString(18, task.getLastSpawnError());
             statement.setInt(19, task.getSpawnFailures());
-            statement.setLong(20, task.getMaxRuntimeSeconds());
-            statement.setLong(21, task.getLastHeartbeatAt());
-            statement.setString(22, task.getCurrentRunId());
-            statement.setString(23, task.getWorkflowTemplateId());
-            statement.setString(24, task.getCurrentStepKey());
-            statement.setString(25, task.getSkillsJson());
-            statement.setLong(26, task.getCreatedAt());
-            statement.setLong(27, task.getUpdatedAt());
-            statement.setLong(28, task.getStartedAt());
-            statement.setLong(29, task.getCompletedAt());
+            if (task.getMaxRetries() == null) {
+                statement.setNull(20, java.sql.Types.INTEGER);
+            } else {
+                statement.setInt(20, task.getMaxRetries().intValue());
+            }
+            statement.setLong(21, task.getMaxRuntimeSeconds());
+            statement.setLong(22, task.getLastHeartbeatAt());
+            statement.setString(23, task.getCurrentRunId());
+            statement.setString(24, task.getWorkflowTemplateId());
+            statement.setString(25, task.getCurrentStepKey());
+            statement.setString(26, task.getSkillsJson());
+            statement.setLong(27, task.getCreatedAt());
+            statement.setLong(28, task.getUpdatedAt());
+            statement.setLong(29, task.getStartedAt());
+            statement.setLong(30, task.getCompletedAt());
             statement.executeUpdate();
             statement.close();
             KanbanTaskRecord persisted = findTask(task.getTaskId());
@@ -1018,7 +1023,14 @@ public class SqliteKanbanRepository implements KanbanRepository {
             return false;
         }
         KanbanTaskRecord task = findTask(taskId);
-        if (task == null || task.getSpawnFailures() < Math.max(1, failureLimit)) {
+        if (task == null) {
+            return false;
+        }
+        int effectiveLimit = task.getMaxRetries() == null
+                ? Math.max(1, failureLimit)
+                : Math.max(1, task.getMaxRetries().intValue());
+        String limitSource = task.getMaxRetries() == null ? "dispatcher" : "task";
+        if (task.getSpawnFailures() < effectiveLimit) {
             return false;
         }
         long now = System.currentTimeMillis();
@@ -1039,6 +1051,8 @@ public class SqliteKanbanRepository implements KanbanRepository {
             closeRunById(task.getCurrentRunId(), "blocked", "gave_up", error, null, error, now, connection);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
             payload.put("failure_limit", Integer.valueOf(Math.max(1, failureLimit)));
+            payload.put("effective_limit", Integer.valueOf(effectiveLimit));
+            payload.put("limit_source", limitSource);
             payload.put("spawn_failures", Integer.valueOf(task.getSpawnFailures()));
             payload.put("error", error);
             addEvent(connection, taskId, "gave_up", payload);
@@ -1760,6 +1774,8 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setWorkerPid(resultSet.getLong("worker_pid"));
         record.setLastSpawnError(resultSet.getString("last_spawn_error"));
         record.setSpawnFailures(resultSet.getInt("spawn_failures"));
+        int maxRetries = resultSet.getInt("max_retries");
+        record.setMaxRetries(resultSet.wasNull() ? null : Integer.valueOf(maxRetries));
         record.setMaxRuntimeSeconds(resultSet.getLong("max_runtime_seconds"));
         record.setLastHeartbeatAt(resultSet.getLong("last_heartbeat_at"));
         record.setCurrentRunId(resultSet.getString("current_run_id"));

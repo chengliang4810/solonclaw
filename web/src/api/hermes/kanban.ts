@@ -71,6 +71,7 @@ export interface KanbanTask {
   worker_pid?: number | null
   last_spawn_error?: string | null
   spawn_failures?: number
+  max_retries?: number | null
   max_runtime_seconds?: number | null
   last_heartbeat_at?: string | null
   current_run_id?: string | null
@@ -103,6 +104,7 @@ export interface CreateKanbanTaskRequest {
   tenant?: string
   idempotency_key?: string
   parents?: string[]
+  max_retries?: number | null
   max_runtime_seconds?: number
   skills?: string[]
   workflow_template_id?: string

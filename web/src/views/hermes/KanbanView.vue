@@ -49,6 +49,7 @@ const taskForm = ref({
   assignee: '',
   status: 'todo' as KanbanStatus,
   priority: 0,
+  max_retries: null as number | null,
   tenant: '',
 })
 const boardForm = ref({ slug: '', name: '', description: '' })
@@ -120,6 +121,7 @@ function openCreateTask() {
     assignee: '',
     status: 'todo',
     priority: 0,
+    max_retries: null,
     tenant: '',
   }
   showTaskModal.value = true
@@ -133,6 +135,7 @@ async function openTask(task: KanbanTask) {
     assignee: selectedTask.value.assignee || '',
     status: selectedTask.value.status,
     priority: selectedTask.value.priority || 0,
+    max_retries: selectedTask.value.max_retries || null,
     tenant: selectedTask.value.tenant || '',
   }
   commentText.value = ''
@@ -153,6 +156,7 @@ async function saveTask() {
     assignee: taskForm.value.assignee.trim(),
     status: taskForm.value.status,
     priority: taskForm.value.priority || 0,
+    max_retries: taskForm.value.max_retries || null,
     tenant: taskForm.value.tenant.trim(),
   }
   if (selectedTask.value) {
@@ -419,6 +423,10 @@ function hasWarnings(task: KanbanTask): boolean {
             <NInputNumber v-model:value="taskForm.priority" :min="0" :max="9" />
           </label>
           <label>
+            <span>最大重试</span>
+            <NInputNumber v-model:value="taskForm.max_retries" :min="1" clearable placeholder="跟随派发器" />
+          </label>
+          <label>
             <span>执行人</span>
             <NInput v-model:value="taskForm.assignee" placeholder="agent/profile/user" />
           </label>
@@ -428,6 +436,10 @@ function hasWarnings(task: KanbanTask): boolean {
           </label>
         </div>
         <div v-if="selectedTask" class="comments">
+          <div class="detail-strip">
+            <span>启动失败 {{ selectedTask.spawn_failures || 0 }} 次</span>
+            <span>最大重试 {{ selectedTask.max_retries || '跟随派发器' }}</span>
+          </div>
           <div
             v-if="(selectedTask.warnings || []).length || selectedTask.claim_lock || (selectedTask.runs || []).length"
             class="recovery-panel"
@@ -727,6 +739,15 @@ function hasWarnings(task: KanbanTask): boolean {
 .comments {
   border-top: 1px solid $border-color;
   padding-top: 12px;
+}
+
+.detail-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: $text-muted;
+  font-size: 12px;
+  margin-bottom: 12px;
 }
 
 .recovery-panel,

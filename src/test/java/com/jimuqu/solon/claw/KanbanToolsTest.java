@@ -29,11 +29,12 @@ public class KanbanToolsTest {
                         parentId,
                         "child-key",
                         "kanban-worker",
+                        Integer.valueOf(2),
                         Long.valueOf(90));
-        assertThat(created).contains("\"success\":true").contains("子任务").contains("task_id");
+        assertThat(created).contains("\"success\":true").contains("子任务").contains("task_id").contains("max_retries");
 
         String childId = String.valueOf(service.createTask(childBody(parentId)).get("id"));
-        String duplicate = tools.kanbanCreate("子任务", "worker", "执行子任务", parentId, "child-key", null, null);
+        String duplicate = tools.kanbanCreate("子任务", "worker", "执行子任务", parentId, "child-key", null, null, null);
         assertThat(duplicate).contains(childId);
 
         String reviewId = task(service, "复核任务", "reviewer");
