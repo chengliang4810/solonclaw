@@ -1070,6 +1070,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockBareSecurityRelevantHostsInsideShellCommandsLikeHermes()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "127.0.0.1");
+
+        SecurityPolicyService.UrlVerdict localhost =
+                securityPolicyService.checkCommandUrls("curl localhost:8080");
+        SecurityPolicyService.UrlVerdict metadataHost =
+                securityPolicyService.checkCommandUrls("curl metadata.google.internal");
+        SecurityPolicyService.UrlVerdict websitePolicy =
+                securityPolicyService.checkCommandUrls("python -c \"fetch('blocked.example')\"");
+        SecurityPolicyService.UrlVerdict ordinaryNumber =
+                securityPolicyService.checkCommandUrls("head -n 10 logs/app.log");
+        SecurityPolicyService.UrlVerdict diagnosticPing =
+                securityPolicyService.checkCommandUrls("ping -n 30 127.0.0.1 > nul");
+
+        assertThat(localhost.isAllowed()).isFalse();
+        assertThat(localhost.getMessage()).contains("内网");
+        assertThat(metadataHost.isAllowed()).isFalse();
+        assertThat(metadataHost.getMessage()).contains("元数据");
+        assertThat(websitePolicy.isAllowed()).isFalse();
+        assertThat(websitePolicy.getMessage()).contains("blocked.example");
+        assertThat(ordinaryNumber.isAllowed()).isTrue();
+        assertThat(diagnosticPing.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldAllowPrivateUrlsWhenConfiguredExceptMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);

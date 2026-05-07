@@ -134,6 +134,12 @@ public class SecurityPolicyService {
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)(https?://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
+    private static final Pattern BARE_HOST_TOKEN_PATTERN =
+            Pattern.compile(
+                    "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
+    private static final Pattern BARE_HOST_FETCH_CONTEXT_PATTERN =
+            Pattern.compile(
+                    "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|WebClient|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
 
     private final AppConfig appConfig;
 
@@ -434,7 +440,47 @@ public class SecurityPolicyService {
         while (matcher.find()) {
             urls.add(matcher.group());
         }
+        extractBareSecurityRelevantHosts(text, urls);
         extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    private void extractBareSecurityRelevantHosts(String text, List<String> urls) {
+        if (!hasBareHostFetchContext(text)) {
+            return;
+        }
+        Matcher matcher = BARE_HOST_TOKEN_PATTERN.matcher(StrUtil.nullToEmpty(text));
+        while (matcher.find()) {
+            String value = cleanUrlToken(matcher.group(1));
+            if (value.length() == 0 || value.contains("://")) {
+                continue;
+            }
+            String host = extractSchemelessHost(value);
+            if (StrUtil.isBlank(host)) {
+                continue;
+            }
+            if (shouldCheckBareHost(host)) {
+                urls.add(value);
+            }
+        }
+    }
+
+    private boolean hasBareHostFetchContext(String text) {
+        return BARE_HOST_FETCH_CONTEXT_PATTERN.matcher(StrUtil.nullToEmpty(text)).find();
+    }
+
+    private boolean shouldCheckBareHost(String host) {
+        if (Pattern.compile("^\\d+$").matcher(StrUtil.nullToEmpty(host)).matches()) {
+            return false;
+        }
+        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
+            if (blocked.equals(host)) {
+                return true;
+            }
+        }
+        if (isLocalOrAddressLiteral(host)) {
+            return true;
+        }
+        return checkWebsitePolicy(host, host) != null;
     }
 
     private void extractObfuscatedSchemelessUrlish(String text, List<String> urls) {
