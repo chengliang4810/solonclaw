@@ -10,6 +10,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -725,12 +726,109 @@ public class SolonClawShellSkill extends ShellSkill {
         }
     }
 
+    String prependShellInit(String code) {
+        List<String> files = resolveShellInitFiles();
+        return prependShellInit(code, files, isWindows());
+    }
+
+    public static String prependShellInit(String code, List<String> files, boolean windows) {
+        if (windows) {
+            return StrUtil.nullToEmpty(code);
+        }
+        if (files.isEmpty()) {
+            return StrUtil.nullToEmpty(code);
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append("set +e\n");
+        for (String file : files) {
+            String safe = file.replace("'", "'\\''");
+            builder.append("[ -r '")
+                    .append(safe)
+                    .append("' ] && . '")
+                    .append(safe)
+                    .append("' 2>/dev/null || true\n");
+        }
+        builder.append(StrUtil.nullToEmpty(code));
+        return builder.toString();
+    }
+
+    List<String> resolveShellInitFiles() {
+        List<String> configured = Collections.emptyList();
+        boolean autoSource = true;
+        if (appConfig != null
+                && appConfig.getTerminal() != null
+                && appConfig.getTerminal().getShellInitFiles() != null) {
+            configured = appConfig.getTerminal().getShellInitFiles();
+            autoSource = appConfig.getTerminal().isAutoSourceBashrc();
+        }
+        String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
+        return resolveShellInitFiles(configured, autoSource, isWindows(), home, System.getenv());
+    }
+
+    public static List<String> resolveShellInitFiles(
+            List<String> configured,
+            boolean autoSourceBashrc,
+            boolean windows,
+            String home,
+            Map<String, String> env) {
+        if (windows) {
+            return Collections.emptyList();
+        }
+        List<String> candidates = new ArrayList<String>();
+        if (configured != null && !configured.isEmpty()) {
+            candidates.addAll(configured);
+        } else if (autoSourceBashrc) {
+            candidates.add("~/.profile");
+            candidates.add("~/.bash_profile");
+            candidates.add("~/.bashrc");
+        }
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> resolved = new ArrayList<String>();
+        for (String item : candidates) {
+            String path = expandShellInitPath(item, home, env);
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            try {
+                Path normalized = Paths.get(path);
+                if (Files.isRegularFile(normalized)) {
+                    resolved.add(normalized.toString());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return Collections.unmodifiableList(resolved);
+    }
+
+    private static String expandShellInitPath(String raw, String home, Map<String, String> env) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        if (value.length() == 0) {
+            return "";
+        }
+        if (value.equals("~") || value.startsWith("~/")) {
+            if (StrUtil.isBlank(home)) {
+                return value;
+            }
+            value = home + value.substring(1);
+        }
+        Map<String, String> values = env == null ? Collections.<String, String>emptyMap() : env;
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            String name = entry.getKey();
+            String envValue = entry.getValue() == null ? "" : entry.getValue();
+            value = value.replace("${" + name + "}", envValue);
+            value = value.replace("$" + name, envValue);
+        }
+        return value;
+    }
+
     private ForegroundResult executeForeground(
             String code, String stdin, Integer timeoutMs, File directory) {
         Path tempScript = null;
         try {
             tempScript = Files.createTempFile(workPath, "_script_", extension);
-            Files.write(tempScript, StrUtil.nullToEmpty(code).getBytes(StandardCharsets.UTF_8));
+            Files.write(tempScript, prependShellInit(code).getBytes(StandardCharsets.UTF_8));
             java.util.List<String> command =
                     new java.util.ArrayList<String>(
                             java.util.Arrays.asList(shellCmd.split("\\s+")));

@@ -297,6 +297,28 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldLoadHermesTerminalShellInitAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-init").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "terminal:\n"
+                        + "  shell_init_files:\n"
+                        + "    - ~/.profile\n"
+                        + "    - ~/.bashrc\n"
+                        + "  auto_source_bashrc: false\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTerminal().getShellInitFiles())
+                .containsExactly("~/.profile", "~/.bashrc");
+        assertThat(config.getTerminal().isAutoSourceBashrc()).isFalse();
+    }
+
+    @Test
     void shouldTreatHermesBooleanFalseApprovalModeAsOff() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-approvals-mode").toFile();
         File configFile = new File(runtimeHome, "config.yml");

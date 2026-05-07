@@ -13,8 +13,12 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Param;
@@ -224,6 +228,104 @@ public class SolonClawShellSkillTest {
                 .isEqualTo("chars");
         assertThat(TerminalAnsiSanitizer.stripAnsi("arr[0] = arr[31]"))
                 .isEqualTo("arr[0] = arr[31]");
+    }
+
+    @Test
+    void shouldResolveDefaultShellInitFilesInHermesOrder() throws Exception {
+        Path home = Files.createTempDirectory("jimuqu-shell-init-home");
+        Path profile = home.resolve(".profile");
+        Path bashProfile = home.resolve(".bash_profile");
+        Path bashrc = home.resolve(".bashrc");
+        Files.write(profile, Collections.singletonList("export FROM_PROFILE=1"));
+        Files.write(bashProfile, Collections.singletonList("export FROM_BASH_PROFILE=1"));
+        Files.write(bashrc, Collections.singletonList("export FROM_BASHRC=1"));
+
+        List<String> resolved =
+                SolonClawShellSkill.resolveShellInitFiles(
+                        Collections.<String>emptyList(),
+                        true,
+                        false,
+                        home.toString(),
+                        Collections.<String, String>emptyMap());
+
+        assertThat(resolved)
+                .containsExactly(
+                        profile.toString(),
+                        bashProfile.toString(),
+                        bashrc.toString());
+    }
+
+    @Test
+    void shouldLetExplicitShellInitFilesWinOverAutoLikeHermes() throws Exception {
+        Path home = Files.createTempDirectory("jimuqu-shell-init-explicit");
+        Path bashrc = home.resolve(".bashrc");
+        Path custom = home.resolve("custom.sh");
+        Files.write(bashrc, Collections.singletonList("export FROM_BASHRC=1"));
+        Files.write(custom, Collections.singletonList("export FROM_CUSTOM=1"));
+
+        List<String> resolved =
+                SolonClawShellSkill.resolveShellInitFiles(
+                        Collections.singletonList("~/custom.sh"),
+                        true,
+                        false,
+                        home.toString(),
+                        Collections.<String, String>emptyMap());
+
+        assertThat(resolved).containsExactly(custom.toString());
+    }
+
+    @Test
+    void shouldExpandShellInitEnvVarsAndSkipMissingFilesLikeHermes() throws Exception {
+        Path home = Files.createTempDirectory("jimuqu-shell-init-env");
+        Path rc = home.resolve("rc");
+        Files.createDirectories(rc);
+        Path custom = rc.resolve("custom.sh");
+        Files.write(custom, Collections.singletonList("export FROM_CUSTOM=1"));
+        Map<String, String> env = new HashMap<String, String>();
+        env.put("CUSTOM_RC_DIR", rc.toString());
+
+        List<String> resolved =
+                SolonClawShellSkill.resolveShellInitFiles(
+                        Arrays.asList(
+                                "${CUSTOM_RC_DIR}/custom.sh",
+                                home.resolve("missing.sh").toString()),
+                        false,
+                        false,
+                        home.toString(),
+                        env);
+
+        assertThat(resolved).containsExactly(custom.toString());
+    }
+
+    @Test
+    void shouldNotResolveShellInitFilesOnWindows() throws Exception {
+        Path home = Files.createTempDirectory("jimuqu-shell-init-windows");
+        Path profile = home.resolve(".profile");
+        Files.write(profile, Collections.singletonList("export FROM_PROFILE=1"));
+
+        List<String> resolved =
+                SolonClawShellSkill.resolveShellInitFiles(
+                        Collections.singletonList(profile.toString()),
+                        true,
+                        true,
+                        home.toString(),
+                        Collections.<String, String>emptyMap());
+
+        assertThat(resolved).isEmpty();
+    }
+
+    @Test
+    void shouldPrependGuardedShellInitSourceLinesLikeHermes() {
+        String wrapped =
+                SolonClawShellSkill.prependShellInit(
+                        "echo hi",
+                        Arrays.asList("/tmp/a.sh", "/tmp/o'malley.sh"),
+                        false);
+
+        assertThat(wrapped).startsWith("set +e\n");
+        assertThat(wrapped).contains("[ -r '/tmp/a.sh' ] && . '/tmp/a.sh' 2>/dev/null || true");
+        assertThat(wrapped).contains("o'\\''malley");
+        assertThat(wrapped).endsWith("echo hi");
     }
 
     @Test

@@ -1489,6 +1489,30 @@ public class AppConfig {
                                                 "terminal.env_passthrough",
                                                 ""))));
         config.getTerminal()
+                .setShellInitFiles(
+                        resolveList(
+                                readRaw(
+                                        props,
+                                        overrides,
+                                        "solonclaw.terminal.shellInitFiles",
+                                        readRaw(
+                                                props,
+                                                overrides,
+                                                "terminal.shell_init_files",
+                                                ""))));
+        config.getTerminal()
+                .setAutoSourceBashrc(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.terminal.autoSourceBashrc",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "terminal.auto_source_bashrc",
+                                                true))));
+        config.getTerminal()
                 .setSudoPassword(
                         resolveConfigString(
                                 readString(
@@ -1793,6 +1817,8 @@ public class AppConfig {
     private void copyTerminal(TerminalConfig other) {
         this.terminal.setCredentialFiles(new ArrayList<String>(other.getCredentialFiles()));
         this.terminal.setEnvPassthrough(new ArrayList<String>(other.getEnvPassthrough()));
+        this.terminal.setShellInitFiles(new ArrayList<String>(other.getShellInitFiles()));
+        this.terminal.setAutoSourceBashrc(other.isAutoSourceBashrc());
         this.terminal.setSudoPassword(other.getSudoPassword());
         this.terminal.setWriteSafeRoot(other.getWriteSafeRoot());
         this.terminal.setMaxForegroundTimeoutSeconds(other.getMaxForegroundTimeoutSeconds());
@@ -3148,6 +3174,12 @@ public class AppConfig {
 
         /** 对齐 Hermes terminal.env_passthrough，允许技能显式传给本地子进程的第三方环境变量名。 */
         private List<String> envPassthrough = new ArrayList<String>();
+
+        /** 对齐 Hermes terminal.shell_init_files，执行非 Windows 本地 shell 前静默 source 的初始化文件。 */
+        private List<String> shellInitFiles = new ArrayList<String>();
+
+        /** 对齐 Hermes terminal.auto_source_bashrc，未显式配置初始化文件时自动尝试 ~/.profile 等文件。 */
+        private boolean autoSourceBashrc = true;
 
         /** 对齐 Hermes SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
         private String sudoPassword;
