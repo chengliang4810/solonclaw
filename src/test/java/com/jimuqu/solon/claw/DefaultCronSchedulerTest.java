@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
 import java.io.File;
 import java.lang.reflect.Method;
@@ -453,6 +454,44 @@ public class DefaultCronSchedulerTest {
         assertThat(request.getChatId()).isEqualTo("feishu-home-room");
         assertThat(request.getText()).contains("home fallback ok");
         assertThat(env.cronJobRepository.findById(job.getJobId()).getLastDeliveryError()).isNull();
+    }
+
+    @Test
+    void shouldSkipDuplicateSendMessageDuringCronAutoDelivery() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        RecordingDeliveryService deliveryService = new RecordingDeliveryService();
+        CronSendMessageOrchestrator orchestrator =
+                new CronSendMessageOrchestrator(
+                        new MessagingTools(
+                                deliveryService,
+                                "MEMORY:cron-room:user",
+                                new AttachmentCacheService(env.appConfig),
+                                env.appConfig));
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "auto-deliver");
+        body.put("schedule", "30m");
+        body.put("prompt", "final answer");
+        body.put("deliver", "origin");
+        CronJobRecord job = service.create("MEMORY:cron-room:user", body);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        orchestrator,
+                        deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.runNow(job.getJobId());
+
+        assertThat(orchestrator.toolResult).contains("cron_auto_delivery_duplicate_target");
+        assertThat(deliveryService.requests).hasSize(1);
+        assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("cron-room");
+        assertThat(deliveryService.requests.get(0).getText()).contains("final cron response");
+        assertThat(deliveryService.requests.get(0).getText()).doesNotContain("duplicate tool message");
     }
 
     @Test
@@ -2466,6 +2505,37 @@ public class DefaultCronSchedulerTest {
         public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
             this.userMessage = syntheticMessage.getText();
             return GatewayReply.ok("agent saw script error");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class CronSendMessageOrchestrator implements ConversationOrchestrator {
+        private final MessagingTools messagingTools;
+        private String toolResult;
+
+        private CronSendMessageOrchestrator(MessagingTools messagingTools) {
+            this.messagingTools = messagingTools;
+        }
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
+            toolResult =
+                    messagingTools.sendMessage(
+                            null,
+                            null,
+                            "duplicate tool message",
+                            java.util.Collections.<String>emptyList(),
+                            null);
+            return GatewayReply.ok("final cron response");
         }
 
         @Override

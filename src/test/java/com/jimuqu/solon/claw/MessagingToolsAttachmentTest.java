@@ -3,9 +3,11 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import java.io.File;
 import java.nio.file.Files;
@@ -16,6 +18,53 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class MessagingToolsAttachmentTest {
+    @Test
+    void shouldSkipSendMessageToCronAutoDeliveryTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        CronAutoDeliveryContext.set(PlatformType.MEMORY, "chat-1", null);
+        String result;
+        try {
+            result = tools.sendMessage(null, null, "重复内容", Collections.<String>emptyList(), null);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
+
+        Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
+        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("skipped")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("reason")).isEqualTo("cron_auto_delivery_duplicate_target");
+        assertThat(env.memoryChannelAdapter.getLastRequest()).isNull();
+    }
+
+    @Test
+    void shouldDeliverSendMessageToDifferentCronTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        CronAutoDeliveryContext.set(PlatformType.MEMORY, "chat-1", null);
+        try {
+            tools.sendMessage("MEMORY", "chat-2", "额外投递", Collections.<String>emptyList(), null);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getChatId()).isEqualTo("chat-2");
+        assertThat(request.getText()).isEqualTo("额外投递");
+    }
+
     @Test
     void shouldDeliverMediaPathsAsAttachments() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

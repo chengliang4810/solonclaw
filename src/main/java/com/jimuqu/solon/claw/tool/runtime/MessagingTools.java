@@ -32,6 +32,7 @@ public class MessagingTools {
     public String sendMessage(
             @Param(name = "platform", description = "目标平台名", required = false) String platform,
             @Param(name = "chatId", description = "目标聊天 ID", required = false) String chatId,
+            @Param(name = "threadId", description = "目标线程或话题 ID", required = false) String threadId,
             @Param(name = "text", description = "要发送的文本") String text,
             @Param(
                             name = "mediaPaths",
@@ -60,12 +61,26 @@ public class MessagingTools {
             return error("invalid target platform: " + platform);
         }
         String targetChatId = StrUtil.isBlank(chatId) ? parts[1] : chatId;
+        if (CronAutoDeliveryContext.isDuplicateTarget(targetPlatform, targetChatId, threadId)) {
+            CronAutoDeliveryContext.Target autoTarget = CronAutoDeliveryContext.current();
+            return ToolResultEnvelope.ok("Skipped duplicate cron auto-delivery target")
+                    .data("skipped", Boolean.TRUE)
+                    .data("reason", "cron_auto_delivery_duplicate_target")
+                    .data("target", autoTarget == null ? null : autoTarget.label())
+                    .data(
+                            "note",
+                            "This cron job will already auto-deliver its final response to that same target.")
+                    .preview("Skipped duplicate cron send_message")
+                    .metadata("sourceKey", sourceKey)
+                    .toJson();
+        }
         String targetUserId = parts.length > 2 ? parts[2] : null;
         List<MessageAttachment> attachments = resolveAttachments(targetPlatform, mediaPaths);
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(targetPlatform);
         request.setChatId(targetChatId);
         request.setUserId(targetUserId);
+        request.setThreadId(StrUtil.blankToDefault(threadId, null));
         request.setText(text);
         request.setAttachments(attachments);
         request.setChannelExtras(parseChannelExtras(channelExtrasJson));
@@ -85,6 +100,16 @@ public class MessagingTools {
                 .preview(text)
                 .metadata("sourceKey", sourceKey)
                 .toJson();
+    }
+
+    public String sendMessage(
+            String platform,
+            String chatId,
+            String text,
+            List<String> mediaPaths,
+            String channelExtrasJson)
+            throws Exception {
+        return sendMessage(platform, chatId, null, text, mediaPaths, channelExtrasJson);
     }
 
     private String error(String message) {

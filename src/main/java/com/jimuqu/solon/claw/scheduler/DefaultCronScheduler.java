@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -510,7 +511,7 @@ public class DefaultCronScheduler {
                 }
                 synthetic.setEnabledToolsetsOverride(resolveCronEnabledToolsets(job));
                 synthetic.setDisabledToolsetsOverride(new ArrayList<String>(CRON_DISABLED_TOOLSETS));
-                reply = runScheduledWithInactivityTimeout(job, synthetic);
+                reply = runScheduledWithAutoDeliveryContext(job, synthetic);
                 output = reply == null ? "" : reply.getContent();
             }
             cronJobRepository.markRunResult(
@@ -662,6 +663,21 @@ public class DefaultCronScheduler {
                         + lastDesc;
         log.error("{}", message);
         throw new TimeoutException(message);
+    }
+
+    private GatewayReply runScheduledWithAutoDeliveryContext(
+            CronJobRecord job, GatewayMessage synthetic) throws Exception {
+        List<CronDeliveryTarget> targets = resolveDeliveryTargets(job);
+        CronDeliveryTarget target = targets.isEmpty() ? null : targets.get(0);
+        if (target == null) {
+            return runScheduledWithInactivityTimeout(job, synthetic);
+        }
+        CronAutoDeliveryContext.set(target.platform, target.chatId, target.threadId);
+        try {
+            return runScheduledWithInactivityTimeout(job, synthetic);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
     }
 
     private int agentInactivityTimeoutSeconds() {
