@@ -85,6 +85,49 @@ public class CompressionStabilityTest {
     }
 
     @Test
+    void shouldUseFilterSafeRemainingWorkHeading() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-filter-safe-summary");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("先梳理任务"),
+                                ChatMessage.ofAssistant(repeat("中间进展", 400)),
+                                ChatMessage.ofUser("继续实现安全审批对齐"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("\nRemaining Work\n");
+        assertThat(compressed.getCompressedSummary()).doesNotContain("\nNext Steps\n");
+    }
+
+    @Test
+    void shouldNormalizeLegacyNextStepsPreviousSummary() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-legacy-next-steps");
+        session.setCompressedSummary(
+                CompressionConstants.SUMMARY_PREFIX
+                        + "\nPrevious Summary\n更早摘要\n\nNext Steps\n旧的后续事项");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("目标：迁移旧摘要"),
+                                ChatMessage.ofAssistant(session.getCompressedSummary()),
+                                ChatMessage.ofAssistant(repeat("中间分析", 800)),
+                                ChatMessage.ofUser("继续"))));
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(compressed.getCompressedSummary()).contains("Previous Summary\nNext Steps\n旧的后续事项");
+        assertThat(compressed.getCompressedSummary()).contains("\nRemaining Work\n");
+    }
+
+    @Test
     void shouldFlattenNestedPreviousSummaryAndCapSummaryLength() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());
         SessionRecord session = new SessionRecord();

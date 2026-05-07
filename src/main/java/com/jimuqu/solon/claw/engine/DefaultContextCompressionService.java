@@ -282,7 +282,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         String progress = collectByRole(middle, ChatRole.ASSISTANT, 3);
         String decisions = collectKeywords(middle, new String[] {"决定", "改为", "使用", "切换", "采用"});
         String files = collectFileMentions(middle);
-        String nextSteps = collectByRole(tail, ChatRole.USER, 1);
+        String remainingWork = collectByRole(tail, ChatRole.USER, 1);
 
         StringBuilder buffer = new StringBuilder();
         String normalizedPreviousSummary = normalizePreviousSummary(previousSummary);
@@ -304,8 +304,8 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         buffer.append("Files\n")
                 .append(StrUtil.blankToDefault(files, "未提取到明确文件列表。"))
                 .append("\n\n");
-        buffer.append("Next Steps\n")
-                .append(StrUtil.blankToDefault(nextSteps, "继续处理最近用户要求，并避免重复之前已完成的工作。"));
+        buffer.append("Remaining Work\n")
+                .append(StrUtil.blankToDefault(remainingWork, "记录最近用户要求，避免重复之前已完成的工作。"));
         return trimMultilineContent(
                 buffer.toString().trim(), CompressionConstants.MAX_SUMMARY_LENGTH);
     }
@@ -548,7 +548,10 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     private int findFirstSectionHeader(String content) {
         int result = -1;
         String[] headers =
-                new String[] {"Focus", "Goal", "Progress", "Decisions", "Files", "Next Steps"};
+                new String[] {
+                    "Focus", "Goal", "Progress", "Decisions", "Files", "Remaining Work",
+                    "Next Steps"
+                };
         for (String header : headers) {
             int newlineIdx = content.indexOf(header + "\n");
             if (newlineIdx >= 0 && (result < 0 || newlineIdx < result)) {
