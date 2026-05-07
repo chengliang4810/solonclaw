@@ -131,8 +131,12 @@ public class DefaultSkillGuardService implements SkillGuardService {
     @Override
     public InstallDecision shouldAllowInstall(ScanResult result, boolean force) {
         InstallDecision decision = new InstallDecision();
-        String trustLevel = result.getTrustLevel();
-        String verdict = result.getVerdict();
+        String trustLevel =
+                StrUtil.blankToDefault(result.getTrustLevel(), "community")
+                        .toLowerCase(Locale.ROOT);
+        String verdict =
+                StrUtil.blankToDefault(result.getVerdict(), "dangerous")
+                        .toLowerCase(Locale.ROOT);
 
         if ("builtin".equals(trustLevel)) {
             decision.setAllowed(true);
@@ -140,21 +144,21 @@ public class DefaultSkillGuardService implements SkillGuardService {
             return decision;
         }
 
-        if ("dangerous".equals(verdict)) {
-            decision.setAllowed(false);
-            decision.setReason("Blocked dangerous verdict");
-            return decision;
-        }
-
-        if ("trusted".equals(trustLevel)) {
+        if ("trusted".equals(trustLevel) && !"dangerous".equals(verdict)) {
             decision.setAllowed(true);
             decision.setReason("Allowed trusted source");
             return decision;
         }
 
-        if (force && "caution".equals(verdict)) {
+        if (force && ("caution".equals(verdict) || "dangerous".equals(verdict))) {
             decision.setAllowed(true);
-            decision.setReason("Force installed despite caution verdict");
+            decision.setReason("Force installed despite " + verdict + " verdict");
+            return decision;
+        }
+
+        if ("dangerous".equals(verdict)) {
+            decision.setAllowed(false);
+            decision.setReason("Blocked dangerous verdict");
             return decision;
         }
 
