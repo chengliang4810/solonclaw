@@ -310,6 +310,10 @@ public class SecurityPolicyService {
                 return verdict;
             }
         }
+        FileVerdict configuredCredentialVerdict = checkConfiguredCredentialReferences(code);
+        if (!configuredCredentialVerdict.allowed) {
+            return configuredCredentialVerdict;
+        }
         return FileVerdict.allow();
     }
 
@@ -695,6 +699,86 @@ public class SecurityPolicyService {
             }
         }
         return false;
+    }
+
+    private FileVerdict checkConfiguredCredentialReferences(String command) {
+        if (appConfig == null || appConfig.getTerminal() == null) {
+            return FileVerdict.allow();
+        }
+        List<String> credentialFiles = appConfig.getTerminal().getCredentialFiles();
+        if (credentialFiles == null || credentialFiles.isEmpty()) {
+            return FileVerdict.allow();
+        }
+        String normalizedCommand = normalizePathText(command);
+        for (String configured : credentialFiles) {
+            String configuredPath = normalizeConfiguredCredentialPath(configured);
+            if (StrUtil.isBlank(configuredPath)) {
+                continue;
+            }
+            if (containsPathToken(normalizedCommand, configuredPath)) {
+                return FileVerdict.block(configured, "读取敏感系统/凭据文件被阻断");
+            }
+            String runtimePath = normalizeRuntimeFilePath(configuredPath);
+            if (StrUtil.isNotBlank(runtimePath) && containsPathToken(normalizedCommand, runtimePath)) {
+                return FileVerdict.block(configured, "读取敏感系统/凭据文件被阻断");
+            }
+        }
+        return FileVerdict.allow();
+    }
+
+    private boolean containsPathToken(String normalizedText, String normalizedPath) {
+        if (StrUtil.isBlank(normalizedText) || StrUtil.isBlank(normalizedPath)) {
+            return false;
+        }
+        String[] candidates =
+                new String[] {
+                    normalizedPath, "./" + normalizedPath, "../" + normalizedPath
+                };
+        for (String candidate : candidates) {
+            if (containsExactPathToken(normalizedText, candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsExactPathToken(String normalizedText, String pathToken) {
+        int from = 0;
+        while (from < normalizedText.length()) {
+            int index = normalizedText.indexOf(pathToken, from);
+            if (index < 0) {
+                return false;
+            }
+            int end = index + pathToken.length();
+            if (isPathBoundary(normalizedText, index - 1) && isPathBoundary(normalizedText, end)) {
+                return true;
+            }
+            from = index + 1;
+        }
+        return false;
+    }
+
+    private boolean isPathBoundary(String text, int index) {
+        if (index < 0 || index >= text.length()) {
+            return true;
+        }
+        char ch = text.charAt(index);
+        return Character.isWhitespace(ch)
+                || ch == '\''
+                || ch == '"'
+                || ch == '`'
+                || ch == '('
+                || ch == ')'
+                || ch == '['
+                || ch == ']'
+                || ch == '{'
+                || ch == '}'
+                || ch == '<'
+                || ch == '>'
+                || ch == '|'
+                || ch == '&'
+                || ch == ';'
+                || ch == ',';
     }
 
     private boolean matchesConfiguredCredentialPath(

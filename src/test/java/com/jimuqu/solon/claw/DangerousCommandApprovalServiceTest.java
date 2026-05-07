@@ -1907,6 +1907,34 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockConfiguredCredentialFilesInsideShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        String runtimeHome =
+                env.appConfig.getRuntime().getHome().replace('\\', '/') + "/credentials/oauth.json";
+
+        SecurityPolicyService.FileVerdict relative =
+                securityPolicyService.checkCommandPaths("cat credentials/oauth.json");
+        SecurityPolicyService.FileVerdict dotRelative =
+                securityPolicyService.checkCommandPaths("cat ./credentials/oauth.json");
+        SecurityPolicyService.FileVerdict quoted =
+                securityPolicyService.checkCommandPaths("Get-Content \"credentials/oauth.json\"");
+        SecurityPolicyService.FileVerdict absolute =
+                securityPolicyService.checkCommandPaths("type " + runtimeHome);
+        SecurityPolicyService.FileVerdict safe =
+                securityPolicyService.checkCommandPaths("cat docs/credentials/oauth.json.example");
+
+        assertThat(relative.isAllowed()).isFalse();
+        assertThat(relative.getMessage()).contains("凭据");
+        assertThat(relative.getPath()).isEqualTo("credentials/oauth.json");
+        assertThat(dotRelative.isAllowed()).isFalse();
+        assertThat(quoted.isAllowed()).isFalse();
+        assertThat(absolute.isAllowed()).isFalse();
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockWindowsCredentialPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
