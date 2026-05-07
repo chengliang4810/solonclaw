@@ -99,9 +99,37 @@ public class DashboardMcpService {
         long now = System.currentTimeMillis();
         Connection connection = database.openConnection();
         try {
+            String previousToolsJson = "";
+            String previousToolsHash = "";
+            long createdAt = now;
+            long lastCheckedAt = 0L;
+            long lastToolsChangedAt = 0L;
+            PreparedStatement query =
+                    connection.prepareStatement(
+                            "select tools_json, last_tools_hash, created_at, last_checked_at, last_tools_changed_at from mcp_servers where server_id = ?");
+            query.setString(1, serverId);
+            ResultSet queryResult = query.executeQuery();
+            try {
+                if (queryResult.next()) {
+                    previousToolsJson = StrUtil.nullToEmpty(queryResult.getString("tools_json"));
+                    previousToolsHash =
+                            StrUtil.nullToEmpty(queryResult.getString("last_tools_hash"));
+                    createdAt = queryResult.getLong("created_at");
+                    lastCheckedAt = queryResult.getLong("last_checked_at");
+                    lastToolsChangedAt = queryResult.getLong("last_tools_changed_at");
+                }
+            } finally {
+                queryResult.close();
+                query.close();
+            }
+            String toolsJson = json(body.get("tools"));
+            String lastToolsHash =
+                    previousToolsJson.equals(StrUtil.nullToEmpty(toolsJson))
+                            ? previousToolsHash
+                            : "";
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, case when coalesce((select tools_json from mcp_servers where server_id = ?), '') = coalesce(?, '') then coalesce((select last_tools_hash from mcp_servers where server_id = ?), '') else '' end, ?, ?, coalesce((select created_at from mcp_servers where server_id = ?), ?), ?, coalesce((select last_checked_at from mcp_servers where server_id = ?), 0), coalesce((select last_tools_changed_at from mcp_servers where server_id = ?), 0))");
+                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, serverId);
             statement.setString(2, name);
             statement.setString(3, transport);
@@ -112,18 +140,14 @@ public class DashboardMcpService {
             statement.setString(8, json(body.get("oauth")));
             statement.setString(9, json(body.get("capabilities")));
             statement.setString(10, securityVerdict.isAllowed() ? "configured" : "blocked");
-            String toolsJson = json(body.get("tools"));
             statement.setString(11, toolsJson);
-            statement.setString(12, serverId);
-            statement.setString(13, toolsJson);
-            statement.setString(14, serverId);
-            statement.setString(15, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
-            statement.setInt(16, asBoolean(body.get("enabled"), true) ? 1 : 0);
-            statement.setString(17, serverId);
-            statement.setLong(18, now);
-            statement.setLong(19, now);
-            statement.setString(20, serverId);
-            statement.setString(21, serverId);
+            statement.setString(12, lastToolsHash);
+            statement.setString(13, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
+            statement.setInt(14, asBoolean(body.get("enabled"), true) ? 1 : 0);
+            statement.setLong(15, createdAt);
+            statement.setLong(16, now);
+            statement.setLong(17, lastCheckedAt);
+            statement.setLong(18, lastToolsChangedAt);
             statement.executeUpdate();
             statement.close();
         } finally {

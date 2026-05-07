@@ -1056,18 +1056,31 @@ public class DashboardControllerHttpTest {
     private static HttpResult request(
             String method, String path, String body, String token, Map<String, String> headers)
             throws Exception {
-        int attempts = 3;
+        int attempts = isRetryableRequest(method, path) ? 3 : 1;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {
                 return requestOnce(method, path, body, token, headers);
             } catch (SocketException e) {
-                if (attempt >= attempts || e.getMessage() == null || !e.getMessage().contains("Connection reset")) {
+                if (attempt >= attempts) {
                     throw e;
                 }
                 Thread.sleep(100L * attempt);
             }
         }
         throw new IllegalStateException("HTTP request failed without response");
+    }
+
+    private static boolean isRetryableRequest(String method, String path) {
+        if ("PATCH".equalsIgnoreCase(method)) {
+            return false;
+        }
+        String safePath = path == null ? "" : path;
+        if (safePath.contains("/oauth/refresh")
+                || safePath.contains("/oauth/handle-401")
+                || safePath.contains("/oauth/callback")) {
+            return false;
+        }
+        return true;
     }
 
     private static HttpResult requestOnce(

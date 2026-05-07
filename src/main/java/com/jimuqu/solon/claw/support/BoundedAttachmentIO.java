@@ -8,7 +8,10 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
@@ -17,6 +20,7 @@ public final class BoundedAttachmentIO {
     public static final long DEFAULT_MAX_BYTES = 32L * 1024L * 1024L;
     public static final long UPDATE_JAR_MAX_BYTES = 200L * 1024L * 1024L;
     public static final long JSON_MAX_BYTES = 1024L * 1024L;
+    private static final int MAX_GUARDED_REDIRECTS = 5;
 
     private BoundedAttachmentIO() {}
 
@@ -37,8 +41,11 @@ public final class BoundedAttachmentIO {
             int timeoutMillis,
             long maxBytes,
             SecurityPolicyService securityPolicyService) {
-        assertSafeDownloadUrl(url, securityPolicyService);
-        return downloadHutool(url, timeoutMillis, maxBytes);
+        if (securityPolicyService == null) {
+            return downloadHutool(url, timeoutMillis, maxBytes);
+        }
+        return downloadHutoolWithRedirectGuard(
+                url, timeoutMillis, maxBytes, securityPolicyService, 0);
     }
 
     public static void downloadHutoolToFile(
@@ -75,6 +82,56 @@ public final class BoundedAttachmentIO {
         }
     }
 
+    private static byte[] downloadHutoolWithRedirectGuard(
+            String url,
+            int timeoutMillis,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService,
+            int redirectCount) {
+        assertSafeDownloadUrl(url, securityPolicyService);
+        HttpResponse response =
+                HttpRequest.get(url).timeout(timeoutMillis).setFollowRedirects(false).executeAsync();
+        try {
+            int status = response.getStatus();
+            if (isRedirect(status)) {
+                if (redirectCount >= MAX_GUARDED_REDIRECTS) {
+                    throw new IllegalStateException(
+                            "Download redirect count exceeds limit: " + MAX_GUARDED_REDIRECTS);
+                }
+                String location = response.header("Location");
+                if (StrUtil.isBlank(location)) {
+                    throw new IllegalStateException("Download redirect missing Location header");
+                }
+                String nextUrl = resolveRedirectUrl(url, location);
+                return downloadHutoolWithRedirectGuard(
+                        nextUrl,
+                        timeoutMillis,
+                        maxBytes,
+                        securityPolicyService,
+                        redirectCount + 1);
+            }
+            if (status >= 400) {
+                throw new IllegalStateException("Download failed, HTTP " + status);
+            }
+            return readHutoolResponse(response, maxBytes);
+        } finally {
+            response.close();
+        }
+    }
+
+    private static boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private static String resolveRedirectUrl(String baseUrl, String location) {
+        try {
+            return URI.create(baseUrl).resolve(location.trim()).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Download redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
+        }
+    }
+
     public static String readHutoolText(HttpResponse response, long maxBytes) {
         return new String(readHutoolResponse(response, maxBytes), StandardCharsets.UTF_8);
     }
@@ -99,6 +156,96 @@ public final class BoundedAttachmentIO {
             throw new IllegalStateException("Download exceeds max size: " + contentLength);
         }
         return readLimited(body.byteStream(), maxBytes);
+    }
+
+    public static byte[] downloadOkHttp(
+            OkHttpClient client,
+            String url,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService)
+            throws Exception {
+        return downloadOkHttpResult(client, url, maxBytes, securityPolicyService).getData();
+    }
+
+    public static OkHttpDownloadResult downloadOkHttpResult(
+            OkHttpClient client,
+            String url,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService)
+            throws Exception {
+        if (securityPolicyService == null) {
+            Request request = new Request.Builder().url(url).build();
+            Response response = client.newCall(request).execute();
+            try {
+                if (!response.isSuccessful()) {
+                    throw new IllegalStateException("Download failed, HTTP " + response.code());
+                }
+                return new OkHttpDownloadResult(
+                        readOkHttpResponse(response, maxBytes), response.header("Content-Type"));
+            } finally {
+                response.close();
+            }
+        }
+        return downloadOkHttpWithRedirectGuard(client, url, maxBytes, securityPolicyService, 0);
+    }
+
+    private static OkHttpDownloadResult downloadOkHttpWithRedirectGuard(
+            OkHttpClient client,
+            String url,
+            long maxBytes,
+            SecurityPolicyService securityPolicyService,
+            int redirectCount)
+            throws Exception {
+        assertSafeDownloadUrl(url, securityPolicyService);
+        OkHttpClient guardedClient =
+                client.newBuilder().followRedirects(false).followSslRedirects(false).build();
+        Request request = new Request.Builder().url(url).build();
+        Response response = guardedClient.newCall(request).execute();
+        try {
+            int status = response.code();
+            if (isRedirect(status)) {
+                if (redirectCount >= MAX_GUARDED_REDIRECTS) {
+                    throw new IllegalStateException(
+                            "Download redirect count exceeds limit: " + MAX_GUARDED_REDIRECTS);
+                }
+                String location = response.header("Location");
+                if (StrUtil.isBlank(location)) {
+                    throw new IllegalStateException("Download redirect missing Location header");
+                }
+                String nextUrl = resolveRedirectUrl(url, location);
+                return downloadOkHttpWithRedirectGuard(
+                        client,
+                        nextUrl,
+                        maxBytes,
+                        securityPolicyService,
+                        redirectCount + 1);
+            }
+            if (!response.isSuccessful()) {
+                throw new IllegalStateException("Download failed, HTTP " + status);
+            }
+            return new OkHttpDownloadResult(
+                    readOkHttpResponse(response, maxBytes), response.header("Content-Type"));
+        } finally {
+            response.close();
+        }
+    }
+
+    public static final class OkHttpDownloadResult {
+        private final byte[] data;
+        private final String contentType;
+
+        private OkHttpDownloadResult(byte[] data, String contentType) {
+            this.data = data;
+            this.contentType = contentType;
+        }
+
+        public byte[] getData() {
+            return data;
+        }
+
+        public String getContentType() {
+            return contentType;
+        }
     }
 
     private static void checkContentLength(String value, long maxBytes) {

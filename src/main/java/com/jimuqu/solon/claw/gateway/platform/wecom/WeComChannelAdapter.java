@@ -396,17 +396,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private byte[] downloadBytes(String url, long maxBytes) throws Exception {
-        BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
-        Request request = new Request.Builder().url(url).build();
-        Response response = client.newCall(request).execute();
-        try {
-            if (!response.isSuccessful()) {
-                throw new IllegalStateException("WeCom download failed: " + response.code());
-            }
-            return BoundedAttachmentIO.readOkHttpResponse(response, maxBytes);
-        } finally {
-            response.close();
-        }
+        return BoundedAttachmentIO.downloadOkHttp(client, url, maxBytes, securityPolicyService);
     }
 
     private void sendAttachment(

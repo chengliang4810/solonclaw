@@ -444,27 +444,17 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     @SuppressWarnings("unused")
     private MessageAttachment cacheRemoteAttachment(
             String url, String kind, String fileName, String mimeType) throws Exception {
-        BoundedAttachmentIO.assertSafeDownloadUrl(url, securityPolicyService);
-        Request request = new Request.Builder().url(url).build();
-        Response response = client.newCall(request).execute();
-        try {
-            if (!response.isSuccessful()) {
-                throw new IllegalStateException(
-                        "QQBot media download failed: HTTP " + response.code());
-            }
-            return attachmentCacheService.cacheBytes(
-                    PlatformType.QQBOT,
-                    AttachmentCacheService.normalizeKind(kind, fileName, mimeType),
-                    StrUtil.blankToDefault(fileName, "qqbot-attachment.bin"),
-                    AttachmentCacheService.normalizeMimeType(
-                            response.header("Content-Type"), fileName),
-                    false,
-                    null,
-                    BoundedAttachmentIO.readOkHttpResponse(
-                            response, BoundedAttachmentIO.DEFAULT_MAX_BYTES));
-        } finally {
-            response.close();
-        }
+        BoundedAttachmentIO.OkHttpDownloadResult download =
+                BoundedAttachmentIO.downloadOkHttpResult(
+                        client, url, BoundedAttachmentIO.DEFAULT_MAX_BYTES, securityPolicyService);
+        return attachmentCacheService.cacheBytes(
+                PlatformType.QQBOT,
+                AttachmentCacheService.normalizeKind(kind, fileName, mimeType),
+                StrUtil.blankToDefault(fileName, "qqbot-attachment.bin"),
+                AttachmentCacheService.normalizeMimeType(download.getContentType(), fileName),
+                false,
+                null,
+                download.getData());
     }
 
     private boolean contains(List<String> values, String target) {
