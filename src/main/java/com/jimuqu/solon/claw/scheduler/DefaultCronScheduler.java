@@ -522,7 +522,10 @@ public class DefaultCronScheduler {
                 synthetic.setDisabledToolsetsOverride(new ArrayList<String>(CRON_DISABLED_TOOLSETS));
                 reply = runScheduledWithAutoDeliveryContext(job, synthetic);
                 output = reply == null ? "" : reply.getContent();
-                if (StrUtil.isBlank(output)) {
+                if (reply != null && reply.isError()) {
+                    error = StrUtil.blankToDefault(output, "Agent reported failure");
+                    runStatus = "error";
+                } else if (StrUtil.isBlank(output)) {
                     output = EMPTY_AGENT_RESPONSE_OUTPUT;
                     error = EMPTY_AGENT_RESPONSE_ERROR;
                     runStatus = "error";

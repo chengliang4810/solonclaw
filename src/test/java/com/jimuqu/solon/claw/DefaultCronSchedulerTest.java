@@ -793,6 +793,36 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldMarkAgentCronErrorReplyAsFailure() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobRecord job = job("job-agent-error", "MEMORY:error-agent:user");
+        job.setDeliverPlatform("origin");
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        new ErrorReplyConversationOrchestrator(),
+                        env.deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById("job-agent-error");
+        assertThat(updated.getLastStatus()).isEqualTo("error");
+        assertThat(updated.getLastError()).contains("model abort");
+        assertThat(updated.getLastOutput()).contains("model abort");
+        assertThat(updated.getLastDeliveryError()).isNull();
+        assertThat(env.memoryChannelAdapter.getRequests()).isEmpty();
+        assertThat(env.cronJobRepository.listRuns("job-agent-error", 5)).hasSize(1);
+        assertThat(env.cronJobRepository.listRuns("job-agent-error", 5).get(0).getStatus())
+                .isEqualTo("error");
+        assertThat(env.cronJobRepository.listRuns("job-agent-error", 5).get(0).getError())
+                .contains("model abort");
+    }
+
+    @Test
     void shouldBlockDangerousNoAgentCronScriptWhenCronApprovalModeDenies() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("admin-dm", "admin-user", "hello");
@@ -2751,6 +2781,23 @@ public class DefaultCronSchedulerTest {
         @Override
         public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
             return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class ErrorReplyConversationOrchestrator implements ConversationOrchestrator {
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            return GatewayReply.error("model abort: connection reset");
         }
 
         @Override
