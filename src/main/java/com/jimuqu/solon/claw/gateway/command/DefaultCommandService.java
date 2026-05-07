@@ -2177,7 +2177,9 @@ public class DefaultCommandService implements CommandService {
                 body.put("depends_on", new ArrayList<String>());
             } else if (field.startsWith("--toolsets ")) {
                 body.put("enabled_toolsets", field.substring("--toolsets ".length()).trim());
-            } else if ("--clear-toolsets".equals(field)) {
+            } else if (field.startsWith("--enabled-toolsets ")) {
+                body.put("enabled_toolsets", field.substring("--enabled-toolsets ".length()).trim());
+            } else if ("--clear-toolsets".equals(field) || "--clear-enabled-toolsets".equals(field)) {
                 body.put("enabled_toolsets", new ArrayList<String>());
             } else if (field.startsWith("--model ")) {
                 body.put("model", field.substring("--model ".length()).trim());
@@ -2293,9 +2295,10 @@ public class DefaultCommandService implements CommandService {
                 options.dependsOn = tokens.get(++i);
             } else if ("--clear-depends-on".equals(token)) {
                 options.clearDependsOn = true;
-            } else if ("--toolsets".equals(token) && i + 1 < tokens.size()) {
+            } else if (("--toolsets".equals(token) || "--enabled-toolsets".equals(token))
+                    && i + 1 < tokens.size()) {
                 options.enabledToolsets = tokens.get(++i);
-            } else if ("--clear-toolsets".equals(token)) {
+            } else if ("--clear-toolsets".equals(token) || "--clear-enabled-toolsets".equals(token)) {
                 options.clearToolsets = true;
             } else if ("--model".equals(token) && i + 1 < tokens.size()) {
                 options.model = tokens.get(++i);

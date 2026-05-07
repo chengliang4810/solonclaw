@@ -359,7 +359,7 @@ public class CommandEnhancementTest {
                                 + runtimeHome
                                 + "\" --context-from "
                                 + jobId
-                                + " --toolsets web,terminal");
+                                + " --enabled-toolsets web,terminal");
         assertThat(tuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
@@ -394,7 +394,7 @@ public class CommandEnhancementTest {
                         "admin-user",
                         "/cron edit "
                                 + jobId
-                                + " --clear-script --clear-workdir --clear-context-from --clear-toolsets");
+                                + " --clear-script --clear-workdir --clear-context-from --clear-enabled-toolsets");
         assertThat(clearedRuntime.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=null")
