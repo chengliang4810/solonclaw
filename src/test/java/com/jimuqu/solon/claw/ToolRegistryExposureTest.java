@@ -1136,6 +1136,14 @@ public class ToolRegistryExposureTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
                 .hasMessageContaining(".env");
+        assertThatThrownBy(() -> fileSkill.read("credentials.json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("文件安全策略")
+                .hasMessageContaining("credentials.json");
+        assertThatThrownBy(() -> fileSkill.write("credentials", "token=secret"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("文件安全策略")
+                .hasMessageContaining("credentials");
         assertThatThrownBy(() -> fileSkill.write("../outside.txt", "x"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("路径遍历");

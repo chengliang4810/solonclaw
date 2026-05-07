@@ -283,6 +283,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dotenvSourceRedirect =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat .env > backup.txt");
+        DangerousCommandApprovalService.DetectionResult credentialsJsonRead =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat credentials.json > backup.txt");
+        DangerousCommandApprovalService.DetectionResult credentialsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf token > credentials");
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
@@ -314,6 +320,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(localDotenvTee).isNotNull();
         assertThat(localDotenvTee.getPatternKey()).isEqualTo("project_sensitive_tee");
         assertThat(dotenvSourceRedirect).isNull();
+        assertThat(credentialsJsonRead).isNull();
+        SecurityPolicyService.FileVerdict credentialsJsonReadVerdict =
+                new SecurityPolicyService(env.appConfig)
+                        .checkCommandPaths("cat credentials.json > backup.txt");
+        assertThat(credentialsJsonReadVerdict.isAllowed()).isFalse();
+        assertThat(credentialsJsonReadVerdict.getPath()).isEqualTo("credentials.json");
+        assertThat(credentialsWrite).isNotNull();
+        assertThat(credentialsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
     }
 
     @Test

@@ -63,6 +63,8 @@ public class SecurityPolicyService {
                     ".pgpass",
                     ".npmrc",
                     ".pypirc",
+                    "credentials",
+                    "credentials.json",
                     ".credentials.json",
                     ".anthropic_oauth.json",
                     "oauth_creds.json",
@@ -121,7 +123,7 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials)|(?:\\.netrc)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:application_default_credentials\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_.-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:credentials(?:\\.json)?)|(?:\\.netrc)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:application_default_credentials\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:id_rsa)|(?:id_ed25519))(?![A-Za-z0-9_./\\\\-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
