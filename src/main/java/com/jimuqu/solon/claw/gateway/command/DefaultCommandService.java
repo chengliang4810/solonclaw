@@ -897,7 +897,7 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(kanbanService.handleCommand(args, message.getUserName()));
         }
 
-        if (GatewayCommandConstants.COMMAND_COMPRESS.equals(command)) {
+        if (isCompressionCommand(command)) {
             SessionRecord session = requireSession(message.sourceKey());
             String systemPrompt = contextService.buildSystemPrompt(message.sourceKey());
             session.setSystemPromptSnapshot(systemPrompt);
@@ -1323,8 +1323,13 @@ public class DefaultCommandService implements CommandService {
                 || GatewayCommandConstants.COMMAND_RESUME.equals(command)
                 || GatewayCommandConstants.COMMAND_STOP.equals(command)
                 || GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(command)
-                || GatewayCommandConstants.COMMAND_COMPRESS.equals(command)
+                || isCompressionCommand(command)
                 || GatewayCommandConstants.COMMAND_ROLLBACK.equals(command);
+    }
+
+    private boolean isCompressionCommand(String command) {
+        return GatewayCommandConstants.COMMAND_COMPRESS.equals(command)
+                || GatewayCommandConstants.COMMAND_COMPACT.equals(command);
     }
 
     private GatewayReply handleReloadMcp(GatewayMessage message, String args) throws Exception {
@@ -3259,7 +3264,12 @@ public class DefaultCommandService implements CommandService {
                         helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出 Hermes-style trajectory JSON"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),
-                        helpLine(GatewayCommandConstants.SLASH_COMPRESS + " [focus]", "压缩当前会话上下文"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_COMPACT
+                                        + " [focus]（兼容 "
+                                        + GatewayCommandConstants.SLASH_COMPRESS
+                                        + "）",
+                                "压缩当前会话上下文"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_ROLLBACK
                                         + " [latest|checkpoint-id|number]",

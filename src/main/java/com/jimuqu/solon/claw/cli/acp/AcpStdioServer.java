@@ -842,7 +842,7 @@ public class AcpStdioServer {
         addCommand(commands, "model", "查看或切换模型");
         addCommand(commands, "tools", "查看或管理工具开关");
         addCommand(commands, "context", "查看上下文与压缩状态");
-        addCommand(commands, "compress", "立即压缩当前会话上下文");
+        addCommand(commands, "compact", "立即压缩当前会话上下文");
         addCommand(commands, "reset", "重置当前会话");
         addCommand(commands, "skills", "管理本地技能与 Skills Hub");
         addCommand(commands, "reload-mcp", "重新加载 MCP 工具");
@@ -862,6 +862,8 @@ public class AcpStdioServer {
             item.put("input", unstructuredInput("模型 ID，例如 openai:gpt-5.1"));
         } else if ("busy".equals(name)) {
             item.put("input", unstructuredInput("queue、steer 或 interrupt"));
+        } else if ("compact".equals(name)) {
+            item.put("input", unstructuredInput("可选关注主题"));
         } else if ("goal".equals(name)) {
             item.put("input", unstructuredInput("长目标描述"));
         }

@@ -58,6 +58,8 @@ public class AcpStdioServerTest {
                 .contains("\"session_capabilities\":{\"fork\":{},\"list\":{},\"resume\":{}}")
                 .contains("\"slash_commands\":true")
                 .contains("context")
+                .contains("\"name\":\"compact\"")
+                .doesNotContain("\"name\":\"compress\"")
                 .contains("reload-mcp");
 
         String created =
