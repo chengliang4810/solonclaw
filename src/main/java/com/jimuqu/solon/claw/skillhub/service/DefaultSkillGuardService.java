@@ -150,6 +150,19 @@ public class DefaultSkillGuardService implements SkillGuardService {
             return decision;
         }
 
+        if ("agent-created".equals(trustLevel)) {
+            if ("safe".equals(verdict) || "caution".equals(verdict)) {
+                decision.setAllowed(true);
+                decision.setReason("Allowed agent-created source");
+                return decision;
+            }
+            decision.setAllowed(false);
+            decision.setRequiresConfirmation(true);
+            decision.setReason(
+                    "Agent-created skill has dangerous findings; remove the flagged content and retry");
+            return decision;
+        }
+
         if (force && ("caution".equals(verdict) || "dangerous".equals(verdict))) {
             decision.setAllowed(true);
             decision.setReason("Force installed despite " + verdict + " verdict");

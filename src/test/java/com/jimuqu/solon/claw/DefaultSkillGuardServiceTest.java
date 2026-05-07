@@ -57,6 +57,23 @@ public class DefaultSkillGuardServiceTest {
         assertThat(decision.isAllowed()).isTrue();
     }
 
+    @Test
+    void shouldTreatAgentCreatedDangerousSkillsAsRetryableSecurityErrors() {
+        InstallDecision dangerous =
+                service.shouldAllowInstall(scan("agent-created", "dangerous"), true);
+        InstallDecision caution = service.shouldAllowInstall(scan("agent-created", "caution"), false);
+        InstallDecision safe = service.shouldAllowInstall(scan("agent-created", "safe"), false);
+
+        assertThat(dangerous.isAllowed()).isFalse();
+        assertThat(dangerous.isRequiresConfirmation()).isTrue();
+        assertThat(dangerous.getReason())
+                .contains("Agent-created")
+                .contains("dangerous")
+                .contains("retry");
+        assertThat(caution.isAllowed()).isTrue();
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
     private ScanResult scan(String trustLevel, String verdict) {
         ScanResult result = new ScanResult();
         result.setTrustLevel(trustLevel);
