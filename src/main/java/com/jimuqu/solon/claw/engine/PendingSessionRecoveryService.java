@@ -8,12 +8,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,13 +16,6 @@ import org.slf4j.LoggerFactory;
 public class PendingSessionRecoveryService {
     private static final Logger log = LoggerFactory.getLogger(PendingSessionRecoveryService.class);
     private static final int MAX_AUTO_RESUME_SESSIONS = 20;
-    private static final Set<String> AUTO_RESUME_REASONS =
-            Collections.unmodifiableSet(
-                    new LinkedHashSet<String>(
-                            Arrays.asList(
-                                    "restart_timeout",
-                                    "shutdown_timeout",
-                                    "restart_interrupted")));
 
     private final AppConfig appConfig;
     private final SessionRepository sessionRepository;
@@ -76,7 +64,9 @@ public class PendingSessionRecoveryService {
         }
         try {
             SqliteAgentSession agentSession = new SqliteAgentSession(session);
-            return agentSession.isPending() && isAutoResumeReason(agentSession.getPendingReason());
+            return agentSession.isPending()
+                    && ResumePendingSupport.isGatewayInterruptionReason(
+                            agentSession.getPendingReason());
         } catch (Exception e) {
             log.debug(
                     "skip pending auto-resume: sessionId={}",
@@ -84,13 +74,6 @@ public class PendingSessionRecoveryService {
                     e);
             return false;
         }
-    }
-
-    private boolean isAutoResumeReason(String reason) {
-        if (StrUtil.isBlank(reason)) {
-            return false;
-        }
-        return AUTO_RESUME_REASONS.contains(reason.trim().toLowerCase(Locale.ROOT));
     }
 
     private boolean resume(SessionRecord session) {

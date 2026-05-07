@@ -280,6 +280,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             + "\n\n"
                             + runtimeSettingsService.buildAgentRuntimePrompt(
                                     sourceKey, session, enabledToolNames, agentScope);
+            systemPrompt = appendResumePendingSystemNote(systemPrompt, session);
             session.setSystemPromptSnapshot(systemPrompt);
 
             GatewayMessage feedbackTarget = messageFromSourceKey(sourceKey);
@@ -306,6 +307,28 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             reply.setBranchName(session.getBranchName());
             applyRuntimeMetadata(reply, outcome);
             return reply;
+        }
+    }
+
+    private String appendResumePendingSystemNote(String systemPrompt, SessionRecord session) {
+        try {
+            SqliteAgentSession agentSession = new SqliteAgentSession(session);
+            if (!agentSession.isPending()) {
+                return systemPrompt;
+            }
+            String note =
+                    ResumePendingSupport.gatewayInterruptionSystemNote(
+                            agentSession.getPendingReason());
+            if (StrUtil.isBlank(note)) {
+                return systemPrompt;
+            }
+            return StrUtil.blankToDefault(systemPrompt, "") + "\n\n" + note;
+        } catch (Exception e) {
+            log.debug(
+                    "skip resume pending system note: sessionId={}",
+                    session == null ? "" : session.getSessionId(),
+                    e);
+            return systemPrompt;
         }
     }
 

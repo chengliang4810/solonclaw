@@ -3,8 +3,10 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,6 +96,46 @@ public class SqliteAgentSessionTest {
         SessionRecord stillApproval = env.sessionRepository.findById(approval.getSessionId());
         assertThat(new SqliteAgentSession(stillApproval).isPending()).isTrue();
         assertThat(stillApproval.getNdjson()).doesNotContain("echo:resume");
+    }
+
+    @Test
+    void shouldAddGatewayInterruptionNoteWhenResumingRestartPendingSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:restart-note-room:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("继续启动前的任务")));
+        agentSession.pending(true, "restart_timeout");
+        agentSession.updateSnapshot();
+
+        GatewayReply reply =
+                env.conversationOrchestrator.resumePending("MEMORY:restart-note-room:user");
+
+        assertThat(reply.getContent()).contains("echo:resume");
+        assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
+                .contains("上一轮执行被网关重启打断")
+                .contains("尚未处理完的工具结果");
+        assertThat(new SqliteAgentSession(env.sessionRepository.findById(session.getSessionId()))
+                        .isPending())
+                .isFalse();
+    }
+
+    @Test
+    void shouldNotAddGatewayInterruptionNoteWhenResumingApprovalPendingSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:approval-note-room:user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("等待审批后继续")));
+        agentSession.pending(true, "need-review");
+        agentSession.updateSnapshot();
+
+        GatewayReply reply =
+                env.conversationOrchestrator.resumePending("MEMORY:approval-note-room:user");
+
+        assertThat(reply.getContent()).contains("echo:resume");
+        assertThat(((FakeLlmGateway) env.llmGateway).lastSystemPrompt)
+                .doesNotContain("上一轮执行被网关");
     }
 
     @Test
