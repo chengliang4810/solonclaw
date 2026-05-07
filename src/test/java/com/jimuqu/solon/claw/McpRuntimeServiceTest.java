@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpClientProviderFactory;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.mcp.SolonAiMcpClientProviderFactory;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -375,6 +376,19 @@ public class McpRuntimeServiceTest {
         assertThatThrownBy(() -> service.save(missingEndpoint))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("必须提供 endpoint");
+    }
+
+    @Test
+    void shouldRejectUnknownTransportWhenCreatingSolonAiMcpProvider() {
+        McpRuntimeService.McpServerConfig config = new McpRuntimeService.McpServerConfig();
+        config.setServerId("bad-transport");
+        config.setTransport("websocket");
+        config.setEndpoint("https://example.com/mcp");
+
+        assertThatThrownBy(
+                        () -> new SolonAiMcpClientProviderFactory(null).create(config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不支持的 MCP transport");
     }
 
     private String readToolsJson(SqliteDatabase database) throws Exception {

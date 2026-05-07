@@ -18,11 +18,12 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
 
     @Override
     public McpClientProvider create(final McpRuntimeService.McpServerConfig config) {
+        String channel = toChannel(config.getTransport());
         McpClientProvider.Builder builder =
                 McpClientProvider.builder()
                         .name("jimuqu-" + config.getServerId())
                         .version("1.0")
-                        .channel(toChannel(config.getTransport()))
+                        .channel(channel)
                         .cacheSeconds(0)
                         .requestTimeout(Duration.ofMillis(config.getToolTimeoutMillis()))
                         .initializationTimeout(Duration.ofMillis(config.getConnectTimeoutMillis()))
@@ -31,7 +32,7 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
                                     runtimeService.persistToolsChanged(config.getServerId(), tools);
                                     return Mono.empty();
                                 });
-        if (McpChannel.STDIO.equals(toChannel(config.getTransport()))) {
+        if (McpChannel.STDIO.equals(channel)) {
             builder.command(config.getCommand());
             builder.args(config.getArgs());
             builder.env(config.getEnv());
@@ -50,16 +51,22 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
     }
 
     private String toChannel(String transport) {
-        String value = StrUtil.nullToEmpty(transport).trim().toLowerCase();
+        String value = StrUtil.nullToEmpty(transport).trim().toLowerCase().replace('-', '_');
         if ("stdio".equals(value)) {
             return McpChannel.STDIO;
+        }
+        if ("http".equals(value) || "streamable".equals(value)) {
+            return McpChannel.STREAMABLE;
         }
         if ("sse".equals(value)) {
             return McpChannel.SSE;
         }
-        if ("streamable_stateless".equals(value) || "streamable-stateless".equals(value)) {
+        if ("streamable_stateless".equals(value)) {
             return McpChannel.STREAMABLE_STATELESS;
         }
-        return McpChannel.STREAMABLE;
+        throw new IllegalArgumentException(
+                "不支持的 MCP transport："
+                        + StrUtil.blankToDefault(transport, "")
+                        + "。可选值：stdio、http、streamable、streamable_stateless、sse。");
     }
 }
