@@ -942,26 +942,7 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     public static File resolveSafeCwd(String cwd, File fallback) {
-        File fallbackDir = fallback == null ? new File(".") : fallback;
-        if (StrUtil.isBlank(cwd)) {
-            return fallbackDir.getAbsoluteFile();
-        }
-        File candidate = new File(cwd).getAbsoluteFile();
-        if (candidate.isDirectory()) {
-            return candidate;
-        }
-        File parent = candidate.getParentFile();
-        while (parent != null) {
-            if (parent.isDirectory()) {
-                return parent.getAbsoluteFile();
-            }
-            File next = parent.getParentFile();
-            if (next == null || next.equals(parent)) {
-                break;
-            }
-            parent = next;
-        }
-        return fallbackDir.getAbsoluteFile();
+        return TerminalPathSupport.resolveSafeCwd(cwd, fallback);
     }
 
     private String readOutput(Process process) throws Exception {

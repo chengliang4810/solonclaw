@@ -438,7 +438,7 @@ public class ProcessTools {
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
         }
-        File dir = new File(value);
+        File dir = new File(TerminalPathSupport.toProcessCwd(value));
         if (!dir.isDirectory()) {
             throw new IllegalArgumentException("cwd is not a directory: " + value);
         }
