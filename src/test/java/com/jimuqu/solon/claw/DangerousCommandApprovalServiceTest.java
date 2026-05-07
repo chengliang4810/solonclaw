@@ -2544,6 +2544,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForExecuteCodeDangerousScripts() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
+
+        service.buildInterceptor().onAction(trace, "execute_code", args);
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+
+        assertThat(trace.getFinalAnswer()).contains("需要审批").contains("Python recursive delete");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("execute_code");
+        assertThat(pending.getCommand()).isEqualTo("import shutil\nshutil.rmtree('runtime/cache')\n");
+        assertThat(pending.getPatternKeys()).containsExactly("python_rmtree");
+    }
+
+    @Test
     void shouldExposeCurrentThreadApprovalForApprovedProcessCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
@@ -3243,15 +3266,15 @@ public class DangerousCommandApprovalServiceTest {
         }
     }
 
-    private static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
+    static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
         private final InMemoryAgentSession session;
         private String route;
 
-        private TestTrace() {
+        TestTrace() {
             this(new InMemoryAgentSession("tirith-test"));
         }
 
-        private TestTrace(InMemoryAgentSession session) {
+        TestTrace(InMemoryAgentSession session) {
             this.session = session;
         }
 

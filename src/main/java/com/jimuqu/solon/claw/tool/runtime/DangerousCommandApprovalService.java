@@ -568,6 +568,14 @@ public class DangerousCommandApprovalService {
                         ToolNameConstants.EXECUTE_JS,
                         (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_JS, args))
                 .onTool(
+                        ToolNameConstants.EXECUTE_CODE,
+                        (trace, args) ->
+                                evaluateCommand(
+                                        trace,
+                                        ToolNameConstants.EXECUTE_CODE,
+                                        ToolNameConstants.EXECUTE_PYTHON,
+                                        codeArg(args)))
+                .onTool(
                         ToolNameConstants.PROCESS,
                         (trace, args) -> evaluateProcessTool(trace, args))
                 .onTool(
@@ -955,9 +963,11 @@ public class DangerousCommandApprovalService {
     }
 
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
-        String code =
-                args == null || args.get("code") == null ? null : String.valueOf(args.get("code"));
-        return evaluateCommand(trace, toolName, toolName, code);
+        return evaluateCommand(trace, toolName, toolName, codeArg(args));
+    }
+
+    private String codeArg(Map<String, Object> args) {
+        return args == null || args.get("code") == null ? null : String.valueOf(args.get("code"));
     }
 
     private String evaluateProcessTool(ReActTrace trace, Map<String, Object> args) {

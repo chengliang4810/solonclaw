@@ -1002,6 +1002,10 @@ public class SolonClawCodeExecutionSkills {
         DangerousCommandApprovalService.DetectionResult dangerous =
                 approvalService.detect(ToolNameConstants.EXECUTE_PYTHON, code);
         if (dangerous != null) {
+            if (DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                    ToolNameConstants.EXECUTE_CODE, code)) {
+                return;
+            }
             throw new IllegalArgumentException(
                     blockedDangerousMessage(ToolNameConstants.EXECUTE_CODE, dangerous));
         }

@@ -1185,6 +1185,60 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldLetApprovedExecuteCodeScriptPassToolFallbackOnce() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        policy,
+                        env.appConfig);
+        String code =
+                "import shutil\n"
+                        + "import os\n"
+                        + "target = 'approved-delete-target'\n"
+                        + "os.makedirs(target, exist_ok=True)\n"
+                        + "shutil.rmtree(target)\n"
+                        + "print('deleted')\n";
+
+        ONode blockedBefore = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
+        assertThat(blockedBefore.get("status").getString()).isEqualTo("error");
+        assertThat(blockedBefore.get("error").getString())
+                .contains("危险命令安全规则")
+                .contains("Python recursive delete");
+
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository, env.appConfig, policy);
+        DangerousCommandApprovalServiceTest.TestTrace trace =
+                new DangerousCommandApprovalServiceTest.TestTrace();
+        Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
+        args.put("code", code);
+        service.buildInterceptor().onAction(trace, "execute_code", args);
+        assertThat(
+                        service.approve(
+                                trace.getSession(),
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+        DangerousCommandApprovalServiceTest.TestTrace resumed =
+                new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
+        service.buildInterceptor().onAction(resumed, "execute_code", args);
+
+        ONode allowed = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
+        assertThat(allowed.get("status").getString()).isEqualTo("success");
+        assertThat(allowed.get("output").getString()).contains("deleted");
+
+        ONode blockedAfter = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
+        assertThat(blockedAfter.get("status").getString()).isEqualTo("error");
+        assertThat(blockedAfter.get("error").getString())
+                .contains("危险命令安全规则")
+                .contains("Python recursive delete");
+    }
+
+    @Test
     void shouldGuardFileToolsBeforeDelegatingToSolonAiSkill() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
