@@ -1540,6 +1540,7 @@ public class DangerousCommandApprovalServiceTest {
         assertFileReadDenied(securityPolicyService, "~/.hermes/.anthropic_oauth.json");
         assertFileReadDenied(securityPolicyService, "~/.codex/auth.json");
         assertFileReadDenied(securityPolicyService, "~/.qwen/oauth_creds.json");
+        assertFileReadDenied(securityPolicyService, "~/.git-credentials");
         assertFileReadDenied(
                 securityPolicyService,
                 "$HOME/.config/gcloud/application_default_credentials.json");
@@ -2001,6 +2002,8 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("cat .env > backup.txt");
         SecurityPolicyService.FileVerdict netrc =
                 securityPolicyService.checkCommandPaths("Get-Content .netrc");
+        SecurityPolicyService.FileVerdict gitCredentials =
+                securityPolicyService.checkCommandPaths("grep github.com ~/.git-credentials");
         SecurityPolicyService.FileVerdict safe =
                 securityPolicyService.checkCommandPaths("cat config.example.yml > backup.yml");
 
@@ -2009,6 +2012,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dotenv.getPath()).isEqualTo(".env");
         assertThat(netrc.isAllowed()).isFalse();
         assertThat(netrc.getPath()).isEqualTo(".netrc");
+        assertThat(gitCredentials.isAllowed()).isFalse();
+        assertThat(gitCredentials.getPath()).isEqualTo("~/.git-credentials");
         assertThat(safe.isAllowed()).isTrue();
     }
 
