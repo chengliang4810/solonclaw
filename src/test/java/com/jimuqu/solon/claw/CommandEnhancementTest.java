@@ -28,11 +28,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class CommandEnhancementTest {
+    private static final Pattern SLASH_CONFIRM_ID =
+            Pattern.compile("确认编号：([0-9a-fA-F]{32})");
+
     @Test
     void shouldSupportResetAndPersonalityCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -100,7 +105,7 @@ public class CommandEnhancementTest {
         assertThat(clearWithoutConfirm.getContent())
                 .contains("/rollback clear")
                 .contains("确认编号")
-                .contains("/approve 执行一次")
+                .contains("/approve [确认编号] 执行一次")
                 .doesNotContain("永久记住");
 
         GatewayReply clearDenied = env.send("admin-chat", "admin-user", "/deny");
@@ -112,7 +117,15 @@ public class CommandEnhancementTest {
         assertThat(clearAlways.isError()).isTrue();
         assertThat(clearAlways.getContent()).contains("不支持永久确认");
 
-        GatewayReply clearOnce = env.send("admin-chat", "admin-user", "/approve");
+        GatewayReply staleId = env.send("admin-chat", "admin-user", "/approve 00000000000000000000000000000000");
+        assertThat(staleId.isError()).isTrue();
+        assertThat(staleId.getContent()).contains("确认编号不匹配");
+
+        GatewayReply clearOnce =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/approve " + extractSlashConfirmId(clearAlwaysPrompt));
         assertThat(clearOnce.getContent()).contains("deleted=1").contains("remaining=0");
 
         env.checkpointService.createCheckpoint(
@@ -576,6 +589,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/reload-mcp [now|always]");
+        assertThat(help.getContent()).contains("/approve [确认编号]");
     }
 
     @Test
@@ -592,7 +606,7 @@ public class CommandEnhancementTest {
         mcpService.save(body);
 
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
-        assertThat(prompt.getContent()).contains("确认编号");
+        assertThat(prompt.getContent()).contains("确认编号").contains("/approve [确认编号]");
 
         GatewayReply cancelled = env.send("admin-chat", "admin-user", "/cancel");
         assertThat(cancelled.getContent()).contains("已取消 /reload-mcp");
@@ -600,7 +614,11 @@ public class CommandEnhancementTest {
         GatewayReply promptAgain = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(promptAgain.getContent()).contains("/approve");
 
-        GatewayReply approvedWithAlias = env.send("admin-chat", "admin-user", "/approve yes");
+        GatewayReply approvedWithAlias =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/approve " + extractSlashConfirmId(promptAgain) + " yes");
         assertThat(approvedWithAlias.getContent())
                 .contains("MCP reload completed")
                 .contains("tools=1");
@@ -618,7 +636,11 @@ public class CommandEnhancementTest {
         GatewayReply alwaysPrompt = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(alwaysPrompt.getContent()).contains("/always");
 
-        GatewayReply always = env.send("admin-chat", "admin-user", "/always");
+        GatewayReply always =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/approve always " + extractSlashConfirmId(alwaysPrompt));
         assertThat(always.getContent()).contains("已永久确认 /reload-mcp");
         assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
         assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
@@ -767,6 +789,12 @@ public class CommandEnhancementTest {
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
         env.send("admin-chat", "admin-user", "hello");
         env.send("admin-chat", "admin-user", "/pairing claim-admin");
+    }
+
+    private String extractSlashConfirmId(GatewayReply reply) {
+        Matcher matcher = SLASH_CONFIRM_ID.matcher(reply.getContent());
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
     }
 
     private static class SteerAwareSlowLlmGateway implements LlmGateway {

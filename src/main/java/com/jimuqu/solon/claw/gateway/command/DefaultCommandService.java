@@ -1358,16 +1358,33 @@ public class DefaultCommandService implements CommandService {
         if (pending == null) {
             return GatewayReply.error("当前没有待确认的 slash 命令。");
         }
-        String choice = normalizeSlashConfirmChoice(StrUtil.blankToDefault(firstToken(args), defaultChoice));
+        String[] tokens = slashConfirmTokens(args);
+        String confirmId = null;
+        String choiceToken = tokens.length > 0 ? tokens[0] : defaultChoice;
+        if (tokens.length > 0 && StrUtil.equalsIgnoreCase(tokens[0], pending.getConfirmId())) {
+            confirmId = tokens[0];
+            choiceToken = tokens.length > 1 ? tokens[1] : defaultChoice;
+        } else if (tokens.length > 0 && isSlashConfirmIdToken(tokens[0])) {
+            confirmId = tokens[0];
+            choiceToken = tokens.length > 1 ? tokens[1] : defaultChoice;
+        } else if (tokens.length > 1 && StrUtil.equalsIgnoreCase(tokens[1], pending.getConfirmId())) {
+            confirmId = tokens[1];
+        } else if (tokens.length > 1 && isSlashConfirmIdToken(tokens[1])) {
+            confirmId = tokens[1];
+        }
+        String choice = normalizeSlashConfirmChoice(StrUtil.blankToDefault(choiceToken, defaultChoice));
         if (choice == null) {
-            return GatewayReply.error("用法：/approve、/approve always、/always 或 /cancel");
+            return GatewayReply.error("用法：/approve [确认编号]、/approve always [确认编号]、/always 或 /cancel");
         }
         if (SlashConfirmService.CHOICE_ALWAYS.equals(choice) && !pending.isAllowAlways()) {
             return GatewayReply.error("/" + pending.getCommand() + " 不支持永久确认，请使用 /approve 执行一次。");
         }
-        pending = slashConfirmService.resolve(message.sourceKey());
+        pending =
+                StrUtil.isBlank(confirmId)
+                        ? slashConfirmService.resolve(message.sourceKey())
+                        : slashConfirmService.resolve(message.sourceKey(), confirmId);
         if (pending == null) {
-            return GatewayReply.error("待确认的 slash 命令已过期，请重新发起。");
+            return GatewayReply.error("待确认的 slash 命令已过期或确认编号不匹配，请重新发起。");
         }
         if (SlashConfirmService.CHOICE_CANCEL.equals(choice)) {
             return GatewayReply.ok("已取消 /" + pending.getCommand() + "。");
@@ -1385,6 +1402,19 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(formatCheckpointClear(message.sourceKey()));
         }
         return GatewayReply.error("Unsupported slash confirm command: /" + pending.getCommand());
+    }
+
+    private String[] slashConfirmTokens(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        if (StrUtil.isBlank(value)) {
+            return new String[0];
+        }
+        return value.split("\\s+");
+    }
+
+    private boolean isSlashConfirmIdToken(String value) {
+        String token = StrUtil.nullToEmpty(value).trim();
+        return token.length() == 32 && token.matches("[0-9a-fA-F]+");
     }
 
     private boolean hasPendingSlashConfirm(GatewayMessage message) {
@@ -1439,9 +1469,10 @@ public class DefaultCommandService implements CommandService {
         StringBuilder buffer = new StringBuilder();
         buffer.append(confirm.getPrompt()).append("\n确认编号：").append(confirm.getConfirmId());
         if (confirm.isAllowAlways()) {
-            buffer.append("\n回复 /approve 执行一次，/approve always 或 /always 执行并永久记住，/deny 或 /cancel 取消。");
+            buffer.append(
+                    "\n回复 /approve [确认编号] 执行一次，/approve always [确认编号] 或 /always 执行并永久记住，/deny 或 /cancel 取消。");
         } else {
-            buffer.append("\n回复 /approve 执行一次，/deny 或 /cancel 取消。");
+            buffer.append("\n回复 /approve [确认编号] 执行一次，/deny 或 /cancel 取消。");
         }
         return buffer.toString();
     }
@@ -3196,7 +3227,7 @@ public class DefaultCommandService implements CommandService {
                                 "管理本地技能与 Skills Hub"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
-                                        + " [now|always]；确认：/approve|/always|/cancel",
+                                        + " [now|always]；确认：/approve [确认编号]|/always|/cancel",
                                 "重新加载 MCP 工具并刷新工具变更基线"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_AGENT
