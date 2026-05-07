@@ -1130,6 +1130,28 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRejectAmpersandBackgroundingOnForegroundTerminalLikeHermes()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "sleep 30 &",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("error").getString())
+                .contains("&")
+                .contains("受管的后台进程能力");
+    }
+
+    @Test
     void shouldAllowHelpVariantForLongLivedForegroundCommandLikeHermes() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
