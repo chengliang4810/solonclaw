@@ -3218,6 +3218,7 @@ public class AppConfig {
                                 "*.rar",
                                 "*.iso",
                                 ".env",
+                                ".envrc",
                                 ".env.*",
                                 ".env.local",
                                 ".env.*.local",

@@ -215,6 +215,19 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
+    void shouldExcludeEnvrcFromDefaultRollbackCheckpoints() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-rollback-defaults").toFile();
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getRollback().getExcludePatterns())
+                .contains(".env", ".envrc", ".env.*");
+    }
+
+    @Test
     void shouldLoadDdgsWebSearchBackendFromLegacyConfigKey() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-web-ddgs").toFile();
         File configFile = new File(runtimeHome, "config.yml");

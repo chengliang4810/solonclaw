@@ -189,6 +189,7 @@ solonclaw:
       - "*.mp4"
       - "*.zip"
       - ".env"
+      - ".envrc"
       - ".env.*"
       - "*.log"
 
