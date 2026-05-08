@@ -74,6 +74,9 @@ try {
             if (Test-IgnoredPath $relativePath) {
                 return
             }
+            if ($regex.IsMatch($relativePath)) {
+                $matches.Add(("{0}:0:<path>" -f $relativePath))
+            }
             if ($_.PSIsContainer) {
                 Search-Directory $_
                 return
@@ -96,7 +99,7 @@ try {
     Search-Directory (Get-Item -LiteralPath $repoRoot)
 
     if ($matches) {
-        Write-Error "Blocked legacy naming in project files. Use Jimuqu naming for code, docs, config, routes, storage keys, and environment variables."
+        Write-Error "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, and generated source."
         $matches | ForEach-Object { Write-Error $_ }
         exit 1
     }
