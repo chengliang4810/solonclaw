@@ -418,9 +418,11 @@ public class MemoryAndSkillsTest {
     void shouldPlanConfiguredCredentialFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        File credentialFile =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json");
         FileUtil.writeUtf8String(
                 "{}",
-                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json"));
+                credentialFile);
         env.appConfig
                 .getTerminal()
                 .getCredentialFiles()
@@ -494,9 +496,11 @@ public class MemoryAndSkillsTest {
     void shouldUseCustomCredentialContainerBase() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        File credentialFile =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json");
         FileUtil.writeUtf8String(
                 "{}",
-                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json"));
+                credentialFile);
         env.appConfig.getTerminal().getCredentialFiles().add("credentials/oauth.json");
 
         SkillCredentialFileService.CredentialFilePlan plan =
@@ -621,9 +625,11 @@ public class MemoryAndSkillsTest {
     void shouldPlanJimuquStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        File credentialFile =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json");
         FileUtil.writeUtf8String(
                 "{}",
-                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json"));
+                credentialFile);
         env.appConfig.getTerminal().getCredentialFiles().add("credentials/oauth.json");
         env.localSkillService.createSkill("mount-skill", null, skill("mount-skill", "mount"));
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "media"));
@@ -648,7 +654,10 @@ public class MemoryAndSkillsTest {
         assertThat(plan.toMetadata().toString())
                 .contains("credential_files")
                 .contains("skills_directories")
-                .contains("cache_directories");
+                .contains("cache_directories")
+                .doesNotContain(credentialFile.getAbsolutePath());
+        assertThat(new File(plan.getCredentialFiles().get(0).getHostPath()).getCanonicalFile())
+                .isEqualTo(credentialFile.getCanonicalFile());
     }
 
     @Test

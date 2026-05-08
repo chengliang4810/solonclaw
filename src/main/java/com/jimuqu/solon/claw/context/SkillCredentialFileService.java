@@ -605,7 +605,6 @@ public class SkillCredentialFileService {
         private Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("path", relativePath);
-            map.put("host_path", hostPath);
             map.put("container_path", containerPath);
             map.put("status", status);
             map.put("reason", reason);
