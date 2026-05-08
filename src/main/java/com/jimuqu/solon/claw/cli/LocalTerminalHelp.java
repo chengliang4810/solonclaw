@@ -19,6 +19,7 @@ public final class LocalTerminalHelp {
                 + "/queue <提示> - 将新输入排到当前任务之后执行\n"
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
+                + TerminalShortcuts.helpLine() + "\n"
                 + "/exit 或 /quit - 退出当前终端会话\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
                 + "\n"

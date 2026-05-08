@@ -48,6 +48,15 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldExposeShortcutHelpLineInHeader() throws Exception {
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
+
+        String header = renderHeader(shell, "tui");
+
+        assertThat(header).contains("Ctrl-G").contains("Ctrl-S").contains("Ctrl-Y");
+    }
+
+    @Test
     void shouldRenderLastTerminalEvents() throws Exception {
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
         Field field = TuiShell.class.getDeclaredField("lastEventSnapshot");
@@ -85,6 +94,15 @@ public class TuiShellHeaderTest {
         Method method = TuiShell.class.getDeclaredMethod("renderEvents");
         method.setAccessible(true);
         return (String) method.invoke(shell);
+    }
+
+    private String renderHeader(TuiShell shell, String sessionId) throws Exception {
+        java.io.StringWriter buffer = new java.io.StringWriter();
+        java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
+        Method method = TuiShell.class.getDeclaredMethod("renderHeader", java.io.PrintWriter.class, String.class);
+        method.setAccessible(true);
+        method.invoke(shell, writer, sessionId);
+        return buffer.toString();
     }
 
     private Object eventSnapshot(int total, int tools, int failures, java.util.List<String> events)

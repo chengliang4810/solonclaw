@@ -26,6 +26,7 @@ public class LocalTerminalHelpTest {
                 .contains("/queue")
                 .contains("/steer")
                 .contains("/skin")
+                .contains("Ctrl-G")
                 .contains("/exit")
                 .contains("/quit")
                 .contains("粘贴本地文件路径")

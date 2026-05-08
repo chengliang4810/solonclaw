@@ -112,6 +112,7 @@ public class TuiShell {
                         .completer(new StringsCompleter(COMMANDS))
                         .variable(LineReader.HISTORY_FILE, ".jimuqu-tui-history")
                         .build();
+        TerminalShortcuts.install(reader);
         renderHeader(writer, sessionId);
         LocalTerminalTaskRunner taskRunner = new LocalTerminalTaskRunner(writer);
         try {
@@ -303,6 +304,7 @@ public class TuiShell {
         writer.println(
                 skin.dim(
                         "tips: /help 命令  /queue 排队  /steer 引导  /sessions 会话  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
+        writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
         writer.flush();
     }
