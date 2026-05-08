@@ -158,6 +158,21 @@ public class ConfigToolsTest {
         assertThat(secretResponse.get("success").getBoolean()).isTrue();
         assertThat(secretResponse.toString()).doesNotContain("sk-test-real-secret-12345");
 
+        Method read = configGetTool.getClass().getMethod("configRead", String.class);
+        ONode providerSecretRead =
+                ONode.ofJson((String) read.invoke(configGetTool, "providers.default.apiKey"));
+        assertThat(providerSecretRead.get("success").getBoolean()).isTrue();
+        assertThat(providerSecretRead.get("value").getString()).isEqualTo("***");
+        assertThat(providerSecretRead.get("redacted").getBoolean()).isTrue();
+        assertThat(providerSecretRead.get("preview").getString())
+                .isEqualTo("providers.default.apiKey=***");
+        assertThat(providerSecretRead.toString()).doesNotContain("sk-test-real-secret-12345");
+
+        ONode providerModelRead =
+                ONode.ofJson((String) read.invoke(configGetTool, "providers.default.defaultModel"));
+        assertThat(providerModelRead.get("success").getBoolean()).isTrue();
+        assertThat(providerModelRead.get("value").getString()).isNotBlank();
+
         Method writeSecret =
                 configSetSecretTool
                         .getClass()
@@ -172,7 +187,6 @@ public class ConfigToolsTest {
         assertThat(writeSecretResponse.get("success").getBoolean()).isTrue();
         assertThat(writeSecretResponse.toString()).doesNotContain("gateway-secret-12345");
 
-        Method read = configGetTool.getClass().getMethod("configRead", String.class);
         ONode readResponse =
                 ONode.ofJson((String) read.invoke(configGetTool, "gateway.injectionSecret"));
         assertThat(readResponse.get("success").getBoolean()).isTrue();

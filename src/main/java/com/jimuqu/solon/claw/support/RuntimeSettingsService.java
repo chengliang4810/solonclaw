@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
@@ -372,6 +373,14 @@ public class RuntimeSettingsService {
 
     public Object getConfigValue(String key) {
         ensureConfigKeyAllowed(key);
+        Object value = readAppConfigValue(key);
+        if (value != null) {
+            return value;
+        }
+        Object raw = RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).getRaw(key);
+        if (raw != null) {
+            return raw;
+        }
         return readNested(dashboardConfigService.getConfig(), key);
     }
 
@@ -526,6 +535,40 @@ public class RuntimeSettingsService {
             current = ((Map<String, Object>) current).get(part);
         }
         return current;
+    }
+
+    private Object readAppConfigValue(String key) {
+        if (key == null) {
+            return null;
+        }
+        if ("model.providerKey".equals(key)) {
+            return appConfig.getModel().getProviderKey();
+        }
+        if ("model.default".equals(key)) {
+            return appConfig.getModel().getDefault();
+        }
+        if (key.startsWith("providers.default.")) {
+            AppConfig.ProviderConfig provider = appConfig.getProviders().get("default");
+            if (provider == null) {
+                return null;
+            }
+            if ("providers.default.name".equals(key)) {
+                return provider.getName();
+            }
+            if ("providers.default.baseUrl".equals(key)) {
+                return provider.getBaseUrl();
+            }
+            if ("providers.default.apiKey".equals(key)) {
+                return provider.getApiKey();
+            }
+            if ("providers.default.defaultModel".equals(key)) {
+                return provider.getDefaultModel();
+            }
+            if ("providers.default.dialect".equals(key)) {
+                return provider.getDialect();
+            }
+        }
+        return null;
     }
 
     private String join(List<String> values) {
