@@ -63,6 +63,19 @@ const deliverDetail = computed(() => {
   return parts.join(' · ')
 })
 
+const modelDetail = computed(() => {
+  const parts = [props.job.provider, props.job.model, props.job.base_url].filter(Boolean)
+  return parts.length ? parts.join(' · ') : '—'
+})
+
+function listDetail(values?: string[] | null) {
+  return values && values.length ? values.join(', ') : '—'
+}
+
+function boolDetail(value: boolean) {
+  return value ? t('jobs.detail.yes') : t('jobs.detail.no')
+}
+
 async function handlePause() {
   try {
     await jobsStore.pauseJob(jobId.value)
@@ -192,6 +205,29 @@ async function handleDelete() {
 
     <NDrawer v-model:show="showRuns" placement="right" :width="520">
       <NDrawerContent :title="t('jobs.historyTitle', { name: job.name })" closable>
+        <section class="detail-section">
+          <h4>{{ t('jobs.detail.config') }}</h4>
+          <div class="detail-grid">
+            <span>{{ t('jobs.detail.skills') }}</span>
+            <code>{{ listDetail(job.skills) }}</code>
+            <span>{{ t('jobs.detail.deliver') }}</span>
+            <code>{{ deliverDetail }}</code>
+            <span>{{ t('jobs.detail.wrapResponse') }}</span>
+            <code>{{ boolDetail(job.wrap_response) }}</code>
+            <span>{{ t('jobs.detail.script') }}</span>
+            <code>{{ job.script || '—' }}</code>
+            <span>{{ t('jobs.detail.noAgent') }}</span>
+            <code>{{ boolDetail(job.no_agent) }}</code>
+            <span>{{ t('jobs.detail.workdir') }}</span>
+            <code>{{ job.workdir || '—' }}</code>
+            <span>{{ t('jobs.detail.contextFrom') }}</span>
+            <code>{{ listDetail(job.context_from) }}</code>
+            <span>{{ t('jobs.detail.enabledToolsets') }}</span>
+            <code>{{ listDetail(job.enabled_toolsets) }}</code>
+            <span>{{ t('jobs.detail.model') }}</span>
+            <code>{{ modelDetail }}</code>
+          </div>
+        </section>
         <NSpin :show="runsLoading">
           <div v-if="runs.length === 0" class="empty-runs">{{ t('jobs.noHistory') }}</div>
           <div v-else class="run-list">
@@ -364,6 +400,39 @@ async function handleDelete() {
   gap: 4px;
   border-top: 1px solid $border-light;
   padding-top: 10px;
+}
+
+.detail-section {
+  border-bottom: 1px solid $border-light;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+
+  h4 {
+    margin: 0 0 10px;
+    color: $text-primary;
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 7px 10px;
+  align-items: start;
+
+  span {
+    color: $text-muted;
+    font-size: 12px;
+  }
+
+  code {
+    color: $text-secondary;
+    font-family: $font-code;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
 }
 
 .empty-runs {
