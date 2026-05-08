@@ -81,6 +81,8 @@ public class DangerousCommandApprovalService {
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
             "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
+    private static final String HARDLINE_COMMAND_POSITION =
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:sudo\\s+(?:-[^\\s]+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
@@ -432,19 +434,23 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "hardline_delete_root",
                                     "recursive delete of root filesystem",
-                                    pattern("\\brm\\s+(-[^\\s]*\\s+)*(/|/\\*|/ \\*)(\\s|$)"),
+                                    pattern(
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "rm\\s+(-[^\\s]*\\s+)*(/|/\\*|/ \\*)(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_delete_system_dir",
                                     "recursive delete of system directory",
                                     pattern(
-                                            "\\brm\\s+(-[^\\s]*\\s+)*(/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*)(\\s|$)"),
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "rm\\s+(-[^\\s]*\\s+)*(/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*)(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_delete_home",
                                     "recursive delete of home directory",
                                     pattern(
-                                            "\\brm\\s+(-[^\\s]*\\s+)*(~|\\$HOME|\\$\\{HOME\\}|\\$env:HOME|\\$env:USERPROFILE|%USERPROFILE%|%HOMEPATH%)(/?|/\\*)?(\\s|$)"),
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "rm\\s+(-[^\\s]*\\s+)*(~|\\$HOME|\\$\\{HOME\\}|\\$env:HOME|\\$env:USERPROFILE|%USERPROFILE%|%HOMEPATH%)(/?|/\\*)?(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_mkfs",
@@ -466,7 +472,8 @@ public class DangerousCommandApprovalService {
                                     "hardline_shutdown",
                                     "system shutdown/reboot",
                                     pattern(
-                                            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:sudo\\s+(?:-[^\\s]+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*(shutdown(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "(shutdown(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_kill_all",
