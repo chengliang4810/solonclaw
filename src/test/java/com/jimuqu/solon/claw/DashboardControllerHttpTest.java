@@ -460,6 +460,21 @@ public class DashboardControllerHttpTest {
         assertThat(apiCronHistoryData.get("count").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiCronHistoryData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
 
+        HttpResult cronStatus = request("GET", "/api/cron/jobs/status?limit=2", null, token);
+        assertThat(cronStatus.status).isEqualTo(200);
+        ONode cronStatusData = ONode.ofJson(cronStatus.body).get("data");
+        assertThat(cronStatusData.get("total").getInt()).isEqualTo(1);
+        assertThat(cronStatusData.get("active").getInt()).isEqualTo(1);
+        assertThat(cronStatusData.get("due").getInt()).isGreaterThanOrEqualTo(0);
+        assertThat(cronStatusData.get("next").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+
+        HttpResult apiJobsStatus = request("GET", "/api/jobs/status?limit=2", null, token);
+        assertThat(apiJobsStatus.status).isEqualTo(200);
+        ONode apiJobsStatusData = ONode.ofJson(apiJobsStatus.body);
+        assertThat(apiJobsStatusData.get("total").getInt()).isEqualTo(1);
+        assertThat(apiJobsStatusData.get("active").getInt()).isEqualTo(1);
+        assertThat(apiJobsStatusData.get("next").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+
         HttpResult pauseCron =
                 request(
                         "POST",
@@ -469,6 +484,13 @@ public class DashboardControllerHttpTest {
         assertThat(pauseCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(pauseCron.body).get("data").get("paused_reason").getString())
                 .isEqualTo("dashboard maintenance");
+        HttpResult apiJobsStatusWithPaused =
+                request("GET", "/api/jobs/status?include_disabled=true&limit=2", null, token);
+        assertThat(apiJobsStatusWithPaused.status).isEqualTo(200);
+        ONode apiJobsStatusWithPausedData = ONode.ofJson(apiJobsStatusWithPaused.body);
+        assertThat(apiJobsStatusWithPausedData.get("total").getInt()).isEqualTo(1);
+        assertThat(apiJobsStatusWithPausedData.get("active").getInt()).isEqualTo(0);
+        assertThat(apiJobsStatusWithPausedData.get("paused").getInt()).isEqualTo(1);
 
         HttpResult acpStatus = request("GET", "/api/jimuqu/acp/status", null, token);
         assertThat(acpStatus.status).isEqualTo(200);

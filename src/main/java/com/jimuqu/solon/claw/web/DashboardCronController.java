@@ -46,6 +46,18 @@ public class DashboardCronController {
         return apiJobsResponse(cronService.nextJobs(limit == null ? 5 : limit.intValue()));
     }
 
+    @Mapping(value = "/api/cron/jobs/status", method = MethodType.GET)
+    public Map<String, Object> status(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        return DashboardResponse.ok(cronService.status(includeDisabled, limit == null ? 5 : limit.intValue()));
+    }
+
+    @Mapping(value = "/api/jobs/status", method = MethodType.GET)
+    public Map<String, Object> apiStatus(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        return cronService.status(includeDisabled, limit == null ? 5 : limit.intValue());
+    }
+
     @Mapping(value = "/api/cron/jobs", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
         try {
