@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
@@ -139,6 +140,9 @@ public class RuntimeRefreshBehaviorTest {
                 .contains("approvals:")
                 .contains("mcpReloadConfirm: false")
                 .doesNotContain("solonclaw:\n  approvals:");
+        assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
+                        .get("approvals.mcpReloadConfirm"))
+                .isEqualTo("false");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
