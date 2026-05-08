@@ -88,17 +88,26 @@ public class GoalService {
             return "No active goal. Set one with /goal <text>.";
         }
         String turns = state.getTurnsUsed() + "/" + state.getMaxTurns() + " turns";
+        String judge = judgeSummary(state);
         if (GoalState.STATUS_ACTIVE.equals(state.getStatus())) {
-            return "⊙ Goal (active, " + turns + "): " + state.getGoal();
+            return "⊙ Goal (active, " + turns + judge + "): " + state.getGoal();
         }
         if (GoalState.STATUS_PAUSED.equals(state.getStatus())) {
             String extra = StrUtil.isBlank(state.getPausedReason()) ? "" : " — " + state.getPausedReason();
-            return "⏸ Goal (paused, " + turns + extra + "): " + state.getGoal();
+            return "⏸ Goal (paused, " + turns + judge + extra + "): " + state.getGoal();
         }
         if (GoalState.STATUS_DONE.equals(state.getStatus())) {
-            return "✓ Goal done (" + turns + "): " + state.getGoal();
+            return "✓ Goal done (" + turns + judge + "): " + state.getGoal();
         }
-        return "Goal (" + state.getStatus() + ", " + turns + "): " + state.getGoal();
+        return "Goal (" + state.getStatus() + ", " + turns + judge + "): " + state.getGoal();
+    }
+
+    private String judgeSummary(GoalState state) {
+        if (state == null || StrUtil.isBlank(state.getLastVerdict())) {
+            return "";
+        }
+        String reason = StrUtil.isBlank(state.getLastReason()) ? "" : ", reason=" + state.getLastReason();
+        return ", judge=" + state.getLastVerdict() + reason;
     }
 
     public GoalDecision evaluateAfterTurn(SessionRecord session, String lastResponse) throws Exception {

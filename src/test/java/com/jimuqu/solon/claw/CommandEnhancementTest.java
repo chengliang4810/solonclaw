@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -326,6 +327,16 @@ public class CommandEnhancementTest {
 
         GatewayReply status = env.commandService.handle(message, "/goal status");
         assertThat(status.getContent()).contains("active").contains("0/4");
+
+        SessionRecord session = env.sessionRepository.getBoundSession(message.sourceKey());
+        new GoalService(env.sessionRepository)
+                .evaluateAfterTurn(session, "I took one concrete step and still need to continue.");
+
+        GatewayReply judgedStatus = env.commandService.handle(message, "/goal status");
+        assertThat(judgedStatus.getContent())
+                .contains("1/4")
+                .contains("judge=continue")
+                .contains("response did not clearly complete");
 
         GatewayReply pause = env.commandService.handle(message, "/goal pause");
         assertThat(pause.getContent()).contains("Goal paused");
