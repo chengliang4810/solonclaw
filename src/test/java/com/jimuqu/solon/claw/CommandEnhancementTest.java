@@ -167,6 +167,32 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeAcpStatusCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/acp status");
+        assertThat(status.isError()).isFalse();
+        assertThat(status.getContent())
+                .contains("ACP adapter status")
+                .contains("transport=stdio")
+                .contains("command=java -jar jimuqu-agent.jar acp")
+                .contains("protocol_version=1")
+                .contains("mcp_servers=true")
+                .contains("slash_commands=true")
+                .contains("session/new")
+                .contains("permissions/respond")
+                .contains("/reload-mcp");
+
+        GatewayReply invalid = env.send("admin-chat", "admin-user", "/acp reload");
+        assertThat(invalid.isError()).isTrue();
+        assertThat(invalid.getContent()).contains("/acp [status]");
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/acp [status]");
+    }
+
+    @Test
     void shouldRequestGracefulGatewayRestartDrain() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

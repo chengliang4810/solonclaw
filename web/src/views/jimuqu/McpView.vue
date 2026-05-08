@@ -14,6 +14,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import {
+  fetchAcpStatus,
   beginMcpOAuth,
   checkMcpServer,
   clearMcpOAuth,
@@ -25,10 +26,13 @@ import {
   handleMcpOAuth401,
   refreshMcpOAuth,
   refreshMcpTools,
+  reloadAllMcpServers,
   reloadMcpServer,
   saveMcpServer,
+  type AcpStatus,
   type McpActionResult,
   type McpOAuthStatus,
+  type McpReloadAllResult,
   type McpServer,
 } from '@/api/jimuqu/mcp'
 
@@ -44,7 +48,10 @@ const showServerModal = ref(false)
 const oauthStatus = ref<McpOAuthStatus | null>(null)
 const oauthLoading = ref(false)
 const lastAction = ref<McpActionResult | null>(null)
+const lastReloadAll = ref<McpReloadAllResult | null>(null)
 const oauthBeginUrl = ref('')
+const acpStatus = ref<AcpStatus | null>(null)
+const acpLoading = ref(false)
 
 const transportOptions = [
   { label: 'stdio', value: 'stdio' },
@@ -87,7 +94,7 @@ const tools = computed(() => {
   return Array.isArray(raw) ? raw : []
 })
 
-const acpMethods = [
+const fallbackAcpMethods = [
   'initialize',
   'authenticate',
   'session/new',
@@ -104,14 +111,31 @@ const acpMethods = [
   'permissions/respond',
 ]
 
+const acpMethods = computed(() => {
+  return acpStatus.value?.methods?.length ? acpStatus.value.methods : fallbackAcpMethods
+})
+
+const acpCommand = computed(() => acpStatus.value?.command || 'java -jar jimuqu-agent.jar acp')
+
+const acpCommands = computed(() => {
+  return acpStatus.value?.commands?.length ? acpStatus.value.commands : []
+})
+
+const acpCapabilities = computed(() => acpStatus.value?.capabilities || {})
+
 onMounted(load)
 
 async function load() {
   loading.value = true
   try {
-    const data = await fetchMcpServers()
+    acpLoading.value = true
+    const [data, status] = await Promise.all([
+      fetchMcpServers(),
+      fetchAcpStatus().catch(() => null),
+    ])
     enabled.value = data.enabled
     servers.value = data.servers || []
+    acpStatus.value = status
     if (!selectedId.value || !servers.value.some((server) => server.server_id === selectedId.value)) {
       selectedId.value = servers.value[0]?.server_id || ''
     }
@@ -124,6 +148,7 @@ async function load() {
     message.error(err.message || '加载 MCP 配置失败')
   } finally {
     loading.value = false
+    acpLoading.value = false
   }
 }
 
@@ -276,6 +301,19 @@ async function runAction(name: string, fn: () => Promise<McpActionResult>) {
   }
 }
 
+async function reloadAllServers() {
+  actionLoading.value = 'reload-all'
+  try {
+    lastReloadAll.value = await reloadAllMcpServers()
+    await load()
+    message.success('MCP server 已全部重载')
+  } catch (err: any) {
+    message.error(err.message || '全量重载失败')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
 async function loadOAuthStatus() {
   if (!selectedId.value) {
     oauthStatus.value = null
@@ -400,9 +438,29 @@ async function copy(text: string) {
           MCP {{ enabled ? '已启用' : '未启用' }}
         </NTag>
         <NButton size="small" :loading="loading" @click="load">刷新</NButton>
+        <NButton size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">重载全部</NButton>
         <NButton size="small" type="primary" @click="openCreate">新增 Server</NButton>
       </div>
     </header>
+
+    <section v-if="lastReloadAll" class="global-result">
+      <div class="result-title">
+        全量重载
+        <NTag size="small" :type="lastReloadAll.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
+          {{ lastReloadAll.tool_changed_notification ? '工具有变更' : '工具未变更' }}
+        </NTag>
+      </div>
+      <div class="result-meta">
+        <span>server: {{ lastReloadAll.server_count }}</span>
+        <span>工具数: {{ lastReloadAll.tool_count }}</span>
+        <span>变更: {{ lastReloadAll.changed_count }}</span>
+        <span>未变更: {{ lastReloadAll.unchanged_count }}</span>
+      </div>
+      <div v-if="lastReloadAll.changed_servers.length || lastReloadAll.unchanged_servers.length" class="tool-diff">
+        <span v-if="lastReloadAll.changed_servers.length">变更：{{ lastReloadAll.changed_servers.join(', ') }}</span>
+        <span v-if="lastReloadAll.unchanged_servers.length">未变更：{{ lastReloadAll.unchanged_servers.join(', ') }}</span>
+      </div>
+    </section>
 
     <NSpin :show="loading">
       <main class="mcp-layout">
@@ -575,27 +633,30 @@ async function copy(text: string) {
       <div class="acp-head">
         <div>
           <h3>ACP 本地适配器</h3>
-          <p>通过 stdio 暴露会话、模型、权限和 MCP server 注入能力，供编辑器或本地宿主进程连接。</p>
+          <p>通过 {{ acpStatus?.transport || 'stdio' }} 暴露会话、模型、权限和 MCP server 注入能力，供编辑器或本地宿主进程连接。</p>
         </div>
-        <NButton size="small" @click="copy('java -jar jimuqu-agent.jar acp')">复制启动命令</NButton>
+        <NButton size="small" :loading="acpLoading" @click="copy(acpCommand)">复制启动命令</NButton>
       </div>
-      <div class="acp-command">java -jar jimuqu-agent.jar acp</div>
+      <div class="acp-command">{{ acpCommand }}</div>
       <div class="acp-grid">
         <div class="acp-block">
           <h4>会话能力</h4>
-          <p>新建、加载、恢复、列表、分支、取消会话，并支持会话级模型和模式配置。</p>
+          <p>{{ prettyJson(acpCapabilities.session_capabilities || acpStatus?.agent_capabilities?.session_capabilities || {}) }}</p>
         </div>
         <div class="acp-block">
           <h4>MCP 注入</h4>
-          <p>创建或恢复会话时可携带 mcp_servers，让编辑器侧 server 进入当前工具集。</p>
+          <p>{{ acpCapabilities.mcp_servers ? '已启用 mcp_servers 会话注入。' : '当前快照未声明 mcp_servers 会话注入。' }}</p>
         </div>
         <div class="acp-block">
           <h4>权限流</h4>
-          <p>支持列出待处理权限请求和提交允许/拒绝响应，复用项目内审批链路。</p>
+          <p>{{ acpMethods.includes('permissions/list_open') && acpMethods.includes('permissions/respond') ? '支持列出待处理权限请求和提交允许/拒绝响应。' : '当前快照未声明完整权限响应方法。' }}</p>
         </div>
       </div>
       <div class="method-list">
         <NTag v-for="method in acpMethods" :key="method" size="small" :bordered="false">{{ method }}</NTag>
+      </div>
+      <div v-if="acpCommands.length" class="method-list acp-command-list">
+        <NTag v-for="command in acpCommands" :key="command.name" size="small" type="info" :bordered="false">/{{ command.name }}</NTag>
       </div>
     </section>
 
@@ -809,7 +870,8 @@ h4 {
 }
 
 .panel,
-.action-result {
+.action-result,
+.global-result {
   border: 1px solid $border-color;
   border-radius: $radius-sm;
   padding: 14px;
@@ -819,6 +881,10 @@ h4 {
 
 .action-result {
   margin-bottom: 16px;
+}
+
+.global-result {
+  margin: 0 20px;
 }
 
 .result-title,

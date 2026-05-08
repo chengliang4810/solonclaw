@@ -246,6 +246,24 @@ public class ToolRegistryExposureTest {
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("hardlineCommandBlocks").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("urlSafety").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("mcpUrlSafety").getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("activeSurfaces")))
+                .contains("approval")
+                .contains("hardlineCommand")
+                .contains("terminalGuardrails")
+                .contains("urlSafety")
+                .contains("websitePolicy")
+                .contains("credentialFilePolicy")
+                .contains("mcpOauthUrlSafety");
         assertThat(policyStatus.toJson()).doesNotContain("secret-sudo").doesNotContain("TENOR_API_KEY");
     }
 

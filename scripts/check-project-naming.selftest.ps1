@@ -14,7 +14,14 @@ $blockedLegacyEnvFixture =
         + ([string][char]80) + ([string][char]82) + ([string][char]69) `
         + ([string][char]70) + ([string][char]73) + ([string][char]88) `
         + "_ALLOW_PRIVATE_URLS")
-$blockedLegacyNameFixture = (([string][char]79) + ([string][char]112) + ([string][char]101) + ([string][char]110) + ([string][char]67) + ([string][char]108) + ([string][char]97) + ([string][char]119))
+$legacyUpperPrefixFixture =
+    (([string][char]72) + ([string][char]69) + ([string][char]82) `
+        + ([string][char]77) + ([string][char]69) + ([string][char]83))
+$legacySpacedNameFixture =
+    (([string][char]79) + ([string][char]112) + ([string][char]101) `
+        + ([string][char]110) + " " + ([string][char]67) + ([string][char]108) `
+        + ([string][char]97) + ([string][char]119))
+$legacyPrivateUrlFixture = $legacyUpperPrefixFixture + "_ALLOW_PRIVATE_URLS"
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -113,13 +120,40 @@ try {
     Assert-NoRawBlockedOutput $blockedLegacyEnv.Output @($blockedLegacyEnvFixture) "legacy environment variable scan"
 
     Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\private-url-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
+    $blockedPrivateUrlEnv = Invoke-NamingCheck
+    if ($blockedPrivateUrlEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden private URL environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedPrivateUrlEnv.Output @($blockedLegacyEnvFixture) "legacy private URL environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\default-private-url-env.txt") -Value ($legacyPrivateUrlFixture + "=true") -Encoding UTF8
+    $blockedDefaultPrivateUrlEnv = Invoke-NamingCheck
+    if ($blockedDefaultPrivateUrlEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden default private URL environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedDefaultPrivateUrlEnv.Output @($legacyPrivateUrlFixture) "default private URL environment variable scan"
+
+    Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyNameFixture) -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyEnvFixture) -Encoding UTF8
     $blockedLegacyName = Invoke-NamingCheck
     if ($blockedLegacyName.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden legacy project name."
     }
-    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedLegacyNameFixture) "legacy project name scan"
+    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedLegacyEnvFixture) "legacy project name scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "docs\default-legacy-name.md") -Value ("Old upstream name: " + $legacySpacedNameFixture) -Encoding UTF8
+    $blockedDefaultLegacyName = Invoke-NamingCheck
+    if ($blockedDefaultLegacyName.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden default legacy project name."
+    }
+    Assert-NoRawBlockedOutput $blockedDefaultLegacyName.Output @($legacySpacedNameFixture) "default legacy project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
@@ -273,6 +307,87 @@ try {
             throw "Release notes generation should fail on blocked legacy naming."
         }
         Assert-NoRawBlockedOutput ($releaseOutput | Out-String) @($blockedFixture) "release notes generation"
+    } finally {
+        Pop-Location
+    }
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
+    $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean file for release private URL fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m ("fix: block " + $legacyPrivateUrlFixture + " release leak") | Out-Null
+
+        $releaseDefaultSubjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+            -OutputPath $releaseNotesPath `
+            -Tag "v2099.01.02-bcdef02" `
+            -Version "0.0.0-test" `
+            -CommitRange "HEAD" `
+            -DisplayRange "HEAD" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            throw "Release notes generation should fail when forbidden default private URL naming exists in a commit subject."
+        }
+        Assert-NoRawBlockedOutput ($releaseDefaultSubjectOutput | Out-String) @($legacyPrivateUrlFixture) "release notes default private URL subject generation"
+    } finally {
+        Pop-Location
+    }
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
+    $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean file for release subject fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m ("fix: block " + $blockedLegacyEnvFixture + " release leak") | Out-Null
+
+        $releaseSubjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+            -OutputPath $releaseNotesPath `
+            -Tag "v2099.01.02-bcdef01" `
+            -Version "0.0.0-test" `
+            -CommitRange "HEAD" `
+            -DisplayRange "HEAD" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            throw "Release notes generation should fail when blocked default naming exists in a commit subject."
+        }
+        Assert-NoRawBlockedOutput ($releaseSubjectOutput | Out-String) @($blockedLegacyEnvFixture) "release notes default subject generation"
+    } finally {
+        Pop-Location
+    }
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
+    $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean release note fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean release notes / Clean release notes" | Out-Null
+
+        $cleanReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+            -OutputPath $releaseNotesPath `
+            -Tag "v2099.01.03-cdef012" `
+            -Version "0.0.0-test" `
+            -CommitRange "HEAD" `
+            -DisplayRange "HEAD" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Release notes generation should succeed for a clean range without extra blocked terms: $($cleanReleaseOutput | Out-String)"
+        }
+        $cleanReleaseText = Get-Content -LiteralPath $releaseNotesPath -Raw -Encoding UTF8
+        if ($cleanReleaseText -notmatch "fix: clean release notes / Clean release notes") {
+            throw "Release notes generation did not include the clean commit subject."
+        }
     } finally {
         Pop-Location
     }

@@ -128,6 +128,43 @@ public class SecurityAuditTools {
                 Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
         result.policy.put("terminal", terminal);
 
+        Map<String, Object> coverage = new LinkedHashMap<String, Object>();
+        coverage.put("dangerousCommandApproval", Boolean.TRUE);
+        coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
+        coverage.put("approvalAuditLog", Boolean.valueOf(approvalService != null));
+        coverage.put("hardlineCommandBlocks", Boolean.TRUE);
+        coverage.put("terminalGuardrails", Boolean.TRUE);
+        coverage.put("sudoRewrite", Boolean.TRUE);
+        coverage.put("backgroundProcessGuard", Boolean.TRUE);
+        coverage.put("urlSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("privateUrlPolicy", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("websitePolicy", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("credentialFilePolicy", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("codeExecutionGuardrails", Boolean.valueOf(approvalService != null || securityPolicyService != null));
+        coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
+        coverage.put("readOnlyAuditTool", Boolean.TRUE);
+        result.policy.put("coverage", coverage);
+
+        List<String> activeSurfaces = new ArrayList<String>();
+        addSurface(activeSurfaces, "approval", approvalService != null);
+        addSurface(activeSurfaces, "slashConfirm", approvalService != null);
+        addSurface(activeSurfaces, "hardlineCommand", true);
+        addSurface(activeSurfaces, "terminalGuardrails", true);
+        addSurface(activeSurfaces, "sudoRewrite", true);
+        addSurface(activeSurfaces, "backgroundProcess", true);
+        addSurface(activeSurfaces, "urlSafety", securityPolicyService != null);
+        addSurface(activeSurfaces, "websitePolicy", securityPolicyService != null);
+        addSurface(activeSurfaces, "credentialFilePolicy", securityPolicyService != null);
+        addSurface(activeSurfaces, "pathSecurity", securityPolicyService != null);
+        addSurface(activeSurfaces, "toolArgsSecurity", securityPolicyService != null);
+        addSurface(activeSurfaces, "codeExecution", approvalService != null || securityPolicyService != null);
+        addSurface(activeSurfaces, "mcpOauthUrlSafety", securityPolicyService != null);
+        addSurface(activeSurfaces, "tirithSecurity", appConfig.getSecurity().isTirithEnabled());
+        result.policy.put("activeSurfaces", activeSurfaces);
+
         result.summary = "Security policy status is available without exposing secret values.";
         result.finish();
         return result;
@@ -504,5 +541,11 @@ public class SecurityAuditTools {
 
     private static int size(List<?> values) {
         return values == null ? 0 : values.size();
+    }
+
+    private static void addSurface(List<String> surfaces, String name, boolean enabled) {
+        if (enabled) {
+            surfaces.add(name);
+        }
     }
 }

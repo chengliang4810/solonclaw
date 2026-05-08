@@ -182,6 +182,43 @@ public class AcpStdioServer {
         }
     }
 
+    public Map<String, Object> status() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        Map<String, Object> initialize = initialize();
+        result.put("enabled", true);
+        result.put("transport", "stdio");
+        result.put("command", "java -jar jimuqu-agent.jar acp");
+        result.put("protocol_version", initialize.get("protocol_version"));
+        result.put("protocolVersion", initialize.get("protocolVersion"));
+        result.put("agent", initialize.get("agent"));
+        result.put("agent_info", initialize.get("agent_info"));
+        result.put("capabilities", initialize.get("capabilities"));
+        result.put("agent_capabilities", initialize.get("agent_capabilities"));
+        result.put("auth_methods", initialize.get("auth_methods"));
+        result.put("commands", initialize.get("commands"));
+        result.put("methods", supportedMethods());
+        return result;
+    }
+
+    private List<String> supportedMethods() {
+        List<String> methods = new ArrayList<String>();
+        methods.add("initialize");
+        methods.add("authenticate");
+        methods.add("session/new");
+        methods.add("session/load");
+        methods.add("session/resume");
+        methods.add("session/list");
+        methods.add("session/fork");
+        methods.add("session/cancel");
+        methods.add("session/set_model");
+        methods.add("session/set_mode");
+        methods.add("session/set_config_option");
+        methods.add("session/prompt");
+        methods.add("permissions/list_open");
+        methods.add("permissions/respond");
+        return methods;
+    }
+
     private Object dispatch(String method, ONode params) throws Exception {
         if ("initialize".equals(method)) {
             return initialize();
@@ -894,6 +931,7 @@ public class AcpStdioServer {
         addCommand(commands, "reset", "重置当前会话");
         addCommand(commands, "skills", "管理本地技能与 Skills Hub");
         addCommand(commands, "reload-mcp", "重新加载 MCP 工具");
+        addCommand(commands, "acp", "查看 ACP 本地适配器能力快照");
         addCommand(commands, "busy", "查看或切换运行中输入策略");
         addCommand(commands, "steer", "向运行中任务注入修正或引导");
         addCommand(commands, "queue", "将提示排到当前任务之后执行");
@@ -921,6 +959,8 @@ public class AcpStdioServer {
             item.put("input", unstructuredInput("可选关注主题"));
         } else if ("goal".equals(name)) {
             item.put("input", unstructuredInput("长目标描述"));
+        } else if ("acp".equals(name)) {
+            item.put("input", unstructuredInput("status"));
         }
         commands.add(item);
     }

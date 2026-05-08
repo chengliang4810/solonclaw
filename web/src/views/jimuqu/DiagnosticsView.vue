@@ -29,6 +29,7 @@ const historyLoading = ref(false)
 const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
+const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
 const alwaysApprovals = ref<AlwaysApproval[]>([])
@@ -48,6 +49,47 @@ const resolvingConfirmKey = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
+const securityCoverage = computed<Record<string, unknown>>(() => {
+  const policy = policyAuditResult.value?.policy as Record<string, unknown> | undefined
+  return (policy?.coverage as Record<string, unknown> | undefined) || {}
+})
+const securitySurfaces = computed<string[]>(() => {
+  const policy = policyAuditResult.value?.policy as Record<string, unknown> | undefined
+  const surfaces = policy?.activeSurfaces
+  return Array.isArray(surfaces) ? surfaces.map((item) => String(item)) : []
+})
+const coverageItems = [
+  { key: 'dangerousCommandApproval', label: '危险命令审批' },
+  { key: 'slashApprovalConfirm', label: 'Slash 确认' },
+  { key: 'hardlineCommandBlocks', label: '硬阻断命令' },
+  { key: 'terminalGuardrails', label: '终端守卫' },
+  { key: 'sudoRewrite', label: 'sudo 改写' },
+  { key: 'backgroundProcessGuard', label: '后台进程保护' },
+  { key: 'urlSafety', label: 'URL 安全' },
+  { key: 'websitePolicy', label: '网站策略' },
+  { key: 'credentialFilePolicy', label: '凭据文件' },
+  { key: 'pathSecurity', label: '路径安全' },
+  { key: 'toolArgsSecurity', label: '工具参数安全' },
+  { key: 'codeExecutionGuardrails', label: '代码执行保护' },
+  { key: 'mcpUrlSafety', label: 'MCP URL 安全' },
+  { key: 'tirithSecurity', label: '内容扫描' },
+]
+const surfaceLabels: Record<string, string> = {
+  approval: '审批',
+  slashConfirm: 'Slash 确认',
+  hardlineCommand: '硬阻断',
+  terminalGuardrails: '终端守卫',
+  sudoRewrite: 'sudo 改写',
+  backgroundProcess: '后台进程',
+  urlSafety: 'URL 安全',
+  websitePolicy: '网站策略',
+  credentialFilePolicy: '凭据文件',
+  pathSecurity: '路径安全',
+  toolArgsSecurity: '工具参数',
+  codeExecution: '代码执行',
+  mcpOauthUrlSafety: 'MCP OAuth URL',
+  tirithSecurity: '内容扫描',
+}
 const auditActionOptions = [
   { label: '命令', value: 'command' },
   { label: 'URL', value: 'url' },
@@ -91,11 +133,16 @@ function findingActionText(action?: string) {
   return action || ''
 }
 
+function surfaceLabel(surface: string) {
+  return surfaceLabels[surface] || surface
+}
+
 async function load() {
   loading.value = true
   try {
     const [diagnosticsData] = await Promise.all([
       fetchDiagnostics(),
+      loadPolicyAudit(),
       loadApprovals(),
       loadHistory(),
       loadAlwaysApprovals(),
@@ -105,6 +152,10 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadPolicyAudit() {
+  policyAuditResult.value = await auditSecurity({ action: 'policy' })
 }
 
 async function loadApprovals() {
@@ -198,7 +249,7 @@ async function handleRevokeAlways(item: AlwaysApproval) {
     const result = await revokeAlwaysApproval(approval)
     if (result.success) {
       message.success(result.message || '长期授权已撤销')
-      const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadAlwaysApprovals()])
+      const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadPolicyAudit(), loadAlwaysApprovals()])
       diagnostics.value = diagnosticsData
       return
     }
@@ -424,6 +475,28 @@ onMounted(load)
                   <dd>{{ valueOf(securityPolicy, 'tirith_timeout_seconds', 0) }} 秒</dd>
                 </div>
               </dl>
+            </div>
+          </div>
+          <div class="coverage-section">
+            <div class="coverage-title">
+              <h4>覆盖面快照</h4>
+              <NTag size="small" :type="policyAuditResult?.success === false ? 'error' : 'success'" :bordered="false">
+                {{ policyAuditResult?.success === false ? '异常' : '只读' }}
+              </NTag>
+            </div>
+            <div class="coverage-grid">
+              <div v-for="item in coverageItems" :key="item.key" class="coverage-item">
+                <span>{{ item.label }}</span>
+                <NTag size="small" :type="booleanTagType(securityCoverage[item.key])" :bordered="false">
+                  {{ booleanText(securityCoverage[item.key]) }}
+                </NTag>
+              </div>
+            </div>
+            <div class="surface-list">
+              <NTag v-for="surface in securitySurfaces" :key="surface" size="small" :bordered="false">
+                {{ surfaceLabel(surface) }}
+              </NTag>
+              <span v-if="!securitySurfaces.length" class="surface-empty">暂无覆盖面数据</span>
             </div>
           </div>
         </section>
@@ -768,6 +841,54 @@ onMounted(load)
   background: $bg-secondary;
 }
 
+.coverage-section {
+  margin-top: 12px;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  padding: 12px;
+  background: $bg-secondary;
+}
+
+.coverage-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.coverage-item {
+  min-height: 30px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.surface-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.surface-empty {
+  font-size: 12px;
+  color: $text-muted;
+}
+
 h3 {
   margin: 0 0 12px;
   font-size: 14px;
@@ -972,6 +1093,10 @@ pre {
   }
 
   .security-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .coverage-grid {
     grid-template-columns: 1fr;
   }
 

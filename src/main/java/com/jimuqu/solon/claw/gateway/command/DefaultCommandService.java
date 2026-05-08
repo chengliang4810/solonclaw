@@ -36,6 +36,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.cli.acp.AcpStdioServer;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
@@ -638,6 +639,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_TOOLS,
                         GatewayCommandConstants.COMMAND_SKILLS,
                         GatewayCommandConstants.COMMAND_RELOAD_MCP,
+                        GatewayCommandConstants.COMMAND_ACP,
                         GatewayCommandConstants.COMMAND_CRON,
                         GatewayCommandConstants.COMMAND_KANBAN,
                         GatewayCommandConstants.COMMAND_GOAL,
@@ -918,6 +920,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_RELOAD_MCP.equals(command)) {
             return handleReloadMcp(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_ACP.equals(command)) {
+            return handleAcp(args);
         }
 
         if (GatewayCommandConstants.COMMAND_SETHOME.equals(command)) {
@@ -1728,6 +1734,61 @@ public class DefaultCommandService implements CommandService {
             buffer.append("\n已永久确认 /reload-mcp，后续将直接执行。");
         }
         return GatewayReply.ok(buffer.toString());
+    }
+
+    private GatewayReply handleAcp(String args) {
+        String action = StrUtil.blankToDefault(firstToken(args), "status").toLowerCase();
+        if (!"status".equals(action) && !"show".equals(action)) {
+            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_ACP + " [status]");
+        }
+        Map<String, Object> status = new AcpStdioServer(null, null, dashboardMcpService, appConfig).status();
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("ACP adapter status\n");
+        buffer.append("transport=").append(status.get("transport")).append('\n');
+        buffer.append("command=").append(status.get("command")).append('\n');
+        buffer.append("protocol_version=").append(status.get("protocol_version")).append('\n');
+        Map<String, Object> capabilities = asMap(status.get("capabilities"));
+        buffer.append("mcp_servers=").append(capabilities.get("mcp_servers")).append('\n');
+        buffer.append("slash_commands=").append(capabilities.get("slash_commands")).append('\n');
+        buffer.append("methods=").append(joinCollection(status.get("methods"))).append('\n');
+        buffer.append("commands=").append(joinCommandNames(status.get("commands")));
+        return GatewayReply.ok(buffer.toString());
+    }
+
+    private Map<String, Object> asMap(Object value) {
+        if (value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        return Collections.emptyMap();
+    }
+
+    private String joinCollection(Object value) {
+        if (value instanceof Iterable) {
+            List<String> items = new ArrayList<String>();
+            for (Object item : (Iterable<?>) value) {
+                if (item != null) {
+                    items.add(String.valueOf(item));
+                }
+            }
+            return String.join(", ", items);
+        }
+        return "";
+    }
+
+    private String joinCommandNames(Object value) {
+        if (!(value instanceof Iterable)) {
+            return "";
+        }
+        List<String> names = new ArrayList<String>();
+        for (Object item : (Iterable<?>) value) {
+            if (item instanceof Map) {
+                Object name = ((Map<?, ?>) item).get("name");
+                if (name != null) {
+                    names.add("/" + String.valueOf(name));
+                }
+            }
+        }
+        return String.join(", ", names);
     }
 
     private void appendReloadMcpHistoryNotice(
@@ -3712,6 +3773,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
                                         + " [now|always]；确认：/approve [确认编号]|/always|/cancel",
                                 "重新加载 MCP 工具并刷新工具变更基线"),
+                        helpLine(GatewayCommandConstants.SLASH_ACP + " [status]", "查看 ACP 本地适配器能力快照"),
                         helpLine(GatewayCommandConstants.SLASH_CONFIRM, "查看当前待确认 slash 命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_AGENT

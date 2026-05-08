@@ -1,6 +1,6 @@
 param(
     [string] $HeadSha = $env:GITHUB_SHA,
-    [string] $CleanNamingBase = "c3abefe8855d8bc0c43a393d63e3d53b515d5239",
+    [string] $CleanNamingBase = "a6e245c53d8eacdc041a2314390448e92e31ab10",
     [string] $GithubOutputPath = $env:GITHUB_OUTPUT
 )
 
