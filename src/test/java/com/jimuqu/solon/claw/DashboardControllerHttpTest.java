@@ -430,6 +430,28 @@ public class DashboardControllerHttpTest {
                 .containsExactly("docs_fetch", "docs_search");
         assertThat(stringsAt(changedMcp.body, "removed_tools")).isEmpty();
 
+        HttpResult updateMcpForReloadAll =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"},{\"name\":\"docs_rank\",\"description\":\"Rank docs\"}]}",
+                        token);
+        assertThat(updateMcpForReloadAll.status).isEqualTo(200);
+
+        HttpResult reloadAllMcp =
+                request("POST", "/api/jimuqu/mcp/reload", "{}", token);
+        assertThat(reloadAllMcp.status).isEqualTo(200);
+        ONode reloadAllMcpData = ONode.ofJson(reloadAllMcp.body).get("data");
+        assertThat(reloadAllMcpData.get("tool_count").getInt()).isGreaterThanOrEqualTo(3);
+        assertThat(reloadAllMcpData.get("server_count").getInt()).isGreaterThanOrEqualTo(1);
+        assertThat(stringsAt(reloadAllMcp.body, "changed_servers")).contains("dashboard-local-docs");
+        assertThat(reloadAllMcp.body).contains("\"tool_changed_notification\":true");
+
+        HttpResult reloadAllMcpAgain =
+                request("POST", "/api/jimuqu/mcp/reload", "{}", token);
+        assertThat(reloadAllMcpAgain.status).isEqualTo(200);
+        assertThat(stringsAt(reloadAllMcpAgain.body, "unchanged_servers")).contains("dashboard-local-docs");
+
         HttpResult mcpList = request("GET", "/api/jimuqu/mcp", null, token);
         assertThat(mcpList.status).isEqualTo(200);
         assertThat(mcpList.body).contains("Local Docs");

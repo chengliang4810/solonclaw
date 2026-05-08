@@ -485,6 +485,10 @@ public class DashboardMcpService {
     }
 
     public McpReloadResult reloadAll() throws Exception {
+        return reloadAll(true);
+    }
+
+    private McpReloadResult reloadAll(boolean baselineInitial) throws Exception {
         List<String> serverIds = new ArrayList<String>();
         List<String> changedServers = new ArrayList<String>();
         List<String> unchangedServers = new ArrayList<String>();
@@ -507,7 +511,7 @@ public class DashboardMcpService {
             connection.close();
         }
         for (String serverId : serverIds) {
-            McpCheckState state = checkServer(serverId, true);
+            McpCheckState state = checkServer(serverId, baselineInitial);
             toolCount += state.getToolCount();
             if (state.isToolsChanged()) {
                 changedServers.add(serverId);
@@ -517,6 +521,29 @@ public class DashboardMcpService {
         }
         return new McpReloadResult(
                 appConfig.getMcp().isEnabled(), changedServers, unchangedServers, toolCount);
+    }
+
+    public Map<String, Object> reloadAllView() throws Exception {
+        McpReloadResult result = reloadAll(false);
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("enabled", Boolean.valueOf(result.isEnabled()));
+        map.put("tool_count", Integer.valueOf(result.getToolCount()));
+        map.put("changed_servers", result.getChangedServers());
+        map.put("unchanged_servers", result.getUnchangedServers());
+        map.put(
+                "tool_changed_notification",
+                Boolean.valueOf(!result.getChangedServers().isEmpty()));
+        map.put(
+                "changed_count",
+                Integer.valueOf(result.getChangedServers().size()));
+        map.put(
+                "unchanged_count",
+                Integer.valueOf(result.getUnchangedServers().size()));
+        map.put(
+                "server_count",
+                Integer.valueOf(
+                        result.getChangedServers().size() + result.getUnchangedServers().size()));
+        return map;
     }
 
     private McpCheckState checkServer(String serverId, boolean baselineInitial) throws Exception {

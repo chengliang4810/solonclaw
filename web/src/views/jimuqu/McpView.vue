@@ -25,10 +25,12 @@ import {
   handleMcpOAuth401,
   refreshMcpOAuth,
   refreshMcpTools,
+  reloadAllMcpServers,
   reloadMcpServer,
   saveMcpServer,
   type McpActionResult,
   type McpOAuthStatus,
+  type McpReloadAllResult,
   type McpServer,
 } from '@/api/jimuqu/mcp'
 
@@ -44,6 +46,7 @@ const showServerModal = ref(false)
 const oauthStatus = ref<McpOAuthStatus | null>(null)
 const oauthLoading = ref(false)
 const lastAction = ref<McpActionResult | null>(null)
+const lastReloadAll = ref<McpReloadAllResult | null>(null)
 const oauthBeginUrl = ref('')
 
 const transportOptions = [
@@ -276,6 +279,19 @@ async function runAction(name: string, fn: () => Promise<McpActionResult>) {
   }
 }
 
+async function reloadAllServers() {
+  actionLoading.value = 'reload-all'
+  try {
+    lastReloadAll.value = await reloadAllMcpServers()
+    await load()
+    message.success('MCP server 已全部重载')
+  } catch (err: any) {
+    message.error(err.message || '全量重载失败')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
 async function loadOAuthStatus() {
   if (!selectedId.value) {
     oauthStatus.value = null
@@ -400,9 +416,29 @@ async function copy(text: string) {
           MCP {{ enabled ? '已启用' : '未启用' }}
         </NTag>
         <NButton size="small" :loading="loading" @click="load">刷新</NButton>
+        <NButton size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">重载全部</NButton>
         <NButton size="small" type="primary" @click="openCreate">新增 Server</NButton>
       </div>
     </header>
+
+    <section v-if="lastReloadAll" class="global-result">
+      <div class="result-title">
+        全量重载
+        <NTag size="small" :type="lastReloadAll.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
+          {{ lastReloadAll.tool_changed_notification ? '工具有变更' : '工具未变更' }}
+        </NTag>
+      </div>
+      <div class="result-meta">
+        <span>server: {{ lastReloadAll.server_count }}</span>
+        <span>工具数: {{ lastReloadAll.tool_count }}</span>
+        <span>变更: {{ lastReloadAll.changed_count }}</span>
+        <span>未变更: {{ lastReloadAll.unchanged_count }}</span>
+      </div>
+      <div v-if="lastReloadAll.changed_servers.length || lastReloadAll.unchanged_servers.length" class="tool-diff">
+        <span v-if="lastReloadAll.changed_servers.length">变更：{{ lastReloadAll.changed_servers.join(', ') }}</span>
+        <span v-if="lastReloadAll.unchanged_servers.length">未变更：{{ lastReloadAll.unchanged_servers.join(', ') }}</span>
+      </div>
+    </section>
 
     <NSpin :show="loading">
       <main class="mcp-layout">
@@ -809,7 +845,8 @@ h4 {
 }
 
 .panel,
-.action-result {
+.action-result,
+.global-result {
   border: 1px solid $border-color;
   border-radius: $radius-sm;
   padding: 14px;
@@ -819,6 +856,10 @@ h4 {
 
 .action-result {
   margin-bottom: 16px;
+}
+
+.global-result {
+  margin: 0 20px;
 }
 
 .result-title,

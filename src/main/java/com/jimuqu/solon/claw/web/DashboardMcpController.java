@@ -30,6 +30,11 @@ public class DashboardMcpController {
                                 ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
     }
 
+    @Mapping(value = "/api/jimuqu/mcp/reload", method = MethodType.POST)
+    public Map<String, Object> reloadAll() throws Exception {
+        return DashboardResponse.ok(mcpService.reloadAllView());
+    }
+
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/check", method = MethodType.POST)
     public Map<String, Object> check(String serverId) throws Exception {
         return DashboardResponse.ok(mcpService.check(serverId));

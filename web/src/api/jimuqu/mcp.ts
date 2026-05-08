@@ -37,6 +37,17 @@ export interface McpActionResult {
   security?: Record<string, unknown>
 }
 
+export interface McpReloadAllResult {
+  enabled: boolean
+  tool_count: number
+  changed_servers: string[]
+  unchanged_servers: string[]
+  tool_changed_notification: boolean
+  changed_count: number
+  unchanged_count: number
+  server_count: number
+}
+
 export interface McpOAuthStatus {
   server_id: string
   enabled: boolean
@@ -73,6 +84,10 @@ export async function saveMcpServer(data: Record<string, unknown>) {
     method: 'POST',
     body: JSON.stringify(data),
   })
+}
+
+export async function reloadAllMcpServers(): Promise<McpReloadAllResult> {
+  return request('/api/jimuqu/mcp/reload', { method: 'POST' })
 }
 
 export async function checkMcpServer(serverId: string): Promise<McpActionResult> {
