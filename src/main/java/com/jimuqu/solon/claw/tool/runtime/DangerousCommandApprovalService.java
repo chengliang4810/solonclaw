@@ -510,6 +510,11 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bFormat-Volume\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_diskpart_script",
+                                    "Windows diskpart script execution",
+                                    pattern("\\bdiskpart(?:\\.exe)?\\b(?=[^\\n]*(?:/s\\b|-s\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_taskkill",
                                     "Windows force kill",
                                     pattern("\\btaskkill\\b.*\\s/f\\b"),
@@ -729,6 +734,12 @@ public class DangerousCommandApprovalService {
                                     "hardline_windows_remove_partition",
                                     "remove Windows partition",
                                     pattern("\\bRemove-Partition\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_diskpart_destructive",
+                                    "destructive Windows diskpart operation",
+                                    pattern(
+                                            "\\bdiskpart(?:\\.exe)?\\b(?=[\\s\\S]*\\b(?:clean(?:\\s+all)?|delete\\s+partition|delete\\s+volume|format\\s+fs=|convert\\s+(?:gpt|mbr))\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_windows_delete_drive_root",

@@ -415,6 +415,10 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "copy template.env backup.env /Y"))
                 .isNull();
+        assertDangerPattern(env, "diskpart /s wipe-disk.txt", "windows_diskpart_script");
+        assertDangerPattern(env, "diskpart.exe -s .\\partition.txt", "windows_diskpart_script");
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "diskpart /?"))
+                .isNull();
         assertDangerPattern(
                 env,
                 "vssadmin delete shadows /all /quiet",
@@ -1023,6 +1027,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult barePwshStop =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "pwsh Stop-Computer");
+        DangerousCommandApprovalService.DetectionResult diskpartClean =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell",
+                        "diskpart /s - <<'EOF'\nselect disk 0\nclean all\nEOF");
+        DangerousCommandApprovalService.DetectionResult diskpartDeletePartition =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell",
+                        "diskpart /s script.txt && echo delete partition override");
+        DangerousCommandApprovalService.DetectionResult diskpartFormat =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "diskpart.exe /s .\\format.txt\nformat fs=ntfs quick");
 
         assertThat(format).isNotNull();
         assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
@@ -1060,6 +1075,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(pwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(barePwshStop).isNotNull();
         assertThat(barePwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(diskpartClean).isNotNull();
+        assertThat(diskpartClean.getPatternKey())
+                .isEqualTo("hardline_windows_diskpart_destructive");
+        assertThat(diskpartDeletePartition).isNotNull();
+        assertThat(diskpartDeletePartition.getPatternKey())
+                .isEqualTo("hardline_windows_diskpart_destructive");
+        assertThat(diskpartFormat).isNotNull();
+        assertThat(diskpartFormat.getPatternKey())
+                .isEqualTo("hardline_windows_diskpart_destructive");
     }
 
     @Test
@@ -1135,7 +1159,8 @@ public class DangerousCommandApprovalServiceTest {
                     "setsid poweroff",
                     "Clear-Disk -Number 1 -RemoveData -Confirm:$false",
                     "Remove-Partition -DriveLetter D -Confirm:$false",
-                    "Format-Volume -DriveLetter E -FileSystem NTFS"
+                    "Format-Volume -DriveLetter E -FileSystem NTFS",
+                    "diskpart /s wipe-disk.txt && clean"
                 };
 
         for (String command : blocked) {
