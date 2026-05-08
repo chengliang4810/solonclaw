@@ -1335,6 +1335,44 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardBraveFreeSearchEndpointBeforeNetworkAccess() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("brave-free");
+        env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("api.search.brave.com"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
+                    @Override
+                    protected String executeBraveSearchRequest(
+                            String query, int limit, String apiKey) {
+                        throw new AssertionError("Brave backend should not be called");
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "blocked",
+                                        Integer.valueOf(1),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("api.search.brave.com");
+    }
+
+    @Test
     void shouldUseDdgsSearchBackendWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("ddgs");
@@ -1406,6 +1444,42 @@ public class ToolRegistryExposureTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("blocked.example")
                 .hasMessageNotContaining("secret123");
+    }
+
+    @Test
+    void shouldGuardDdgsSearchEndpointBeforeNetworkAccess() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("ddgs");
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("html.duckduckgo.com"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
+                    @Override
+                    protected String executeDdgsSearchRequest(String query, int limit) {
+                        throw new AssertionError("DDGS backend should not be called");
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "blocked",
+                                        Integer.valueOf(1),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("html.duckduckgo.com");
     }
 
     @Test

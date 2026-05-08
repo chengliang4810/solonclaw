@@ -228,6 +228,7 @@ public class SolonClawWebTools {
                 throw new IllegalStateException("BRAVE_SEARCH_API_KEY is not set");
             }
             int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
+            checkSearchEndpoint(BRAVE_SEARCH_ENDPOINT);
             String body = executeBraveSearchRequest(query, limit, apiKey);
             Object parsed = ONode.ofJson(body).toData();
             Map<String, Object> root = parsed instanceof Map ? castMap(parsed) : Collections.<String, Object>emptyMap();
@@ -264,6 +265,7 @@ public class SolonClawWebTools {
 
         private Document ddgsSearch(String query, Integer numResults) {
             int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
+            checkSearchEndpoint(DDGS_SEARCH_ENDPOINT);
             String body = executeDdgsSearchRequest(query, limit);
             List<Map<String, Object>> web = parseDdgsResults(body, limit);
             Map<String, Object> data = new LinkedHashMap<String, Object>();
@@ -344,6 +346,10 @@ public class SolonClawWebTools {
 
         private String stringValue(Object value) {
             return value == null ? "" : String.valueOf(value);
+        }
+
+        protected void checkSearchEndpoint(String url) {
+            checkUrl(securityPolicyService, url);
         }
 
         protected String executeBraveSearchRequest(String query, int limit, String apiKey) {
