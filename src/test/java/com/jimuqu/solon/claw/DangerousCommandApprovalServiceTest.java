@@ -1578,6 +1578,26 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldIgnoreCredentialFilesAsSharedWebsiteBlocklistSources() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File envFile = new File(env.appConfig.getRuntime().getHome(), ".env").getCanonicalFile();
+        FileUtil.writeUtf8String("credential-shared.example\n", envFile);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList(".env"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://credential-shared.example/docs");
+
+        assertThat(verdict.isAllowed()).isTrue();
+        assertThat(verdict.getMessage()).doesNotContain("website policy");
+    }
+
+    @Test
     void shouldExpandHomeInSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String oldHome = System.getProperty("user.home");

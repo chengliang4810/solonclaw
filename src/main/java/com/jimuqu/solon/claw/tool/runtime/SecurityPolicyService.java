@@ -1260,9 +1260,13 @@ public class SecurityPolicyService {
         if (path.length() == 0) {
             return null;
         }
+        if (!checkPath(path, false).isAllowed()) {
+            return null;
+        }
         try {
             if (isAbsolutePathText(path)) {
-                return new File(path).getCanonicalFile();
+                File file = new File(path).getCanonicalFile();
+                return checkPath(file.getAbsolutePath(), false).isAllowed() ? file : null;
             }
             if (containsTraversal(normalizePathText(path))) {
                 return null;
@@ -1276,7 +1280,7 @@ public class SecurityPolicyService {
             File home = runtimeHome.getCanonicalFile();
             File file = new File(home, path).getCanonicalFile();
             if (isInside(file, home)) {
-                return file;
+                return checkPath(file.getAbsolutePath(), false).isAllowed() ? file : null;
             }
             return null;
         } catch (Exception ignored) {
