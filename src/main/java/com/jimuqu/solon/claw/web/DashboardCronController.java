@@ -114,6 +114,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}", method = MethodType.PATCH)
     public Map<String, Object> apiPatch(String id, Context context) throws Exception {
+        return apiUpdate(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}", method = MethodType.PUT)
+    public Map<String, Object> apiPut(String id, Context context) throws Exception {
+        return apiUpdate(id, context);
+    }
+
+    private Map<String, Object> apiUpdate(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.apiPatch(id, body(context)));
@@ -199,6 +208,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}/run", method = MethodType.POST)
     public Map<String, Object> apiRun(String id, Context context) throws Exception {
+        return apiRunJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/trigger", method = MethodType.POST)
+    public Map<String, Object> apiTrigger(String id, Context context) throws Exception {
+        return apiRunJob(id, context);
+    }
+
+    private Map<String, Object> apiRunJob(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.apiRun(id));
@@ -233,6 +251,16 @@ public class DashboardCronController {
     @Mapping(value = "/api/jobs/{id}/runs", method = MethodType.GET)
     public Map<String, Object> apiHistory(String id, @Param(defaultValue = "20") Integer limit, Context context)
             throws Exception {
+        return apiHistoryData(id, limit, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/history", method = MethodType.GET)
+    public Map<String, Object> apiHistoryAlias(String id, @Param(defaultValue = "20") Integer limit, Context context)
+            throws Exception {
+        return apiHistoryData(id, limit, context);
+    }
+
+    private Map<String, Object> apiHistoryData(String id, Integer limit, Context context) throws Exception {
         try {
             validateApiJobId(id);
             List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());

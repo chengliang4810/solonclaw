@@ -435,6 +435,31 @@ public class DashboardControllerHttpTest {
         assertThat(apiCronRunsData.get("runs").get(0).get("output").getString())
                 .contains("dashboard trigger ok: daily summary");
 
+        HttpResult apiPutCron =
+                request(
+                        "PUT",
+                        "/api/jobs/" + dashboardCronId,
+                        "{\"name\":\"Daily summary via API\",\"schedule\":\"0 10 * * *\"}",
+                        token);
+        assertThat(apiPutCron.status).isEqualTo(200);
+        assertThat(apiPutCron.body)
+                .contains("\"job\"")
+                .contains("\"name\":\"Daily summary via API\"")
+                .contains("\"schedule_display\":\"0 10 * * *\"");
+
+        HttpResult apiTriggerCron =
+                request("POST", "/api/jobs/" + dashboardCronId + "/trigger", "{}", token);
+        assertThat(apiTriggerCron.status).isEqualTo(200);
+        assertThat(apiTriggerCron.body).contains("\"job\"").contains("\"last_status\":\"ok\"");
+
+        HttpResult apiCronHistory =
+                request("GET", "/api/jobs/" + dashboardCronId + "/history?limit=2", null, token);
+        assertThat(apiCronHistory.status).isEqualTo(200);
+        ONode apiCronHistoryData = ONode.ofJson(apiCronHistory.body);
+        assertThat(apiCronHistoryData.get("job_id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronHistoryData.get("count").getInt()).isGreaterThanOrEqualTo(1);
+        assertThat(apiCronHistoryData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
+
         HttpResult pauseCron =
                 request(
                         "POST",
