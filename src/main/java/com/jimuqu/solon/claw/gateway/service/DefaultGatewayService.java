@@ -114,12 +114,13 @@ public class DefaultGatewayService {
                 return cancelledReply;
             }
             log.warn(
-                    "Gateway handle failed: platform={}, chatId={}, userId={}, text={}",
+                    "Gateway handle failed: platform={}, chatId={}, userId={}, text={}, errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getUserId(),
-                    message.getText(),
-                    e);
+                    SecretRedactor.redact(message.getText(), 1000),
+                    errorType(e),
+                    safeMessage(e));
             GatewayReply errorReply = GatewayReply.error("处理消息失败：" + safeMessage(e));
             if (authorized) {
                 safeDeliver(message, errorReply);
@@ -170,7 +171,11 @@ public class DefaultGatewayService {
                                         safeScheduleGoalContinuation(kickoffMessage, next);
                                     }
                                 } catch (Exception e) {
-                                    log.warn("Goal kickoff dispatch failed: sourceKey={}", message.sourceKey(), e);
+                                    log.warn(
+                                            "Goal kickoff dispatch failed: sourceKey={}, errorType={}, error={}",
+                                            message.sourceKey(),
+                                            errorType(e),
+                                            safeMessage(e));
                                 }
                             }
                         },
@@ -214,7 +219,11 @@ public class DefaultGatewayService {
                                         safeScheduleGoalContinuation(continuation, next);
                                     }
                                 } catch (Exception e) {
-                                    log.warn("Goal continuation dispatch failed: sourceKey={}", message.sourceKey(), e);
+                                    log.warn(
+                                            "Goal continuation dispatch failed: sourceKey={}, errorType={}, error={}",
+                                            message.sourceKey(),
+                                            errorType(e),
+                                            safeMessage(e));
                                 }
                             }
                         },
@@ -257,11 +266,12 @@ public class DefaultGatewayService {
             deliveryService.deliver(request);
         } catch (Exception e) {
             log.warn(
-                    "Gateway delivery failed: platform={}, chatId={}, userId={}",
+                    "Gateway delivery failed: platform={}, chatId={}, userId={}, errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getUserId(),
-                    e);
+                    errorType(e),
+                    safeMessage(e));
         }
     }
 
@@ -279,7 +289,11 @@ public class DefaultGatewayService {
                 skillLearningService.schedulePostReplyLearning(session, message, reply);
             }
         } catch (Exception e) {
-            log.warn("Post-reply learning schedule failed: sessionId={}", reply.getSessionId(), e);
+            log.warn(
+                    "Post-reply learning schedule failed: sessionId={}, errorType={}, error={}",
+                    reply.getSessionId(),
+                    errorType(e),
+                    safeMessage(e));
         }
     }
 
@@ -338,5 +352,10 @@ public class DefaultGatewayService {
             current = current.getCause();
         }
         return current;
+    }
+
+    private String errorType(Throwable throwable) {
+        Throwable cause = rootCause(throwable);
+        return cause == null ? "Throwable" : cause.getClass().getSimpleName();
     }
 }
