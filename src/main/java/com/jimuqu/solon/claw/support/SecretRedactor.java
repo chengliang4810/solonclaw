@@ -75,6 +75,9 @@ public final class SecretRedactor {
                             + "|mem0_[A-Za-z0-9]{10,}"
                             + "|brv_[A-Za-z0-9]{10,}"
                             + ")(?![A-Za-z0-9_-])");
+    private static final Pattern EMBEDDED_PREFIX_SECRET =
+            Pattern.compile(
+                    "(?i)((?:^|[^A-Za-z0-9])(?:[A-Za-z0-9_.-]{0,80})(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_))[A-Za-z0-9_-]{10,}");
     private static final int DEFAULT_MAX_LENGTH = 8000;
 
     private SecretRedactor() {}
@@ -92,6 +95,7 @@ public final class SecretRedactor {
         result = SHELL_KEY_VALUE.matcher(result).replaceAll("$1$2***");
         result = JSON_FIELD.matcher(result).replaceAll("$1$2***$4");
         result = PREFIX_SECRET.matcher(result).replaceAll("***");
+        result = EMBEDDED_PREFIX_SECRET.matcher(result).replaceAll("$1***");
         result = PRIVATE_KEY.matcher(result).replaceAll("[REDACTED PRIVATE KEY]");
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = JWT.matcher(result).replaceAll("***");

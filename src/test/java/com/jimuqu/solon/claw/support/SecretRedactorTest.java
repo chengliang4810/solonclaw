@@ -86,4 +86,17 @@ class SecretRedactorTest {
                 .doesNotContain("credentials")
                 .doesNotContain(".env");
     }
+
+    @Test
+    void shouldRedactEmbeddedTokenFragmentsInNamesAndPaths() {
+        String result =
+                SecretRedactor.redact(
+                        "Tool 'secret_tool_ghp_1234567890abcdef' failed at missing-token-ghp_1234567890abcdef and npm-package-npm_1234567890abcdef.");
+
+        assertThat(result)
+                .contains("secret_tool_ghp_***")
+                .contains("missing-token-ghp_***")
+                .contains("npm-package-npm_***")
+                .doesNotContain("1234567890abcdef");
+    }
 }

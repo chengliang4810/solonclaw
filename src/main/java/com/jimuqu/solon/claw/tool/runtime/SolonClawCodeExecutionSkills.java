@@ -216,7 +216,7 @@ public class SolonClawCodeExecutionSkills {
             Map<String, Object> result =
                     baseExecuteCodeResult(
                             "error", "", toolCallsMade, started);
-            result.put("error", cleanOutput(error, MAX_STDERR_CHARS));
+            result.put("error", cleanOutput(SecretRedactor.redact(error, MAX_STDERR_CHARS), MAX_STDERR_CHARS));
             return ONode.serialize(result);
         }
 
@@ -391,7 +391,7 @@ public class SolonClawCodeExecutionSkills {
                     toolCallsMade.incrementAndGet();
                 }
             } catch (Exception e) {
-                response = ONode.serialize(errorMap(e.getMessage()));
+                response = ONode.serialize(errorMap(safeErrorText(e)));
                 seq = extractSeq(request);
             }
             try {
@@ -454,7 +454,7 @@ public class SolonClawCodeExecutionSkills {
                                         + toolName
                                         + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, web_extract, web_search, write_file"));
             } catch (Exception e) {
-                return ONode.serialize(errorMap(e.getMessage()));
+                return ONode.serialize(errorMap(safeErrorText(e)));
             }
         }
 
@@ -580,7 +580,7 @@ public class SolonClawCodeExecutionSkills {
                 } catch (Exception e) {
                     item.put("title", url);
                     item.put("content", "");
-                    item.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    item.put("error", safeErrorText(e));
                 }
                 items.add(item);
             }
@@ -789,10 +789,21 @@ public class SolonClawCodeExecutionSkills {
 
         private Map<String, Object> errorMap(String error) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("error", StrUtil.blankToDefault(error, "Tool execution failed"));
+            result.put("error", safeText(StrUtil.blankToDefault(error, "Tool execution failed")));
             result.put("status", "error");
             result.put("success", Boolean.FALSE);
             return result;
+        }
+
+        private String safeErrorText(Exception e) {
+            if (e == null) {
+                return "Tool execution failed";
+            }
+            return safeText(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+
+        private String safeText(String value) {
+            return SecretRedactor.redact(value, 1000);
         }
 
         private String getString(Map<String, Object> map, String key, String defaultValue) {
@@ -1089,7 +1100,9 @@ public class SolonClawCodeExecutionSkills {
             }
             return buffer.toString();
         } catch (Exception e) {
-            return "系统失败: " + e.getMessage();
+            return "系统失败: " + SecretRedactor.redact(
+                    StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                    1000);
         }
     }
 

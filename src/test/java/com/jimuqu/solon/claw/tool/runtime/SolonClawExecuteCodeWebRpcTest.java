@@ -74,6 +74,40 @@ public class SolonClawExecuteCodeWebRpcTest {
                 .contains("blocked by test");
     }
 
+    @Test
+    void shouldRedactExecuteCodeRpcToolErrors() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig,
+                        new FakeWebsearchTool(),
+                        new FakeWebfetchTool());
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from solonclaw_tools import search_files, web_extract, _call\n"
+                                        + "secret = 'ghp_' + '1234567890abcdef'\n"
+                                        + "print(search_files('x', path='missing-token-' + secret)['error'])\n"
+                                        + "print(_call('secret_tool_' + secret, {})['error'])\n"
+                                        + "extract = web_extract(['https://example.com/fail?token=' + secret])\n"
+                                        + "print(extract['results'][0]['error'])\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(3);
+        assertThat(result.get("output").getString())
+                .contains("missing-token-ghp_***")
+                .contains("Tool 'secret_tool_ghp_***'")
+                .contains("blocked by test")
+                .doesNotContain("ghp_1234567890abcdef")
+                .doesNotContain("token=ghp_1234567890abcdef");
+    }
+
     private static boolean commandExists(String command) {
         try {
             Process process =
@@ -121,7 +155,7 @@ public class SolonClawExecuteCodeWebRpcTest {
         @Override
         public Document webfetch(String url, String format, Integer timeoutSeconds) {
             if (url.contains("/fail")) {
-                throw new IllegalArgumentException("blocked by test");
+                throw new IllegalArgumentException("blocked by test: " + url);
             }
             return new Document("Fetched markdown").title("Example Docs").url(url);
         }
