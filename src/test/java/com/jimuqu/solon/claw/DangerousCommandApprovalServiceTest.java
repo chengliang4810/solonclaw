@@ -24,6 +24,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.Agent;
+import org.noear.solon.ai.agent.react.intercept.HITL;
+import org.noear.solon.ai.agent.react.intercept.HITLDecision;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
@@ -3316,6 +3318,56 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.reject(trace.session, "tester")).isTrue();
 
         assertThat(choices).containsExactly("request", "deny");
+    }
+
+    @Test
+    void shouldRedactApproverInApprovalSessionDecisionComment() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "dashboard-user ghp_1234567890abcdef"))
+                .isTrue();
+
+        HITLDecision decision = HITL.getDecision(trace.session, "execute_shell");
+        assertThat(decision).isNotNull();
+        assertThat(decision.getComment())
+                .contains("审批人：dashboard-user ***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(ONode.serialize(trace.session.getSnapshot())).doesNotContain("1234567890abcdef");
+    }
+
+    @Test
+    void shouldRedactApproverInRejectSessionDecisionComment() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.reject(
+                                trace.session, "dashboard-user ghp_1234567890abcdef"))
+                .isTrue();
+
+        HITLDecision decision = HITL.getDecision(trace.session, "execute_shell");
+        assertThat(decision).isNotNull();
+        assertThat(decision.getComment())
+                .contains("审批人：dashboard-user ***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(ONode.serialize(trace.session.getSnapshot())).doesNotContain("1234567890abcdef");
     }
 
     @Test

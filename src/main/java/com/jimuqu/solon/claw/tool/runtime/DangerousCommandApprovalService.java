@@ -1028,7 +1028,7 @@ public class DangerousCommandApprovalService {
 
         String comment = effectiveScope.comment();
         if (StrUtil.isNotBlank(approver)) {
-            comment = comment + " 审批人：" + approver.trim();
+            comment = comment + " 审批人：" + redactedApprover(approver);
         }
 
         if (effectiveScope == ApprovalScope.ONCE) {
@@ -1089,7 +1089,7 @@ public class DangerousCommandApprovalService {
 
         String comment = "危险命令未获批准，已取消执行。";
         if (StrUtil.isNotBlank(approver)) {
-            comment = comment + " 审批人：" + approver.trim();
+            comment = comment + " 审批人：" + redactedApprover(approver);
         }
 
         HITL.reject(session, pending.getToolName(), comment);
@@ -2643,6 +2643,10 @@ public class DangerousCommandApprovalService {
 
     private String redactApprovalDisplay(String value, int maxLength) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
+    }
+
+    private static String redactedApprover(String approver) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(approver).trim(), 200);
     }
 
     private String buildHardlineMessage(String toolName, DetectionResult detection, String code) {
