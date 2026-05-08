@@ -76,21 +76,21 @@ public class CliModeParserTest {
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains(
-                        "--session --ask -p /help /models /sessions /session /history /copy /exit /quit");
+                        "--session --ask -p /help /models /sessions /session /history /skin /copy /exit /quit");
         assertThat(zsh)
                 .contains("#compdef jimuqu-agent")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
                 .contains("Send one prompt or local terminal command")
-                .contains("/help /models /sessions /session /history /copy /exit /quit")
+                .contains("/help /models /sessions /session /history /skin /copy /exit /quit")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
                 .contains("complete -c jimuqu-agent -f")
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
                 .contains("__fish_seen_argument -s p -l ask")
-                .contains("/help /models /sessions /session /history /copy /exit /quit");
+                .contains("/help /models /sessions /session /history /skin /copy /exit /quit");
     }
 
     @Test

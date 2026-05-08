@@ -17,17 +17,12 @@ import org.jline.terminal.TerminalBuilder;
 
 /** A lightweight terminal UI using JLine: status header, command hints, streaming body. */
 public class TuiShell {
-    private static final String BOLD = "\u001B[1m";
-    private static final String RESET = "\u001B[0m";
-    private static final String DIM = "\u001B[2m";
-    private static final String CYAN = "\u001B[36m";
-    private static final String BORDER = "────────────────────────────────────────────────────────";
     private static final String[] COMMANDS =
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/copy",
-                "/models", "/sessions", "/session", "/history", "/exit"
+                "/models", "/sessions", "/session", "/history", "/skin", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -37,6 +32,7 @@ public class TuiShell {
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
     private final TerminalHistoryViewer historyViewer;
+    private TerminalSkin skin = TerminalSkin.fromEnvironment();
     private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
@@ -119,9 +115,9 @@ public class TuiShell {
             while (true) {
                 String input;
                 try {
-                    input = reader.readLine(BOLD + CYAN + "你" + RESET + " > ");
+                    input = reader.readLine(skin.prompt("你"));
                 } catch (UserInterruptException e) {
-                    writer.println(DIM + "输入已取消。运行中的任务可用 /stop 停止，或 /exit 退出。" + RESET);
+                    writer.println(skin.dim("输入已取消。运行中的任务可用 /stop 停止，或 /exit 退出。"));
                     writer.flush();
                     continue;
                 } catch (EndOfFileException e) {
@@ -136,7 +132,7 @@ public class TuiShell {
                 }
                 dispatchInteractive(taskRunner, writer, sessionId, input);
                 writer.println();
-                writer.println(DIM + BORDER + RESET);
+                writer.println(skin.dim(skin.border()));
                 writer.flush();
             }
         } finally {
@@ -188,6 +184,15 @@ public class TuiShell {
             writer.flush();
             return 0;
         }
+        if (TerminalSkin.isSkinCommand(trimmed)) {
+            String next = trimmed.length() <= "/skin".length() ? "" : trimmed.substring("/skin".length()).trim();
+            if (StrUtil.isNotBlank(next)) {
+                skin = TerminalSkin.resolve(next);
+            }
+            writer.println(skin.renderHelp());
+            writer.flush();
+            return 0;
+        }
         if (modelPicker != null && modelPicker.isPickerCommand(trimmed)) {
             String command = modelPicker.resolveCommand(trimmed);
             if (StrUtil.isBlank(command)) {
@@ -219,7 +224,7 @@ public class TuiShell {
         ConsoleEventSink sink = new ConsoleEventSink(writer, true);
         CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);
         if (!resolved.getAttachments().isEmpty()) {
-            writer.println(DIM + "已附加本地文件：" + resolved.getAttachments().size() + RESET);
+            writer.println(skin.dim("已附加本地文件：" + resolved.getAttachments().size()));
             writer.flush();
         }
         GatewayReply reply =
@@ -232,7 +237,7 @@ public class TuiShell {
             lastReply = finalText;
         }
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
-            writer.println(BOLD + CYAN + "系统" + RESET);
+            writer.println(skin.bold(skin.accent("系统")));
             writer.println(reply.getContent());
             writer.flush();
         }
@@ -241,12 +246,12 @@ public class TuiShell {
 
     private int copyLastReply(PrintWriter writer) {
         if (StrUtil.isBlank(lastReply)) {
-            writer.println(DIM + "没有可复制的上一条回复。" + RESET);
+            writer.println(skin.dim("没有可复制的上一条回复。"));
             writer.flush();
             return 1;
         }
         TerminalClipboardSupport.copy(writer, lastReply);
-        writer.println(DIM + "已复制上一条回复到终端剪贴板。" + RESET);
+        writer.println(skin.dim("已复制上一条回复到终端剪贴板。"));
         writer.flush();
         return 0;
     }
@@ -260,13 +265,12 @@ public class TuiShell {
     }
 
     private void renderHeader(PrintWriter writer, String sessionId) {
-        writer.println(BOLD + "Jimuqu Agent TUI" + RESET);
-        writer.println(DIM + statusLine(sessionId) + RESET);
+        writer.println(skin.bold("Jimuqu Agent TUI"));
+        writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
-                DIM
-                        + "tips: /help 命令  /sessions 浏览会话  /history 预览历史  /copy 复制上一条回复  /exit 退出"
-                        + RESET);
-        writer.println(DIM + BORDER + RESET);
+                skin.dim(
+                        "tips: /help 命令  /sessions 浏览会话  /history 预览历史  /skin 皮肤  /copy 复制上一条回复  /exit 退出"));
+        writer.println(skin.dim(skin.border()));
         writer.flush();
     }
 
