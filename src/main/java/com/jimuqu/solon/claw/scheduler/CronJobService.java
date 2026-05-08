@@ -89,7 +89,7 @@ public class CronJobService {
         long now = System.currentTimeMillis();
         CronJobRecord record = new CronJobRecord();
         record.setJobId(IdSupport.newId());
-        record.setName(StrUtil.blankToDefault(string(body.get("name"), null), "job-" + record.getJobId().substring(0, 8)));
+        record.setName(defaultJobName(body, prompt, skills, script, noAgent));
         record.setCronExpr(schedule);
         record.setPrompt(prompt);
         record.setSourceKey(StrUtil.blankToDefault(sourceKey, DEFAULT_SOURCE));
@@ -837,6 +837,28 @@ public class CronJobService {
             addString(result, item);
         }
         return result;
+    }
+
+    private String defaultJobName(
+            Map<String, Object> body, String prompt, List<String> skills, String script, boolean noAgent) {
+        String explicit = string(body.get("name"), null);
+        if (StrUtil.isNotBlank(explicit)) {
+            return explicit;
+        }
+        String labelSource = normalizeBlank(prompt);
+        if (StrUtil.isBlank(labelSource) && CollUtil.isNotEmpty(skills)) {
+            labelSource = normalizeBlank(skills.get(0));
+        }
+        if (StrUtil.isBlank(labelSource) && noAgent) {
+            labelSource = normalizeBlank(script);
+        }
+        if (StrUtil.isBlank(labelSource)) {
+            labelSource = "cron job";
+        }
+        if (labelSource.length() > 50) {
+            labelSource = labelSource.substring(0, 50);
+        }
+        return labelSource.trim();
     }
 
     private Map<String, String> normalizedMap(Map<String, String> values) {

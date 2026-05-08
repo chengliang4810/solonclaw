@@ -179,6 +179,36 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldInferCronJobNameLikeHermesWhenNameIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+
+        Map<String, Object> promptBody = new LinkedHashMap<String, Object>();
+        promptBody.put("schedule", "30m");
+        promptBody.put("prompt", "012345678901234567890123456789012345678901234567890123456789");
+        CronJobRecord promptJob = service.create("MEMORY:cron:user", promptBody);
+        assertThat(promptJob.getName()).isEqualTo("01234567890123456789012345678901234567890123456789");
+
+        Map<String, Object> skillBody = new LinkedHashMap<String, Object>();
+        skillBody.put("schedule", "30m");
+        skillBody.put("skill", "weekly-report");
+        CronJobRecord skillJob = service.create("MEMORY:cron:user", skillBody);
+        assertThat(skillJob.getName()).isEqualTo("weekly-report");
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "watchdog.py");
+        FileUtil.writeString("print('ok')", script, StandardCharsets.UTF_8);
+
+        Map<String, Object> scriptBody = new LinkedHashMap<String, Object>();
+        scriptBody.put("schedule", "30m");
+        scriptBody.put("script", "watchdog.py");
+        scriptBody.put("no_agent", Boolean.TRUE);
+        CronJobRecord scriptJob = service.create("MEMORY:cron:user", scriptBody);
+        assertThat(scriptJob.getName()).isEqualTo("watchdog.py");
+    }
+
+    @Test
     void shouldDeliverNoAgentScriptFailureAsCronWatchdogAlert() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
