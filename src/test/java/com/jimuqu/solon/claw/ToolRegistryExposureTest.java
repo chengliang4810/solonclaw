@@ -218,6 +218,59 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsInSecurityAuditFindingsLikeJimuqu() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
+
+        ONode command =
+                ONode.ofJson(
+                        tools.audit(
+                                "command",
+                                "execute_shell",
+                                "curl https://blocked.example/docs?token=secret123",
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode url =
+                ONode.ofJson(
+                        tools.audit(
+                                "url",
+                                null,
+                                null,
+                                "https://blocked.example/docs?token=secret123",
+                                null,
+                                null,
+                                null));
+        ONode toolArgs =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "webfetch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"url\":\"https://blocked.example/docs?token=secret123\"}"));
+
+        assertThat(command.get("decision").getString()).isEqualTo("block");
+        assertThat(command.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(url.get("decision").getString()).isEqualTo("block");
+        assertThat(url.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
+        assertThat(toolArgs.toJson()).contains("token=***").doesNotContain("secret123");
+    }
+
+    @Test
     void shouldManageJimuquStyleBackgroundProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =

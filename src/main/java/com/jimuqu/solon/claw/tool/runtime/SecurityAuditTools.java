@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -137,7 +138,7 @@ public class SecurityAuditTools {
                 StrUtil.blankToDefault(toolName, ToolNameConstants.EXECUTE_SHELL).trim();
         AuditResult result = new AuditResult("command");
         result.toolName = effectiveTool;
-        result.commandPreview = StrUtil.maxLength(StrUtil.nullToEmpty(command).trim(), 400);
+        result.commandPreview = SecretRedactor.redact(StrUtil.nullToEmpty(command).trim(), 400);
 
         if (StrUtil.isBlank(command)) {
             result.success = false;
@@ -185,7 +186,9 @@ public class SecurityAuditTools {
                         "file_policy",
                         "blocked_path",
                         "critical",
-                        fileVerdict.getMessage() + ": " + fileVerdict.getPath());
+                        fileVerdict.getMessage()
+                                + ": "
+                                + SecretRedactor.redact(fileVerdict.getPath(), 400));
                 result.escalate("block");
             }
 
@@ -196,7 +199,9 @@ public class SecurityAuditTools {
                         "url_policy",
                         "blocked_url",
                         "critical",
-                        urlVerdict.getMessage() + ": " + urlVerdict.getUrl());
+                        urlVerdict.getMessage()
+                                + ": "
+                                + SecretRedactor.maskUrl(urlVerdict.getUrl()));
                 result.escalate("block");
             }
         }
@@ -213,7 +218,7 @@ public class SecurityAuditTools {
 
     private AuditResult auditUrl(String url) {
         AuditResult result = new AuditResult("url");
-        result.url = StrUtil.nullToEmpty(url).trim();
+        result.url = SecretRedactor.maskUrl(StrUtil.nullToEmpty(url).trim());
         if (securityPolicyService == null) {
             result.summary = "URL policy is unavailable";
             return result;
@@ -229,7 +234,7 @@ public class SecurityAuditTools {
 
     private AuditResult auditPath(String path, boolean writeLike) {
         AuditResult result = new AuditResult("path");
-        result.path = StrUtil.nullToEmpty(path).trim();
+        result.path = SecretRedactor.redact(StrUtil.nullToEmpty(path).trim(), 400);
         result.writeLike = Boolean.valueOf(writeLike);
         if (securityPolicyService == null) {
             result.summary = "file policy is unavailable";
@@ -278,7 +283,9 @@ public class SecurityAuditTools {
                         "file_policy",
                         "blocked_path",
                         "critical",
-                        fileVerdict.getMessage() + ": " + fileVerdict.getPath());
+                        fileVerdict.getMessage()
+                                + ": "
+                                + SecretRedactor.redact(fileVerdict.getPath(), 400));
                 result.escalate("block");
             }
             SecurityPolicyService.UrlVerdict urlVerdict =
@@ -288,7 +295,9 @@ public class SecurityAuditTools {
                         "url_policy",
                         "blocked_url",
                         "critical",
-                        urlVerdict.getMessage() + ": " + urlVerdict.getUrl());
+                        urlVerdict.getMessage()
+                                + ": "
+                                + SecretRedactor.maskUrl(urlVerdict.getUrl()));
                 result.escalate("block");
             }
         }
@@ -343,7 +352,7 @@ public class SecurityAuditTools {
             finding.put("source", StrUtil.nullToEmpty(source));
             finding.put("ruleId", StrUtil.nullToEmpty(ruleId));
             finding.put("severity", StrUtil.nullToEmpty(severity));
-            finding.put("message", StrUtil.nullToEmpty(message));
+            finding.put("message", SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
             findings.add(finding);
         }
 
