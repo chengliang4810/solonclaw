@@ -293,6 +293,22 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldRedactRuntimeConfigYamlParseErrorsBeforeRefreshing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.writeUtf8String(
+                "providers:\n  default:\n    apiKey: sk-test-refreshsecret12345\n    broken: [",
+                env.appConfig.getRuntime().getConfigFile());
+
+        GatewayRuntimeRefreshService.RefreshResult result =
+                env.gatewayRuntimeRefreshService.refreshConfigOnly();
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).contains("runtime/config.yml 格式错误");
+        assertThat(result.getMessage()).contains("***");
+        assertThat(result.getMessage()).doesNotContain("sk-test-refreshsecret12345");
+    }
+
+    @Test
     void shouldBlockUnsafeProviderModelListUrlBeforeNetworkAccess() {
         AppConfig config = new AppConfig();
         DashboardProviderService providerService =

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.gateway.service;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.util.Arrays;
@@ -71,7 +72,7 @@ public class GatewayRuntimeRefreshService {
             log.debug("Skip runtime refresh because config reload failed", e);
             return RefreshResult.failure(
                     configFile.getAbsolutePath(),
-                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    safeError(e));
         }
         appConfig.applyFrom(latest);
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
@@ -107,12 +108,16 @@ public class GatewayRuntimeRefreshService {
             return ValidationResult.success();
         }
         Object parsed;
+        String content = "";
         try {
-            parsed = new Yaml().load(FileUtil.readUtf8String(configFile));
+            content = FileUtil.readUtf8String(configFile);
+            parsed = new Yaml().load(content);
         } catch (Exception e) {
             return ValidationResult.failure(
                     "runtime/config.yml 格式错误："
-                            + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+                            + safeError(e)
+                            + "；配置片段="
+                            + SecretRedactor.redact(content, 1000));
         }
         if (parsed == null) {
             return ValidationResult.success();
@@ -259,6 +264,14 @@ public class GatewayRuntimeRefreshService {
             }
         }
         return false;
+    }
+
+    private String safeError(Throwable e) {
+        if (e == null) {
+            return "";
+        }
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     @SuppressWarnings("unchecked")
