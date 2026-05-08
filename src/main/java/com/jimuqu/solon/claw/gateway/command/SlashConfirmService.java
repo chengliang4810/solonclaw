@@ -18,7 +18,7 @@ public class SlashConfirmService {
     public static final String CHOICE_ALWAYS = "always";
     public static final String CHOICE_CANCEL = "cancel";
 
-    private static final long DEFAULT_TIMEOUT_MS = 300000L;
+    public static final long DEFAULT_TIMEOUT_MS = 300000L;
 
     private final GlobalSettingRepository globalSettingRepository;
     private final Map<String, PendingConfirm> pendingBySource =

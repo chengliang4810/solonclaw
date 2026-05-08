@@ -237,7 +237,7 @@ function timeText(value?: number) {
   return new Date(value).toLocaleString()
 }
 
-function expiresText(item: PendingApproval) {
+function expiresText(item: { expired?: boolean; expires_in_seconds?: number; expires_at?: number }) {
   if (item.expired) return '已过期'
   if (typeof item.expires_in_seconds === 'number') {
     return `${item.expires_in_seconds} 秒`
@@ -250,6 +250,14 @@ function canApproveScope(item: PendingApproval, scope: string) {
   const scopes = item.scope_options || []
   if (scopes.length > 0) return scopes.includes(scope)
   if (scope === 'always') return item.permanent_allowed === true
+  return true
+}
+
+function canConfirmAction(item: PendingSlashConfirm, action: string) {
+  if (item.expired) return false
+  const actions = item.action_options || []
+  if (actions.length > 0) return actions.includes(action)
+  if (action === 'always') return item.allow_always === true
   return true
 }
 
@@ -656,18 +664,20 @@ onMounted(load)
                   <span>{{ item.confirm_id }}</span>
                   <span>创建：{{ timeText(item.created_at) }}</span>
                   <span>过期：{{ timeText(item.expires_at) }}</span>
+                  <span :class="{ 'approval-expired': item.expired }">剩余：{{ expiresText(item) }}</span>
                 </div>
                 <div class="approval-actions">
                   <NButtonGroup size="small">
                     <NButton
                       type="primary"
+                      :disabled="!canConfirmAction(item, 'approve')"
                       :loading="slashConfirmBusy(item, 'approve')"
                       @click="handleSlashConfirm(item, 'approve')"
                     >
                       执行一次
                     </NButton>
                     <NButton
-                      :disabled="!item.allow_always"
+                      :disabled="!canConfirmAction(item, 'always')"
                       :loading="slashConfirmBusy(item, 'always')"
                       @click="handleSlashConfirm(item, 'always')"
                     >
@@ -678,6 +688,7 @@ onMounted(load)
                     size="small"
                     type="error"
                     ghost
+                    :disabled="!canConfirmAction(item, 'deny')"
                     :loading="slashConfirmBusy(item, 'deny')"
                     @click="handleSlashConfirm(item, 'deny')"
                   >

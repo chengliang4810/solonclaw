@@ -114,8 +114,11 @@ export interface PendingSlashConfirm {
   command?: string
   prompt?: string
   allow_always?: boolean
+  action_options?: string[]
   created_at?: number
   expires_at?: number
+  expires_in_seconds?: number
+  expired?: boolean
 }
 
 export interface PendingSlashConfirmsResult {

@@ -1150,7 +1150,10 @@ public class DashboardControllerHttpTest {
         assertThat(confirms.body)
                 .contains("\"command\":\"reload-mcp\"")
                 .contains("\"source_key\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\"")
-                .contains("\"allow_always\":true");
+                .contains("\"allow_always\":true")
+                .contains("\"action_options\":[\"approve\",\"deny\",\"always\"]")
+                .contains("\"expires_in_seconds\"")
+                .contains("\"expired\":false");
         ONode confirm = ONode.ofJson(confirms.body).get("data").get("items").get(0);
         String confirmId = confirm.get("confirm_id").getString();
         assertThat(confirmId).isNotBlank();
