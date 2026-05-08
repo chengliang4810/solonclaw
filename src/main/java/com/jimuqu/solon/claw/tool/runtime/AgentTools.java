@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -29,7 +30,9 @@ public class AgentTools {
             return ToolResultEnvelope.ok("Agent 管理完成").preview(result).toJson();
         } catch (Exception e) {
             return ToolResultEnvelope.error(
-                            e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
+                            SecretRedactor.redact(
+                                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                    1000))
                     .toJson();
         }
     }

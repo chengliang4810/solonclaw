@@ -115,6 +115,33 @@ public class ConfigToolsTest {
     }
 
     @Test
+    void shouldRedactSecretsFromConfigToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configGetTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configGet".equals(method.getName())) {
+                    configGetTool = tool;
+                    break;
+                }
+            }
+            if (configGetTool != null) {
+                break;
+            }
+        }
+
+        assertThat(configGetTool).isNotNull();
+        Method method = configGetTool.getClass().getMethod("configGet", String.class);
+        String response =
+                (String) method.invoke(configGetTool, "providers.ghp_1234567890abcdef.apiKey");
+
+        assertThat(ONode.ofJson(response).get("success").getBoolean()).isFalse();
+        assertThat(ONode.ofJson(response).get("error").getString())
+                .contains("providers.***.apiKey")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    @Test
     void shouldExposeConfigAliasesAndRedactSecretReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Object configGetTool = null;

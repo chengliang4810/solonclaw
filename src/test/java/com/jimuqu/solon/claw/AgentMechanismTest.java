@@ -275,6 +275,23 @@ public class AgentMechanismTest {
     }
 
     @Test
+    void shouldRedactSecretsFromAgentToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentTools tools =
+                new AgentTools(
+                        env.agentProfileService,
+                        env.sessionRepository,
+                        "MEMORY:agent-error-room:agent-error-user");
+
+        String response = tools.agentManage("show missing-ghp_1234567890abcdef");
+
+        assertThat(response)
+                .contains("\"success\":false")
+                .contains("missing-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    @Test
     void shouldAllowAgentManageToolThroughAgentAllowlist() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("operator", "管理 Agent");

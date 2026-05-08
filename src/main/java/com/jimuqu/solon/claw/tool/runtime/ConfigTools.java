@@ -108,7 +108,9 @@ public class ConfigTools {
 
     private String error(Exception e) {
         return ToolResultEnvelope.error(
-                        e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
+                        SecretRedactor.redact(
+                                e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                1000))
                 .toJson();
     }
 
