@@ -19,8 +19,10 @@ const showPauseModal = ref(false)
 const pauseReason = ref('')
 const runsLoading = ref(false)
 const runs = ref<JobRun[]>([])
+const detailJob = ref<Job | null>(null)
 
 const jobId = computed(() => props.job.job_id || props.job.id)
+const activeJob = computed(() => detailJob.value || props.job)
 
 const statusLabel = computed(() => {
   if (props.job.state === 'running') return t('jobs.status.running')
@@ -90,15 +92,16 @@ const jobBadges = computed(() => {
 })
 
 const deliverDetail = computed(() => {
-  const parts = [props.job.deliver || 'local']
-  if (props.job.origin?.platform) parts.push(props.job.origin.platform)
-  if (props.job.deliver_chat_id) parts.push(props.job.deliver_chat_id)
-  if (props.job.deliver_thread_id) parts.push(`#${props.job.deliver_thread_id}`)
+  const job = activeJob.value
+  const parts = [job.deliver || 'local']
+  if (job.origin?.platform) parts.push(job.origin.platform)
+  if (job.deliver_chat_id) parts.push(job.deliver_chat_id)
+  if (job.deliver_thread_id) parts.push(`#${job.deliver_thread_id}`)
   return parts.join(' · ')
 })
 
 const modelDetail = computed(() => {
-  const parts = [props.job.provider, props.job.model, props.job.base_url].filter(Boolean)
+  const parts = [activeJob.value.provider, activeJob.value.model, activeJob.value.base_url].filter(Boolean)
   return parts.length ? parts.join(' · ') : '—'
 })
 
@@ -153,7 +156,12 @@ async function handleRun() {
 async function refreshRuns() {
   runsLoading.value = true
   try {
-    runs.value = await jobsStore.fetchJobRuns(jobId.value, 20)
+    const [job, jobRuns] = await Promise.all([
+      jobsStore.fetchJob(jobId.value),
+      jobsStore.fetchJobRuns(jobId.value, 20),
+    ])
+    detailJob.value = job
+    runs.value = jobRuns
   } catch (e: any) {
     message.error(e.message)
   } finally {
@@ -278,21 +286,21 @@ async function handleDelete() {
           <h4>{{ t('jobs.detail.config') }}</h4>
           <div class="detail-grid">
             <span>{{ t('jobs.detail.skills') }}</span>
-            <code>{{ listDetail(job.skills) }}</code>
+            <code>{{ listDetail(activeJob.skills) }}</code>
             <span>{{ t('jobs.detail.deliver') }}</span>
             <code>{{ deliverDetail }}</code>
             <span>{{ t('jobs.detail.wrapResponse') }}</span>
-            <code>{{ boolDetail(job.wrap_response) }}</code>
+            <code>{{ boolDetail(activeJob.wrap_response) }}</code>
             <span>{{ t('jobs.detail.script') }}</span>
-            <code>{{ job.script || '—' }}</code>
+            <code>{{ activeJob.script || '—' }}</code>
             <span>{{ t('jobs.detail.noAgent') }}</span>
-            <code>{{ boolDetail(job.no_agent) }}</code>
+            <code>{{ boolDetail(activeJob.no_agent) }}</code>
             <span>{{ t('jobs.detail.workdir') }}</span>
-            <code>{{ job.workdir || '—' }}</code>
+            <code>{{ activeJob.workdir || '—' }}</code>
             <span>{{ t('jobs.detail.contextFrom') }}</span>
-            <code>{{ listDetail(job.context_from) }}</code>
+            <code>{{ listDetail(activeJob.context_from) }}</code>
             <span>{{ t('jobs.detail.enabledToolsets') }}</span>
-            <code>{{ listDetail(job.enabled_toolsets) }}</code>
+            <code>{{ listDetail(activeJob.enabled_toolsets) }}</code>
             <span>{{ t('jobs.detail.model') }}</span>
             <code>{{ modelDetail }}</code>
           </div>
