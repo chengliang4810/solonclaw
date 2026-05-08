@@ -260,31 +260,28 @@ public class DashboardDiagnosticsService {
         String sourceKey = text(input, "sourceKey");
         String confirmId = text(input, "confirmId");
         String action = StrUtil.nullToEmpty(text(input, "action")).trim().toLowerCase();
-        if (StrUtil.isBlank(sourceKey)) {
-            return resolveResult(false, "missing_source", "缺少来源键。", null);
+        if (StrUtil.isBlank(confirmId)) {
+            return resolveResult(false, "missing_confirm_id", "缺少确认编号。", null);
         }
         if (!"approve".equals(action) && !"deny".equals(action) && !"always".equals(action)) {
             return resolveResult(false, "invalid_action", "确认动作必须是 approve、always 或 deny。", null);
         }
-        SlashConfirmService.PendingConfirm pending =
-                slashConfirmService == null ? null : slashConfirmService.getPending(sourceKey);
+        SlashConfirmService.PendingConfirm pending = findPendingSlashConfirm(confirmId, sourceKey);
         if (pending == null) {
             return resolveResult(false, "confirm_not_found", "待确认 slash 命令不存在或已过期。", null);
-        }
-        if (StrUtil.isNotBlank(confirmId) && !StrUtil.equals(confirmId, pending.getConfirmId())) {
-            return resolveResult(false, "confirm_id_mismatch", "确认编号不匹配。", null);
         }
         if ("always".equals(action) && !pending.isAllowAlways()) {
             return resolveResult(false, "always_not_allowed", "该 Slash 命令不允许永久确认。", null);
         }
 
+        sourceKey = pending.getSourceKey();
         String commandLine = slashConfirmCommandLine(action, pending.getConfirmId());
         GatewayReply reply = commandService.handle(dashboardMessage(sourceKey, commandLine), commandLine);
         Map<String, Object> result =
                 resolveResult(!reply.isError(), reply.isError() ? "error" : "ok", reply.getContent(), replyMap(reply));
         result.put("action", action);
-        result.put("source_key", sourceKey);
         result.put("confirm_id", pending.getConfirmId());
+        result.put("confirm_ref", shortId(pending.getConfirmId()));
         return result;
     }
 
@@ -651,7 +648,7 @@ public class DashboardDiagnosticsService {
         }
         item.put("confirm_id", pending.getConfirmId());
         item.put("confirm_ref", shortId(pending.getConfirmId()));
-        item.put("source_key", pending.getSourceKey());
+        item.put("source_ref", sourceRef(pending.getSourceKey()));
         item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 1000));
         item.put("prompt_preview", SecretRedactor.redact(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
@@ -663,9 +660,34 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
+    private SlashConfirmService.PendingConfirm findPendingSlashConfirm(
+            String confirmId, String fallbackSourceKey) {
+        if (slashConfirmService == null) {
+            return null;
+        }
+        String expected = StrUtil.nullToEmpty(confirmId).trim();
+        for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
+            if (StrUtil.equals(expected, pending.getConfirmId())) {
+                return pending;
+            }
+        }
+        if (StrUtil.isNotBlank(fallbackSourceKey)) {
+            SlashConfirmService.PendingConfirm pending = slashConfirmService.getPending(fallbackSourceKey);
+            if (pending != null && StrUtil.equals(expected, pending.getConfirmId())) {
+                return pending;
+            }
+        }
+        return null;
+    }
+
     private String shortId(String value) {
         String safe = StrUtil.nullToEmpty(value).trim();
         return safe.length() <= 8 ? safe : safe.substring(0, 8);
+    }
+
+    private String sourceRef(String value) {
+        String safe = StrUtil.nullToEmpty(value).trim();
+        return safe.isEmpty() ? "" : SecureUtil.sha256(safe).substring(0, 12);
     }
 
     private String slashConfirmCommandLine(String action, String confirmId) {

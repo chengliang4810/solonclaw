@@ -1349,18 +1349,19 @@ public class DashboardControllerHttpTest {
         assertThat(confirms.body)
                 .contains("\"command_preview\":\"reload-mcp\"")
                 .contains("\"confirm_ref\"")
-                .contains("\"source_key\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\"")
+                .contains("\"source_ref\"")
                 .contains("\"allow_always\":true")
                 .contains("\"action_options\":[\"approve\",\"deny\",\"always\"]")
                 .contains("\"expires_in_seconds\"")
                 .contains("\"expired\":false")
                 .doesNotContain("\"command\":\"reload-mcp\"")
-                .doesNotContain("\"prompt\":");
+                .doesNotContain("\"prompt\":")
+                .doesNotContain("MEMORY:dashboard-confirm-chat:dashboard-confirm-user");
         ONode confirm =
                 findItemByStringField(
                         ONode.ofJson(confirms.body).get("data").get("items"),
-                        "source_key",
-                        "MEMORY:dashboard-confirm-chat:dashboard-confirm-user");
+                        "command_preview",
+                        "reload-mcp");
         assertThat(confirm).isNotNull();
         String confirmId = confirm.get("confirm_id").getString();
         assertThat(confirmId).isNotBlank();
@@ -1369,7 +1370,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
-                        "{\"sourceKey\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\",\"confirmId\":\""
+                        "{\"confirmId\":\""
                                 + jsonEscape(confirmId)
                                 + "\",\"action\":\"deny\"}",
                         token);
@@ -1399,15 +1400,17 @@ public class DashboardControllerHttpTest {
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
                 .contains("\"command_preview\":\"rollback\"")
+                .contains("\"source_ref\"")
                 .contains("\"allow_always\":false")
                 .contains("\"action_options\":[\"approve\",\"deny\"]")
                 .doesNotContain("\"command\":\"rollback\"")
+                .doesNotContain("MEMORY:dashboard-confirm-once:dashboard-user")
                 .doesNotContain("\"action_options\":[\"approve\",\"deny\",\"always\"]");
         ONode confirm =
                 findItemByStringField(
                         ONode.ofJson(confirms.body).get("data").get("items"),
-                        "source_key",
-                        "MEMORY:dashboard-confirm-once:dashboard-user");
+                        "command_preview",
+                        "rollback");
         assertThat(confirm).isNotNull();
         String confirmId = confirm.get("confirm_id").getString();
 
@@ -1415,7 +1418,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
-                        "{\"sourceKey\":\"MEMORY:dashboard-confirm-once:dashboard-user\",\"confirmId\":\""
+                        "{\"confirmId\":\""
                                 + jsonEscape(confirmId)
                                 + "\",\"action\":\"always\"}",
                         token);
@@ -1427,7 +1430,10 @@ public class DashboardControllerHttpTest {
         HttpResult after =
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
-        assertThat(after.body).contains("dashboard-confirm-once");
+        assertThat(after.body)
+                .contains("\"command_preview\":\"rollback\"")
+                .contains("\"source_ref\"")
+                .doesNotContain("dashboard-confirm-once");
     }
 
     @Test
@@ -1446,17 +1452,19 @@ public class DashboardControllerHttpTest {
         assertThat(confirms.body)
                 .contains("\"prompt_preview\":\"确认刷新 Authorization: Bearer ***\"")
                 .contains("\"command_preview\":\"reload-mcp --token=***\"")
+                .contains("\"source_ref\"")
                 .contains("Authorization: Bearer ***")
                 .contains("reload-mcp --token=***")
                 .doesNotContain("\"prompt\":")
                 .doesNotContain("\"command\":")
+                .doesNotContain("MEMORY:dashboard-secret-confirm:user")
                 .doesNotContain("ghp_slashsecret12345")
                 .doesNotContain("ghp_slashcommandsecret12345");
         ONode items = ONode.ofJson(confirms.body).get("data").get("items");
         String confirmId = "";
         for (int i = 0; i < items.size(); i++) {
             ONode item = items.get(i);
-            if ("MEMORY:dashboard-secret-confirm:user".equals(item.get("source_key").getString())) {
+            if ("reload-mcp --token=***".equals(item.get("command_preview").getString())) {
                 confirmId = item.get("confirm_id").getString();
             }
         }
@@ -1464,7 +1472,7 @@ public class DashboardControllerHttpTest {
         request(
                 "POST",
                 "/api/diagnostics/slash-confirms/resolve",
-                "{\"sourceKey\":\"MEMORY:dashboard-secret-confirm:user\",\"confirmId\":\""
+                "{\"confirmId\":\""
                         + jsonEscape(confirmId)
                         + "\",\"action\":\"deny\"}",
                 token);

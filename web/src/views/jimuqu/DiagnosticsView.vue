@@ -260,11 +260,10 @@ async function handleRevokeAlways(item: AlwaysApproval) {
 }
 
 async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' | 'always' | 'deny') {
-  const key = `${item.source_key}:${item.confirm_id}:${action}`
+  const key = `${item.confirm_id}:${action}`
   resolvingConfirmKey.value = key
   try {
     const result = await resolveSlashConfirm({
-      sourceKey: item.source_key || '',
       confirmId: item.confirm_id,
       action,
     })
@@ -280,7 +279,7 @@ async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' |
 }
 
 function slashConfirmBusy(item: PendingSlashConfirm, action: string) {
-  return resolvingConfirmKey.value === `${item.source_key}:${item.confirm_id}:${action}`
+  return resolvingConfirmKey.value === `${item.confirm_id}:${action}`
 }
 
 function timeText(value?: number) {
@@ -740,7 +739,7 @@ onMounted(load)
                 <div class="approval-head">
                   <div>
                     <strong>/{{ item.command_preview || '-' }}</strong>
-                    <span>{{ item.source_key || '-' }}</span>
+                    <span>{{ item.source_ref || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.allow_always ? 'default' : 'warning'">
                     {{ item.allow_always ? '可永久确认' : '仅本次' }}

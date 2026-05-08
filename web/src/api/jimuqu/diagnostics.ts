@@ -114,7 +114,7 @@ export interface AlwaysApprovalsResult {
 export interface PendingSlashConfirm {
   confirm_id: string
   confirm_ref?: string
-  source_key?: string
+  source_ref?: string
   command_preview?: string
   prompt_preview?: string
   allow_always?: boolean
@@ -131,8 +131,7 @@ export interface PendingSlashConfirmsResult {
 }
 
 export interface ResolveSlashConfirmRequest {
-  sourceKey: string
-  confirmId?: string
+  confirmId: string
   action: 'approve' | 'always' | 'deny'
 }
 
