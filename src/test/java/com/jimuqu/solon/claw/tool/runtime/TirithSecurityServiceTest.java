@@ -162,6 +162,34 @@ public class TirithSecurityServiceTest {
         }
     }
 
+    @Test
+    void shouldSelectShellForTerminalToolCommands() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-tirith-argv");
+        Path argsFile = dir.resolve("args.txt");
+        Path binary = captureArgsScript(dir, argsFile);
+        TirithSecurityService service = new TirithSecurityService(config(binary));
+
+        service.checkCommandSecurityForTool("execute_shell", "powershell -NoProfile -Command Get-Process");
+        assertThat(Files.readAllBytes(argsFile))
+                .asString(StandardCharsets.UTF_8)
+                .contains("--shell", "powershell");
+
+        service.checkCommandSecurityForTool("terminal", "cmd /c dir");
+        assertThat(Files.readAllBytes(argsFile))
+                .asString(StandardCharsets.UTF_8)
+                .contains("--shell", "cmd");
+
+        service.checkCommandSecurityForTool("executeShell", "echo hello");
+        assertThat(Files.readAllBytes(argsFile))
+                .asString(StandardCharsets.UTF_8)
+                .contains("--shell", "posix");
+
+        service.checkCommandSecurityForTool("config_get", "powershell -NoProfile -Command Get-Process");
+        assertThat(Files.readAllBytes(argsFile))
+                .asString(StandardCharsets.UTF_8)
+                .contains("--shell", "posix");
+    }
+
     private TirithSecurityService.ScanResult scan(Path binary) {
         return new TirithSecurityService(config(binary)).checkCommandSecurity("echo hello");
     }
@@ -192,6 +220,33 @@ public class TirithSecurityServiceTest {
             content = "@echo off\r\n" + windowsBody(body) + "\r\nexit /b " + exitCode + "\r\n";
         } else {
             content = "#!/bin/sh\n" + body + "\nexit " + exitCode + "\n";
+        }
+        Files.write(file, content.getBytes(StandardCharsets.UTF_8));
+        file.toFile().setExecutable(true);
+        return file;
+    }
+
+    private Path captureArgsScript(Path dir, Path argsFile) throws Exception {
+        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        Path file = dir.resolve(windows ? "tirith.cmd" : "tirith");
+        String argsPath = argsFile.toAbsolutePath().toString();
+        String content;
+        if (windows) {
+            content =
+                    "@echo off\r\n"
+                            + "echo %* > \""
+                            + argsPath
+                            + "\"\r\n"
+                            + "echo {\"findings\":[],\"summary\":\"\"}\r\n"
+                            + "exit /b 0\r\n";
+        } else {
+            content =
+                    "#!/bin/sh\n"
+                            + "printf '%s\\n' \"$*\" > '"
+                            + argsPath
+                            + "'\n"
+                            + "printf '%s\\n' '{\"findings\":[],\"summary\":\"\"}'\n"
+                            + "exit 0\n";
         }
         Files.write(file, content.getBytes(StandardCharsets.UTF_8));
         file.toFile().setExecutable(true);

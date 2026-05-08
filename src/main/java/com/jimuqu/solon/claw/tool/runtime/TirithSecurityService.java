@@ -19,7 +19,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
 
-/** Hermes Tirith 命令安全扫描适配。 */
+/** Tirith 命令安全扫描适配。 */
 public class TirithSecurityService {
     private static final int MAX_FINDINGS = 50;
     private static final int MAX_SUMMARY_LENGTH = 500;
@@ -31,6 +31,10 @@ public class TirithSecurityService {
     }
 
     public ScanResult checkCommandSecurity(String command) {
+        return checkCommandSecurity(command, "posix");
+    }
+
+    private ScanResult checkCommandSecurity(String command, String shell) {
         AppConfig.SecurityConfig security =
                 appConfig == null ? null : appConfig.getSecurity();
         if (security != null && !security.isTirithEnabled()) {
@@ -62,7 +66,7 @@ public class TirithSecurityService {
                             "--json",
                             "--non-interactive",
                             "--shell",
-                            "posix",
+                            normalizeShell(shell),
                             "--",
                             StrUtil.nullToEmpty(command));
             SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
@@ -133,7 +137,45 @@ public class TirithSecurityService {
     }
 
     public ScanResult checkCommandSecurityForTool(String toolName, String command) {
-        return checkCommandSecurity(command);
+        return checkCommandSecurity(command, shellForToolCommand(toolName, command));
+    }
+
+    private String shellForToolCommand(String toolName, String command) {
+        String tool = StrUtil.nullToEmpty(toolName).toLowerCase(Locale.ROOT);
+        String text = StrUtil.nullToEmpty(command).trim().toLowerCase(Locale.ROOT);
+        if (!isTerminalTool(tool)) {
+            return "posix";
+        }
+        if (text.startsWith("powershell ")
+                || text.startsWith("powershell.exe ")
+                || text.startsWith("pwsh ")
+                || text.startsWith("pwsh.exe ")) {
+            return "powershell";
+        }
+        if (text.startsWith("cmd /")
+                || text.startsWith("cmd.exe /")
+                || text.startsWith("cmd ")) {
+            return "cmd";
+        }
+        return "posix";
+    }
+
+    private boolean isTerminalTool(String toolName) {
+        return "execute_shell".equals(toolName)
+                || "terminal".equals(toolName)
+                || "run_terminal".equals(toolName)
+                || "terminal_run".equals(toolName)
+                || "terminal_exec".equals(toolName)
+                || "terminal_execute".equals(toolName)
+                || "executeshell".equals(toolName);
+    }
+
+    private String normalizeShell(String shell) {
+        String value = StrUtil.blankToDefault(shell, "posix").trim().toLowerCase(Locale.ROOT);
+        if ("powershell".equals(value) || "cmd".equals(value)) {
+            return value;
+        }
+        return "posix";
     }
 
     private ScanResult operationalFailure(
