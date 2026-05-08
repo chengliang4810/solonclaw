@@ -11,6 +11,10 @@ $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
 $blockedEnvFixture = $blockedFixture + "_ALLOW_PRIVATE_URLS"
 $blockedDefaultEnvFixture = "BAD_" + "LEGACY_" + "PREFIX_ALLOW_PRIVATE_URLS"
+$blockedLegacyProjectA = "HER" + "MES"
+$blockedLegacyProjectB = "Open" + "Claw"
+$blockedLegacyProjectAEnv = $blockedLegacyProjectA + "_ALLOW_PRIVATE_URLS"
+$blockedLegacyProjectBEnv = $blockedLegacyProjectB.ToUpperInvariant() + "_ALLOW_PRIVATE_URLS"
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -107,6 +111,24 @@ try {
         throw "Naming check did not block a forbidden external-name environment variable."
     }
     Assert-NoRawBlockedOutput $blockedExternalEnv.Output @($blockedEnvFixture) "external-name environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-project-a-env.txt") -Value ($blockedLegacyProjectAEnv + "=true") -Encoding UTF8
+    $blockedLegacyProjectAEnvResult = Invoke-NamingCheck
+    if ($blockedLegacyProjectAEnvResult.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden project-specific private URL environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedLegacyProjectAEnvResult.Output @($blockedLegacyProjectAEnv) "project-specific private URL environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-project-b-env.txt") -Value ($blockedLegacyProjectBEnv + "=true") -Encoding UTF8
+    $blockedLegacyProjectBEnvResult = Invoke-NamingCheck
+    if ($blockedLegacyProjectBEnvResult.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden alternate-project private URL environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedLegacyProjectBEnvResult.Output @($blockedLegacyProjectBEnv) "alternate-project private URL environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
