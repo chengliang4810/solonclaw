@@ -282,6 +282,7 @@ export default {
     badge: {
       noAgent: '脚本直投',
       script: '脚本',
+      wrapResponse: '包装投递',
       skills: '{count} 个技能',
       context: '{count} 个上游',
       toolsets: '{count} 个工具集',

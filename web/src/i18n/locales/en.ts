@@ -276,6 +276,14 @@ export default {
       yes: 'Yes',
       no: 'No',
     },
+    badge: {
+      noAgent: 'Script direct',
+      script: 'Script',
+      wrapResponse: 'Wrapped delivery',
+      skills: '{count} skills',
+      context: '{count} upstream',
+      toolsets: '{count} toolsets',
+    },
     action: {
       pause: 'Pause',
       pauseJob: 'Pause job',

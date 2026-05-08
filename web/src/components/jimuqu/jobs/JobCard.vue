@@ -41,6 +41,22 @@ const scheduleExpr = computed(() => {
   return s?.display || s?.expr || props.job.schedule_display || '—'
 })
 
+const scheduleKind = computed(() => {
+  const s = props.job.schedule
+  if (typeof s === 'object' && s?.kind) return s.kind
+  const expr = scheduleExpr.value.trim()
+  if (/^every\s+\d+/i.test(expr)) return 'interval'
+  if (/^\d+\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.test(expr)) return 'once'
+  if (/^\d{4}-\d{2}-\d{2}T/.test(expr)) return 'once'
+  return 'cron'
+})
+
+const scheduleKindLabel = computed(() => {
+  if (scheduleKind.value === 'interval') return t('jobs.scheduleKindInterval')
+  if (scheduleKind.value === 'once') return t('jobs.scheduleKindOnce')
+  return t('jobs.scheduleKindCron')
+})
+
 const formatTime = (t?: string | null) => {
   if (!t) return '—'
   return new Date(t).toLocaleString()
@@ -50,6 +66,7 @@ const jobBadges = computed(() => {
   const badges: string[] = []
   if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
   if (props.job.script) badges.push(t('jobs.badge.script'))
+  if (props.job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
   if (props.job.skills?.length) badges.push(t('jobs.badge.skills', { count: props.job.skills.length }))
   if (props.job.context_from?.length) badges.push(t('jobs.badge.context', { count: props.job.context_from.length }))
   if (props.job.enabled_toolsets?.length) badges.push(t('jobs.badge.toolsets', { count: props.job.enabled_toolsets.length }))
@@ -151,7 +168,10 @@ async function handleDelete() {
     <div class="card-body">
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.schedule') }}</span>
-        <code class="info-value mono">{{ scheduleExpr }}</code>
+        <span class="schedule-value">
+          <span class="schedule-kind">{{ scheduleKindLabel }}</span>
+          <code class="info-value mono">{{ scheduleExpr }}</code>
+        </span>
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.lastRun') }}</span>
@@ -368,6 +388,25 @@ async function handleDelete() {
   min-width: 0;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.schedule-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.schedule-kind {
+  font-size: 11px;
+  line-height: 1.5;
+  color: $accent-primary;
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.18);
+  border-radius: 6px;
+  padding: 1px 6px;
 }
 
 .run-status {
