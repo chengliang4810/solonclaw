@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
@@ -116,14 +117,15 @@ public class TirithSecurityService {
 
             ParsedOutput parsed = parseOutput(out, action);
             if (StrUtil.isBlank(parsed.summary) && StrUtil.isNotBlank(err) && !"allow".equals(action)) {
-                parsed.summary = limit(err.trim(), MAX_SUMMARY_LENGTH);
+                parsed.summary = safeText(err.trim(), MAX_SUMMARY_LENGTH);
             }
             return new ScanResult(action, parsed.findings, parsed.summary);
         } catch (Exception e) {
+            String message = safeMessage(e);
             return operationalFailure(
                     failOpen,
-                    "tirith unavailable: " + e.getMessage(),
-                    "tirith spawn failed (fail-closed): " + e.getMessage());
+                    "tirith unavailable: " + message,
+                    "tirith spawn failed (fail-closed): " + message);
         } finally {
             if (process != null) {
                 try {
@@ -211,7 +213,7 @@ public class TirithSecurityService {
             List<Finding> findings = parseFindings(map.get("findings"));
             Object rawSummary = map.get("summary");
             String summary =
-                    limit(rawSummary == null ? "" : String.valueOf(rawSummary), MAX_SUMMARY_LENGTH);
+                    safeText(rawSummary == null ? "" : String.valueOf(rawSummary), MAX_SUMMARY_LENGTH);
             return new ParsedOutput(findings, summary);
         } catch (Exception e) {
             return parseFailure(action);
@@ -274,6 +276,18 @@ public class TirithSecurityService {
         return text.length() > max ? text.substring(0, max) : text;
     }
 
+    private static String safeText(String value, int max) {
+        return limit(SecretRedactor.redact(StrUtil.nullToEmpty(value), max), max);
+    }
+
+    private static String safeMessage(Exception e) {
+        if (e == null) {
+            return "Exception";
+        }
+        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return safeText(message, MAX_SUMMARY_LENGTH);
+    }
+
     private static String stringValue(Map<?, ?> map, String key) {
         Object value = map.get(key);
         return value == null ? "" : String.valueOf(value);
@@ -331,10 +345,10 @@ public class TirithSecurityService {
         private final String description;
 
         private Finding(String ruleId, String severity, String title, String description) {
-            this.ruleId = ruleId;
-            this.severity = severity;
-            this.title = title;
-            this.description = description;
+            this.ruleId = safeText(ruleId, 200);
+            this.severity = safeText(severity, 100);
+            this.title = safeText(title, 300);
+            this.description = safeText(description, MAX_SUMMARY_LENGTH);
         }
 
         public static Finding from(Map<?, ?> map) {

@@ -92,6 +92,35 @@ public class TirithSecurityServiceTest {
     }
 
     @Test
+    void shouldRedactSecretsFromTirithSummaryFindingsAndStderr() throws Exception {
+        String token = "sk-1234567890abcdef";
+        TirithSecurityService.ScanResult json =
+                scan(
+                        script(
+                                "printf '%s\\n' '{\"findings\":[{\"rule_id\":\"rule_"
+                                        + token
+                                        + "\",\"severity\":\"high_"
+                                        + token
+                                        + "\",\"title\":\"blocked "
+                                        + token
+                                        + "\",\"description\":\"description "
+                                        + token
+                                        + "\"}],\"summary\":\"summary "
+                                        + token
+                                        + "\"}'",
+                                1));
+        TirithSecurityService.ScanResult stderr =
+                scan(script("printf '%s' 'stderr " + token + "' >&2", 1));
+
+        assertThat(json.getSummary()).contains("***").doesNotContain(token);
+        assertThat(json.getFindings().get(0).getRuleId()).doesNotContain(token);
+        assertThat(json.getFindings().get(0).getSeverity()).doesNotContain(token);
+        assertThat(json.getFindings().get(0).getTitle()).doesNotContain(token);
+        assertThat(json.getFindings().get(0).getDescription()).doesNotContain(token);
+        assertThat(stderr.getSummary()).contains("***").doesNotContain(token);
+    }
+
+    @Test
     void shouldAllowImmediatelyWhenTirithIsDisabled() {
         AppConfig config = new AppConfig();
         config.getSecurity().setTirithEnabled(false);
@@ -106,7 +135,8 @@ public class TirithSecurityServiceTest {
 
     @Test
     void shouldApplyFailOpenAndFailClosedWhenTirithCannotStart() {
-        String missingPath = missingAbsolutePath();
+        String token = "sk-1234567890abcdef";
+        String missingPath = missingAbsolutePath(token);
         AppConfig openConfig = config(missingPath);
         openConfig.getSecurity().setTirithFailOpen(true);
         AppConfig closedConfig = config(missingPath);
@@ -119,8 +149,10 @@ public class TirithSecurityServiceTest {
 
         assertThat(open.getAction()).isEqualTo("allow");
         assertThat(open.getSummary()).contains("tirith unavailable");
+        assertThat(open.getSummary()).contains("***").doesNotContain(token);
         assertThat(closed.getAction()).isEqualTo("block");
         assertThat(closed.getSummary()).contains("fail-closed");
+        assertThat(closed.getSummary()).contains("***").doesNotContain(token);
     }
 
     @Test
@@ -278,11 +310,16 @@ public class TirithSecurityServiceTest {
     }
 
     private String missingAbsolutePath() {
+        return missingAbsolutePath(null);
+    }
+
+    private String missingAbsolutePath(String suffix) {
         boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        String name = suffix == null ? "tirith" : "tirith-" + suffix;
         if (windows) {
-            return "Z:\\jimuqu-missing-tirith\\tirith.exe";
+            return "Z:\\jimuqu-missing-tirith\\" + name + ".exe";
         }
-        return "/tmp/jimuqu-missing-tirith/tirith";
+        return "/tmp/jimuqu-missing-tirith/" + name;
     }
 
     private String printJson(String json) {
