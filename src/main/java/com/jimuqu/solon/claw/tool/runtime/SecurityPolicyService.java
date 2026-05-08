@@ -543,12 +543,133 @@ public class SecurityPolicyService {
             return;
         }
         String text = normalizeUrlText(String.valueOf(raw));
+        extractCurlConnectionOverrideHosts(text, urls);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             urls.add(matcher.group());
         }
         extractBareSecurityRelevantHosts(text, urls);
         extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    private void extractCurlConnectionOverrideHosts(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            String mode = null;
+            if ("--connect-to".equals(token) || "--resolve".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                    mode = token;
+                }
+            } else if (token.startsWith("--connect-to=")) {
+                value = token.substring("--connect-to=".length());
+                mode = "--connect-to";
+            } else if (token.startsWith("--resolve=")) {
+                value = token.substring("--resolve=".length());
+                mode = "--resolve";
+            }
+            addCurlOverrideHost(mode, value, urls);
+        }
+    }
+
+    private void addCurlOverrideHost(String mode, String raw, List<String> urls) {
+        String value = cleanUrlToken(raw);
+        if (value.length() == 0) {
+            return;
+        }
+        if (value.startsWith("+")) {
+            value = value.substring(1);
+        }
+        String host;
+        if ("--connect-to".equals(mode)) {
+            String withoutTargetPort = stripTrailingCurlPort(value);
+            int firstColon = withoutTargetPort.indexOf(':');
+            int secondColon = firstColon < 0 ? -1 : withoutTargetPort.indexOf(':', firstColon + 1);
+            if (secondColon < 0 || secondColon + 1 >= withoutTargetPort.length()) {
+                return;
+            }
+            host = withoutTargetPort.substring(secondColon + 1);
+        } else if ("--resolve".equals(mode)) {
+            int firstColon = value.indexOf(':');
+            int secondColon = firstColon < 0 ? -1 : value.indexOf(':', firstColon + 1);
+            if (secondColon < 0 || secondColon + 1 >= value.length()) {
+                return;
+            }
+            host = value.substring(secondColon + 1);
+        } else {
+            return;
+        }
+        if (StrUtil.isBlank(host)) {
+            return;
+        }
+        urls.add(cleanUrlToken(host));
+    }
+
+    private String stripTrailingCurlPort(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        if (value.endsWith("]")) {
+            return value;
+        }
+        int colon = value.lastIndexOf(':');
+        if (colon < 0 || colon + 1 >= value.length()) {
+            return value;
+        }
+        String suffix = value.substring(colon + 1);
+        return Pattern.compile("^\\d{1,5}$").matcher(suffix).matches()
+                ? value.substring(0, colon)
+                : value;
+    }
+
+    private List<String> shellLikeTokens(String text, int maxTokens) {
+        String value = StrUtil.nullToEmpty(text);
+        List<String> tokens = new ArrayList<String>();
+        int i = 0;
+        while (i < value.length() && tokens.size() < Math.max(1, maxTokens)) {
+            while (i < value.length() && Character.isWhitespace(value.charAt(i))) {
+                i++;
+            }
+            if (i >= value.length()) {
+                break;
+            }
+            boolean quoted = value.charAt(i) == '"' || value.charAt(i) == '\'';
+            char quote = quoted ? value.charAt(i++) : 0;
+            StringBuilder token = new StringBuilder();
+            while (i < value.length()) {
+                char ch = value.charAt(i);
+                if (quoted) {
+                    if (ch == quote) {
+                        i++;
+                        break;
+                    }
+                    if (ch == '\\' && quote == '"' && i + 1 < value.length()) {
+                        token.append(value.charAt(i + 1));
+                        i += 2;
+                        continue;
+                    }
+                    token.append(ch);
+                    i++;
+                    continue;
+                }
+                if (ch == '\\' && i + 1 < value.length()) {
+                    token.append(value.charAt(i + 1));
+                    i += 2;
+                    continue;
+                }
+                if (Character.isWhitespace(ch)) {
+                    break;
+                }
+                token.append(ch);
+                i++;
+            }
+            if (token.length() > 0 || quoted) {
+                tokens.add(token.toString());
+            }
+        }
+        return tokens;
     }
 
     private void extractBareSecurityRelevantHosts(String text, List<String> urls) {

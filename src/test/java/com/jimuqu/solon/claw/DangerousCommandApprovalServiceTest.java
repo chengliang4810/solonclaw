@@ -1269,11 +1269,16 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkToolArgs("websearch", args);
         SecurityPolicyService.UrlVerdict command =
                 securityPolicyService.checkCommandUrls("curl 169.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict resolvePrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --resolve safe.example:443:127.0.0.1 https://safe.example/");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
         assertThat(command.isAllowed()).isFalse();
         assertThat(command.getMessage()).contains("元数据");
+        assertThat(resolvePrivate.isAllowed()).isFalse();
+        assertThat(resolvePrivate.getMessage()).contains("内网");
     }
 
     @Test
@@ -2420,6 +2425,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict metadata =
                 securityPolicyService.checkCommandUrls(
                         "curl http://169.254.169.254/latest/meta-data/?token=secret123");
+        SecurityPolicyService.UrlVerdict connectToMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --connect-to safe.example:443:169.254.169.254:80 https://safe.example/");
+        SecurityPolicyService.UrlVerdict resolveMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --resolve safe.example:443:169.254.169.254 https://safe.example/");
         SecurityPolicyService.UrlVerdict python =
                 securityPolicyService.checkCommandUrls(
                         "requests.get('https://blocked.example/api?token=secret123');");
@@ -2427,6 +2438,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
         assertThat(metadata.getUrl()).contains("token=secret123");
+        assertThat(connectToMetadata.isAllowed()).isFalse();
+        assertThat(connectToMetadata.getMessage()).contains("元数据");
+        assertThat(resolveMetadata.isAllowed()).isFalse();
+        assertThat(resolveMetadata.getMessage()).contains("元数据");
         assertThat(
                         com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
                                 metadata.getUrl()))
