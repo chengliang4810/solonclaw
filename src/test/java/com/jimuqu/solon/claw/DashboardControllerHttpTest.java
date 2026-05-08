@@ -391,6 +391,16 @@ public class DashboardControllerHttpTest {
         assertThat(ONode.ofJson(pauseCron.body).get("data").get("paused_reason").getString())
                 .isEqualTo("dashboard maintenance");
 
+        HttpResult acpStatus = request("GET", "/api/jimuqu/acp/status", null, token);
+        assertThat(acpStatus.status).isEqualTo(200);
+        assertThat(acpStatus.body)
+                .contains("\"transport\":\"stdio\"")
+                .contains("\"command\":\"java -jar jimuqu-agent.jar acp\"")
+                .contains("\"methods\":[\"initialize\",\"authenticate\",\"session/new\"")
+                .contains("\"permissions/respond\"")
+                .contains("\"mcp_servers\":true")
+                .contains("\"commands\":[");
+
         HttpResult createMcp =
                 request(
                         "POST",

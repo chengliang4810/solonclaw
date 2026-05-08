@@ -182,6 +182,43 @@ public class AcpStdioServer {
         }
     }
 
+    public Map<String, Object> status() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        Map<String, Object> initialize = initialize();
+        result.put("enabled", true);
+        result.put("transport", "stdio");
+        result.put("command", "java -jar jimuqu-agent.jar acp");
+        result.put("protocol_version", initialize.get("protocol_version"));
+        result.put("protocolVersion", initialize.get("protocolVersion"));
+        result.put("agent", initialize.get("agent"));
+        result.put("agent_info", initialize.get("agent_info"));
+        result.put("capabilities", initialize.get("capabilities"));
+        result.put("agent_capabilities", initialize.get("agent_capabilities"));
+        result.put("auth_methods", initialize.get("auth_methods"));
+        result.put("commands", initialize.get("commands"));
+        result.put("methods", supportedMethods());
+        return result;
+    }
+
+    private List<String> supportedMethods() {
+        List<String> methods = new ArrayList<String>();
+        methods.add("initialize");
+        methods.add("authenticate");
+        methods.add("session/new");
+        methods.add("session/load");
+        methods.add("session/resume");
+        methods.add("session/list");
+        methods.add("session/fork");
+        methods.add("session/cancel");
+        methods.add("session/set_model");
+        methods.add("session/set_mode");
+        methods.add("session/set_config_option");
+        methods.add("session/prompt");
+        methods.add("permissions/list_open");
+        methods.add("permissions/respond");
+        return methods;
+    }
+
     private Object dispatch(String method, ONode params) throws Exception {
         if ("initialize".equals(method)) {
             return initialize();
