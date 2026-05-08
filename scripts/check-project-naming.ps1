@@ -3,11 +3,17 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 try {
+    $h = (([char]72) + ([char]101) + ([char]114) + ([char]109) + ([char]101) + ([char]115))
+    $oc = (([char]79) + ([char]112) + ([char]101) + ([char]110) + ([char]67) + ([char]108) + ([char]97) + ([char]119))
     $terms = @(
-        (([char]72) + ([char]101) + ([char]114) + ([char]109) + ([char]101) + ([char]115)),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
+        $h,
+        ($h + "_"),
+        $oc,
+        ($oc + "_"),
         (([char]79) + ([char]112) + ([char]101) + ([char]110) + "_" + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
+        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "_" + ([char]67) + ([char]108) + ([char]97) + ([char]119) + "_"),
         (([char]79) + ([char]112) + ([char]101) + ([char]110) + "-" + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
+        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "-" + ([char]67) + ([char]108) + ([char]97) + ([char]119) + "-"),
         (([char]79) + ([char]112) + ([char]101) + ([char]110) + " " + ([char]67) + ([char]108) + ([char]97) + ([char]119))
     )
     $regex = [Regex]::new(
