@@ -54,16 +54,18 @@ public class SubprocessEnvironmentSanitizerTest {
         AppConfig config = new AppConfig();
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
+        config.getTerminal().getEnvPassthrough().add("BAD-NAME");
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
         env.put("TENOR_API_KEY", "tenor-secret");
         env.put("OPENAI_API_KEY", "sk-provider");
+        env.put("BAD-NAME", "bad");
 
         SubprocessEnvironmentSanitizer.sanitize(env, config);
 
         assertThat(env).containsEntry("PATH", "/usr/bin");
         assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
-        assertThat(env).doesNotContainKey("OPENAI_API_KEY");
+        assertThat(env).doesNotContainKeys("OPENAI_API_KEY", "BAD-NAME");
     }
 
     @Test

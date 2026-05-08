@@ -175,9 +175,9 @@ public final class SubprocessEnvironmentSanitizer {
             return values;
         }
         for (String item : configured) {
-            String value = StrUtil.nullToEmpty(item).trim();
-            if (StrUtil.isNotBlank(value)) {
-                values.add(value.toUpperCase(Locale.ROOT));
+            String value = normalizeEnvName(item);
+            if (value != null) {
+                values.add(value);
             }
         }
         return values;
