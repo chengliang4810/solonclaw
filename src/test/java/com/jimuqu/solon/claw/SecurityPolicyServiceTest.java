@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.InetAddress;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 public class SecurityPolicyServiceTest {
@@ -75,6 +76,34 @@ public class SecurityPolicyServiceTest {
 
         assertThat(policy.isAlwaysBlockedUrl("http://169.254.169.254/")).isTrue();
         assertThat(policy.isAlwaysBlockedUrl("http://127.0.0.1:8080/")).isFalse();
+    }
+
+    @Test
+    void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("https://WWW.Blocked.Example./docs", "*.wild.example"));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "8.8.8.8");
+
+        SecurityPolicyService.UrlVerdict mixedCase =
+                policy.checkUrl("https://api.BLOCKED.example./v1");
+        SecurityPolicyService.UrlVerdict schemeless =
+                policy.checkUrl("www.blocked.example/docs");
+        SecurityPolicyService.UrlVerdict wildcard =
+                policy.checkUrl("https://child.wild.example/path");
+        SecurityPolicyService.UrlVerdict bareWildcard =
+                policy.checkUrl("https://wild.example/path");
+
+        assertThat(mixedCase.isAllowed()).isFalse();
+        assertThat(mixedCase.getMessage()).contains("blocked.example");
+        assertThat(schemeless.isAllowed()).isFalse();
+        assertThat(schemeless.getMessage()).contains("blocked.example");
+        assertThat(wildcard.isAllowed()).isFalse();
+        assertThat(wildcard.getMessage()).contains("wild.example");
+        assertThat(bareWildcard.isAllowed()).isTrue();
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
