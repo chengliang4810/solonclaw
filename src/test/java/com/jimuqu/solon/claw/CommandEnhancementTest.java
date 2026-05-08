@@ -623,7 +623,7 @@ public class CommandEnhancementTest {
                 .contains("Cron 执行历史：" + jobId)
                 .contains("Status: ok")
                 .contains("trigger=scheduled")
-                .contains("Output: echo:History check");
+                .contains("Output: echo:[IMPORTANT: You are running as a scheduled cron job.");
     }
 
     @Test

@@ -81,7 +81,7 @@ public class DefaultCronSchedulerTest {
                 .isEqualTo(PlatformType.MEMORY);
         assertThat(env.memoryChannelAdapter.getLastRequest().getChatId()).isEqualTo("admin-dm");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .contains("echo:scheduled prompt");
+                .contains("scheduled prompt");
     }
 
     @Test
@@ -358,7 +358,8 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
-                .isEqualTo("echo:raw prompt")
+                .contains("echo:[IMPORTANT: You are running as a scheduled cron job.")
+                .contains("raw prompt")
                 .doesNotContain("Cronjob Response");
     }
 
@@ -509,7 +510,7 @@ public class DefaultCronSchedulerTest {
         DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
         assertThat(request.getChatId()).isEqualTo("origin-room");
         assertThat(request.getThreadId()).isEqualTo("thread-1");
-        assertThat(request.getText()).contains("echo:scheduled prompt");
+        assertThat(request.getText()).contains("scheduled prompt");
     }
 
     @Test
@@ -801,7 +802,7 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById("job-delivery-error");
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastError()).isNull();
-        assertThat(updated.getLastOutput()).contains("echo:scheduled prompt");
+        assertThat(updated.getLastOutput()).contains("scheduled prompt");
         assertThat(updated.getLastDeliveryError()).contains("platform offline");
         assertThat(env.cronJobRepository.listRuns("job-delivery-error", 5)).hasSize(1);
         assertThat(env.cronJobRepository.listRuns("job-delivery-error", 5).get(0).getStatus())
@@ -1886,7 +1887,7 @@ public class DefaultCronSchedulerTest {
         assertThat(env.cronJobRepository.listRuns("job-history", 5)).hasSize(1);
         assertThat(env.cronJobRepository.listRuns("job-history", 5).get(0).getStatus()).isEqualTo("ok");
         assertThat(env.cronJobRepository.listRuns("job-history", 5).get(0).getOutput())
-                .contains("echo:scheduled prompt");
+                .contains("scheduled prompt");
 
         CronjobTools tools = new CronjobTools(service, "MEMORY:history-room:user");
         Map<?, ?> history =
@@ -1988,6 +1989,41 @@ public class DefaultCronSchedulerTest {
                 .contains("execute_shell")
                 .doesNotContain("cronjob")
                 .doesNotContain("send_message");
+    }
+
+    @Test
+    void shouldInjectCronRuntimeHintAndKeepMessagingToolDisabled() throws Exception {
+        RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "cron-runtime-hint");
+        body.put("schedule", "30m");
+        body.put("prompt", "Summarize the daily status.");
+        body.put("enabled_toolsets", java.util.Collections.singletonList("all"));
+        CronJobRecord job = service.create("MEMORY:cron-runtime-hint:user", body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.tick();
+
+        assertThat(gateway.userMessage)
+                .startsWith("[IMPORTANT: You are running as a scheduled cron job.")
+                .contains("final response will be automatically delivered")
+                .contains("do not call send_message")
+                .contains("respond with exactly \"[SILENT]\"")
+                .contains("Summarize the daily status.");
+        assertThat(gateway.toolObjectsText).doesNotContain("MessagingTools");
+        assertThat(gateway.systemPrompt).doesNotContain("send_message");
     }
 
     @Test
@@ -2882,6 +2918,7 @@ public class DefaultCronSchedulerTest {
     private static class RecordingToolLlmGateway extends FakeLlmGateway {
         private String toolObjectsText;
         private String systemPrompt;
+        private String userMessage;
 
         @Override
         public LlmResult chat(
@@ -2891,6 +2928,7 @@ public class DefaultCronSchedulerTest {
                 java.util.List<Object> toolObjects)
                 throws Exception {
             this.systemPrompt = systemPrompt;
+            this.userMessage = userMessage;
             this.toolObjectsText = String.valueOf(toolObjects);
             return super.chat(session, systemPrompt, userMessage, toolObjects);
         }

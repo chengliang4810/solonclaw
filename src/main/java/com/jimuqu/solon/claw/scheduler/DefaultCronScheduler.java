@@ -77,6 +77,13 @@ public class DefaultCronScheduler {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SAFE_CONTEXT_JOB_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]{3,127}");
     private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: Cron assembled prompt";
+    private static final String CRON_RUNTIME_HINT =
+            "[IMPORTANT: You are running as a scheduled cron job. "
+                    + "DELIVERY: Your final response will be automatically delivered to the user; "
+                    + "do not call send_message or try to deliver the output yourself. "
+                    + "Produce the report or output as your final response and the scheduler handles delivery. "
+                    + "SILENT: If there is genuinely nothing new to report, respond with exactly \"[SILENT]\" "
+                    + "and nothing else to suppress delivery. Never combine [SILENT] with content.]\n\n";
 
     private final AppConfig appConfig;
     private final CronJobRepository cronJobRepository;
@@ -927,7 +934,7 @@ public class DefaultCronScheduler {
 
     private boolean isSilent(String content) {
         return StrUtil.isNotBlank(content)
-                && content.trim().toUpperCase(java.util.Locale.ROOT).contains(SILENT_MARKER);
+                && content.trim().toUpperCase(java.util.Locale.ROOT).startsWith(SILENT_MARKER);
     }
 
     private List<CronDeliveryTarget> resolveDeliveryTargets(CronJobRecord job) {
@@ -1123,7 +1130,7 @@ public class DefaultCronScheduler {
     }
 
     private String buildPrompt(CronJobRecord job) throws Exception {
-        StringBuilder prompt = new StringBuilder();
+        StringBuilder prompt = new StringBuilder(CRON_RUNTIME_HINT);
         Map<String, Object> view = cronJobService.toView(job);
         List<String> skills =
                 view.containsKey("skills") ? (List<String>) view.get("skills") : new ArrayList<String>();
