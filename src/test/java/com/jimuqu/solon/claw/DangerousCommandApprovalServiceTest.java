@@ -3843,6 +3843,39 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("凭据");
         assertThat(service.getPendingApproval(uploadCredentialTrace.session)).isNull();
 
+        Map<String, Object> compactCurlCredentialArgs = new LinkedHashMap<String, Object>();
+        compactCurlCredentialArgs.put("command", "curl https://example.invalid -o.env");
+        Map<String, Object> gatewayCompactCurlCredential = new LinkedHashMap<String, Object>();
+        gatewayCompactCurlCredential.put("tool_name", "execute_shell_command");
+        gatewayCompactCurlCredential.put("tool_args", compactCurlCredentialArgs);
+        TestTrace compactCurlCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(compactCurlCredentialTrace, "call_tool", gatewayCompactCurlCredential);
+
+        assertThat(compactCurlCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(compactCurlCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+        assertThat(service.getPendingApproval(compactCurlCredentialTrace.session)).isNull();
+
+        Map<String, Object> compactWgetCredentialArgs = new LinkedHashMap<String, Object>();
+        compactWgetCredentialArgs.put(
+                "command", "wget https://example.invalid -Ocredentials.json");
+        Map<String, Object> gatewayCompactWgetCredential = new LinkedHashMap<String, Object>();
+        gatewayCompactWgetCredential.put("tool_name", "terminal_run");
+        gatewayCompactWgetCredential.put("tool_args", compactWgetCredentialArgs);
+        TestTrace compactWgetCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(compactWgetCredentialTrace, "call_tool", gatewayCompactWgetCredential);
+
+        assertThat(compactWgetCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(compactWgetCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+        assertThat(service.getPendingApproval(compactWgetCredentialTrace.session)).isNull();
+
         Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
         patchArgs.put(
                 "patch",
