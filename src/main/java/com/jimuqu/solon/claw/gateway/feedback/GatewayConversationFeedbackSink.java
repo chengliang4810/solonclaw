@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,10 +159,10 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
             return true;
         } catch (Exception e) {
             log.warn(
-                    "DingTalk progress card delivery failed: chatId={}, toolName={}",
+                    "DingTalk progress card delivery failed: chatId={}, toolName={}, error={}",
                     message.getChatId(),
                     toolName,
-                    e);
+                    safeError(e));
             return false;
         }
     }
@@ -177,10 +178,10 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
             deliveryService.deliver(request);
         } catch (Exception e) {
             log.warn(
-                    "Conversation feedback delivery failed: platform={}, chatId={}",
+                    "Conversation feedback delivery failed: platform={}, chatId={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
-                    e);
+                    safeError(e));
         }
     }
 
@@ -218,5 +219,14 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
             return StrUtil.nullToEmpty(text);
         }
         return text.substring(0, Math.max(0, limit - 3)) + "...";
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 }

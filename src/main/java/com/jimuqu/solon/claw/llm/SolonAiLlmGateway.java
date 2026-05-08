@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -895,7 +896,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                     java.nio.file.Paths.get(attachment.getLocalPath()));
             return ImageBlock.ofBase64(data, mimeType);
         } catch (Exception e) {
-            log.warn("Failed to attach image block: {}", attachment.getLocalPath(), e);
+            log.warn(
+                    "Failed to attach image block: path={}, error={}",
+                    SecretRedactor.redact(attachment.getLocalPath(), 400),
+                    safeError(e));
             return null;
         }
     }
@@ -1259,13 +1263,22 @@ public class SolonAiLlmGateway implements LlmGateway {
                         primaryModel);
             } catch (Throwable e) {
                 log.warn(
-                        "Aux summary model failed, fallback to primary model: strategy={}, auxModel={}, primaryModel={}",
+                        "Aux summary model failed, fallback to primary model: strategy={}, auxModel={}, primaryModel={}, error={}",
                         name,
                         auxModel,
                         primaryModel,
-                        e);
+                        safeSummaryError(e));
             }
             return primary.summarize(trace, messagesToSummarize);
+        }
+
+        private String safeSummaryError(Throwable error) {
+            if (error == null) {
+                return "unknown";
+            }
+            String message = error.getMessage();
+            String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+            return SecretRedactor.redact(value, 1000);
         }
     }
 
@@ -1299,9 +1312,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 return new FileInputStream(fontFile);
                             } catch (Exception e) {
                                 log.warn(
-                                        "Failed to open PDF font file: {}",
-                                        fontFile.getAbsolutePath(),
-                                        e);
+                                        "Failed to open PDF font file: path={}, error={}",
+                                        SecretRedactor.redact(fontFile.getAbsolutePath(), 400),
+                                        safeError(e));
                                 return null;
                             }
                         }
@@ -1410,6 +1423,15 @@ public class SolonAiLlmGateway implements LlmGateway {
             return SmartApprovalDecision.deny(text);
         }
         return SmartApprovalDecision.escalate(text);
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 
     /** 将 ReAct 生命周期事件桥接到网关反馈 sink。 */

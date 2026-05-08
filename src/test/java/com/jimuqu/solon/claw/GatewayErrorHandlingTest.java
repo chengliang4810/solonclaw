@@ -10,7 +10,11 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 public class GatewayErrorHandlingTest {
     @Test
@@ -44,18 +48,27 @@ public class GatewayErrorHandlingTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("chat-b", "user-b", "hello");
         env.send("chat-b", "user-b", "/pairing claim-admin");
+        Logger logger = (Logger) LoggerFactory.getLogger(DefaultGatewayService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
 
-        DefaultGatewayService gatewayService =
-                new DefaultGatewayService(
-                        new NoopCommandService(),
-                        new FailingConversationOrchestrator(),
-                        env.deliveryService,
-                        env.sessionRepository,
-                        env.gatewayAuthorizationService,
-                        new NoopSkillLearningService());
+        GatewayReply reply;
+        try {
+            DefaultGatewayService gatewayService =
+                    new DefaultGatewayService(
+                            new NoopCommandService(),
+                            new FailingConversationOrchestrator(),
+                            env.deliveryService,
+                            env.sessionRepository,
+                            env.gatewayAuthorizationService,
+                            new NoopSkillLearningService());
 
-        GatewayMessage message = env.message("chat-b", "user-b", "hello");
-        GatewayReply reply = gatewayService.handle(message);
+            GatewayMessage message = env.message("chat-b", "user-b", "hello");
+            reply = gatewayService.handle(message);
+        } finally {
+            logger.detachAppender(appender);
+        }
 
         assertThat(reply).isNotNull();
         assertThat(reply.isError()).isTrue();
@@ -64,6 +77,10 @@ public class GatewayErrorHandlingTest {
         assertThat(env.memoryChannelAdapter.getLastRequest().getText()).contains("token=***");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
                 .doesNotContain("sk-test-gatewayfailure12345");
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(message -> message.contains("token=***"))
+                .noneMatch(message -> message.contains("sk-test-gatewayfailure12345"));
     }
 
     private static class NoopCommandService implements CommandService {

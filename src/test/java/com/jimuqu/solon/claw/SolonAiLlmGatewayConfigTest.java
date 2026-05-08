@@ -9,6 +9,9 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.Arrays;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.slf4j.LoggerFactory;
 
 /** 校验 LLM provider 配置的前置失败逻辑。 */
 public class SolonAiLlmGatewayConfigTest {
@@ -207,6 +211,39 @@ public class SolonAiLlmGatewayConfigTest {
         ImageBlock image = (ImageBlock) message.getBlocks().get(1);
         assertThat(image.getMimeType()).isEqualTo("image/png");
         assertThat(image.getData()).isEqualTo("iVBORw0KGgo=");
+    }
+
+    @Test
+    void shouldRedactImageAttachmentReadFailureLogs() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
+        String leakedToken = "sk-image-path12345";
+        AgentRunContext runContext = new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind("image");
+        attachment.setOriginalName("secret.png");
+        attachment.setMimeType("image/png");
+        attachment.setLocalPath("C:/tmp/" + leakedToken + "/missing.png");
+        runContext.setUserAttachments(Arrays.asList(attachment));
+        Logger logger = (Logger) LoggerFactory.getLogger(SolonAiLlmGateway.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            Method userPrompt =
+                    SolonAiLlmGateway.class.getDeclaredMethod(
+                            "userPrompt", String.class, AgentRunContext.class);
+            userPrompt.setAccessible(true);
+            userPrompt.invoke(gateway, "Describe it", runContext);
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(message -> message.contains("Failed to attach image block"))
+                .anyMatch(message -> message.contains("***"))
+                .noneMatch(message -> message.contains(leakedToken));
     }
 
     private void assertLoggingDialect(String provider, String apiUrl, String model)

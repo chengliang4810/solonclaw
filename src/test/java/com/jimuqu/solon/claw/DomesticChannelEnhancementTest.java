@@ -495,6 +495,18 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRedactChannelSafeErrorSummaries() {
+        TestFeishuAdapter adapter = new TestFeishuAdapter(new AppConfig());
+
+        String safe =
+                adapter.exposeSafeError(
+                        new IllegalStateException(
+                                "connect failed token=sk-test-channelerror12345"));
+
+        assertThat(safe).contains("token=***").doesNotContain("sk-test-channelerror12345");
+    }
+
+    @Test
     void shouldRejectJimuquStyleWeakCredentialAliasesCaseInsensitively() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);
@@ -754,6 +766,10 @@ public class DomesticChannelEnhancementTest {
 
         private void exposeLastError(String code, String message) {
             setLastError(code, message);
+        }
+
+        private String exposeSafeError(Throwable throwable) {
+            return safeError(throwable);
         }
     }
 

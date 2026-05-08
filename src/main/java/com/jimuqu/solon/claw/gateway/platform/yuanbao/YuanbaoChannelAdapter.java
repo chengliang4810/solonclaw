@@ -106,9 +106,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         } catch (Exception e) {
             setConnected(false);
             setSetupState("error");
-            setLastError("yuanbao_connect_failed", e.getMessage());
-            setDetail("connect failed: " + e.getMessage());
-            log.warn("[YUANBAO] connect failed: {}", e.getMessage(), e);
+            setLastError("yuanbao_connect_failed", safeError(e));
+            setDetail("connect failed: " + safeError(e));
+            log.warn(
+                    "[YUANBAO] connect failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
             return false;
         }
     }
@@ -277,7 +280,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             YuanbaoChannelAdapter.this.webSocket = null;
             setConnected(false);
             setSetupState("error");
-            setLastError("yuanbao_websocket_failure", t == null ? "unknown" : t.getMessage());
+            setLastError("yuanbao_websocket_failure", safeError(t));
             setDetail("websocket disconnected");
         }
 
@@ -305,7 +308,10 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                         try {
                             inboundMessageHandler().handle(message);
                         } catch (Exception e) {
-                            log.warn("[YUANBAO] inbound dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[YUANBAO] inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });

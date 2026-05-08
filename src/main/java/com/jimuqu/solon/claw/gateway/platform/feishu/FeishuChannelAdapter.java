@@ -146,9 +146,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                                         event.getEvent());
                                                             } catch (Exception e) {
                                                                 log.warn(
-                                                                        "[FEISHU] websocket inbound dispatch failed: {}",
-                                                                        e.getMessage(),
-                                                                        e);
+                                                                        "[FEISHU] websocket inbound dispatch failed: errorType={}, error={}",
+                                                                        errorType(e),
+                                                                        safeError(e));
                                                             }
                                                         }
                                                     });
@@ -205,9 +205,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         } catch (Exception e) {
             setConnected(false);
             setSetupState("error");
-            setLastError("feishu_connect_failed", e.getMessage());
-            setDetail("connect failed: " + e.getMessage());
-            log.warn("[FEISHU] connect failed: {}", e.getMessage());
+            setLastError("feishu_connect_failed", safeError(e));
+            setDetail("connect failed: " + safeError(e));
+            log.warn("[FEISHU] connect failed: errorType={}, error={}", errorType(e), safeError(e));
             return false;
         }
     }
@@ -340,7 +340,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 inboundMessageHandler().handle(message);
                             }
                         } catch (Exception e) {
-                            log.warn("[FEISHU-COMMENT] dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[FEISHU-COMMENT] dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -526,7 +529,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return result;
             }
         } catch (Exception e) {
-            log.debug("[FEISHU-COMMENT] pairing file load failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU-COMMENT] pairing file load failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
         return new LinkedHashMap<String, List<String>>();
     }
@@ -928,7 +934,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             }
         } catch (Exception e) {
-            log.debug("[FEISHU] application info discovery failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU] application info discovery failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
         try {
             Map<String, String> botInfo = fetchBotInfo();
@@ -947,7 +956,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             }
         } catch (Exception e) {
-            log.debug("[FEISHU] bot info discovery failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU] bot info discovery failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -1488,7 +1500,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 ((ExecutorService) executor).shutdownNow();
             }
         } catch (Exception e) {
-            log.debug("[FEISHU] websocket shutdown cleanup failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[FEISHU] websocket shutdown cleanup failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         } finally {
             wsClient = null;
         }

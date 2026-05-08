@@ -213,6 +213,21 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         return value == null ? null : SecretRedactor.redact(value, 1000);
     }
 
+    protected String safeError(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown";
+        }
+        String message = throwable.getMessage();
+        if (StrUtil.isBlank(message)) {
+            message = throwable.getClass().getSimpleName();
+        }
+        return safeStatusText(message);
+    }
+
+    protected String errorType(Throwable throwable) {
+        return throwable == null ? "Throwable" : throwable.getClass().getSimpleName();
+    }
+
     /** 拦截示例/占位凭据，避免已启用渠道带弱凭据反复连接外部平台。 */
     protected boolean rejectWeakCredentials(String errorCode, CredentialField... fields) {
         if (!isEnabled() || fields == null) {

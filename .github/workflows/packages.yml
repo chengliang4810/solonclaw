@@ -24,6 +24,8 @@ jobs:
         run: |
           ./scripts/check-project-naming.selftest.ps1
           ./scripts/check-project-naming.ps1
+          ./scripts/check-raw-exception-logging.selftest.ps1
+          ./scripts/check-raw-exception-logging.ps1
           ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -GitCommitRange "${{ github.sha }}^..${{ github.sha }}"
 
       - name: Set up Docker Buildx

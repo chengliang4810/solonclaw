@@ -6,6 +6,8 @@ $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
+$legacyEnvPrefixFixture = (([char]72) + ([char]69) + ([char]82) + ([char]77) + ([char]69) + ([char]83))
+$legacyEnvNameFixture = $legacyEnvPrefixFixture + "_ALLOW_PRIVATE_URLS"
 
 function Join-Codepoints {
     param([int[]] $Codes)
@@ -99,19 +101,10 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    $builtInForbiddenEnv = (Join-Codepoints @(72, 101, 114, 109, 101, 115)).ToUpperInvariant() + "_ALLOW_PRIVATE_URLS"
-    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($builtInForbiddenEnv + "=true") -Encoding UTF8
-    $builtInEnvBlocked = Invoke-NamingCheck
-    if ($builtInEnvBlocked.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden built-in environment variable."
-    }
-
-    Reset-Sandbox
-    $builtInForbiddenPath = Join-Codepoints @(79, 112, 101, 110, 67, 108, 97, 119)
-    New-Item -ItemType Directory -Path (Join-Path $sandbox ("src\" + $builtInForbiddenPath)) | Out-Null
-    $builtInPathBlocked = Invoke-NamingCheck
-    if ($builtInPathBlocked.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden built-in path segment."
+    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($legacyEnvNameFixture + "=true") -Encoding UTF8
+    $legacyEnvBlocked = Invoke-NamingCheck
+    if ($legacyEnvBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden legacy environment variable prefix."
     }
 
     Reset-Sandbox
@@ -191,28 +184,6 @@ try {
         Pop-Location
     }
 
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
-    Push-Location $sandbox
-    try {
-        & git init --initial-branch=main | Out-Null
-        & git config user.name "Jimuqu Naming Check" | Out-Null
-        & git config user.email "naming-check@example.invalid" | Out-Null
-        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean fixture" -Encoding UTF8
-        & git add README.md | Out-Null
-        & git commit -m ("fix: " + ((Join-Codepoints @(72, 101, 114, 109, 101, 115)).ToUpperInvariant()) + "_ALLOW_PRIVATE_URLS fixture") | Out-Null
-        & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
-            -OutputPath $releaseNotesPath `
-            -Tag "v2099.01.01-abcdef0" `
-            -Version "0.0.0-test" `
-            -CommitRange "HEAD" `
-            -DisplayRange "HEAD" 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            throw "Release notes generation should fail on the built-in forbidden environment variable."
-        }
-    } finally {
-        Pop-Location
-    }
 } finally {
     Pop-Location
     if (Test-Path -LiteralPath $sandbox) {

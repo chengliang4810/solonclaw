@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,9 +60,10 @@ public class ConversationKanbanWorkerSpawner implements KanbanWorkerSpawner {
                 kanbanService.status(task.getTaskId(), "blocked", reply.getContent(), reply.getContent(), null);
             }
         } catch (Exception e) {
-            log.warn("Kanban worker failed: taskId={}", task.getTaskId(), e);
+            String error = safeError(e);
+            log.warn("Kanban worker failed: taskId={}, error={}", task.getTaskId(), error);
             try {
-                kanbanService.status(task.getTaskId(), "blocked", e.getMessage(), e.getMessage(), null);
+                kanbanService.status(task.getTaskId(), "blocked", error, error, null);
             } catch (Exception ignored) {
             }
         }
@@ -88,5 +90,14 @@ public class ConversationKanbanWorkerSpawner implements KanbanWorkerSpawner {
         }
         buffer.append("\n任务上下文：\n").append(StrUtil.nullToEmpty(workerContext));
         return buffer.toString();
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 }

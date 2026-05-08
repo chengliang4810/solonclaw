@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubContentSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -270,11 +271,11 @@ public class DefaultSkillHubService implements SkillHubService {
                         StrUtil.nullToEmpty(query),
                         StrUtil.nullToEmpty(sourceFilter),
                         limit,
-                        e.toString());
+                        safeError(e));
                 log.debug(
-                        "Skills Hub source search failure detail: source={}",
+                        "Skills Hub source search failure detail: source={}, error={}",
                         source.sourceId(),
-                        e);
+                        safeError(e));
             }
         }
         Map<String, SkillMeta> unique = new LinkedHashMap<String, SkillMeta>();
@@ -405,6 +406,15 @@ public class DefaultSkillHubService implements SkillHubService {
     private String deriveCategory(String installPath) {
         int index = installPath.lastIndexOf('/');
         return index < 0 ? null : installPath.substring(0, index);
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 
     private static class SourceCollectResult {

@@ -142,8 +142,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             webSocket = null;
             setConnected(false);
             setSetupState("error");
-            setLastError("wecom_connect_failed", e.getMessage());
-            setDetail("connect failed: " + e.getMessage());
+            setLastError("wecom_connect_failed", safeError(e));
+            setDetail("connect failed: " + safeError(e));
             throw new IllegalStateException("WeCom connect failed", e);
         }
     }
@@ -246,10 +246,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             WeComChannelAdapter.this.webSocket = null;
             setConnected(false);
             setSetupState("error");
-            setLastError("wecom_websocket_failure", t == null ? "unknown" : t.getMessage());
+            setLastError("wecom_websocket_failure", safeError(t));
             setDetail("websocket disconnected");
             openLatch.countDown();
-            log.warn("[WECOM] websocket failure: {}", t.getMessage());
+            log.warn(
+                    "[WECOM] websocket failure: errorType={}, error={}",
+                    errorType(t),
+                    safeError(t));
         }
 
         @Override
@@ -276,7 +279,10 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 inboundMessageHandler().handle(message);
                             }
                         } catch (Exception e) {
-                            log.warn("[WECOM] inbound dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[WECOM] inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });

@@ -560,7 +560,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     saveSyncBuf(syncBuf);
                 }
             } catch (Exception e) {
-                log.warn("[WEIXIN] poll failed: {}", e.getMessage());
+                log.warn(
+                        "[WEIXIN] poll failed: errorType={}, error={}",
+                        errorType(e),
+                        safeError(e));
                 sleepQuietly(2);
             }
         }
@@ -634,9 +637,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         inboundMessageHandler().handle(gatewayMessage);
                                     } catch (Exception e) {
                                         log.warn(
-                                                "[WEIXIN] inbound dispatch failed: {}",
-                                                e.getMessage(),
-                                                e);
+                                                "[WEIXIN] inbound dispatch failed: errorType={}, error={}",
+                                                errorType(e),
+                                                safeError(e));
                                     } finally {
                                         if ("dm".equals(chatType)) {
                                             sendTyping(chatId, TYPING_STOP);
@@ -645,7 +648,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 }
                             });
         } catch (Exception e) {
-            log.warn("[WEIXIN] inbound submit failed: {}", e.getMessage(), e);
+            log.warn(
+                    "[WEIXIN] inbound submit failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -726,7 +732,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 }
             }
         } catch (Exception e) {
-            log.warn("[WEIXIN] collect media failed: {}", e.getMessage());
+            log.warn(
+                    "[WEIXIN] collect media failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -901,7 +910,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 typingTicket, System.currentTimeMillis() + 10L * 60L * 1000L));
             }
         } catch (Exception e) {
-            log.debug("[WEIXIN] fetch typing ticket failed: {}", e.getMessage());
+            log.debug(
+                    "[WEIXIN] fetch typing ticket failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -920,7 +932,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                             .asObject(),
                     CONFIG_TIMEOUT_MS);
         } catch (Exception e) {
-            log.debug("[WEIXIN] send typing failed: {}", e.getMessage());
+            log.debug(
+                    "[WEIXIN] send typing failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
