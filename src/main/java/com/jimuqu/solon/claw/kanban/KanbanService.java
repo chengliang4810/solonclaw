@@ -399,6 +399,20 @@ public class KanbanService {
         return result;
     }
 
+    public Map<String, Object> taskDrawer(String taskId, int logTailBytes) throws Exception {
+        Map<String, Object> detail = task(taskId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("task_id", taskId);
+        result.put("task", detail);
+        result.put("runs", runs(taskId));
+        result.put("events", events(taskId));
+        result.put("context", context(taskId));
+        result.put("notifications", notifyList(taskId));
+        result.put("log", log(taskId, logTailBytes <= 0 ? 4096 : logTailBytes));
+        result.put("actions", drawerActions(detail));
+        return result;
+    }
+
     public List<Map<String, Object>> diagnostics(String taskId) throws Exception {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         if (StrUtil.isNotBlank(taskId)) {
@@ -1576,6 +1590,25 @@ public class KanbanService {
             result.put("worker_context", workerContext(task, comments, runs));
         }
         return result;
+    }
+
+    private Map<String, Object> drawerActions(Map<String, Object> task) {
+        String status = String.valueOf(task.get("status"));
+        boolean running = "running".equals(status);
+        boolean blocked = "blocked".equals(status);
+        boolean done = "done".equals(status);
+        boolean claimed =
+                task.get("claim_lock") != null
+                        || task.get("current_run_id") != null
+                        || task.get("active_run") != null;
+        Map<String, Object> actions = new LinkedHashMap<String, Object>();
+        actions.put("can_comment", Boolean.TRUE);
+        actions.put("can_reassign", Boolean.TRUE);
+        actions.put("can_reclaim", Boolean.valueOf(running || claimed));
+        actions.put("can_retry", Boolean.valueOf(blocked || done || "archived".equals(status)));
+        actions.put("can_unblock", Boolean.valueOf(blocked));
+        actions.put("can_edit_result", Boolean.valueOf(done));
+        return actions;
     }
 
     private String formatTaskList(List<Map<String, Object>> tasks) {

@@ -50,6 +50,24 @@ export interface KanbanRun {
   error?: string | null
 }
 
+export interface KanbanNotification {
+  id: string
+  task_id: string
+  platform: string
+  chat_id: string
+  thread_id?: string | null
+  created_at: string
+}
+
+export interface KanbanTaskLog {
+  task_id: string
+  path: string
+  exists: boolean
+  tail_bytes?: number
+  size?: number
+  content?: string | null
+}
+
 export interface KanbanTask {
   id: string
   task_id: string
@@ -92,6 +110,28 @@ export interface KanbanTask {
   parents?: Array<Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>>
   children?: Array<Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>>
   worker_context?: string
+}
+
+export interface KanbanTaskDrawer {
+  task_id: string
+  task: KanbanTask
+  runs: KanbanRun[]
+  events: KanbanEvent[]
+  context: {
+    task_id: string
+    worker_context?: string
+    task: KanbanTask
+  }
+  notifications: KanbanNotification[]
+  log: KanbanTaskLog
+  actions: {
+    can_comment: boolean
+    can_reassign: boolean
+    can_reclaim: boolean
+    can_retry: boolean
+    can_unblock: boolean
+    can_edit_result: boolean
+  }
 }
 
 export interface CreateKanbanTaskRequest {
@@ -182,6 +222,12 @@ export async function fetchKanbanTasks(query: string | KanbanTaskQuery = ''): Pr
 
 export async function fetchKanbanTask(taskId: string): Promise<KanbanTask> {
   return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}`)
+}
+
+export async function fetchKanbanTaskDrawer(taskId: string, tail = 4096): Promise<KanbanTaskDrawer> {
+  const params = new URLSearchParams()
+  params.set('tail', String(tail))
+  return request<KanbanTaskDrawer>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/drawer?${params.toString()}`)
 }
 
 export async function createKanbanTask(data: CreateKanbanTaskRequest): Promise<KanbanTask> {

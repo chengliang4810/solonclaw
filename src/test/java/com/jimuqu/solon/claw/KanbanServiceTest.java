@@ -289,6 +289,14 @@ public class KanbanServiceTest {
         assertThat(String.valueOf(service.context(taskId).get("worker_context")))
                 .contains("Prior attempts")
                 .contains("worker timeout");
+        Map<String, Object> drawer = service.taskDrawer(taskId, 128);
+        assertThat(String.valueOf(drawer.get("task"))).contains("worker timeout");
+        assertThat(String.valueOf(drawer.get("runs"))).contains("completed").contains("reclaimed");
+        assertThat(String.valueOf(drawer.get("events"))).contains("retry").contains("reclaimed");
+        assertThat(String.valueOf(drawer.get("context"))).contains("worker_context").contains("Prior attempts");
+        assertThat(String.valueOf(drawer.get("notifications"))).contains("[]");
+        assertThat(String.valueOf(drawer.get("log"))).contains("exists=false");
+        assertThat(String.valueOf(drawer.get("actions"))).contains("can_retry=false").contains("can_reassign=true");
         assertThat(service.handleCommand("runs " + taskId, "tester"))
                 .contains("运行历史")
                 .contains("reclaimed");

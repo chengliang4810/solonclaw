@@ -58,6 +58,10 @@ public class DashboardKanbanService {
         return kanbanService.task(taskId);
     }
 
+    public Map<String, Object> taskDrawer(String taskId, int logTailBytes) throws Exception {
+        return kanbanService.taskDrawer(taskId, logTailBytes);
+    }
+
     public Map<String, Object> createTask(Map<String, Object> body) throws Exception {
         return kanbanService.createTask(body);
     }

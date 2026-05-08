@@ -762,6 +762,21 @@ public class DashboardControllerHttpTest {
         assertThat(notifyList.status).isEqualTo(200);
         assertThat(notifyList.body).contains("thread-http");
 
+        HttpResult kanbanDrawer =
+                request("GET", "/api/kanban/tasks/" + taskId + "/drawer?tail=80", null, token);
+        assertThat(kanbanDrawer.status).isEqualTo(200);
+        assertThat(kanbanDrawer.body)
+                .contains("\"task\"")
+                .contains("\"runs\"")
+                .contains("\"events\"")
+                .contains("\"context\"")
+                .contains("\"notifications\"")
+                .contains("\"log\"")
+                .contains("\"actions\"")
+                .contains("thread-http")
+                .contains("worker_context")
+                .contains("can_reassign");
+
         HttpResult notifyRemove =
                 request(
                         "POST",

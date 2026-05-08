@@ -8,7 +8,7 @@ import {
   dispatchKanban,
   fetchKanbanBoards,
   fetchKanbanDaemon,
-  fetchKanbanTask,
+  fetchKanbanTaskDrawer,
   fetchKanbanTasks,
   kanbanStatuses,
   moveKanbanTask,
@@ -22,9 +22,11 @@ import {
   type KanbanBoard,
   type KanbanDaemonStatus,
   type KanbanEvent,
+  type KanbanNotification,
   type KanbanRun,
   type KanbanStatus,
   type KanbanTask,
+  type KanbanTaskDrawer,
 } from '@/api/jimuqu/kanban'
 
 const message = useMessage()
@@ -35,6 +37,7 @@ const activeBoard = ref('')
 const showTaskModal = ref(false)
 const showBoardModal = ref(false)
 const selectedTask = ref<KanbanTask | null>(null)
+const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
 const commentText = ref('')
 const recoveryReason = ref('')
 const reassignAssignee = ref('')
@@ -180,7 +183,8 @@ function openCreateTask() {
 }
 
 async function openTask(task: KanbanTask) {
-  selectedTask.value = await fetchKanbanTask(task.id)
+  selectedDrawer.value = await fetchKanbanTaskDrawer(task.id)
+  selectedTask.value = selectedDrawer.value.task
   taskForm.value = {
     title: selectedTask.value.title,
     body: selectedTask.value.body || '',
@@ -231,6 +235,8 @@ async function moveTask(task: KanbanTask, status: KanbanStatus) {
 async function saveComment() {
   if (!selectedTask.value || !commentText.value.trim()) return
   selectedTask.value = await addKanbanComment(selectedTask.value.id, commentText.value.trim())
+  selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+  selectedTask.value = selectedDrawer.value.task
   commentText.value = ''
   await reloadTasks()
 }
@@ -239,6 +245,8 @@ async function reclaimSelectedTask() {
   if (!selectedTask.value) return
   try {
     selectedTask.value = await reclaimKanbanTask(selectedTask.value.id, recoveryReason.value.trim() || 'dashboard')
+    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+    selectedTask.value = selectedDrawer.value.task
     recoveryReason.value = ''
     message.success('任务执行权已收回')
     await reloadTasks()
@@ -259,6 +267,8 @@ async function reassignSelectedTask(reclaimFirst = false) {
       reclaimFirst,
       recoveryReason.value.trim() || 'dashboard',
     )
+    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+    selectedTask.value = selectedDrawer.value.task
     recoveryReason.value = ''
     message.success('任务已重新分配')
     await reloadTasks()
@@ -271,6 +281,8 @@ async function retrySelectedTask() {
   if (!selectedTask.value) return
   try {
     selectedTask.value = await retryKanbanTask(selectedTask.value.id, recoveryReason.value.trim() || 'dashboard')
+    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+    selectedTask.value = selectedDrawer.value.task
     recoveryReason.value = ''
     message.success('任务已重置为就绪')
     await reloadTasks()
@@ -377,6 +389,15 @@ function runSummary(run: KanbanRun): string {
   const worker = run.worker_id || run.profile || '-'
   const summary = run.summary ? `：${run.summary}` : ''
   return `${outcome} / ${worker}${summary}`
+}
+
+function notificationSummary(notification: KanbanNotification): string {
+  const thread = notification.thread_id ? ` / ${notification.thread_id}` : ''
+  return `${notification.platform} / ${notification.chat_id}${thread}`
+}
+
+function drawerActions() {
+  return selectedDrawer.value?.actions
 }
 
 function hasWarnings(task: KanbanTask): boolean {
@@ -535,14 +556,19 @@ function hasWarnings(task: KanbanTask): boolean {
             </div>
             <div class="recovery-actions">
               <NInput v-model:value="recoveryReason" placeholder="恢复原因，例如 worker timeout" />
-              <NButton @click="reclaimSelectedTask">收回执行权</NButton>
-              <NButton @click="retrySelectedTask">重试任务</NButton>
+              <NButton :disabled="drawerActions()?.can_reclaim === false" @click="reclaimSelectedTask">收回执行权</NButton>
+              <NButton :disabled="drawerActions()?.can_retry === false" @click="retrySelectedTask">重试任务</NButton>
             </div>
             <div class="recovery-actions">
               <NInput v-model:value="reassignAssignee" placeholder="新的执行人" />
-              <NButton @click="reassignSelectedTask(false)">重新分配</NButton>
-              <NButton type="primary" @click="reassignSelectedTask(true)">收回并分配</NButton>
+              <NButton :disabled="drawerActions()?.can_reassign === false" @click="reassignSelectedTask(false)">重新分配</NButton>
+              <NButton type="primary" :disabled="drawerActions()?.can_reclaim === false" @click="reassignSelectedTask(true)">收回并分配</NButton>
             </div>
+          </div>
+
+          <div v-if="selectedTask.worker_context || selectedDrawer?.context?.worker_context" class="worker-context">
+            <div class="comments-title">执行上下文</div>
+            <pre>{{ selectedDrawer?.context?.worker_context || selectedTask.worker_context }}</pre>
           </div>
 
           <div v-if="(selectedTask.runs || []).length" class="runs">
@@ -560,6 +586,23 @@ function hasWarnings(task: KanbanTask): boolean {
               <span class="event-kind">{{ event.kind }}</span>
               <span>{{ eventSummary(event) }}</span>
             </div>
+          </div>
+
+          <div v-if="(selectedDrawer?.notifications || []).length" class="notifications">
+            <div class="comments-title">通知投递</div>
+            <div v-for="notification in selectedDrawer?.notifications || []" :key="notification.id" class="notification-row">
+              <span>{{ notificationSummary(notification) }}</span>
+              <span>{{ notification.created_at }}</span>
+            </div>
+          </div>
+
+          <div v-if="selectedDrawer?.log" class="task-log">
+            <div class="comments-title">执行日志</div>
+            <div class="log-meta">
+              <span>{{ selectedDrawer.log.exists ? `已记录 ${selectedDrawer.log.size || 0} bytes` : '暂无日志文件' }}</span>
+              <span>{{ selectedDrawer.log.path }}</span>
+            </div>
+            <pre v-if="selectedDrawer.log.content">{{ selectedDrawer.log.content }}</pre>
           </div>
 
           <div class="comments-title">评论</div>
@@ -841,7 +884,10 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .recovery-panel,
 .runs,
-.events {
+.events,
+.notifications,
+.task-log,
+.worker-context {
   border-bottom: 1px solid $border-color;
   padding-bottom: 12px;
   margin-bottom: 12px;
@@ -857,7 +903,9 @@ function hasWarnings(task: KanbanTask): boolean {
 .claim-detail,
 .warning-row,
 .run-row,
-.event-row {
+.event-row,
+.notification-row,
+.log-meta {
   color: $text-secondary;
   font-size: 12px;
   line-height: 1.45;
@@ -890,11 +938,36 @@ function hasWarnings(task: KanbanTask): boolean {
   padding: 5px 0;
 }
 
+.notification-row,
+.log-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 8px;
+  padding: 5px 0;
+}
+
 .run-row {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr) 150px;
   gap: 8px;
   padding: 5px 0;
+}
+
+.worker-context pre,
+.task-log pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  background: $bg-card-hover;
+  color: $text-secondary;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .event-kind,
@@ -963,7 +1036,9 @@ function hasWarnings(task: KanbanTask): boolean {
 
   .recovery-actions,
   .run-row,
-  .event-row {
+  .event-row,
+  .notification-row,
+  .log-meta {
     grid-template-columns: 1fr;
   }
 }

@@ -71,6 +71,11 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.task(taskId));
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/drawer", method = MethodType.GET)
+    public Map<String, Object> taskDrawer(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.taskDrawer(taskId, intParam(context.param("tail"), 4096)));
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}", method = MethodType.PUT)
     public Map<String, Object> updateTask(String taskId, Context context) throws Exception {
         return DashboardResponse.ok(kanbanService.updateTask(taskId, body(context)));
