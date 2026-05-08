@@ -45,6 +45,10 @@ export interface KanbanRun {
   last_heartbeat_at?: string | null
   started_at?: string | null
   ended_at?: string | null
+  finished?: boolean
+  running?: boolean
+  duration_ms?: number | null
+  timed_out?: boolean
   outcome?: string | null
   summary?: string | null
   metadata?: unknown
@@ -134,6 +138,8 @@ export interface KanbanTaskDrawer {
     last_worker?: string | null
     last_started_at?: string | null
     last_ended_at?: string | null
+    last_duration_ms?: number | null
+    last_timed_out?: boolean | null
     last_heartbeat_at?: string | null
     last_event_kind?: string | null
     last_event_at?: string | null

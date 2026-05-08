@@ -400,8 +400,24 @@ function eventSummary(event: KanbanEvent): string {
 function runSummary(run: KanbanRun): string {
   const outcome = run.outcome || run.status
   const worker = run.worker_id || run.profile || '-'
+  const state = run.timed_out ? '已超时' : run.running ? '运行中' : run.finished ? '已结束' : '未结束'
+  const duration = formatDuration(run.duration_ms)
   const summary = run.summary ? `：${run.summary}` : ''
-  return `${outcome} / ${worker}${summary}`
+  return `${outcome} / ${worker} / ${state}${duration ? ` / ${duration}` : ''}${summary}`
+}
+
+function formatDuration(durationMs?: number | null): string {
+  if (durationMs === null || durationMs === undefined) return ''
+  const ms = Math.max(0, Number(durationMs) || 0)
+  if (ms < 1000) return `${ms}ms`
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainSeconds = seconds % 60
+  if (minutes < 60) return remainSeconds > 0 ? `${minutes}m ${remainSeconds}s` : `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remainMinutes = minutes % 60
+  return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`
 }
 
 function notificationSummary(notification: KanbanNotification): string {
@@ -679,6 +695,14 @@ function hasWarnings(task: KanbanTask): boolean {
                 <strong>{{ selectedDrawer.execution_overview.last_worker || '-' }}</strong>
               </div>
               <div>
+                <span>最后耗时</span>
+                <strong>{{ formatDuration(selectedDrawer.execution_overview.last_duration_ms) || '-' }}</strong>
+              </div>
+              <div>
+                <span>超时</span>
+                <strong>{{ selectedDrawer.execution_overview.last_timed_out ? '是' : '否' }}</strong>
+              </div>
+              <div>
                 <span>最后事件</span>
                 <strong>{{ selectedDrawer.execution_overview.last_event_kind || '-' }}</strong>
               </div>
@@ -719,7 +743,9 @@ function hasWarnings(task: KanbanTask): boolean {
           <div v-if="(selectedTask.runs || []).length" class="runs">
             <div class="comments-title">运行历史</div>
             <div v-for="run in selectedTask.runs || []" :key="run.id" class="run-row">
-              <span class="run-status" :class="{ active: !run.ended_at }">{{ run.status }}</span>
+              <span class="run-status" :class="{ active: run.running, timeout: run.timed_out }">
+                {{ run.timed_out ? 'timeout' : run.status }}
+              </span>
               <span>{{ runSummary(run) }}</span>
               <span class="run-time">{{ run.started_at || '-' }}</span>
             </div>
@@ -1225,6 +1251,10 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .run-status.active {
   color: #1d4ed8;
+}
+
+.run-status.timeout {
+  color: #b91c1c;
 }
 
 .comment {
