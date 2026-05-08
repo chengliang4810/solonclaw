@@ -32,7 +32,9 @@ jobs:
 
       - name: Check project naming
         shell: pwsh
-        run: ./scripts/check-project-naming.ps1
+        run: |
+          ./scripts/check-project-naming.selftest.ps1
+          ./scripts/check-project-naming.ps1
 
       - name: Set up Java
         uses: actions/setup-java@v4

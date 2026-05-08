@@ -21,7 +21,9 @@ jobs:
 
       - name: Check project naming
         shell: pwsh
-        run: ./scripts/check-project-naming.ps1
+        run: |
+          ./scripts/check-project-naming.selftest.ps1
+          ./scripts/check-project-naming.ps1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
