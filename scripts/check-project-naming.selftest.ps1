@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
 $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
+$releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
@@ -222,6 +223,42 @@ try {
         throw "Naming check did not block forbidden naming in all reachable git refs."
     }
     Assert-NoRawBlockedOutput $allRefsBlocked.Output @($blockedFixture) "all refs git object text scan"
+
+    Reset-Sandbox
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value ($legacyEnvFixture + " before clean baseline") -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: historical polluted release base / Historical polluted release base" | Out-Null
+        & git tag -a "v2000.01.01-deadbee" -m "Release v2000.01.01-deadbee" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean naming baseline" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "chore: clean naming baseline / Clean naming baseline" | Out-Null
+        $cleanBase = (& git rev-parse HEAD).Trim()
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean release change" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "feat: clean release range / Clean release range" | Out-Null
+        $head = (& git rev-parse HEAD).Trim()
+
+        $rangeOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseRangeScriptPath `
+            -HeadSha $head `
+            -CleanNamingBase $cleanBase 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Release range resolver failed with an older polluted tag: $($rangeOutput | Out-String)"
+        }
+        $rangeText = ($rangeOutput | Out-String)
+        if ($rangeText -notmatch [Regex]::Escape("$cleanBase..$head")) {
+            throw "Release range resolver should prefer the clean naming baseline over older tags."
+        }
+        if ($rangeText -match "v2000\.01\.01-deadbee") {
+            throw "Release range resolver should not use an older polluted tag as the release base."
+        }
+    } finally {
+        Pop-Location
+    }
 
     $releaseDir = Join-Path $sandbox "dist"
     New-Item -ItemType Directory -Path $releaseDir | Out-Null
