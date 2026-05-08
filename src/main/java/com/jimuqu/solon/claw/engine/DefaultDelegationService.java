@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -254,7 +255,11 @@ public class DefaultDelegationService implements DelegationService {
             }
             return result;
         } catch (Exception e) {
-            log.warn("delegateSingle failed: sourceKey={}, prompt={}", sourceKey, prompt, e);
+            log.warn(
+                    "delegateSingle failed: sourceKey={}, prompt={}, error={}",
+                    sourceKey,
+                    SecretRedactor.redact(prompt, 1000),
+                    safeError(e));
             return failureResult("delegate", e.getMessage());
         } finally {
             concurrencyLimiter.release();
@@ -340,7 +345,10 @@ public class DefaultDelegationService implements DelegationService {
                 try {
                     results.add(future.get());
                 } catch (Exception e) {
-                    log.warn("delegateBatch child failed: sourceKey={}", sourceKey, e);
+                    log.warn(
+                            "delegateBatch child failed: sourceKey={}, error={}",
+                            sourceKey,
+                            safeError(e));
                     results.add(failureResult("delegate", e.getMessage()));
                 }
             }
@@ -436,8 +444,19 @@ public class DefaultDelegationService implements DelegationService {
         DelegationResult result = new DelegationResult();
         result.setName(StrUtil.blankToDefault(name, "delegate"));
         result.setError(true);
-        result.setContent(StrUtil.blankToDefault(message, "delegation failed"));
+        result.setContent(
+                SecretRedactor.redact(
+                        StrUtil.blankToDefault(message, "delegation failed"), 1000));
         return result;
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()),
+                1000);
     }
 
     private SubagentRunRecord startSubagent(

@@ -75,7 +75,8 @@ public class DelegationServiceTest {
                             List<Object> toolObjects)
                             throws Exception {
                         if (userMessage.contains("must fail")) {
-                            throw new IllegalStateException("simulated delegation failure");
+                            throw new IllegalStateException(
+                                    "simulated delegation failure ghp_1234567890abcdef");
                         }
                         return super.chat(session, systemPrompt, userMessage, toolObjects);
                     }
@@ -98,7 +99,10 @@ public class DelegationServiceTest {
         assertThat(results.get(0).isError()).isFalse();
         assertThat(results.get(0).getContent()).contains("echo:");
         assertThat(results.get(1).isError()).isTrue();
-        assertThat(results.get(1).getContent()).contains("simulated delegation failure");
+        assertThat(results.get(1).getContent())
+                .contains("simulated delegation failure")
+                .contains("***")
+                .doesNotContain("ghp_1234567890abcdef");
     }
 
     @Test
