@@ -260,6 +260,49 @@ public class SecurityPolicyServiceTest {
         assertThat(verdict.getMessage()).contains("absolute-blocked.example");
     }
 
+    @Test
+    void shouldDenyWritesToSensitiveSystemAndCredentialPathsLikeJimuquPolicy() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+        String home = System.getProperty("user.home");
+
+        assertWriteDenied(policy, "/etc/shadow");
+        assertWriteDenied(policy, "/etc/passwd");
+        assertWriteDenied(policy, "/etc/sudoers");
+        assertWriteDenied(policy, "/etc/sudoers.d/custom");
+        assertWriteDenied(policy, "/etc/systemd/system/evil.service");
+        assertWriteDenied(policy, "~/.ssh/authorized_keys");
+        assertWriteDenied(policy, home + "/.ssh/id_rsa");
+        assertWriteDenied(policy, home + "/.ssh/id_ed25519");
+        assertWriteDenied(policy, home + "/.aws/credentials");
+        assertWriteDenied(policy, home + "/.gnupg/secring.gpg");
+        assertWriteDenied(policy, home + "/.kube/config");
+        assertWriteDenied(policy, home + "/.netrc");
+        assertWriteDenied(policy, home + "/.npmrc");
+        assertWriteDenied(policy, home + "/.pypirc");
+        assertWriteDenied(policy, home + "/.pgpass");
+        assertWriteDenied(policy, home + "/.bashrc");
+        assertWriteDenied(policy, home + "/.zshrc");
+        assertWriteDenied(policy, home + "/.profile");
+        assertWriteDenied(policy, home + "/.bash_profile");
+        assertWriteDenied(policy, home + "/.zprofile");
+        assertWriteDenied(policy, ".env");
+        assertWriteDenied(policy, ".env.local");
+        assertWriteDenied(policy, "credentials.json");
+        assertWriteDenied(policy, "service-account.json");
+        assertWriteDenied(policy, "private-api-key.pem");
+
+        assertThat(policy.checkPath("/tmp/safe_file.txt", true).isAllowed()).isTrue();
+        assertThat(policy.checkPath("/home/user/project/main.py", true).isAllowed()).isTrue();
+        assertThat(policy.checkPath(home + "/.jimuqu/config.yml", true).isAllowed()).isTrue();
+        assertThat(policy.checkPath(".env.example", true).isAllowed()).isTrue();
+    }
+
+    private static void assertWriteDenied(SecurityPolicyService policy, String path) {
+        SecurityPolicyService.FileVerdict verdict = policy.checkPath(path, true);
+        assertThat(verdict.isAllowed()).as(path).isFalse();
+        assertThat(verdict.getMessage()).as(path).contains("敏感");
+    }
+
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
         private final String ip;
 
