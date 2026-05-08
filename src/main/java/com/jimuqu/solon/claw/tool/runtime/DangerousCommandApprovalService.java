@@ -1261,6 +1261,31 @@ public class DangerousCommandApprovalService {
         if ("web_search".equals(lower) || "search_web".equals(lower)) {
             return ToolNameConstants.WEBSEARCH;
         }
+        if ("read_file".equals(lower) || "file-read".equals(lower) || "file_read_file".equals(lower)) {
+            return ToolNameConstants.FILE_READ;
+        }
+        if ("write_file".equals(lower)
+                || "file-write".equals(lower)
+                || "create_file".equals(lower)
+                || "file_create".equals(lower)
+                || "save_file".equals(lower)) {
+            return ToolNameConstants.FILE_WRITE;
+        }
+        if ("list_file".equals(lower)
+                || "list_files".equals(lower)
+                || "list_dir".equals(lower)
+                || "list_directory".equals(lower)
+                || "read_dir".equals(lower)
+                || "file-list".equals(lower)) {
+            return ToolNameConstants.FILE_LIST;
+        }
+        if ("delete_file".equals(lower)
+                || "remove_file".equals(lower)
+                || "unlink_file".equals(lower)
+                || "file-delete".equals(lower)
+                || "file_remove".equals(lower)) {
+            return ToolNameConstants.FILE_DELETE;
+        }
         if ("apply_patch".equals(lower)
                 || "apply-patch".equals(lower)
                 || "patch_apply".equals(lower)

@@ -3339,6 +3339,31 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(patchApplyTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(patchApplyTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
+        Map<String, Object> readFileArgs = new LinkedHashMap<String, Object>();
+        readFileArgs.put("path", ".env");
+        Map<String, Object> gatewayReadFile = new LinkedHashMap<String, Object>();
+        gatewayReadFile.put("tool_name", "read_file");
+        gatewayReadFile.put("tool_args", readFileArgs);
+        TestTrace readFileTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(readFileTrace, "call_tool", gatewayReadFile);
+
+        assertThat(readFileTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(readFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
+        Map<String, Object> writeFileArgs = new LinkedHashMap<String, Object>();
+        writeFileArgs.put("path", ".env.local");
+        writeFileArgs.put("content", "TOKEN=secret");
+        Map<String, Object> gatewayWriteFile = new LinkedHashMap<String, Object>();
+        gatewayWriteFile.put("tool_name", "write_file");
+        gatewayWriteFile.put("tool_args", writeFileArgs);
+        TestTrace writeFileTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(writeFileTrace, "call_tool", gatewayWriteFile);
+
+        assertThat(writeFileTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(writeFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
     }
 
     @Test
