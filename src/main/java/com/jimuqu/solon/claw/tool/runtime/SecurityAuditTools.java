@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -16,20 +17,30 @@ public class SecurityAuditTools {
     private final SecurityPolicyService securityPolicyService;
     private final DangerousCommandApprovalService approvalService;
     private final TirithSecurityService tirithSecurityService;
+    private final AppConfig appConfig;
 
     public SecurityAuditTools(
             SecurityPolicyService securityPolicyService,
             DangerousCommandApprovalService approvalService,
             TirithSecurityService tirithSecurityService) {
+        this(securityPolicyService, approvalService, tirithSecurityService, null);
+    }
+
+    public SecurityAuditTools(
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            TirithSecurityService tirithSecurityService,
+            AppConfig appConfig) {
         this.securityPolicyService = securityPolicyService;
         this.approvalService = approvalService;
         this.tirithSecurityService = tirithSecurityService;
+        this.appConfig = appConfig;
     }
 
     @ToolMapping(
             name = "security_audit",
             description =
-                    "只读安全审计。action 支持 command、url、path、tool_args；不会执行命令或访问目标。")
+                    "只读安全审计。action 支持 command、url、path、tool_args、policy/status；不会执行命令或访问目标。")
     public String audit(
             @Param(name = "action", description = "command/url/path/tool_args") String action,
             @Param(name = "toolName", description = "工具名，可选", required = false)
@@ -44,7 +55,9 @@ public class SecurityAuditTools {
                     String argsJson) {
         String mode = StrUtil.blankToDefault(action, "command").trim().toLowerCase(Locale.ROOT);
         AuditResult result;
-        if ("url".equals(mode)) {
+        if ("policy".equals(mode) || "status".equals(mode)) {
+            result = auditPolicy();
+        } else if ("url".equals(mode)) {
             result = auditUrl(url);
         } else if ("path".equals(mode)) {
             result = auditPath(path, writeLike != null && writeLike.booleanValue());
@@ -59,6 +72,64 @@ public class SecurityAuditTools {
             result.summary = "Unsupported security_audit action: " + StrUtil.nullToEmpty(action);
         }
         return ONode.serialize(result.toMap());
+    }
+
+    private AuditResult auditPolicy() {
+        AuditResult result = new AuditResult("policy");
+        if (appConfig == null) {
+            result.success = false;
+            result.decision = "error";
+            result.summary = "security policy config is unavailable";
+            return result;
+        }
+
+        result.policy = new LinkedHashMap<String, Object>();
+        Map<String, Object> approvals = new LinkedHashMap<String, Object>();
+        approvals.put("mode", StrUtil.nullToEmpty(appConfig.getApprovals().getMode()));
+        approvals.put("cronMode", StrUtil.nullToEmpty(appConfig.getApprovals().getCronMode()));
+        approvals.put("subagentAutoApprove", Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
+        approvals.put("timeoutSeconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
+        approvals.put("gatewayTimeoutSeconds", Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
+        approvals.put("mcpReloadConfirm", Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
+        approvals.put(
+                "alwaysApprovalCount",
+                Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
+        result.policy.put("approvals", approvals);
+
+        Map<String, Object> security = new LinkedHashMap<String, Object>();
+        security.put("allowPrivateUrls", Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
+        security.put("tirithEnabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
+        security.put("tirithConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getSecurity().getTirithPath())));
+        security.put("tirithTimeoutSeconds", Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));
+        security.put("tirithFailOpen", Boolean.valueOf(appConfig.getSecurity().isTirithFailOpen()));
+        security.put(
+                "websiteBlocklistEnabled",
+                Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
+        security.put(
+                "websiteBlocklistDomainCount",
+                Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getDomains())));
+        security.put(
+                "websiteBlocklistSharedFileCount",
+                Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
+        result.policy.put("security", security);
+
+        Map<String, Object> terminal = new LinkedHashMap<String, Object>();
+        terminal.put("credentialFileCount", Integer.valueOf(size(appConfig.getTerminal().getCredentialFiles())));
+        terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
+        terminal.put("sudoPasswordConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())));
+        terminal.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
+        terminal.put(
+                "maxForegroundTimeoutSeconds",
+                Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
+        terminal.put("foregroundMaxRetries", Integer.valueOf(appConfig.getTerminal().getForegroundMaxRetries()));
+        terminal.put(
+                "foregroundRetryBaseDelaySeconds",
+                Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
+        result.policy.put("terminal", terminal);
+
+        result.summary = "Security policy status is available without exposing secret values.";
+        result.finish();
+        return result;
     }
 
     private AuditResult auditCommand(String toolName, String command) {
@@ -260,6 +331,7 @@ public class SecurityAuditTools {
         private String path;
         private Boolean writeLike;
         private String tirithAction;
+        private Map<String, Object> policy;
         private final List<Map<String, Object>> findings = new ArrayList<Map<String, Object>>();
 
         private AuditResult(String action) {
@@ -317,8 +389,15 @@ public class SecurityAuditTools {
             if (StrUtil.isNotBlank(tirithAction)) {
                 map.put("tirithAction", tirithAction);
             }
+            if (policy != null) {
+                map.put("policy", policy);
+            }
             map.put("findings", findings);
             return map;
         }
+    }
+
+    private static int size(List<?> values) {
+        return values == null ? 0 : values.size();
     }
 }

@@ -152,7 +152,14 @@ public class ToolRegistryExposureTest {
                         policy,
                         new DangerousCommandApprovalService(
                                 env.globalSettingRepository, env.appConfig, policy, null),
-                        null);
+                        null,
+                        env.appConfig);
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
+        env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
+        env.appConfig.getTerminal().setEnvPassthrough(Arrays.asList("TENOR_API_KEY"));
+        env.appConfig.getTerminal().setSudoPassword("secret-sudo");
 
         ONode hardline =
                 ONode.ofJson(
@@ -184,6 +191,8 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 "{\"path\":\"../outside.txt\"}"));
+        ONode policyStatus =
+                ONode.ofJson(tools.audit("policy", null, null, null, null, null, null));
 
         assertThat(hardline.get("success").getBoolean()).isTrue();
         assertThat(hardline.get("decision").getString()).isEqualTo("block");
@@ -193,6 +202,19 @@ public class ToolRegistryExposureTest {
         assertThat(String.valueOf(path.get("findings"))).contains("file_policy").contains("凭据");
         assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
         assertThat(String.valueOf(toolArgs.get("findings"))).contains("路径遍历");
+        assertThat(policyStatus.get("success").getBoolean()).isTrue();
+        assertThat(policyStatus.get("summary").getString()).contains("without exposing secret values");
+        assertThat(policyStatus.get("policy").get("security").get("allowPrivateUrls").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("security").get("websiteBlocklistDomainCount").getInt())
+                .isEqualTo(1);
+        assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
+                .isEqualTo(1);
+        assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())
+                .isEqualTo(1);
+        assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.toJson()).doesNotContain("secret-sudo").doesNotContain("TENOR_API_KEY");
     }
 
     @Test

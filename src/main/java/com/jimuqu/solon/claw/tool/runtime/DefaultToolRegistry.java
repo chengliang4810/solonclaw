@@ -382,7 +382,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new SecurityAuditTools(
                         securityPolicyService,
                         new DangerousCommandApprovalService(null, appConfig, securityPolicyService),
-                        new TirithSecurityService(appConfig));
+                        new TirithSecurityService(appConfig),
+                        appConfig);
         boolean fileSkillAdded = false;
         boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
