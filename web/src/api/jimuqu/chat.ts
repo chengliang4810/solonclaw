@@ -9,6 +9,7 @@ export interface UploadedChatFile {
   name: string
   path: string
   local_path: string
+  reference?: string
   kind: string
   mime_type: string
   size: number

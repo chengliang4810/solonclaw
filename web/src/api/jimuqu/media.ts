@@ -9,6 +9,7 @@ export interface ChannelMedia {
   original_name?: string
   mime_type?: string
   local_path?: string
+  reference?: string
   remote_id?: string
   status: string
   error?: string

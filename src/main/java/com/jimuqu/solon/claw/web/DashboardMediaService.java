@@ -3,8 +3,10 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -19,10 +21,15 @@ import java.util.Map;
 public class DashboardMediaService {
     private final SqliteDatabase database;
     private final RuntimePathGuard pathGuard;
+    private final AttachmentCacheService attachmentCacheService;
 
-    public DashboardMediaService(SqliteDatabase database, RuntimePathGuard pathGuard) {
+    public DashboardMediaService(
+            SqliteDatabase database,
+            RuntimePathGuard pathGuard,
+            AttachmentCacheService attachmentCacheService) {
         this.database = database;
         this.pathGuard = pathGuard;
+        this.attachmentCacheService = attachmentCacheService;
     }
 
     public Map<String, Object> list(String platform, int limit) throws Exception {
@@ -114,25 +121,26 @@ public class DashboardMediaService {
     }
 
     public Map<String, Object> download(String mediaId) throws Exception {
-        Map<String, Object> detail = detail(mediaId);
+        Map<String, Object> detail = rawDetail(mediaId);
         File file = FileUtil.file(String.valueOf(detail.get("local_path")));
         if (!file.isFile()) {
             return updateStatus(mediaId, "download_missing", "local file not found");
         }
         Map<String, Object> result = updateStatus(mediaId, "download_ready", null);
-        result.put("local_path", file.getAbsolutePath());
+        result.put("local_path", mediaReference(file));
+        result.put("reference", mediaReference(file));
         result.put("size_bytes", file.length());
         return result;
     }
 
     public Map<String, Object> reference(String mediaId) throws Exception {
-        Map<String, Object> detail = detail(mediaId);
+        Map<String, Object> detail = rawDetail(mediaId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("media_id", mediaId);
-        result.put("reference", "media://" + mediaId);
+        result.put("reference", mediaReference(FileUtil.file(String.valueOf(detail.get("local_path")))));
         result.put("status", detail.get("status"));
         result.put("kind", detail.get("kind"));
-        result.put("local_path", detail.get("local_path"));
+        result.put("local_path", result.get("reference"));
         return result;
     }
 
@@ -156,7 +164,7 @@ public class DashboardMediaService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("media_id", mediaId);
         result.put("status", status);
-        result.put("error", error);
+        result.put("error", SecretRedactor.redact(error, 1000));
         return result;
     }
 
@@ -167,17 +175,52 @@ public class DashboardMediaService {
         map.put("chat_id", resultSet.getString("chat_id"));
         map.put("message_id", resultSet.getString("message_id"));
         map.put("kind", resultSet.getString("kind"));
-        map.put("original_name", resultSet.getString("original_name"));
+        map.put("original_name", SecretRedactor.redact(resultSet.getString("original_name"), 400));
         map.put("mime_type", resultSet.getString("mime_type"));
-        map.put("local_path", resultSet.getString("local_path"));
-        map.put("remote_id", resultSet.getString("remote_id"));
+        map.put("local_path", mediaReference(FileUtil.file(resultSet.getString("local_path"))));
+        map.put("reference", map.get("local_path"));
+        map.put("remote_id", SecretRedactor.redact(resultSet.getString("remote_id"), 400));
         map.put("status", resultSet.getString("status"));
-        map.put("error", resultSet.getString("error"));
+        map.put("error", SecretRedactor.redact(resultSet.getString("error"), 1000));
         map.put("size_bytes", resultSet.getLong("size_bytes"));
         map.put("created_at", resultSet.getLong("created_at"));
         map.put("updated_at", resultSet.getLong("updated_at"));
         map.put("expires_at", resultSet.getLong("expires_at"));
         return map;
+    }
+
+    private Map<String, Object> rawDetail(String mediaId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement("select * from channel_media where media_id = ?");
+            statement.setString(1, mediaId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                if (!resultSet.next()) {
+                    return new LinkedHashMap<String, Object>();
+                }
+                Map<String, Object> map = new LinkedHashMap<String, Object>();
+                map.put("media_id", resultSet.getString("media_id"));
+                map.put("kind", resultSet.getString("kind"));
+                map.put("local_path", resultSet.getString("local_path"));
+                map.put("status", resultSet.getString("status"));
+                return map;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    private String mediaReference(File file) {
+        try {
+            return attachmentCacheService.mediaReference(file);
+        } catch (Exception e) {
+            return SecretRedactor.redact(file == null ? "" : file.getPath(), 400);
+        }
     }
 
     private String read(Map<String, Object> body, String key) {

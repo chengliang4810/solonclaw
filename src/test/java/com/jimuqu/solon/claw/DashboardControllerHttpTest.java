@@ -1251,7 +1251,23 @@ public class DashboardControllerHttpTest {
                 requestMultipart("/api/chat/uploads", token, "hello.txt", "hello world");
         assertThat(upload.status).isEqualTo(200);
         assertThat(upload.body).contains("\"local_path\"");
+        assertThat(upload.body).contains("media://");
+        assertThat(upload.body).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(upload.body).contains("\"mime_type\"");
+
+        String uploadedLocalPath =
+                ONode.ofJson(upload.body).get("files").get(0).get("local_path").getString();
+        HttpResult attachmentRun =
+                request(
+                        "POST",
+                        "/api/chat/runs",
+                        "{\"input\":\"看附件\",\"session_id\":\"dashboard-chat-upload-ref\","
+                                + "\"attachments\":[{\"name\":\"hello.txt\",\"local_path\":\""
+                                + jsonEscape(uploadedLocalPath)
+                                + "\",\"kind\":\"file\",\"mime_type\":\"text/plain\"}]}",
+                        token);
+        assertThat(attachmentRun.status).isEqualTo(200);
+        assertThat(attachmentRun.body).contains("\"run_id\"");
 
         ONode startStatus =
                 ONode.ofJson(
@@ -1352,6 +1368,55 @@ public class DashboardControllerHttpTest {
                                 token)
                         .body;
         assertThat(undoEvents).contains("event: run.completed");
+    }
+
+    @Test
+    void shouldHideMediaCacheHostPaths() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");
+        FileUtil.mkdir(mediaDir);
+        File cached = new File(mediaDir, "dashboard-secret-token.txt");
+        FileUtil.writeUtf8String("cached media", cached);
+
+        HttpResult index =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/index",
+                        "{\"mediaId\":\"dashboard-media-secret\",\"platform\":\"MEMORY\","
+                                + "\"localPath\":\""
+                                + jsonEscape(cached.getAbsolutePath())
+                                + "\",\"originalName\":\"dashboard-secret-token.txt\","
+                                + "\"kind\":\"file\",\"mimeType\":\"text/plain\","
+                                + "\"remoteId\":\"token=ghp_mediasecret123\"}",
+                        token);
+        assertThat(index.status).isEqualTo(200);
+
+        HttpResult detail =
+                request("GET", "/api/jimuqu/media/dashboard-media-secret", null, token);
+        assertThat(detail.status).isEqualTo(200);
+        assertThat(detail.body).contains("media://MEMORY/dashboard-secret-token.txt");
+        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(detail.body).doesNotContain("ghp_mediasecret123");
+
+        HttpResult download =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/dashboard-media-secret/download",
+                        "{}",
+                        token);
+        assertThat(download.status).isEqualTo(200);
+        assertThat(download.body).contains("media://MEMORY/dashboard-secret-token.txt");
+        assertThat(download.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult reference =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/dashboard-media-secret/reference",
+                        "{}",
+                        token);
+        assertThat(reference.status).isEqualTo(200);
+        assertThat(reference.body).contains("media://MEMORY/dashboard-secret-token.txt");
+        assertThat(reference.body).doesNotContain(runtimeHome.getAbsolutePath());
     }
 
     @Test

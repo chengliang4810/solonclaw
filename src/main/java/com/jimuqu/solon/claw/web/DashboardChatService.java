@@ -92,9 +92,11 @@ public class DashboardChatService {
                                 null,
                                 file.getContentAsBytes());
                 Map<String, Object> item = new LinkedHashMap<String, Object>();
+                String reference = attachmentCacheService.mediaReference(attachment);
                 item.put("name", attachment.getOriginalName());
-                item.put("path", attachment.getLocalPath());
-                item.put("local_path", attachment.getLocalPath());
+                item.put("path", reference);
+                item.put("local_path", reference);
+                item.put("reference", reference);
                 item.put("kind", attachment.getKind());
                 item.put("mime_type", attachment.getMimeType());
                 item.put("size", file.getContentSize());
@@ -306,7 +308,7 @@ public class DashboardChatService {
             MessageAttachment attachment =
                     attachmentCacheService.fromMediaCacheFile(
                             PlatformType.MEMORY,
-                            new java.io.File(item.localPath),
+                            attachmentCacheService.resolveMediaReference(item.localPath),
                             item.kind,
                             false,
                             null);
