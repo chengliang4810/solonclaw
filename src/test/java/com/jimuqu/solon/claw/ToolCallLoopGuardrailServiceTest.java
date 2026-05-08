@@ -67,6 +67,54 @@ public class ToolCallLoopGuardrailServiceTest {
     }
 
     @Test
+    void shouldWarnSameToolVaryingArgsFailuresWithoutBlockingByDefault() {
+        AppConfig config = new AppConfig();
+        config.getReact().setToolLoopExactFailureWarnAfter(10);
+        config.getReact().setToolLoopSameToolFailureWarnAfter(3);
+        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(config).buildInterceptor();
+        ReActTrace trace = newTrace();
+
+        runFailedCall(interceptor, trace, "terminal", args("command", "git status --short"));
+        runFailedCall(interceptor, trace, "terminal", args("command", "git status --branch"));
+        runFailedCall(interceptor, trace, "terminal", args("command", "git status --porcelain"));
+
+        assertThat(trace.getLastObservation()).contains("工具循环提醒");
+        assertThat(trace.getLastObservation()).contains("same_tool_failure_warning");
+        assertThat(trace.getRoute()).isNotEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).isNull();
+    }
+
+    @Test
+    void shouldHaltSameToolVaryingArgsFailuresWhenHardStopEnabled() {
+        AppConfig config = new AppConfig();
+        config.getReact().setToolLoopHardStopEnabled(true);
+        config.getReact().setToolLoopExactFailureWarnAfter(10);
+        config.getReact().setToolLoopExactFailureBlockAfter(10);
+        config.getReact().setToolLoopSameToolFailureWarnAfter(10);
+        config.getReact().setToolLoopSameToolFailureHaltAfter(3);
+        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(config).buildInterceptor();
+        ReActTrace trace = newTrace();
+
+        runFailedCall(interceptor, trace, "terminal", args("command", "git status --short"));
+        runFailedCall(interceptor, trace, "terminal", args("command", "git status --branch"));
+        runFailedCall(interceptor, trace, "terminal", args("command", "git status --porcelain"));
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
+        assertThat(trace.getLastObservation()).contains("same_tool_failure_halt");
+        Object haltDecision =
+                trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
+        assertThat(haltDecision).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> haltMetadata = (Map<String, Object>) haltDecision;
+        assertThat(haltMetadata)
+                .containsEntry("action", "halt")
+                .containsEntry("code", "same_tool_failure_halt")
+                .containsEntry("tool_name", "terminal")
+                .containsEntry("count", Integer.valueOf(3));
+    }
+
+    @Test
     void shouldHashCanonicalNestedArgsWithoutLeakingRawArgsInGuardrailMetadata() {
         AppConfig config = new AppConfig();
         config.getReact().setToolLoopHardStopEnabled(true);
@@ -107,6 +155,35 @@ public class ToolCallLoopGuardrailServiceTest {
 
         assertThat(trace.getLastObservation()).contains("工具循环提醒");
         assertThat(trace.getLastObservation()).contains("idempotent_no_progress_warning");
+    }
+
+    @Test
+    void shouldBlockIdempotentNoProgressBeforeNextCallWhenHardStopEnabled() {
+        AppConfig config = new AppConfig();
+        config.getReact().setToolLoopHardStopEnabled(true);
+        config.getReact().setToolLoopNoProgressWarnAfter(2);
+        config.getReact().setToolLoopNoProgressBlockAfter(2);
+        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(config).buildInterceptor();
+        ReActTrace trace = newTrace();
+        Map<String, Object> args = args("path", "README.md");
+
+        runSuccessfulCall(interceptor, trace, "read_file", args, "{\"status\":\"success\",\"content\":\"same\"}");
+        runSuccessfulCall(interceptor, trace, "read_file", args, "{\"content\":\"same\",\"status\":\"success\"}");
+        interceptor.onAction(trace, "read_file", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
+        assertThat(trace.getLastObservation()).contains("idempotent_no_progress_block");
+        Object haltDecision =
+                trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
+        assertThat(haltDecision).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> haltMetadata = (Map<String, Object>) haltDecision;
+        assertThat(haltMetadata)
+                .containsEntry("action", "block")
+                .containsEntry("code", "idempotent_no_progress_block")
+                .containsEntry("tool_name", "read_file")
+                .containsEntry("count", Integer.valueOf(2));
     }
 
     @Test
