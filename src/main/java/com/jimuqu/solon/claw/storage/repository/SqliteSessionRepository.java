@@ -211,6 +211,38 @@ public class SqliteSessionRepository implements SessionRepository {
     }
 
     @Override
+    public List<SessionRecord> findResumeCandidates(String reference, int limit) throws Exception {
+        List<SessionRecord> results = new ArrayList<SessionRecord>();
+        String value = StrUtil.nullToEmpty(reference).trim();
+        if (value.length() == 0) {
+            return results;
+        }
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select "
+                                    + SELECT_COLUMNS
+                                    + " from sessions where session_id like ? or title = ? order by updated_at desc limit ?");
+            statement.setString(1, value + "%");
+            statement.setString(2, value);
+            statement.setInt(3, Math.max(1, limit));
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    results.add(map(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return results;
+    }
+
+    @Override
     public void save(SessionRecord sessionRecord) throws Exception {
         long updatedAt =
                 sessionRecord.getUpdatedAt() > 0

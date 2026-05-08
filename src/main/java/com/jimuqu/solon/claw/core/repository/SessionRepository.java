@@ -24,6 +24,9 @@ public interface SessionRepository {
     /** 通过来源键和分支名查询会话。 */
     SessionRecord findBySourceAndBranch(String sourceKey, String branchName) throws Exception;
 
+    /** 按 Hermes-style /resume 引用查询候选会话：唯一 ID 前缀或精确标题。 */
+    List<SessionRecord> findResumeCandidates(String reference, int limit) throws Exception;
+
     /** 保存会话。 */
     void save(SessionRecord sessionRecord) throws Exception;
 

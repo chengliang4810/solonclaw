@@ -277,6 +277,44 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldResumeByTitleOrUniqueIdPrefixAndRejectAmbiguousTitle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.send("admin-chat", "admin-user", "第一段历史");
+        SessionRecord original =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        original.setTitle("客户周报");
+        env.sessionRepository.save(original);
+        env.send("admin-chat", "admin-user", "/new");
+
+        GatewayReply byTitle = env.send("admin-chat", "admin-user", "/resume 客户周报");
+        assertThat(byTitle.getSessionId()).isEqualTo(original.getSessionId());
+        assertThat(byTitle.getContent()).contains("已恢复会话").contains("客户周报");
+
+        env.send("admin-chat", "admin-user", "/new");
+        GatewayReply byQuotedTitle = env.send("admin-chat", "admin-user", "/resume \"客户周报\"");
+        assertThat(byQuotedTitle.getSessionId()).isEqualTo(original.getSessionId());
+
+        env.send("admin-chat", "admin-user", "/new");
+        GatewayReply byPrefix =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/resume " + original.getSessionId().substring(0, 8));
+        assertThat(byPrefix.getSessionId()).isEqualTo(original.getSessionId());
+
+        SessionRecord duplicate =
+                env.sessionRepository.bindNewSession("MEMORY:other-chat:other-user");
+        duplicate.setTitle("客户周报");
+        env.sessionRepository.save(duplicate);
+
+        env.send("admin-chat", "admin-user", "/new");
+        GatewayReply ambiguous = env.send("admin-chat", "admin-user", "/resume 客户周报");
+        assertThat(ambiguous.isError()).isTrue();
+        assertThat(ambiguous.getContent()).contains("匹配到多个会话").contains(original.getSessionId());
+    }
+
+    @Test
     void shouldSupportGoalCommandLifecycle() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         GatewayMessage message =

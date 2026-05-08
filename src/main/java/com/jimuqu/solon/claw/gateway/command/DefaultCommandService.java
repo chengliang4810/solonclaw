@@ -678,14 +678,12 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_RESUME.equals(command)) {
             if (StrUtil.isBlank(args)) {
                 return GatewayReply.error(
-                        "用法：" + GatewayCommandConstants.SLASH_RESUME + " <session-id-or-branch>");
+                        "用法：" + GatewayCommandConstants.SLASH_RESUME + " <session-id|id-prefix|title|branch>");
             }
-            SessionRecord session = sessionRepository.findById(args);
+            ResumeLookup lookup = resolveResumeTarget(message.sourceKey(), args);
+            SessionRecord session = lookup.getSession();
             if (session == null) {
-                session = sessionRepository.findBySourceAndBranch(message.sourceKey(), args);
-            }
-            if (session == null) {
-                return GatewayReply.error("未找到对应会话或分支：" + args);
+                return GatewayReply.error(lookup.getMessage());
             }
             dangerousCommandApprovalService.clearSessionApprovals(
                     new SqliteAgentSession(session, sessionRepository));
@@ -1215,6 +1213,57 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference) throws Exception {
+        String reference = normalizeResumeReference(rawReference);
+        if (StrUtil.isBlank(reference)) {
+            return ResumeLookup.error(
+                    "用法：" + GatewayCommandConstants.SLASH_RESUME + " <session-id|id-prefix|title|branch>");
+        }
+        SessionRecord session = sessionRepository.findById(reference);
+        if (session != null) {
+            return ResumeLookup.found(session);
+        }
+        session = sessionRepository.findBySourceAndBranch(sourceKey, reference);
+        if (session != null) {
+            return ResumeLookup.found(session);
+        }
+        List<SessionRecord> candidates = sessionRepository.findResumeCandidates(reference, 3);
+        if (candidates.size() == 1) {
+            return ResumeLookup.found(candidates.get(0));
+        }
+        if (candidates.size() > 1) {
+            StringBuilder buffer = new StringBuilder();
+            buffer.append("匹配到多个会话，请使用完整 session id：");
+            for (SessionRecord candidate : candidates) {
+                buffer.append('\n')
+                        .append("- ")
+                        .append(candidate.getSessionId());
+                if (StrUtil.isNotBlank(candidate.getTitle())) {
+                    buffer.append(" \"").append(candidate.getTitle()).append("\"");
+                }
+                if (StrUtil.isNotBlank(candidate.getBranchName())) {
+                    buffer.append(" branch=").append(candidate.getBranchName());
+                }
+            }
+            return ResumeLookup.error(buffer.toString());
+        }
+        return ResumeLookup.error("未找到对应会话、分支或标题：" + reference);
+    }
+
+    private String normalizeResumeReference(String rawReference) {
+        String value = StrUtil.nullToEmpty(rawReference).trim();
+        if (value.length() >= 2) {
+            char first = value.charAt(0);
+            char last = value.charAt(value.length() - 1);
+            if ((first == '"' && last == '"')
+                    || (first == '\'' && last == '\'')
+                    || (first == '`' && last == '`')) {
+                return value.substring(1, value.length() - 1).trim();
+            }
+        }
+        return value;
+    }
+
     private String formatResumeReply(SessionRecord session) throws Exception {
         StringBuilder buffer = new StringBuilder();
         buffer.append("已恢复会话：").append(session.getSessionId());
@@ -1237,6 +1286,32 @@ public class DefaultCommandService implements CommandService {
             buffer.append("\n\n历史摘要：\n").append(recap);
         }
         return buffer.toString();
+    }
+
+    private static class ResumeLookup {
+        private final SessionRecord session;
+        private final String message;
+
+        private ResumeLookup(SessionRecord session, String message) {
+            this.session = session;
+            this.message = message;
+        }
+
+        static ResumeLookup found(SessionRecord session) {
+            return new ResumeLookup(session, "");
+        }
+
+        static ResumeLookup error(String message) {
+            return new ResumeLookup(null, message);
+        }
+
+        SessionRecord getSession() {
+            return session;
+        }
+
+        String getMessage() {
+            return message;
+        }
     }
 
     private GatewayReply handleTrajectory(GatewayMessage message, String args) throws Exception {

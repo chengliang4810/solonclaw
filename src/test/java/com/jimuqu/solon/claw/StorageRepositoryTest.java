@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class StorageRepositoryTest {
@@ -86,5 +87,48 @@ public class StorageRepositoryTest {
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 clonedSession, "recursive_delete"))
                 .isFalse();
+    }
+
+    @Test
+    void shouldFindResumeCandidatesByUniqueIdPrefixOrExactTitle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord alpha = env.sessionRepository.bindNewSession("MEMORY:resume-a:user");
+        alpha.setTitle("客户周报");
+        env.sessionRepository.save(alpha);
+        SessionRecord beta = env.sessionRepository.bindNewSession("MEMORY:resume-b:user");
+        beta.setTitle("客户日报");
+        env.sessionRepository.save(beta);
+
+        List<SessionRecord> byPrefix =
+                env.sessionRepository.findResumeCandidates(alpha.getSessionId().substring(0, 8), 3);
+        List<SessionRecord> byTitle =
+                env.sessionRepository.findResumeCandidates("客户日报", 3);
+        List<SessionRecord> partialTitle =
+                env.sessionRepository.findResumeCandidates("客户", 3);
+
+        assertThat(byPrefix).hasSize(1);
+        assertThat(byPrefix.get(0).getSessionId()).isEqualTo(alpha.getSessionId());
+        assertThat(byTitle).hasSize(1);
+        assertThat(byTitle.get(0).getSessionId()).isEqualTo(beta.getSessionId());
+        assertThat(partialTitle).isEmpty();
+    }
+
+    @Test
+    void shouldReturnMultipleResumeCandidatesForAmbiguousExactTitle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord first = env.sessionRepository.bindNewSession("MEMORY:resume-shared-a:user");
+        first.setTitle("共享标题");
+        env.sessionRepository.save(first);
+        SessionRecord second = env.sessionRepository.bindNewSession("MEMORY:resume-shared-b:user");
+        second.setTitle("共享标题");
+        env.sessionRepository.save(second);
+
+        List<SessionRecord> candidates =
+                env.sessionRepository.findResumeCandidates("共享标题", 3);
+
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates)
+                .extracting(SessionRecord::getSessionId)
+                .contains(first.getSessionId(), second.getSessionId());
     }
 }
