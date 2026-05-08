@@ -170,6 +170,87 @@ public class DashboardDiagnosticOutputTest {
         assertThat((List<String>) localItem.get("rule_sources")).containsExactly("local_policy");
         assertThat(localItem.get("permanent_allowed")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(localItem.get("permanent_disabled_reason"))).isEmpty();
+        assertThat(String.valueOf(localItem.get("approval_key")))
+                .contains("execute_shell:recursive_delete:***")
+                .doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(String.valueOf(localItem.get("selector")))
+                .isEqualTo(String.valueOf(localItem.get("approval_id")))
+                .doesNotContain("execute_shell:");
+        assertThat(localItem.get("command_hash")).isEqualTo("***");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldUseOpaqueSelectorForLegacyApprovalWithoutApprovalId() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-legacy-approval");
+        record.setSourceKey("source-legacy-approval");
+        record.setTitle("旧审批会话");
+
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        DangerousCommandApprovalService.PendingApproval pending =
+                approvalService.getPendingApproval(session);
+        String approvalKey = pending.approvalKey();
+        Map<String, Object> legacy = new LinkedHashMap<String, Object>();
+        legacy.put("toolName", pending.getToolName());
+        legacy.put("patternKey", pending.getPatternKey());
+        legacy.put("patternKeys", pending.effectivePatternKeys());
+        legacy.put("description", pending.getDescription());
+        legacy.put("command", pending.getCommand());
+        legacy.put("commandHash", pending.getCommandHash());
+        legacy.put("approvalKey", approvalKey);
+        legacy.put("createdAt", Long.valueOf(pending.getCreatedAt()));
+        legacy.put("expiresAt", Long.valueOf(pending.getExpiresAt()));
+        List<Map<String, Object>> queue = new ArrayList<Map<String, Object>>();
+        queue.add(legacy);
+        session.getContext().put("_dangerous_command_pending_queue_", queue);
+        session.getContext().put("_dangerous_command_pending_", legacy);
+        session.updateSnapshot();
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(Collections.singletonList(record)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        Map<String, Object> item = items.get(0);
+        String selector = String.valueOf(item.get("selector"));
+
+        assertThat(item.get("approval_id")).isEqualTo("");
+        assertThat(selector).startsWith("key_").hasSize(28);
+        assertThat(selector).isNotEqualTo(approvalKey).doesNotContain("execute_shell:");
+        assertThat(String.valueOf(item.get("approval_key"))).isEqualTo("execute_shell:recursive_delete:***");
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("sessionId", record.getSessionId());
+        body.put("approvalId", selector);
+        body.put("action", "deny");
+        body.put("resume", Boolean.FALSE);
+        Map<String, Object> resolve = diagnosticsService.resolveApproval(body);
+
+        assertThat(resolve.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalService.listPendingApprovals(record)).isEmpty();
     }
 
     @Test
@@ -214,6 +295,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("ghp_approversecret123");
         assertThat(json).doesNotContain("sk-history-secret");
         assertThat(json).doesNotContain("history-secret");
+        assertThat(json).doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
+        assertThat(json).contains("\"approval_key\":\"execute_shell:recursive_delete:***\"");
+        assertThat(json).contains("\"command_hash\":\"***\"");
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
     }
 
@@ -266,6 +351,54 @@ public class DashboardDiagnosticOutputTest {
         assertThat(event.getChoice()).isEqualTo("revoke");
         assertThat(event.getApprover()).doesNotContain("ghp_revokeapprover123");
         assertThat(event.getApprover()).contains("token=***");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRedactAlwaysApprovalListIdentifiers() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-always-list");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(
+                        approvalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
+                                "dashboard"))
+                .isTrue();
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.alwaysApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        Map<String, Object> item = items.get(0);
+
+        assertThat(String.valueOf(item.get("approval"))).endsWith(":***");
+        assertThat(String.valueOf(item.get("approval"))).doesNotContain("recursive_delete:");
+        assertThat(String.valueOf(item.get("approval_id"))).isNotBlank();
+        assertThat(String.valueOf(item.get("pattern_key"))).isNotBlank();
     }
 
     private static Map<String, Object> findApprovalItem(

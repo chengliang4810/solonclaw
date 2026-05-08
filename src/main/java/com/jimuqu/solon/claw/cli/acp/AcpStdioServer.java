@@ -778,8 +778,9 @@ public class AcpStdioServer {
         item.put("patternKey", pending.getPatternKey());
         item.put("pattern_keys", pending.effectivePatternKeys());
         item.put("patternKeys", pending.effectivePatternKeys());
-        item.put("approval_key", pending.approvalKey());
-        item.put("approvalKey", pending.approvalKey());
+        String redactedApprovalKey = redactedApprovalKey(pending.approvalKey());
+        item.put("approval_key", redactedApprovalKey);
+        item.put("approvalKey", redactedApprovalKey);
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("createdAt", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
@@ -793,6 +794,15 @@ public class AcpStdioServer {
         item.put("permanentAllowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
         item.put("options", permissionOptions(pending));
         return item;
+    }
+
+    private String redactedApprovalKey(String approvalKey) {
+        String redacted = SecretRedactor.redact(StrUtil.nullToEmpty(approvalKey), 1000);
+        int split = redacted.lastIndexOf(':');
+        if (split >= 0 && split < redacted.length() - 1) {
+            return redacted.substring(0, split + 1) + "***";
+        }
+        return redacted;
     }
 
     private long expiresInSeconds(long expiresAt) {

@@ -216,12 +216,13 @@ async function runAudit() {
 }
 
 async function handleApproval(item: PendingApproval, action: 'approve' | 'deny', scope: 'once' | 'session' | 'always' = 'once') {
-  const key = `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+  const approvalSelector = item.selector || item.approval_id || ''
+  const key = `${item.session_id}:${approvalSelector}:${action}:${scope}`
   resolvingKey.value = key
   try {
     const result = await resolveApproval({
       sessionId: item.session_id,
-      approvalId: item.selector || item.approval_id,
+      approvalId: approvalSelector,
       action,
       scope,
       resume: true,
@@ -239,14 +240,15 @@ async function handleApproval(item: PendingApproval, action: 'approve' | 'deny',
 }
 
 function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
-  return resolvingKey.value === `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+  const approvalSelector = item.selector || item.approval_id || ''
+  return resolvingKey.value === `${item.session_id}:${approvalSelector}:${action}:${scope}`
 }
 
 async function handleRevokeAlways(item: AlwaysApproval) {
-  const approval = item.approval || ''
-  revokingAlwaysKey.value = approval
+  const approvalId = item.approval_id || item.approval || ''
+  revokingAlwaysKey.value = approvalId
   try {
-    const result = await revokeAlwaysApproval(approval)
+    const result = await revokeAlwaysApproval(approvalId)
     if (result.success) {
       message.success(result.message || '长期授权已撤销')
       const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadPolicyAudit(), loadAlwaysApprovals()])
@@ -260,11 +262,10 @@ async function handleRevokeAlways(item: AlwaysApproval) {
 }
 
 async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' | 'always' | 'deny') {
-  const key = `${item.source_key}:${item.confirm_id}:${action}`
+  const key = `${item.confirm_id}:${action}`
   resolvingConfirmKey.value = key
   try {
     const result = await resolveSlashConfirm({
-      sourceKey: item.source_key || '',
       confirmId: item.confirm_id,
       action,
     })
@@ -280,7 +281,7 @@ async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' |
 }
 
 function slashConfirmBusy(item: PendingSlashConfirm, action: string) {
-  return resolvingConfirmKey.value === `${item.source_key}:${item.confirm_id}:${action}`
+  return resolvingConfirmKey.value === `${item.confirm_id}:${action}`
 }
 
 function timeText(value?: number) {
@@ -588,11 +589,11 @@ onMounted(load)
           </div>
           <NSpin :show="approvalsLoading">
             <div v-if="pendingApprovals.length" class="approval-list">
-              <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.approval_key}`" class="approval-item">
+              <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.selector || item.approval_id || item.command_hash}`" class="approval-item">
                 <div class="approval-head">
                   <div>
                     <strong>{{ item.title || item.session_id }}</strong>
-                    <span>{{ item.tool_name || '-' }}</span>
+                    <span>{{ item.tool_name || '-' }} · {{ item.source_ref || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.permanent_allowed ? 'default' : 'warning'">
                     {{ item.permanent_allowed ? '可长期授权' : '仅本次/本会话' }}
@@ -701,7 +702,7 @@ onMounted(load)
           </div>
           <NSpin :show="alwaysLoading">
             <div v-if="alwaysApprovals.length" class="approval-list">
-              <article v-for="item in alwaysApprovals" :key="item.approval" class="approval-item">
+              <article v-for="item in alwaysApprovals" :key="item.approval_id || item.approval" class="approval-item">
                 <div class="approval-head">
                   <div>
                     <strong>{{ item.pattern_key || item.approval }}</strong>
@@ -715,7 +716,7 @@ onMounted(load)
                     size="small"
                     type="error"
                     ghost
-                    :loading="revokingAlwaysKey === item.approval"
+                    :loading="revokingAlwaysKey === (item.approval_id || item.approval)"
                     @click="handleRevokeAlways(item)"
                   >
                     撤销
@@ -739,16 +740,16 @@ onMounted(load)
               <article v-for="item in pendingSlashConfirms" :key="item.confirm_id" class="approval-item">
                 <div class="approval-head">
                   <div>
-                    <strong>/{{ item.command || '-' }}</strong>
-                    <span>{{ item.source_key || '-' }}</span>
+                    <strong>/{{ item.command_preview || '-' }}</strong>
+                    <span>{{ item.source_ref || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.allow_always ? 'default' : 'warning'">
                     {{ item.allow_always ? '可永久确认' : '仅本次' }}
                   </NTag>
                 </div>
-                <p class="approval-desc">{{ item.prompt || '-' }}</p>
+                <p class="approval-desc">{{ item.prompt_preview || '-' }}</p>
                 <div class="approval-meta">
-                  <span>{{ item.confirm_id }}</span>
+                  <span>{{ item.confirm_ref || '-' }}</span>
                   <span>创建：{{ timeText(item.created_at) }}</span>
                   <span>过期：{{ timeText(item.expires_at) }}</span>
                   <span :class="{ 'approval-expired': item.expired }">剩余：{{ expiresText(item) }}</span>

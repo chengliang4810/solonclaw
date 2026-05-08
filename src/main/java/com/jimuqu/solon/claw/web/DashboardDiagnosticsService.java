@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
@@ -218,7 +219,10 @@ public class DashboardDiagnosticsService {
 
     public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
-        String approval = StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern"));
+        String approval =
+                resolveAlwaysApproval(
+                        StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")),
+                        StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern")));
         String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
         if (StrUtil.isBlank(approval)) {
             return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
@@ -229,7 +233,8 @@ public class DashboardDiagnosticsService {
         }
         appendAlwaysApprovalRevokedAudit(approval, approver);
         Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
-        result.put("approval", approval);
+        result.put("approval", redactedApprovalKey(approval));
+        result.put("approval_id", alwaysApprovalId(approval));
         return result;
     }
 
@@ -255,31 +260,28 @@ public class DashboardDiagnosticsService {
         String sourceKey = text(input, "sourceKey");
         String confirmId = text(input, "confirmId");
         String action = StrUtil.nullToEmpty(text(input, "action")).trim().toLowerCase();
-        if (StrUtil.isBlank(sourceKey)) {
-            return resolveResult(false, "missing_source", "缺少来源键。", null);
+        if (StrUtil.isBlank(confirmId)) {
+            return resolveResult(false, "missing_confirm_id", "缺少确认编号。", null);
         }
         if (!"approve".equals(action) && !"deny".equals(action) && !"always".equals(action)) {
             return resolveResult(false, "invalid_action", "确认动作必须是 approve、always 或 deny。", null);
         }
-        SlashConfirmService.PendingConfirm pending =
-                slashConfirmService == null ? null : slashConfirmService.getPending(sourceKey);
+        SlashConfirmService.PendingConfirm pending = findPendingSlashConfirm(confirmId, sourceKey);
         if (pending == null) {
             return resolveResult(false, "confirm_not_found", "待确认 slash 命令不存在或已过期。", null);
-        }
-        if (StrUtil.isNotBlank(confirmId) && !StrUtil.equals(confirmId, pending.getConfirmId())) {
-            return resolveResult(false, "confirm_id_mismatch", "确认编号不匹配。", null);
         }
         if ("always".equals(action) && !pending.isAllowAlways()) {
             return resolveResult(false, "always_not_allowed", "该 Slash 命令不允许永久确认。", null);
         }
 
+        sourceKey = pending.getSourceKey();
         String commandLine = slashConfirmCommandLine(action, pending.getConfirmId());
         GatewayReply reply = commandService.handle(dashboardMessage(sourceKey, commandLine), commandLine);
         Map<String, Object> result =
                 resolveResult(!reply.isError(), reply.isError() ? "error" : "ok", reply.getContent(), replyMap(reply));
         result.put("action", action);
-        result.put("source_key", sourceKey);
         result.put("confirm_id", pending.getConfirmId());
+        result.put("confirm_ref", shortId(pending.getConfirmId()));
         return result;
     }
 
@@ -425,20 +427,20 @@ public class DashboardDiagnosticsService {
             SessionRecord session, DangerousCommandApprovalService.PendingApproval pending) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("session_id", session.getSessionId());
-        item.put("source_key", session.getSourceKey());
+        item.put("source_ref", sourceRef(session.getSourceKey()));
         item.put("title", StrUtil.blankToDefault(session.getTitle(), session.getSessionId()));
         item.put("branch_name", session.getBranchName());
         item.put("updated_at", Long.valueOf(session.getUpdatedAt()));
         item.put("approval_id", pending.getApprovalId());
-        item.put("selector", StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()));
+        item.put("selector", DangerousCommandApprovalService.approvalSelector(pending));
         item.put("tool_name", pending.getToolName());
         item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
         item.put("pattern_key", pending.getPatternKey());
         item.put("pattern_keys", pending.effectivePatternKeys());
         item.put("rule_sources", approvalRuleSources(pending));
         item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
-        item.put("command_hash", pending.getCommandHash());
-        item.put("approval_key", pending.approvalKey());
+        item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
+        item.put("approval_key", redactedApprovalKey(pending.approvalKey()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
         item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
@@ -545,8 +547,8 @@ public class DashboardDiagnosticsService {
         item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
         item.put("tool_name", event.getToolName());
         item.put("approval_id", event.getApprovalId());
-        item.put("approval_key", event.getApprovalKey());
-        item.put("command_hash", event.getCommandHash());
+        item.put("approval_key", redactedApprovalKey(event.getApprovalKey()));
+        item.put("command_hash", redactedIdentifier(event.getCommandHash()));
         item.put("command_preview", SecretRedactor.redact(event.getCommandPreview(), 800));
         item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
         item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
@@ -554,6 +556,19 @@ public class DashboardDiagnosticsService {
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
         item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
         return item;
+    }
+
+    private String redactedApprovalKey(String approvalKey) {
+        String value = SecretRedactor.redact(StrUtil.nullToEmpty(approvalKey), 1000);
+        int split = value.lastIndexOf(':');
+        if (split >= 0 && split < value.length() - 1) {
+            return value.substring(0, split + 1) + "***";
+        }
+        return redactedIdentifier(value);
+    }
+
+    private String redactedIdentifier(String value) {
+        return StrUtil.isBlank(value) ? "" : "***";
     }
 
     private Map<String, Object> alwaysApprovalItem(String approval) {
@@ -566,10 +581,27 @@ public class DashboardDiagnosticsService {
             toolName = value.substring(0, colon);
             patternKey = value.substring(colon + 1);
         }
-        item.put("approval", value);
+        item.put("approval", redactedApprovalKey(value));
+        item.put("approval_id", alwaysApprovalId(value));
         item.put("tool_name", toolName);
         item.put("pattern_key", patternKey);
         return item;
+    }
+
+    private String resolveAlwaysApproval(String approvalId, String fallbackApproval) {
+        if (StrUtil.isNotBlank(approvalId) && approvalService != null) {
+            for (String approval : approvalService.listAlwaysApprovals()) {
+                if (alwaysApprovalId(approval).equals(approvalId.trim())) {
+                    return approval;
+                }
+            }
+        }
+        return StrUtil.nullToEmpty(fallbackApproval);
+    }
+
+    private String alwaysApprovalId(String approval) {
+        String value = StrUtil.nullToEmpty(approval);
+        return value.isEmpty() ? "" : SecureUtil.sha256(value).substring(0, 24);
     }
 
     private void appendAlwaysApprovalRevokedAudit(String approval, String approver) {
@@ -615,9 +647,10 @@ public class DashboardDiagnosticsService {
             }
         }
         item.put("confirm_id", pending.getConfirmId());
-        item.put("source_key", pending.getSourceKey());
-        item.put("command", SecretRedactor.redact(pending.getCommand(), 1000));
-        item.put("prompt", SecretRedactor.redact(pending.getPrompt(), 1000));
+        item.put("confirm_ref", shortId(pending.getConfirmId()));
+        item.put("source_ref", sourceRef(pending.getSourceKey()));
+        item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 1000));
+        item.put("prompt_preview", SecretRedactor.redact(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
         item.put("action_options", actionOptions);
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
@@ -625,6 +658,36 @@ public class DashboardDiagnosticsService {
         item.put("expires_in_seconds", Long.valueOf(Math.max(0L, remainingMillis / 1000L)));
         item.put("expired", Boolean.valueOf(expired));
         return item;
+    }
+
+    private SlashConfirmService.PendingConfirm findPendingSlashConfirm(
+            String confirmId, String fallbackSourceKey) {
+        if (slashConfirmService == null) {
+            return null;
+        }
+        String expected = StrUtil.nullToEmpty(confirmId).trim();
+        for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
+            if (StrUtil.equals(expected, pending.getConfirmId())) {
+                return pending;
+            }
+        }
+        if (StrUtil.isNotBlank(fallbackSourceKey)) {
+            SlashConfirmService.PendingConfirm pending = slashConfirmService.getPending(fallbackSourceKey);
+            if (pending != null && StrUtil.equals(expected, pending.getConfirmId())) {
+                return pending;
+            }
+        }
+        return null;
+    }
+
+    private String shortId(String value) {
+        String safe = StrUtil.nullToEmpty(value).trim();
+        return safe.length() <= 8 ? safe : safe.substring(0, 8);
+    }
+
+    private String sourceRef(String value) {
+        String safe = StrUtil.nullToEmpty(value).trim();
+        return safe.isEmpty() ? "" : SecureUtil.sha256(safe).substring(0, 12);
     }
 
     private String slashConfirmCommandLine(String action, String confirmId) {

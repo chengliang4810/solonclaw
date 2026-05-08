@@ -47,7 +47,7 @@ export interface SecurityAuditResult {
 
 export interface PendingApproval {
   session_id: string
-  source_key?: string
+  source_ref?: string
   title?: string
   branch_name?: string
   updated_at?: number
@@ -100,6 +100,7 @@ export interface ApprovalHistoryResult {
 }
 
 export interface AlwaysApproval {
+  approval_id?: string
   approval: string
   tool_name?: string
   pattern_key?: string
@@ -112,9 +113,10 @@ export interface AlwaysApprovalsResult {
 
 export interface PendingSlashConfirm {
   confirm_id: string
-  source_key?: string
-  command?: string
-  prompt?: string
+  confirm_ref?: string
+  source_ref?: string
+  command_preview?: string
+  prompt_preview?: string
   allow_always?: boolean
   action_options?: string[]
   created_at?: number
@@ -129,8 +131,7 @@ export interface PendingSlashConfirmsResult {
 }
 
 export interface ResolveSlashConfirmRequest {
-  sourceKey: string
-  confirmId?: string
+  confirmId: string
   action: 'approve' | 'always' | 'deny'
 }
 
@@ -176,10 +177,10 @@ export async function fetchAlwaysApprovals(limit = 100): Promise<AlwaysApprovals
   return request<AlwaysApprovalsResult>(`/api/diagnostics/approvals/always?limit=${limit}`)
 }
 
-export async function revokeAlwaysApproval(approval: string): Promise<ResolveApprovalResult> {
+export async function revokeAlwaysApproval(approvalId: string): Promise<ResolveApprovalResult> {
   return request<ResolveApprovalResult>('/api/diagnostics/approvals/always/revoke', {
     method: 'POST',
-    body: JSON.stringify({ approval }),
+    body: JSON.stringify({ approvalId }),
   })
 }
 

@@ -24,6 +24,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.Agent;
+import org.noear.solon.ai.agent.react.intercept.HITL;
+import org.noear.solon.ai.agent.react.intercept.HITLDecision;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
@@ -3288,6 +3290,84 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactApproverBeforeNotifyingApprovalObservers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> approvers = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {}
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        approvers.add(event.getApprover());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "ops token=ghp_approver123"))
+                .isTrue();
+
+        assertThat(approvers).hasSize(1);
+        assertThat(approvers.get(0)).contains("token=***").doesNotContain("ghp_approver123");
+    }
+
+    @Test
+    void shouldRedactApprovalRequestEventCommandAndDescriptionForObservers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> observed = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        observed.add(event.getCommand());
+                        observed.add(event.getDescription());
+                        observed.add(event.getPendingApproval().getCommand());
+                        observed.add(event.getPendingApproval().getDescription());
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {}
+                });
+        TestTrace trace = new TestTrace();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "delete with token=ghp_requestdescription123 and password=request-password",
+                "rm -rf runtime/cache --token ghp_requestcommand123");
+
+        assertThat(observed).hasSize(4);
+        for (String value : observed) {
+            assertThat(value)
+                    .doesNotContain("ghp_requestdescription123")
+                    .doesNotContain("request-password")
+                    .doesNotContain("ghp_requestcommand123");
+        }
+        assertThat(observed.get(0)).contains("***");
+        assertThat(observed.get(1)).contains("token=***").contains("password=***");
+        assertThat(observed.get(2)).contains("***");
+        assertThat(observed.get(3)).contains("token=***").contains("password=***");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session).getCommand())
+                .contains("ghp_requestcommand123");
+    }
+
+    @Test
     void shouldNotifyApprovalObserversForDenyResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         final List<String> choices = new java.util.ArrayList<String>();
@@ -3316,6 +3396,56 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.reject(trace.session, "tester")).isTrue();
 
         assertThat(choices).containsExactly("request", "deny");
+    }
+
+    @Test
+    void shouldRedactApproverInApprovalSessionDecisionComment() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "dashboard-user ghp_1234567890abcdef"))
+                .isTrue();
+
+        HITLDecision decision = HITL.getDecision(trace.session, "execute_shell");
+        assertThat(decision).isNotNull();
+        assertThat(decision.getComment())
+                .contains("审批人：dashboard-user ***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(ONode.serialize(trace.session.getSnapshot())).doesNotContain("1234567890abcdef");
+    }
+
+    @Test
+    void shouldRedactApproverInRejectSessionDecisionComment() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.reject(
+                                trace.session, "dashboard-user ghp_1234567890abcdef"))
+                .isTrue();
+
+        HITLDecision decision = HITL.getDecision(trace.session, "execute_shell");
+        assertThat(decision).isNotNull();
+        assertThat(decision.getComment())
+                .contains("审批人：dashboard-user ***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(ONode.serialize(trace.session.getSnapshot())).doesNotContain("1234567890abcdef");
     }
 
     @Test

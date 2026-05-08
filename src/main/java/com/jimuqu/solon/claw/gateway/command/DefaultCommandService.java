@@ -1664,7 +1664,11 @@ public class DefaultCommandService implements CommandService {
         if (pending == null) {
             return GatewayReply.ok("当前没有待确认的 slash 命令。");
         }
-        return GatewayReply.ok("当前待确认 slash 命令：/" + pending.getCommand() + "\n" + formatSlashConfirmPrompt(pending));
+        return GatewayReply.ok(
+                "当前待确认 slash 命令：/"
+                        + SecretRedactor.redact(pending.getCommand(), 400)
+                        + "\n"
+                        + formatSlashConfirmPrompt(pending));
     }
 
     private boolean hasPendingDangerousApproval(GatewayMessage message) {
@@ -1713,7 +1717,9 @@ public class DefaultCommandService implements CommandService {
 
     private String formatSlashConfirmPrompt(SlashConfirmService.PendingConfirm confirm) {
         StringBuilder buffer = new StringBuilder();
-        buffer.append(confirm.getPrompt()).append("\n确认编号：").append(confirm.getConfirmId());
+        buffer.append(SecretRedactor.redact(confirm.getPrompt(), 1000))
+                .append("\n确认编号：")
+                .append(confirm.getConfirmId());
         if (confirm.isAllowAlways()) {
             buffer.append(
                     "\n回复 /approve [确认编号] 执行一次，/approve always [确认编号] 或 /always 执行并永久记住，/deny 或 /cancel 取消。");

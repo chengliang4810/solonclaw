@@ -1198,19 +1198,26 @@ public class DashboardControllerHttpTest {
         assertThat(pending.body)
                 .contains("\"count\"")
                 .contains("\"session_id\":\"dashboard-approval-chat\"")
+                .contains("\"source_ref\"")
                 .contains("\"tool_name\":\"execute_shell\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
                 .contains("\"expires_in_seconds\"")
                 .contains("\"expired\":false")
                 .contains("\"scope_options\":[\"once\",\"session\",\"always\"]")
                 .contains("\"permanent_allowed\":true")
+                .doesNotContain("MEMORY:dashboard-approval-chat:dashboard-user")
+                .doesNotContain("\"source_key\"")
                 .doesNotContain("sk-test-secret-token-value")
                 .doesNotContain("ghp_dashboardsecret12345")
                 .contains("Authorization: Bearer ***");
 
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
+        String approvalKey = pendingData.get("approval_key").getString();
         assertThat(selector).isNotBlank();
+        assertThat(selector).isEqualTo(pendingData.get("approval_id").getString());
+        assertThat(selector).doesNotContain("execute_shell:");
+        assertThat(approvalKey).startsWith("execute_shell:").endsWith(":***");
 
         HttpResult historyBefore =
                 request("GET", "/api/diagnostics/approvals/history?limit=20", null, token);
@@ -1288,8 +1295,10 @@ public class DashboardControllerHttpTest {
                 .contains("\"tool_name\":\"execute_shell\"");
         ONode alwaysData = ONode.ofJson(always.body).get("data").get("items").get(0);
         String approval = alwaysData.get("approval").getString();
+        String approvalId = alwaysData.get("approval_id").getString();
         String patternKey = alwaysData.get("pattern_key").getString();
-        assertThat(approval).startsWith("execute_shell:");
+        assertThat(approval).startsWith("execute_shell:").endsWith(":***");
+        assertThat(approvalId).isNotBlank();
         assertThat(patternKey).isNotBlank();
         assertThat(bean(DangerousCommandApprovalService.class)
                         .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
@@ -1299,10 +1308,14 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/approvals/always/revoke",
-                        "{\"approval\":\"" + jsonEscape(approval) + "\"}",
+                        "{\"approvalId\":\"" + jsonEscape(approvalId) + "\"}",
                         token);
         assertThat(revoke.status).isEqualTo(200);
-        assertThat(revoke.body).contains("\"success\":true").contains("长期授权已撤销");
+        assertThat(revoke.body)
+                .contains("\"success\":true")
+                .contains("\"approval_id\":\"" + jsonEscape(approvalId) + "\"")
+                .contains("长期授权已撤销")
+                .doesNotContain("\"approval\":\"execute_shell:rm_recursive_root:");
         assertThat(bean(DangerousCommandApprovalService.class)
                         .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
                 .isFalse();
@@ -1313,13 +1326,15 @@ public class DashboardControllerHttpTest {
         assertThat(history.body)
                 .contains("\"choice\":\"revoke\"")
                 .contains("\"approver\":\"dashboard\"")
-                .contains("\"approval_key\":\"" + jsonEscape(approval) + "\"")
+                .contains("\"approval_key\":\"execute_shell:")
+                .contains(":***\"")
+                .doesNotContain("execute_shell:rm_recursive_root:97c852eaef0753db")
                 .contains("撤销长期审批授权");
 
         HttpResult after =
                 request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
-        assertThat(after.body).doesNotContain(approval);
+        assertThat(after.body).doesNotContain(approvalId);
     }
 
     @Test
@@ -1339,17 +1354,21 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
-                .contains("\"command\":\"reload-mcp\"")
-                .contains("\"source_key\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\"")
+                .contains("\"command_preview\":\"reload-mcp\"")
+                .contains("\"confirm_ref\"")
+                .contains("\"source_ref\"")
                 .contains("\"allow_always\":true")
                 .contains("\"action_options\":[\"approve\",\"deny\",\"always\"]")
                 .contains("\"expires_in_seconds\"")
-                .contains("\"expired\":false");
+                .contains("\"expired\":false")
+                .doesNotContain("\"command\":\"reload-mcp\"")
+                .doesNotContain("\"prompt\":")
+                .doesNotContain("MEMORY:dashboard-confirm-chat:dashboard-confirm-user");
         ONode confirm =
                 findItemByStringField(
                         ONode.ofJson(confirms.body).get("data").get("items"),
-                        "source_key",
-                        "MEMORY:dashboard-confirm-chat:dashboard-confirm-user");
+                        "command_preview",
+                        "reload-mcp");
         assertThat(confirm).isNotNull();
         String confirmId = confirm.get("confirm_id").getString();
         assertThat(confirmId).isNotBlank();
@@ -1358,7 +1377,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
-                        "{\"sourceKey\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\",\"confirmId\":\""
+                        "{\"confirmId\":\""
                                 + jsonEscape(confirmId)
                                 + "\",\"action\":\"deny\"}",
                         token);
@@ -1387,15 +1406,18 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
-                .contains("\"command\":\"rollback\"")
+                .contains("\"command_preview\":\"rollback\"")
+                .contains("\"source_ref\"")
                 .contains("\"allow_always\":false")
                 .contains("\"action_options\":[\"approve\",\"deny\"]")
+                .doesNotContain("\"command\":\"rollback\"")
+                .doesNotContain("MEMORY:dashboard-confirm-once:dashboard-user")
                 .doesNotContain("\"action_options\":[\"approve\",\"deny\",\"always\"]");
         ONode confirm =
                 findItemByStringField(
                         ONode.ofJson(confirms.body).get("data").get("items"),
-                        "source_key",
-                        "MEMORY:dashboard-confirm-once:dashboard-user");
+                        "command_preview",
+                        "rollback");
         assertThat(confirm).isNotNull();
         String confirmId = confirm.get("confirm_id").getString();
 
@@ -1403,7 +1425,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
-                        "{\"sourceKey\":\"MEMORY:dashboard-confirm-once:dashboard-user\",\"confirmId\":\""
+                        "{\"confirmId\":\""
                                 + jsonEscape(confirmId)
                                 + "\",\"action\":\"always\"}",
                         token);
@@ -1415,7 +1437,10 @@ public class DashboardControllerHttpTest {
         HttpResult after =
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
-        assertThat(after.body).contains("dashboard-confirm-once");
+        assertThat(after.body)
+                .contains("\"command_preview\":\"rollback\"")
+                .contains("\"source_ref\"")
+                .doesNotContain("dashboard-confirm-once");
     }
 
     @Test
@@ -1432,15 +1457,21 @@ public class DashboardControllerHttpTest {
 
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
+                .contains("\"prompt_preview\":\"确认刷新 Authorization: Bearer ***\"")
+                .contains("\"command_preview\":\"reload-mcp --token=***\"")
+                .contains("\"source_ref\"")
                 .contains("Authorization: Bearer ***")
                 .contains("reload-mcp --token=***")
+                .doesNotContain("\"prompt\":")
+                .doesNotContain("\"command\":")
+                .doesNotContain("MEMORY:dashboard-secret-confirm:user")
                 .doesNotContain("ghp_slashsecret12345")
                 .doesNotContain("ghp_slashcommandsecret12345");
         ONode items = ONode.ofJson(confirms.body).get("data").get("items");
         String confirmId = "";
         for (int i = 0; i < items.size(); i++) {
             ONode item = items.get(i);
-            if ("MEMORY:dashboard-secret-confirm:user".equals(item.get("source_key").getString())) {
+            if ("reload-mcp --token=***".equals(item.get("command_preview").getString())) {
                 confirmId = item.get("confirm_id").getString();
             }
         }
@@ -1448,7 +1479,7 @@ public class DashboardControllerHttpTest {
         request(
                 "POST",
                 "/api/diagnostics/slash-confirms/resolve",
-                "{\"sourceKey\":\"MEMORY:dashboard-secret-confirm:user\",\"confirmId\":\""
+                "{\"confirmId\":\""
                         + jsonEscape(confirmId)
                         + "\",\"action\":\"deny\"}",
                 token);

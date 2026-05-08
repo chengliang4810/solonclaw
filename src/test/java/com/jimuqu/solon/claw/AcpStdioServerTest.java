@@ -681,6 +681,9 @@ public class AcpStdioServerTest {
                 .contains("\"permanentAllowed\":true")
                 .contains("OPENAI_API_KEY=***")
                 .contains("token=***")
+                .contains("\"approval_key\":\"execute_shell:recursive_delete:***\"")
+                .contains("\"approvalKey\":\"execute_shell:recursive_delete:***\"")
+                .doesNotContain("execute_shell:recursive_delete:97c852eaef0753db")
                 .doesNotContain("sk-proj-abcdefghijklmnopqrstuvwxyz");
         String approvalId = extractJsonString(listed, "approval_id");
 
