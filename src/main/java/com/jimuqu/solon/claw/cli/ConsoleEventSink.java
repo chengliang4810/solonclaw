@@ -16,6 +16,7 @@ public class ConsoleEventSink implements ConversationEventSink {
 
     private final PrintWriter writer;
     private final boolean verbose;
+    private final TerminalMarkdownRenderer markdownRenderer = new TerminalMarkdownRenderer();
     private final StringBuilder assistant = new StringBuilder();
     private boolean assistantStarted;
     private boolean reasoningStarted;
@@ -76,7 +77,7 @@ public class ConsoleEventSink implements ConversationEventSink {
         }
         String text = StrUtil.nullToEmpty(delta);
         assistant.append(text);
-        writer.print(text);
+        writer.print(markdownRenderer.render(text));
         writer.flush();
     }
 
