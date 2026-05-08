@@ -2879,6 +2879,55 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForSolonAiShellAndTerminalToolAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
+        shellArgs.put("command", "rm -rf runtime/cache");
+        TestTrace shellTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(shellTrace, "shell", shellArgs);
+
+        DangerousCommandApprovalService.PendingApproval shellPending =
+                service.getPendingApproval(shellTrace.session);
+        assertThat(shellTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(shellPending).isNotNull();
+        assertThat(shellPending.getToolName()).isEqualTo("shell");
+        assertThat(shellPending.getPatternKeys()).containsExactly("recursive_delete");
+
+        Map<String, Object> camelShellArgs = new LinkedHashMap<String, Object>();
+        camelShellArgs.put("cmd", "git reset --hard");
+        TestTrace camelShellTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(camelShellTrace, "executeShell", camelShellArgs);
+
+        DangerousCommandApprovalService.PendingApproval camelShellPending =
+                service.getPendingApproval(camelShellTrace.session);
+        assertThat(camelShellTrace.getFinalAnswer()).contains("需要审批").contains("git reset --hard");
+        assertThat(camelShellPending).isNotNull();
+        assertThat(camelShellPending.getToolName()).isEqualTo("executeShell");
+        assertThat(camelShellPending.getPatternKeys()).containsExactly("git_reset_hard");
+
+        Map<String, Object> terminalArgs = new LinkedHashMap<String, Object>();
+        terminalArgs.put("command", "rm -rf runtime/cache");
+        TestTrace terminalTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(terminalTrace, "run_terminal", terminalArgs);
+
+        DangerousCommandApprovalService.PendingApproval terminalPending =
+                service.getPendingApproval(terminalTrace.session);
+        assertThat(terminalTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(terminalPending).isNotNull();
+        assertThat(terminalPending.getToolName()).isEqualTo("run_terminal");
+        assertThat(terminalPending.getPatternKeys()).containsExactly("recursive_delete");
+    }
+
+    @Test
     void shouldExposeCurrentThreadApprovalForApprovedProcessCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
@@ -2996,6 +3045,58 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(pending.getToolName()).isEqualTo("terminal");
         assertThat(pending.getCommand()).isEqualTo("rm -rf runtime/cache");
         assertThat(pending.getPatternKeys()).containsExactly("recursive_delete");
+    }
+
+    @Test
+    void shouldCanonicalizeGatewayToolAliasesForSecurityPolicy() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
+        shellArgs.put("command", "rm -rf runtime/cache");
+        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
+        gatewayShell.put("tool_name", "execute_shell_command");
+        gatewayShell.put("tool_args", shellArgs);
+        TestTrace shellTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(shellTrace, "call_tool", gatewayShell);
+
+        DangerousCommandApprovalService.PendingApproval shellPending =
+                service.getPendingApproval(shellTrace.session);
+        assertThat(shellTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(shellPending).isNotNull();
+        assertThat(shellPending.getToolName()).isEqualTo("execute_shell");
+
+        Map<String, Object> terminalArgs = new LinkedHashMap<String, Object>();
+        terminalArgs.put("command", "rm -rf runtime/cache");
+        Map<String, Object> gatewayTerminal = new LinkedHashMap<String, Object>();
+        gatewayTerminal.put("tool_name", "terminal_run");
+        gatewayTerminal.put("tool_args", terminalArgs);
+        TestTrace terminalTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(terminalTrace, "call_tool", gatewayTerminal);
+
+        DangerousCommandApprovalService.PendingApproval terminalPending =
+                service.getPendingApproval(terminalTrace.session);
+        assertThat(terminalTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(terminalPending).isNotNull();
+        assertThat(terminalPending.getToolName()).isEqualTo("terminal");
+
+        Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
+        urlArgs.put("url", "http://169.254.169.254/latest/meta-data/");
+        Map<String, Object> gatewayUrl = new LinkedHashMap<String, Object>();
+        gatewayUrl.put("tool_name", "web_extract");
+        gatewayUrl.put("tool_args", urlArgs);
+        TestTrace urlTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(urlTrace, "call_tool", gatewayUrl);
+
+        assertThat(urlTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(urlTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
     }
 
     @Test

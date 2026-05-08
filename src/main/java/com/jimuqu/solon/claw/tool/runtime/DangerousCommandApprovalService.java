@@ -568,6 +568,38 @@ public class DangerousCommandApprovalService {
                         ToolNameConstants.EXECUTE_SHELL,
                         (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_SHELL, args))
                 .onTool(
+                        "shell",
+                        (trace, args) ->
+                                evaluateAlias(
+                                        trace,
+                                        "shell",
+                                        ToolNameConstants.EXECUTE_SHELL,
+                                        args))
+                .onTool(
+                        "bash",
+                        (trace, args) ->
+                                evaluateAlias(
+                                        trace,
+                                        "bash",
+                                        ToolNameConstants.EXECUTE_SHELL,
+                                        args))
+                .onTool(
+                        "executeShell",
+                        (trace, args) ->
+                                evaluateAlias(
+                                        trace,
+                                        "executeShell",
+                                        ToolNameConstants.EXECUTE_SHELL,
+                                        args))
+                .onTool(
+                        "execute_shell_command",
+                        (trace, args) ->
+                                evaluateAlias(
+                                        trace,
+                                        "execute_shell_command",
+                                        ToolNameConstants.EXECUTE_SHELL,
+                                        args))
+                .onTool(
                         ToolNameConstants.EXECUTE_PYTHON,
                         (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_PYTHON, args))
                 .onTool(
@@ -583,6 +615,14 @@ public class DangerousCommandApprovalService {
                 .onTool(
                         ToolNameConstants.TERMINAL,
                         (trace, args) -> evaluateTerminalTool(trace, args))
+                .onTool(
+                        "run_terminal",
+                        (trace, args) ->
+                                evaluateTerminalAlias(trace, "run_terminal", args))
+                .onTool(
+                        "terminal_run",
+                        (trace, args) ->
+                                evaluateTerminalAlias(trace, "terminal_run", args))
                 .onTool(
                         ToolNameConstants.PROCESS,
                         (trace, args) -> evaluateProcessTool(trace, args))
@@ -1011,8 +1051,23 @@ public class DangerousCommandApprovalService {
         return evaluateCommand(trace, toolName, toolName, codeArg(args));
     }
 
+    private String evaluateAlias(
+            ReActTrace trace, String actualToolName, String canonicalToolName, Map<String, Object> args) {
+        return evaluateCommand(trace, actualToolName, canonicalToolName, codeArg(args));
+    }
+
     private String codeArg(Map<String, Object> args) {
-        return args == null || args.get("code") == null ? null : String.valueOf(args.get("code"));
+        if (args == null) {
+            return null;
+        }
+        Object value = args.get("code");
+        if (value == null) {
+            value = args.get("command");
+        }
+        if (value == null) {
+            value = args.get("cmd");
+        }
+        return value == null ? null : String.valueOf(value);
     }
 
     private String evaluateTerminalTool(ReActTrace trace, Map<String, Object> args) {
@@ -1022,6 +1077,14 @@ public class DangerousCommandApprovalService {
                         : String.valueOf(args.get("command"));
         return evaluateCommand(
                 trace, ToolNameConstants.TERMINAL, ToolNameConstants.EXECUTE_SHELL, command);
+    }
+
+    private String evaluateTerminalAlias(ReActTrace trace, String actualToolName, Map<String, Object> args) {
+        String command =
+                args == null || args.get("command") == null
+                        ? null
+                        : String.valueOf(args.get("command"));
+        return evaluateCommand(trace, actualToolName, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
     private String evaluateProcessTool(ReActTrace trace, Map<String, Object> args) {
@@ -1048,7 +1111,7 @@ public class DangerousCommandApprovalService {
         if (StrUtil.isBlank(toolName)) {
             return null;
         }
-        String normalized = toolName.trim().toLowerCase(Locale.ROOT);
+        String normalized = canonicalGatewayToolName(toolName);
         Map<String, Object> toolArgs = gatewayToolArgs(args);
         boolean hadInnerDecision =
                 trace != null
@@ -1080,6 +1143,45 @@ public class DangerousCommandApprovalService {
             clearGatewayInnerDecisionAfterApproval(trace, normalized, result);
         }
         return result;
+    }
+
+    private String canonicalGatewayToolName(String toolName) {
+        String normalized = StrUtil.nullToEmpty(toolName).trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if ("shell".equals(lower)
+                || "bash".equals(lower)
+                || "exec".equals(lower)
+                || "execute-shell".equals(lower)
+                || "exec_shell".equals(lower)
+                || "execute_shell_command".equals(lower)
+                || "exec_command".equals(lower)
+                || "run_shell".equals(lower)
+                || "run_command".equals(lower)
+                || "execcommand".equals(lower)
+                || "exec_command".equals(lower)
+                || "exec_cmd".equals(lower)
+                || "executeshell".equals(lower)) {
+            return ToolNameConstants.EXECUTE_SHELL;
+        }
+        if ("run_terminal".equals(lower)
+                || "terminal_run".equals(lower)
+                || "terminal_exec".equals(lower)
+                || "terminal_execute".equals(lower)) {
+            return ToolNameConstants.TERMINAL;
+        }
+        if ("web_extract".equals(lower) || "web_fetch".equals(lower) || "fetch_url".equals(lower)) {
+            return ToolNameConstants.WEBFETCH;
+        }
+        if ("web_search".equals(lower) || "search_web".equals(lower)) {
+            return ToolNameConstants.WEBSEARCH;
+        }
+        if ("config_read".equals(lower)) {
+            return ToolNameConstants.CONFIG_GET;
+        }
+        if ("config_write".equals(lower)) {
+            return ToolNameConstants.CONFIG_SET;
+        }
+        return lower;
     }
 
     private String gatewayToolName(Map<String, Object> args) {
