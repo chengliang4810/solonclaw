@@ -122,7 +122,7 @@ foreach ($item in $fixes) {
 $others = @($commits | Where-Object { -not $classified.Contains($_) })
 
 $body = @"
-## solon-claw $Tag
+## jimuqu-agent $Tag
 
 本次发布说明按提交类型整理，并保留中英双语摘要；功能、缺陷修复和其他变更来自本次发布范围内的提交摘要。
 These release notes are grouped by commit type and keep bilingual summaries; features, fixes, and other changes are derived from commit summaries in this release range.
@@ -144,15 +144,15 @@ $(Write-Items $others "无其他提交。 / No other commits.")
 
 ### 下载内容 / Downloads
 
-- ``solon-claw-$Version.jar``：完整运行包，包含后端依赖与 Dashboard 静态资源。
-- ``solon-claw-$Version.jar``: Full runtime package with backend dependencies and Dashboard static assets.
+- ``jimuqu-agent-$Version.jar``：完整运行包，包含后端依赖与 Dashboard 静态资源。
+- ``jimuqu-agent-$Version.jar``: Full runtime package with backend dependencies and Dashboard static assets.
 - ``SHA256SUMS``：发布包校验文件。
 - ``SHA256SUMS``: Checksums for release artifacts.
 
 ### 快速运行 / Quick Start
 
 ``````bash
-java -jar solon-claw-$Version.jar
+java -jar jimuqu-agent-$Version.jar
 ``````
 
 服务默认监听 ``http://127.0.0.1:8080``，运行数据会写入当前目录的 ``runtime/``。
