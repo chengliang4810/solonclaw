@@ -4,7 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,7 +46,7 @@ public class DashboardGatewayDoctorService {
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("generated_at", isoNow());
-        result.put("runtime_home", appConfig.getRuntime().getHome());
+        result.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
         result.put("platforms", platforms);
         return result;
     }
@@ -66,13 +68,13 @@ public class DashboardGatewayDoctorService {
                 status.getPlatform() == null ? null : status.getPlatform().name().toLowerCase());
         item.put("enabled", status.isEnabled());
         item.put("connected", status.isConnected());
-        item.put("detail", status.getDetail());
+        item.put("detail", SecretRedactor.redact(status.getDetail(), 1000));
         item.put("setup_state", status.getSetupState());
         item.put("connection_mode", status.getConnectionMode());
         item.put("missing_config", status.getMissingConfig());
         item.put("features", status.getFeatures());
         item.put("last_error_code", status.getLastErrorCode());
-        item.put("last_error_message", status.getLastErrorMessage());
+        item.put("last_error_message", SecretRedactor.redact(status.getLastErrorMessage(), 1000));
         item.put("next_step", nextStep(status));
         return item;
     }
@@ -108,6 +110,38 @@ public class DashboardGatewayDoctorService {
             buffer.append(value.trim());
         }
         return buffer.length() == 0 ? GatewayBehaviorConstants.NONE : buffer.toString();
+    }
+
+    private String runtimeReference(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (StrUtil.isBlank(text)) {
+            return text;
+        }
+        File runtimeHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+        File file = new File(text).getAbsoluteFile();
+        try {
+            runtimeHome = runtimeHome.getCanonicalFile();
+            file = file.getCanonicalFile();
+        } catch (Exception ignored) {
+        }
+        String homePath = normalized(runtimeHome);
+        String filePath = normalized(file);
+        if (filePath.equals(homePath)) {
+            return "runtime://";
+        }
+        if (filePath.startsWith(homePath + File.separator)) {
+            String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
+            return "runtime://" + relative;
+        }
+        return SecretRedactor.redact(text, 400);
+    }
+
+    private String normalized(File file) {
+        String path = file.getAbsolutePath();
+        if (File.separatorChar == '\\') {
+            return path.toLowerCase(java.util.Locale.ROOT);
+        }
+        return path;
     }
 
     private String isoNow() {
