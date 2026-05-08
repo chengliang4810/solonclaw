@@ -2001,6 +2001,18 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(formatCronHistory(options.positionals.get(0), runs));
         }
 
+        if (GatewayCommandConstants.ACTION_INSPECT.equalsIgnoreCase(action)
+                || "show".equals(action)
+                || "detail".equals(action)) {
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            if (options.positionals.isEmpty()) {
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " inspect <job-id>");
+            }
+            String jobId = options.positionals.get(0);
+            CronJobRecord job = cronJobService.require(jobId);
+            return GatewayReply.ok(formatCronDetail(job));
+        }
+
         if (GatewayCommandConstants.ACTION_CREATE.equalsIgnoreCase(action)) {
             Map<String, Object> body = parseCronCreate(tail);
             if (body == null) {
@@ -2081,7 +2093,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]");
+                        + " [list [--all]|inspect|show|add|edit|pause|resume|remove|run|history|status|tick]");
     }
 
     private String cronOverview(String listText) {
@@ -2090,6 +2102,7 @@ public class DefaultCommandService implements CommandService {
                 .append("命令：\n")
                 .append("/cron list - 查看启用中的定时任务\n")
                 .append("/cron list --all - 查看全部定时任务，包括已暂停任务\n")
+                .append("/cron inspect <job-id> - 查看单个任务详情\n")
                 .append("/cron status [--all] - 查看任务计数、到期任务、最近失败与下次运行\n")
                 .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
                 .append("/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
@@ -2248,6 +2261,30 @@ public class DefaultCommandService implements CommandService {
                 buffer.append('\n').append("Output: ").append(StrUtil.maxLength(run.getOutput(), 300));
             }
         }
+        return buffer.toString();
+    }
+
+    private String formatCronDetail(CronJobRecord job) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("Cron 任务详情：").append(job.getJobId()).append('\n');
+        buffer.append(formatCronList(Arrays.asList(job)));
+        buffer.append('\n')
+                .append("History: ")
+                .append(GatewayCommandConstants.SLASH_CRON)
+                .append(" history ")
+                .append(job.getJobId())
+                .append(" --limit 20")
+                .append('\n')
+                .append("Run: ")
+                .append(GatewayCommandConstants.SLASH_CRON)
+                .append(" run ")
+                .append(job.getJobId())
+                .append('\n')
+                .append("Edit: ")
+                .append(GatewayCommandConstants.SLASH_CRON)
+                .append(" edit ")
+                .append(job.getJobId())
+                .append(" --schedule \"...\" --prompt \"...\"");
         return buffer.toString();
     }
 
@@ -3612,7 +3649,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]",
+                                        + " [list [--all]|inspect|show|add|edit|pause|resume|remove|run|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN

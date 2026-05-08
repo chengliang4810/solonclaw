@@ -537,7 +537,8 @@ public class CommandEnhancementTest {
         assertThat(invalidNoAgent.getContent()).contains("no_agent requires script");
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
-        assertThat(help.getContent()).contains("/cron [list [--all]|add|edit|pause|resume|remove|run|history|status|tick]");
+        assertThat(help.getContent())
+                .contains("/cron [list [--all]|inspect|show|add|edit|pause|resume|remove|run|history|status|tick]");
     }
 
     @Test
@@ -720,6 +721,38 @@ public class CommandEnhancementTest {
                 .contains("Last run:")
                 .contains("(error)")
                 .contains("Delivery failed: send timeout");
+
+        GatewayReply detail = env.send("admin-chat", "admin-user", "/cron inspect " + jobId);
+        assertThat(detail.getContent())
+                .contains("Cron 任务详情：" + jobId)
+                .contains("ID: " + jobId)
+                .contains("Repeat: 1/3")
+                .contains("Deliver: feishu")
+                .contains("Deliver chat: chat-1")
+                .contains("Wrap response: false")
+                .contains("Script: collect.py")
+                .contains("Context from: " + dependencyId)
+                .contains("Toolsets: shell, file")
+                .contains("Model: gpt-cron")
+                .contains("History: /cron history " + jobId + " --limit 20")
+                .contains("Run: /cron run " + jobId)
+                .contains("Edit: /cron edit " + jobId);
+
+        GatewayReply show = env.send("admin-chat", "admin-user", "/cron show " + jobId);
+        GatewayReply detailAlias = env.send("admin-chat", "admin-user", "/cron detail " + jobId);
+        assertThat(show.getContent()).contains("Cron 任务详情：" + jobId);
+        assertThat(detailAlias.getContent()).contains("Cron 任务详情：" + jobId);
+    }
+
+    @Test
+    void shouldRequireCronInspectJobId() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "/cron inspect");
+
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("用法：/cron inspect <job-id>");
     }
 
     @Test
