@@ -39,6 +39,33 @@ public class GatewayErrorHandlingTest {
                 .isEqualTo("处理消息失败：当前操作被中断，请重试一次。");
     }
 
+    @Test
+    void shouldRedactGatewayFailureReplies() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("chat-b", "user-b", "hello");
+        env.send("chat-b", "user-b", "/pairing claim-admin");
+
+        DefaultGatewayService gatewayService =
+                new DefaultGatewayService(
+                        new NoopCommandService(),
+                        new FailingConversationOrchestrator(),
+                        env.deliveryService,
+                        env.sessionRepository,
+                        env.gatewayAuthorizationService,
+                        new NoopSkillLearningService());
+
+        GatewayMessage message = env.message("chat-b", "user-b", "hello");
+        GatewayReply reply = gatewayService.handle(message);
+
+        assertThat(reply).isNotNull();
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("token=***");
+        assertThat(reply.getContent()).doesNotContain("sk-test-gatewayfailure12345");
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText()).contains("token=***");
+        assertThat(env.memoryChannelAdapter.getLastRequest().getText())
+                .doesNotContain("sk-test-gatewayfailure12345");
+    }
+
     private static class NoopCommandService implements CommandService {
         @Override
         public boolean supports(String commandName) {
@@ -65,6 +92,23 @@ public class GatewayErrorHandlingTest {
         @Override
         public GatewayReply resumePending(String sourceKey) throws Exception {
             throw new InterruptedException();
+        }
+    }
+
+    private static class FailingConversationOrchestrator implements ConversationOrchestrator {
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            throw new IllegalStateException("downstream failed token=sk-test-gatewayfailure12345");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            throw new IllegalStateException("downstream failed token=sk-test-gatewayfailure12345");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            throw new IllegalStateException("downstream failed token=sk-test-gatewayfailure12345");
         }
     }
 

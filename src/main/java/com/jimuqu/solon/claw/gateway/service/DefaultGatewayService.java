@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -327,7 +328,8 @@ public class DefaultGatewayService {
         if (StrUtil.isBlank(message)) {
             message = e.getMessage();
         }
-        return StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        return SecretRedactor.redact(safe, 1000);
     }
 
     private Throwable rootCause(Throwable throwable) {
