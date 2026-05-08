@@ -2,8 +2,10 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -32,6 +34,7 @@ public class DashboardDiagnosticsService {
     private final ToolRegistry toolRegistry;
     private final SessionRepository sessionRepository;
     private final ConversationOrchestrator conversationOrchestrator;
+    private final ApprovalAuditRepository approvalAuditRepository;
     private final DangerousCommandApprovalService approvalService;
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
@@ -43,6 +46,7 @@ public class DashboardDiagnosticsService {
             ToolRegistry toolRegistry,
             SessionRepository sessionRepository,
             ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
             DangerousCommandApprovalService approvalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
@@ -52,6 +56,7 @@ public class DashboardDiagnosticsService {
         this.toolRegistry = toolRegistry;
         this.sessionRepository = sessionRepository;
         this.conversationOrchestrator = conversationOrchestrator;
+        this.approvalAuditRepository = approvalAuditRepository;
         this.approvalService = approvalService;
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
@@ -166,6 +171,20 @@ public class DashboardDiagnosticsService {
         result.put("action", action);
         result.put("session_id", session.getSessionId());
         result.put("resumed", Boolean.valueOf(reply != null));
+        return result;
+    }
+
+    public Map<String, Object> approvalHistory(int limit) throws Exception {
+        int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        if (approvalAuditRepository != null) {
+            for (ApprovalAuditEvent event : approvalAuditRepository.listRecent(effectiveLimit)) {
+                items.add(approvalAuditItem(event));
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("count", Integer.valueOf(items.size()));
+        result.put("items", items);
         return result;
     }
 
@@ -359,6 +378,41 @@ public class DashboardDiagnosticsService {
         map.put("content", SecretRedactor.redact(reply.getContent(), 1200));
         map.put("error", Boolean.valueOf(reply.isError()));
         return map;
+    }
+
+    private Map<String, Object> approvalAuditItem(ApprovalAuditEvent event) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("event_id", event.getEventId());
+        item.put("session_id", event.getSessionId());
+        item.put("event_type", event.getEventType());
+        item.put("choice", event.getChoice());
+        item.put("approver", event.getApprover());
+        item.put("tool_name", event.getToolName());
+        item.put("approval_id", event.getApprovalId());
+        item.put("approval_key", event.getApprovalKey());
+        item.put("command_hash", event.getCommandHash());
+        item.put("command_preview", event.getCommandPreview());
+        item.put("description", event.getDescription());
+        item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
+        item.put("created_at", Long.valueOf(event.getCreatedAt()));
+        item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
+        item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
+        return item;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Object> parseJsonList(String json) {
+        if (StrUtil.isBlank(json)) {
+            return new ArrayList<Object>();
+        }
+        try {
+            Object data = ONode.ofJson(json).toData();
+            if (data instanceof List) {
+                return (List<Object>) data;
+            }
+        } catch (Exception ignored) {
+        }
+        return new ArrayList<Object>();
     }
 
     private boolean canWriteParent(String path) {

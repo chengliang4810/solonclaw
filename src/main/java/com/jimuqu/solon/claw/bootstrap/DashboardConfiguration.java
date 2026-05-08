@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
@@ -131,6 +132,7 @@ public class DashboardConfiguration {
             ToolRegistry toolRegistry,
             SessionRepository sessionRepository,
             ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
@@ -141,6 +143,7 @@ public class DashboardConfiguration {
                 toolRegistry,
                 sessionRepository,
                 conversationOrchestrator,
+                approvalAuditRepository,
                 dangerousCommandApprovalService,
                 securityPolicyService,
                 tirithSecurityService);

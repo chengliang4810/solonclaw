@@ -3,9 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { NButton, NButtonGroup, NInput, NSelect, NSpin, NSwitch, NTag, useMessage } from 'naive-ui'
 import {
   auditSecurity,
+  fetchApprovalHistory,
   fetchPendingApprovals,
   fetchDiagnostics,
   resolveApproval,
+  type ApprovalAuditEvent,
   type Diagnostics,
   type PendingApproval,
   type SecurityAuditFinding,
@@ -17,8 +19,10 @@ const diagnostics = ref<Diagnostics | null>(null)
 const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
+const historyLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
+const approvalHistory = ref<ApprovalAuditEvent[]>([])
 const auditForm = ref({
   action: 'command',
   toolName: 'execute_shell',
@@ -40,6 +44,7 @@ const auditActionOptions = [
 ]
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 const pendingCount = computed(() => pendingApprovals.value.length)
+const historyCount = computed(() => approvalHistory.value.length)
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -66,7 +71,7 @@ function decisionType(decision: unknown) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadApprovals()])
+    const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadApprovals(), loadHistory()])
     diagnostics.value = diagnosticsData
   } finally {
     loading.value = false
@@ -80,6 +85,16 @@ async function loadApprovals() {
     pendingApprovals.value = result.items || []
   } finally {
     approvalsLoading.value = false
+  }
+}
+
+async function loadHistory() {
+  historyLoading.value = true
+  try {
+    const result = await fetchApprovalHistory(100)
+    approvalHistory.value = result.items || []
+  } finally {
+    historyLoading.value = false
   }
 }
 
@@ -114,6 +129,7 @@ async function handleApproval(item: PendingApproval, action: 'approve' | 'deny',
     if (result.success) {
       message.success(result.message || '审批状态已更新')
       await loadApprovals()
+      await loadHistory()
       return
     }
     message.error(result.message || '审批状态更新失败')
@@ -129,6 +145,23 @@ function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
 function timeText(value?: number) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
+}
+
+function auditChoiceText(item: ApprovalAuditEvent) {
+  if (item.event_type === 'request') return '请求审批'
+  if (item.choice === 'deny') return '已拒绝'
+  if (item.choice === 'timeout') return '已超时'
+  if (item.choice === 'session') return '本会话批准'
+  if (item.choice === 'always') return '长期批准'
+  if (item.choice === 'once') return '批准本次'
+  return item.choice || item.event_type || '-'
+}
+
+function auditChoiceType(item: ApprovalAuditEvent) {
+  if (item.event_type === 'request') return 'warning'
+  if (item.choice === 'deny' || item.choice === 'timeout') return 'error'
+  if (item.choice === 'once' || item.choice === 'session' || item.choice === 'always') return 'success'
+  return 'default'
 }
 
 onMounted(load)
@@ -407,6 +440,37 @@ onMounted(load)
               </article>
             </div>
             <div v-else class="empty-state">暂无待审批命令</div>
+          </NSpin>
+        </section>
+        <section class="panel approvals-panel">
+          <div class="panel-title-row">
+            <h3>审批历史</h3>
+            <div class="panel-actions">
+              <NTag size="small">{{ historyCount }}</NTag>
+              <NButton size="small" :loading="historyLoading" @click="loadHistory">刷新</NButton>
+            </div>
+          </div>
+          <NSpin :show="historyLoading">
+            <div v-if="approvalHistory.length" class="approval-list">
+              <article v-for="item in approvalHistory" :key="item.event_id" class="approval-item">
+                <div class="approval-head">
+                  <div>
+                    <strong>{{ item.description || item.command_hash || item.event_id }}</strong>
+                    <span>{{ item.session_id || '-' }} · {{ item.tool_name || '-' }}</span>
+                  </div>
+                  <NTag size="small" :type="auditChoiceType(item)">
+                    {{ auditChoiceText(item) }}
+                  </NTag>
+                </div>
+                <pre class="approval-command">{{ item.command_preview || '-' }}</pre>
+                <div class="approval-meta">
+                  <span>{{ timeText(item.created_at) }}</span>
+                  <span v-if="item.approver">审批人：{{ item.approver }}</span>
+                  <span>{{ item.approval_id || item.approval_key || '-' }}</span>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state">暂无审批历史</div>
           </NSpin>
         </section>
       </main>

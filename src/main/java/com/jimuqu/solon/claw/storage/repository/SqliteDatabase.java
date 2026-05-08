@@ -629,6 +629,28 @@ public class SqliteDatabase {
             statement.execute(
                     "create index if not exists idx_tool_calls_run_started on tool_calls(run_id, started_at asc)");
             statement.execute(
+                    "create table if not exists approval_audit_events ("
+                            + "event_id text primary key,"
+                            + "session_id text,"
+                            + "event_type text not null,"
+                            + "choice text,"
+                            + "approver text,"
+                            + "tool_name text,"
+                            + "approval_id text,"
+                            + "approval_key text,"
+                            + "command_hash text,"
+                            + "command_preview text,"
+                            + "description text,"
+                            + "pattern_keys_json text,"
+                            + "created_at integer not null,"
+                            + "approval_created_at integer not null default 0,"
+                            + "approval_expires_at integer not null default 0"
+                            + ")");
+            statement.execute(
+                    "create index if not exists idx_approval_audit_events_created on approval_audit_events(created_at desc)");
+            statement.execute(
+                    "create index if not exists idx_approval_audit_events_session on approval_audit_events(session_id, created_at desc)");
+            statement.execute(
                     "create table if not exists subagent_runs ("
                             + "subagent_id text primary key,"
                             + "parent_run_id text,"

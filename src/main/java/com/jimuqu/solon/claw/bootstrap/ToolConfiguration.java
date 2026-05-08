@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
@@ -41,6 +42,7 @@ import com.jimuqu.solon.claw.support.RuntimePathGuard;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.ApprovalAuditObserver;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -82,11 +84,15 @@ public class ToolConfiguration {
     @Bean
     public DangerousCommandApprovalService dangerousCommandApprovalService(
             GlobalSettingRepository globalSettingRepository,
+            ApprovalAuditRepository approvalAuditRepository,
             AppConfig appConfig,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
-        return new DangerousCommandApprovalService(
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
                 globalSettingRepository, appConfig, securityPolicyService, tirithSecurityService);
+        service.addApprovalObserver(new ApprovalAuditObserver(approvalAuditRepository));
+        return service;
     }
 
     @Bean

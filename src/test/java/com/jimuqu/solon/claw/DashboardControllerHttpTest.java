@@ -941,6 +941,14 @@ public class DashboardControllerHttpTest {
         String selector = pendingData.get("selector").getString();
         assertThat(selector).isNotBlank();
 
+        HttpResult historyBefore =
+                request("GET", "/api/diagnostics/approvals/history?limit=20", null, token);
+        assertThat(historyBefore.status).isEqualTo(200);
+        assertThat(historyBefore.body)
+                .contains("\"event_type\":\"request\"")
+                .contains("\"command_preview\":\"printf api_key=***\"")
+                .doesNotContain("sk-test-secret-token-value");
+
         HttpResult resolve =
                 request(
                         "POST",
@@ -954,6 +962,16 @@ public class DashboardControllerHttpTest {
                 .contains("\"success\":true")
                 .contains("\"action\":\"deny\"")
                 .contains("\"resumed\":false");
+
+        HttpResult historyAfter =
+                request("GET", "/api/diagnostics/approvals/history?limit=20", null, token);
+        assertThat(historyAfter.status).isEqualTo(200);
+        assertThat(historyAfter.body)
+                .contains("\"event_type\":\"response\"")
+                .contains("\"choice\":\"deny\"")
+                .contains("\"approver\":\"dashboard\"")
+                .contains("\"command_preview\":\"printf api_key=***\"")
+                .doesNotContain("sk-test-secret-token-value");
 
         HttpResult after =
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);

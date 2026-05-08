@@ -65,6 +65,29 @@ export interface PendingApprovalsResult {
   items: PendingApproval[]
 }
 
+export interface ApprovalAuditEvent {
+  event_id: string
+  session_id?: string
+  event_type?: 'request' | 'response' | string
+  choice?: string
+  approver?: string
+  tool_name?: string
+  approval_id?: string
+  approval_key?: string
+  command_hash?: string
+  command_preview?: string
+  description?: string
+  pattern_keys?: string[]
+  created_at?: number
+  approval_created_at?: number
+  approval_expires_at?: number
+}
+
+export interface ApprovalHistoryResult {
+  count: number
+  items: ApprovalAuditEvent[]
+}
+
 export interface ResolveApprovalRequest {
   sessionId: string
   approvalId?: string
@@ -97,6 +120,10 @@ export async function auditSecurity(payload: SecurityAuditRequest): Promise<Secu
 
 export async function fetchPendingApprovals(limit = 100): Promise<PendingApprovalsResult> {
   return request<PendingApprovalsResult>(`/api/diagnostics/approvals?limit=${limit}`)
+}
+
+export async function fetchApprovalHistory(limit = 100): Promise<ApprovalHistoryResult> {
+  return request<ApprovalHistoryResult>(`/api/diagnostics/approvals/history?limit=${limit}`)
 }
 
 export async function resolveApproval(payload: ResolveApprovalRequest): Promise<ResolveApprovalResult> {

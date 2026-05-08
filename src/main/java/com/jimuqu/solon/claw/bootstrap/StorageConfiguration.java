@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.bootstrap;
 import com.jimuqu.solon.claw.agent.AgentProfileRepository;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
@@ -12,6 +13,7 @@ import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteApprovalAuditRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelStateRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -55,6 +57,11 @@ public class StorageConfiguration {
     @Bean
     public AgentRunRepository agentRunRepository(SqliteDatabase sqliteDatabase) {
         return new SqliteAgentRunRepository(sqliteDatabase);
+    }
+
+    @Bean
+    public ApprovalAuditRepository approvalAuditRepository(SqliteDatabase sqliteDatabase) {
+        return new SqliteApprovalAuditRepository(sqliteDatabase);
     }
 
     @Bean

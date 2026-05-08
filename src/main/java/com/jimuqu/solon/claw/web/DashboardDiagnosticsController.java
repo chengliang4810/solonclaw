@@ -39,6 +39,11 @@ public class DashboardDiagnosticsController {
         return DashboardResponse.ok(diagnosticsService.pendingApprovals(limit(context.param("limit"))));
     }
 
+    @Mapping(value = "/api/diagnostics/approvals/history", method = MethodType.GET)
+    public Map<String, Object> approvalHistory(Context context) throws Exception {
+        return DashboardResponse.ok(diagnosticsService.approvalHistory(limit(context.param("limit"))));
+    }
+
     @SuppressWarnings("unchecked")
     @Mapping(value = "/api/diagnostics/approvals/resolve", method = MethodType.POST)
     public Map<String, Object> resolveApproval(Context context) throws Exception {
