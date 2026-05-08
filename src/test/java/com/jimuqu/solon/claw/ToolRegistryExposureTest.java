@@ -1687,6 +1687,77 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning()
+            throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new File(env.appConfig.getRuntime().getHome()).toPath();
+        Files.write(workspace.resolve(".env"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
+        Files.write(
+                workspace.resolve("credentials.json"),
+                Arrays.asList("{\"token\":\"secret\"}"),
+                StandardCharsets.UTF_8);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode envResult =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "print(open('.env').read())\nprint('after')\n",
+                                Integer.valueOf(5)));
+        ONode credentialsResult =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from pathlib import Path\nprint(Path('credentials.json').read_text())\nprint('after')\n",
+                                Integer.valueOf(5)));
+
+        assertThat(envResult.get("status").getString()).isEqualTo("error");
+        assertThat(envResult.get("error").getString())
+                .contains("文件安全策略")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env")
+                .doesNotContain("TOKEN=secret");
+        assertThat(envResult.get("output").getString()).doesNotContain("after");
+        assertThat(credentialsResult.get("status").getString()).isEqualTo("error");
+        assertThat(credentialsResult.get("error").getString())
+                .contains("文件安全策略")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("credentials.json")
+                .doesNotContain("secret");
+        assertThat(credentialsResult.get("output").getString()).doesNotContain("after");
+    }
+
+    @Test
+    void shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning()
+            throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "print(open('~/.ssh/id_rsa').read())\nprint('after')\n",
+                                Integer.valueOf(5)));
+
+        assertThat(result.get("status").getString()).isEqualTo("error");
+        assertThat(result.get("error").getString())
+                .contains("文件安全策略")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("id_rsa");
+        assertThat(result.get("output").getString()).doesNotContain("after");
+    }
+
+    @Test
     void shouldReturnJimuquStyleExecuteCodeErrorsWithStderr() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();

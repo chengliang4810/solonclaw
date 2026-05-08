@@ -1014,6 +1014,12 @@ public class SolonClawCodeExecutionSkills {
     static void assertSafeExecuteCodeScript(
             String code, SecurityPolicyService securityPolicyService) {
         if (securityPolicyService != null) {
+            SecurityPolicyService.FileVerdict fileVerdict =
+                    securityPolicyService.checkCommandPaths(code);
+            if (!fileVerdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        blockedFileMessage(ToolNameConstants.EXECUTE_CODE, fileVerdict));
+            }
             SecurityPolicyService.UrlVerdict urlVerdict =
                     securityPolicyService.checkCommandUrls(code);
             if (!urlVerdict.isAllowed()) {
