@@ -2374,6 +2374,38 @@ public class DefaultCronSchedulerTest {
         assertThat(run.get("trigger")).isEqualTo("scheduled");
         assertThat(run.get("finished")).isEqualTo(Boolean.TRUE);
         assertThat(((Number) run.get("duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
+
+        Map<?, ?> inspect =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "inspect",
+                                                "job-history",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Integer.valueOf(1)))
+                                .toData();
+        assertThat(((Map<?, ?>) inspect.get("job")).get("job_id")).isEqualTo("job-history");
+        assertThat(inspect.get("run_count")).isEqualTo(Integer.valueOf(1));
+        assertThat(inspect.get("limit")).isEqualTo(Integer.valueOf(1));
+        Map<?, ?> inspectedRun = (Map<?, ?>) ((List<?>) inspect.get("runs")).get(0);
+        assertThat(inspectedRun.get("status")).isEqualTo("ok");
+        assertThat(inspectedRun.get("output")).asString().contains("scheduled prompt");
     }
 
     @Test
