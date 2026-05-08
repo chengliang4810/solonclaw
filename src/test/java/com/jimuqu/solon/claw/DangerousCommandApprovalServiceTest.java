@@ -166,6 +166,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectWindowsAdministrativeGuardVariants() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        assertDangerPattern(
+                env,
+                "Set-ExecutionPolicy Bypass -Scope Process",
+                "windows_execution_policy_weaken");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall set allprofiles state off",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -DisableRealtimeMonitoring $true",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Get-Credential | Export-Clixml .\\credential.xml",
+                "windows_export_credentials");
+        assertDangerPattern(
+                env,
+                "Export-PfxCertificate -Cert $cert -FilePath cert.pfx",
+                "windows_export_credentials");
+        assertDangerPattern(
+                env,
+                "vssadmin delete shadows /all /quiet",
+                "windows_delete_shadow_copies");
+    }
+
+    @Test
     void shouldNotFlagSafeRmFilenamesLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -822,7 +856,10 @@ public class DangerousCommandApprovalServiceTest {
                     "env FOO=1 reboot",
                     "exec shutdown",
                     "nohup reboot",
-                    "setsid poweroff"
+                    "setsid poweroff",
+                    "Clear-Disk -Number 1 -RemoveData -Confirm:$false",
+                    "Remove-Partition -DriveLetter D -Confirm:$false",
+                    "Format-Volume -DriveLetter E -FileSystem NTFS"
                 };
 
         for (String command : blocked) {
@@ -3917,6 +3954,15 @@ public class DangerousCommandApprovalServiceTest {
 
     private void assertHardlineBlocked(DangerousCommandApprovalService service, String command) {
         assertHardlineBlocked(service, new TestTrace(), command);
+    }
+
+    private void assertDangerPattern(TestEnvironment env, String command, String patternKey) {
+        DangerousCommandApprovalService.DetectionResult result =
+                env.dangerousCommandApprovalService.detect("execute_shell", command);
+        assertThat(result)
+                .withFailMessage("expected danger detection for command: %s", command)
+                .isNotNull();
+        assertThat(result.getPatternKey()).isEqualTo(patternKey);
     }
 
     private void assertHardlineBlocked(
