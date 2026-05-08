@@ -3571,10 +3571,12 @@ public class DangerousCommandApprovalService {
     public static class ApprovalRequestEvent {
         private final String sessionId;
         private final PendingApproval pendingApproval;
+        private final PendingApproval redactedPendingApproval;
 
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
             this.sessionId = StrUtil.nullToEmpty(sessionId);
             this.pendingApproval = pendingApproval;
+            this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
         }
 
         public String getSessionId() {
@@ -3582,19 +3584,25 @@ public class DangerousCommandApprovalService {
         }
 
         public PendingApproval getPendingApproval() {
-            return pendingApproval;
+            return redactedPendingApproval;
         }
 
         public String getToolName() {
-            return pendingApproval == null ? "" : StrUtil.nullToEmpty(pendingApproval.getToolName());
+            return redactedPendingApproval == null
+                    ? ""
+                    : StrUtil.nullToEmpty(redactedPendingApproval.getToolName());
         }
 
         public String getCommand() {
-            return pendingApproval == null ? "" : StrUtil.nullToEmpty(pendingApproval.getCommand());
+            return redactedPendingApproval == null
+                    ? ""
+                    : StrUtil.nullToEmpty(redactedPendingApproval.getCommand());
         }
 
         public String getDescription() {
-            return pendingApproval == null ? "" : StrUtil.nullToEmpty(pendingApproval.getDescription());
+            return redactedPendingApproval == null
+                    ? ""
+                    : StrUtil.nullToEmpty(redactedPendingApproval.getDescription());
         }
 
         public List<String> getPatternKeys() {
@@ -3607,6 +3615,24 @@ public class DangerousCommandApprovalService {
             List<String> keys = getPatternKeys();
             return keys.isEmpty() ? "" : keys.get(0);
         }
+    }
+
+    private static PendingApproval redactedPendingApproval(PendingApproval source) {
+        if (source == null) {
+            return null;
+        }
+        PendingApproval copy = new PendingApproval();
+        copy.setApprovalId(source.getApprovalId());
+        copy.setToolName(source.getToolName());
+        copy.setPatternKey(source.getPatternKey());
+        copy.setPatternKeys(source.getPatternKeys());
+        copy.setDescription(SecretRedactor.redact(source.getDescription(), 1000));
+        copy.setCommand(SecretRedactor.redact(source.getCommand(), 3000));
+        copy.setCommandHash(source.getCommandHash());
+        copy.setApprovalKey(SecretRedactor.redact(source.getApprovalKey(), 1000));
+        copy.setCreatedAt(source.getCreatedAt());
+        copy.setExpiresAt(source.getExpiresAt());
+        return copy;
     }
 
     public static class ApprovalResponseEvent extends ApprovalRequestEvent {
