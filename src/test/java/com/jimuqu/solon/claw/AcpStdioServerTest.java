@@ -108,6 +108,26 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactAcpProtocolErrorMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String response =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":64,\"method\":\"bad-token=sk-test-acperror12345\",\"params\":{}}");
+
+        assertThat(response)
+                .contains("\"id\":64")
+                .contains("\"error\"")
+                .contains("bad-token=***")
+                .doesNotContain("sk-test-acperror12345");
+    }
+
+    @Test
     void shouldInlineAcpResourceLinkTextFile(@TempDir Path tempDir) throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =

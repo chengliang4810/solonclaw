@@ -172,7 +172,11 @@ public class AcpStdioServer {
             response.put("id", id);
             Map<String, Object> error = new LinkedHashMap<String, Object>();
             error.put("code", -32603);
-            error.put("message", e.getMessage());
+            error.put(
+                    "message",
+                    SecretRedactor.redact(
+                            StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                            1000));
             response.put("error", error);
             return ONode.serialize(response);
         }
