@@ -1181,6 +1181,9 @@ public class DangerousCommandApprovalService {
         if ("config_write".equals(lower)) {
             return ToolNameConstants.CONFIG_SET;
         }
+        if ("config_update_secret".equals(lower)) {
+            return ToolNameConstants.CONFIG_SET_SECRET;
+        }
         return lower;
     }
 

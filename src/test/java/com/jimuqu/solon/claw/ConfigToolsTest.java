@@ -107,8 +107,78 @@ public class ConfigToolsTest {
                 (String) method.invoke(configSetTool, "channels.dingtalk.clientSecret", "none");
 
         assertThat(ONode.ofJson(providerResponse).get("success").getBoolean()).isFalse();
-        assertThat(ONode.ofJson(providerResponse).get("error").getString()).contains("占位符密钥");
+        assertThat(ONode.ofJson(providerResponse).get("error").getString())
+                .contains("config_set_secret");
         assertThat(ONode.ofJson(channelResponse).get("success").getBoolean()).isFalse();
-        assertThat(ONode.ofJson(channelResponse).get("error").getString()).contains("占位符密钥");
+        assertThat(ONode.ofJson(channelResponse).get("error").getString())
+                .contains("config_set_secret");
+    }
+
+    @Test
+    void shouldExposeConfigAliasesAndRedactSecretReads() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object configGetTool = null;
+        Object configSetTool = null;
+        Object configSetSecretTool = null;
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method method : tool.getClass().getMethods()) {
+                if ("configRead".equals(method.getName())) {
+                    configGetTool = tool;
+                } else if ("configWrite".equals(method.getName())) {
+                    configSetTool = tool;
+                } else if ("configUpdateSecret".equals(method.getName())) {
+                    configSetSecretTool = tool;
+                }
+            }
+        }
+
+        assertThat(configGetTool).isNotNull();
+        assertThat(configSetTool).isNotNull();
+        assertThat(configSetSecretTool).isNotNull();
+
+        Method write =
+                configSetTool.getClass().getMethod("configWrite", String.class, String.class);
+        ONode writeResponse =
+                ONode.ofJson(
+                        (String) write.invoke(configSetTool, "channels.weixin.enabled", "true"));
+        assertThat(writeResponse.get("success").getBoolean()).isTrue();
+        assertThat(env.appConfig.getChannels().getWeixin().isEnabled()).isTrue();
+
+        Method secret =
+                configSetSecretTool
+                        .getClass()
+                        .getMethod("configUpdateSecret", String.class, String.class);
+        ONode secretResponse =
+                ONode.ofJson(
+                        (String)
+                                secret.invoke(
+                                        configSetSecretTool,
+                                        "providers.default.apiKey",
+                                        "sk-test-real-secret-12345"));
+        assertThat(secretResponse.get("success").getBoolean()).isTrue();
+        assertThat(secretResponse.toString()).doesNotContain("sk-test-real-secret-12345");
+
+        Method writeSecret =
+                configSetSecretTool
+                        .getClass()
+                        .getMethod("configUpdateSecret", String.class, String.class);
+        ONode writeSecretResponse =
+                ONode.ofJson(
+                        (String)
+                                writeSecret.invoke(
+                                        configSetSecretTool,
+                                        "solonclaw.gateway.injectionSecret",
+                                        "gateway-secret-12345"));
+        assertThat(writeSecretResponse.get("success").getBoolean()).isTrue();
+        assertThat(writeSecretResponse.toString()).doesNotContain("gateway-secret-12345");
+
+        Method read = configGetTool.getClass().getMethod("configRead", String.class);
+        ONode readResponse =
+                ONode.ofJson((String) read.invoke(configGetTool, "gateway.injectionSecret"));
+        assertThat(readResponse.get("success").getBoolean()).isTrue();
+        assertThat(readResponse.get("value").getString()).isEqualTo("***");
+        assertThat(readResponse.get("redacted").getBoolean()).isTrue();
+        assertThat(readResponse.get("preview").getString()).isEqualTo("gateway.injectionSecret=***");
+        assertThat(readResponse.toString()).doesNotContain("sk-test-real-secret-12345");
     }
 }

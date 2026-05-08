@@ -377,8 +377,8 @@ public class RuntimeSettingsService {
 
     public void setConfigValue(String key, String rawValue) {
         ensureConfigKeyAllowed(key);
-        if (isSecretConfigKey(key) && SecretValueGuard.isPlaceholderSecret(rawValue)) {
-            throw new IllegalArgumentException(key + " 不能使用示例或占位符密钥。");
+        if (isSecretConfigKey(key)) {
+            throw new IllegalArgumentException(key + " 是密钥配置，请使用 config_set_secret 更新。");
         }
         persistConfigValue(
                 key, parseValueForKey(key, rawValue), shouldReconnectChannelsForConfigKey(key));
@@ -574,7 +574,7 @@ public class RuntimeSettingsService {
         return key != null && key.startsWith("solonclaw.channels.");
     }
 
-    private boolean isSecretConfigKey(String key) {
+    public boolean isSecretConfigKey(String key) {
         if (key == null) {
             return false;
         }
