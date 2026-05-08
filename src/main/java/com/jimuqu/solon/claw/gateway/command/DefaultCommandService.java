@@ -1250,6 +1250,7 @@ public class DefaultCommandService implements CommandService {
         }
         if ("resume".equalsIgnoreCase(raw)) {
             GoalState state = goalService.resume(session, true);
+            String continuationPrompt = goalService.nextContinuationPrompt(state);
             GatewayReply reply =
                     GatewayReply.ok(
                             state == null
@@ -1257,9 +1258,12 @@ public class DefaultCommandService implements CommandService {
                                     : "▶ Goal resumed: "
                                             + state.getGoal()
                                             + "\n"
-                                            + goalService.nextContinuationPrompt(state));
+                                            + continuationPrompt);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
+            if (StrUtil.isNotBlank(continuationPrompt)) {
+                reply.getRuntimeMetadata().put("goal_kickoff", continuationPrompt);
+            }
             return reply;
         }
         if ("clear".equalsIgnoreCase(raw)) {

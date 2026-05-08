@@ -21,4 +21,21 @@ public class GoalCommandFlowTest {
                 .contains("完成 CLI 验证")
                 .contains("\"turns_used\":1");
     }
+
+    @Test
+    void shouldResumeGoalThroughCliRuntimeEventPath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime = new CliRuntime(env.commandService, env.conversationOrchestrator);
+
+        runtime.send("goal-resume-session", "/goal 完成恢复验证 --max 2", null);
+        runtime.send("goal-resume-session", "/goal pause", null);
+
+        GatewayReply resumed = runtime.send("goal-resume-session", "/goal resume", null);
+
+        assertThat(resumed.getContent()).contains("echo:[Continuing toward your standing goal]");
+        assertThat(resumed.getRuntimeMetadata().get("goal_verdict")).isEqualTo("continue");
+        assertThat(env.sessionRepository.getBoundSession("MEMORY:cli:goal-resume-session").getGoalStateJson())
+                .contains("完成恢复验证")
+                .contains("\"turns_used\":1");
+    }
 }
