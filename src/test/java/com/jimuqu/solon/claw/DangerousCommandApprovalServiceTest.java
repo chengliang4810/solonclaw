@@ -3329,6 +3329,18 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(urlTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(urlTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
 
+        Map<String, Object> httpGetArgs = new LinkedHashMap<String, Object>();
+        httpGetArgs.put("url", "http://169.254.169.254/latest/meta-data/");
+        Map<String, Object> gatewayHttpGet = new LinkedHashMap<String, Object>();
+        gatewayHttpGet.put("tool_name", "http_get");
+        gatewayHttpGet.put("tool_args", httpGetArgs);
+        TestTrace httpGetTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(httpGetTrace, "call_tool", gatewayHttpGet);
+
+        assertThat(httpGetTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(httpGetTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
+
         Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
         patchArgs.put(
                 "patch",

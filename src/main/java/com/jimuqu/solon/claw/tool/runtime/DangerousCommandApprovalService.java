@@ -1288,11 +1288,27 @@ public class DangerousCommandApprovalService {
                 || "execute-code".equals(lower)) {
             return ToolNameConstants.EXECUTE_CODE;
         }
-        if ("web_extract".equals(lower) || "web_fetch".equals(lower) || "fetch_url".equals(lower)) {
+        if ("web_extract".equals(lower)
+                || "web_fetch".equals(lower)
+                || "fetch_url".equals(lower)
+                || "fetch".equals(lower)
+                || "url_fetch".equals(lower)
+                || "http_get".equals(lower)
+                || "get_url".equals(lower)
+                || "read_url".equals(lower)) {
             return ToolNameConstants.WEBFETCH;
         }
-        if ("web_search".equals(lower) || "search_web".equals(lower)) {
+        if ("web_search".equals(lower)
+                || "search_web".equals(lower)
+                || "search".equals(lower)
+                || "internet_search".equals(lower)) {
             return ToolNameConstants.WEBSEARCH;
+        }
+        if ("code_search".equals(lower)
+                || "search_code".equals(lower)
+                || "search_files".equals(lower)
+                || "file_search".equals(lower)) {
+            return ToolNameConstants.CODESEARCH;
         }
         if ("read_file".equals(lower) || "file-read".equals(lower) || "file_read_file".equals(lower)) {
             return ToolNameConstants.FILE_READ;
