@@ -166,6 +166,41 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult terraformDestroy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult awsDeleteBucket =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws s3api delete-bucket --bucket prod-data");
+        DangerousCommandApprovalService.DetectionResult awsTerminateInstances =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws ec2 terminate-instances --instance-ids i-123");
+        DangerousCommandApprovalService.DetectionResult awsS3RecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws s3 rm s3://prod-data --recursive");
+        DangerousCommandApprovalService.DetectionResult awsStsRead =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws sts get-caller-identity");
+        DangerousCommandApprovalService.DetectionResult gcloudDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gcloud compute instances delete prod-vm --zone asia-east1-a");
+        DangerousCommandApprovalService.DetectionResult gcloudList =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gcloud compute instances list");
+        DangerousCommandApprovalService.DetectionResult azureDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "az group delete --name prod --yes");
+        DangerousCommandApprovalService.DetectionResult azureList =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "az group list");
+        DangerousCommandApprovalService.DetectionResult dropdb =
+                env.dangerousCommandApprovalService.detect("execute_shell", "dropdb prod");
+        DangerousCommandApprovalService.DetectionResult mysqlDrop =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mysqladmin drop prod --force");
+        DangerousCommandApprovalService.DetectionResult redisFlush =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "redis-cli FLUSHALL");
+        DangerousCommandApprovalService.DetectionResult redisPing =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "redis-cli ping");
 
         assertThat(spacedForkBomb).isNotNull();
         assertThat(spacedForkBomb.getPatternKey()).isEqualTo("fork_bomb");
@@ -191,6 +226,26 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(terraformDestroy).isNotNull();
         assertThat(terraformDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(awsDeleteBucket).isNotNull();
+        assertThat(awsDeleteBucket.getPatternKey()).isEqualTo("aws_destructive_resource");
+        assertThat(awsTerminateInstances).isNotNull();
+        assertThat(awsTerminateInstances.getPatternKey()).isEqualTo("aws_destructive_resource");
+        assertThat(awsS3RecursiveRemove).isNotNull();
+        assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
+        assertThat(awsStsRead).isNull();
+        assertThat(gcloudDelete).isNotNull();
+        assertThat(gcloudDelete.getPatternKey()).isEqualTo("gcloud_delete");
+        assertThat(gcloudList).isNull();
+        assertThat(azureDelete).isNotNull();
+        assertThat(azureDelete.getPatternKey()).isEqualTo("azure_delete");
+        assertThat(azureList).isNull();
+        assertThat(dropdb).isNotNull();
+        assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");
+        assertThat(mysqlDrop).isNotNull();
+        assertThat(mysqlDrop.getPatternKey()).isEqualTo("database_dropdb");
+        assertThat(redisFlush).isNotNull();
+        assertThat(redisFlush.getPatternKey()).isEqualTo("database_flush");
+        assertThat(redisPing).isNull();
     }
 
     @Test

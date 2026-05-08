@@ -327,6 +327,30 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bterraform\\s+destroy\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "aws_destructive_resource",
+                                    "AWS destructive resource operation",
+                                    pattern(
+                                            "\\baws\\s+\\S+\\s+(?:delete|terminate|remove|deregister|detach)-[a-z0-9-]+\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "aws_s3_recursive_remove",
+                                    "AWS S3 recursive remove",
+                                    pattern(
+                                            "\\baws\\s+s3\\s+rm\\b(?=[^\\n]*(?:--recursive\\b|s3://))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "gcloud_delete",
+                                    "Google Cloud resource delete",
+                                    pattern(
+                                            "\\bgcloud\\s+(?:-[^\\s]+\\s+)*[a-z0-9_-]+(?:\\s+[a-z0-9_-]+)*\\s+delete\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "azure_delete",
+                                    "Azure resource delete",
+                                    pattern(
+                                            "\\baz\\s+(?:-[^\\s]+\\s+)*[a-z0-9_-]+(?:\\s+[a-z0-9_-]+)*\\s+delete\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "git_reset_hard",
                                     "git reset --hard (destroys uncommitted changes)",
                                     pattern("\\bgit\\s+reset\\s+--hard\\b"),
@@ -378,6 +402,20 @@ public class DangerousCommandApprovalService {
                                     "sql_truncate",
                                     "SQL TRUNCATE",
                                     pattern("\\bTRUNCATE\\s+(TABLE)?\\s*\\w"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "database_dropdb",
+                                    "database drop command",
+                                    pattern("\\b(?:dropdb|mysqladmin\\s+drop)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "database_flush",
+                                    "database cache flush",
+                                    pattern("\\b(?:redis-cli\\s+)?FLUSH(?:ALL|DB)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
