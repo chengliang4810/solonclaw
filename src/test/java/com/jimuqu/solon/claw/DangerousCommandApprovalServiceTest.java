@@ -4041,6 +4041,42 @@ public class DangerousCommandApprovalServiceTest {
         assertMalformedGatewayAliasFailsClosed(service, "apply_patch", "patch");
     }
 
+    @Test
+    void shouldBlockWebsocketUrlsThroughApprovalGatewaySecurityPolicy() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new FixedDnsSecurityPolicyService(env.appConfig, "10.0.0.5"));
+        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
+        shellArgs.put("command", "websocat ws://internal.example/socket");
+        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
+        gatewayShell.put("tool_name", "execute_shell_command");
+        gatewayShell.put("tool_args", shellArgs);
+        TestTrace shellTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(shellTrace, "call_tool", gatewayShell);
+
+        assertThat(shellTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(shellTrace.getFinalAnswer()).contains("URL 安全策略").contains("内网");
+        assertThat(service.getPendingApproval(shellTrace.session)).isNull();
+
+        Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
+        webfetchArgs.put("url", "wss://internal.example/socket");
+        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
+        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_args", webfetchArgs);
+        TestTrace webfetchTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(webfetchTrace, "call_tool", gatewayWebfetch);
+
+        assertThat(webfetchTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(webfetchTrace.getFinalAnswer()).contains("URL 安全策略").contains("内网");
+        assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
+    }
+
     private static void assertMalformedGatewayAliasFailsClosed(
             DangerousCommandApprovalService service, String alias, String canonicalTool) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
