@@ -300,6 +300,33 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "docker_destructive_prune",
+                                    "Docker destructive prune",
+                                    pattern(
+                                            "\\bdocker\\s+(?:system|container|image|volume|network)\\s+prune\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "docker_force_remove",
+                                    "Docker force remove",
+                                    pattern(
+                                            "\\bdocker\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kubectl_delete",
+                                    "Kubernetes resource delete",
+                                    pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*delete\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "helm_uninstall",
+                                    "Helm release uninstall",
+                                    pattern("\\bhelm\\s+(?:uninstall|delete)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "terraform_destroy",
+                                    "Terraform destroy",
+                                    pattern("\\bterraform\\s+destroy\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "git_reset_hard",
                                     "git reset --hard (destroys uncommitted changes)",
                                     pattern("\\bgit\\s+reset\\s+--hard\\b"),

@@ -149,6 +149,23 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "git push -f origin main");
         DangerousCommandApprovalService.DetectionResult gitNormalPush =
                 env.dangerousCommandApprovalService.detect("execute_shell", "git push origin main");
+        DangerousCommandApprovalService.DetectionResult dockerPrune =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker system prune -af");
+        DangerousCommandApprovalService.DetectionResult dockerRm =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker rm -f app-db");
+        DangerousCommandApprovalService.DetectionResult dockerPs =
+                env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
+        DangerousCommandApprovalService.DetectionResult kubectlDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl delete namespace prod");
+        DangerousCommandApprovalService.DetectionResult helmUninstall =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm uninstall payments");
+        DangerousCommandApprovalService.DetectionResult terraformDestroy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform destroy -auto-approve");
 
         assertThat(spacedForkBomb).isNotNull();
         assertThat(spacedForkBomb.getPatternKey()).isEqualTo("fork_bomb");
@@ -163,6 +180,17 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(gitShortForcePush).isNotNull();
         assertThat(gitShortForcePush.getPatternKey()).isEqualTo("git_force_push");
         assertThat(gitNormalPush).isNull();
+        assertThat(dockerPrune).isNotNull();
+        assertThat(dockerPrune.getPatternKey()).isEqualTo("docker_destructive_prune");
+        assertThat(dockerRm).isNotNull();
+        assertThat(dockerRm.getPatternKey()).isEqualTo("docker_force_remove");
+        assertThat(dockerPs).isNull();
+        assertThat(kubectlDelete).isNotNull();
+        assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
+        assertThat(helmUninstall).isNotNull();
+        assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
+        assertThat(terraformDestroy).isNotNull();
+        assertThat(terraformDestroy.getPatternKey()).isEqualTo("terraform_destroy");
     }
 
     @Test
