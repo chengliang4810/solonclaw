@@ -412,6 +412,23 @@ public class DangerousCommandApprovalService {
                                             "\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_powershell_encoded_command",
+                                    "PowerShell encoded command execution",
+                                    pattern(
+                                            "\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:-EncodedCommand|-enc|-e)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_powershell_remote_execute",
+                                    "PowerShell remote content execution",
+                                    pattern(
+                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_powershell_invoke_expression",
+                                    "PowerShell dynamic expression execution",
+                                    pattern("\\b(?:Invoke-Expression|IEX)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
