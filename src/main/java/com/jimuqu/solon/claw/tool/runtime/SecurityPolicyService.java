@@ -858,6 +858,9 @@ public class SecurityPolicyService {
         if (CREDENTIAL_FILE_NAMES.contains(fileName)) {
             return true;
         }
+        if (matchesSensitiveHomeFile(path, normalized)) {
+            return true;
+        }
         if (fileName.startsWith(".env.") && !".env.example".equals(fileName)) {
             return true;
         }
@@ -865,6 +868,13 @@ public class SecurityPolicyService {
             return true;
         }
         return matchesConfiguredCredentialPath(normalized, path);
+    }
+
+    private boolean matchesSensitiveHomeFile(String strippedPath, String normalized) {
+        if (!WRITE_DENIED_HOME_FILE_NAMES.contains(lastPathPart(strippedPath))) {
+            return false;
+        }
+        return startsWithHomeLikePrefix(normalized) || startsWithUserHome(normalized);
     }
 
     private boolean matchesSensitiveKeyFileName(String fileName) {

@@ -1632,6 +1632,10 @@ public class DangerousCommandApprovalServiceTest {
         assertFileReadDenied(securityPolicyService, "~/.codex/auth.json");
         assertFileReadDenied(securityPolicyService, "~/.qwen/oauth_creds.json");
         assertFileReadDenied(securityPolicyService, "~/.git-credentials");
+        assertFileReadDenied(securityPolicyService, "~/.bashrc");
+        assertFileReadDenied(securityPolicyService, "$HOME/.zshrc");
+        assertFileReadDenied(securityPolicyService, "${HOME}/.profile");
+        assertFileReadDenied(securityPolicyService, "$env:USERPROFILE/.bash_profile");
         assertFileReadDenied(
                 securityPolicyService,
                 "$HOME/.config/gcloud/application_default_credentials.json");
