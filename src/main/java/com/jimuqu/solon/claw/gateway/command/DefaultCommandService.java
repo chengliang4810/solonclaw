@@ -2408,12 +2408,18 @@ public class DefaultCommandService implements CommandService {
                 body.put("enabled_toolsets", new ArrayList<String>());
             } else if (field.startsWith("--model ")) {
                 body.put("model", field.substring("--model ".length()).trim());
+            } else if ("--clear-model".equals(field)) {
+                body.put("model", null);
             } else if (field.startsWith("--provider ")) {
                 body.put("provider", field.substring("--provider ".length()).trim());
+            } else if ("--clear-provider".equals(field)) {
+                body.put("provider", null);
             } else if (field.startsWith("--base-url ")) {
                 body.put("base_url", field.substring("--base-url ".length()).trim());
             } else if (field.startsWith("--base_url ")) {
                 body.put("base_url", field.substring("--base_url ".length()).trim());
+            } else if ("--clear-base-url".equals(field) || "--clear-base_url".equals(field)) {
+                body.put("base_url", null);
             } else if ("--no-agent".equals(field)) {
                 body.put("no_agent", Boolean.TRUE);
             } else if ("--agent".equals(field)) {
@@ -2444,6 +2450,15 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "model", options.model);
         putIfNotBlank(body, "provider", options.provider);
         putIfNotBlank(body, "base_url", options.baseUrl);
+        if (options.clearModel) {
+            body.put("model", null);
+        }
+        if (options.clearProvider) {
+            body.put("provider", null);
+        }
+        if (options.clearBaseUrl) {
+            body.put("base_url", null);
+        }
         if (options.clearScript) {
             body.put("script", null);
         }
@@ -2535,10 +2550,16 @@ public class DefaultCommandService implements CommandService {
                 options.clearToolsets = true;
             } else if ("--model".equals(token) && i + 1 < tokens.size()) {
                 options.model = tokens.get(++i);
+            } else if ("--clear-model".equals(token)) {
+                options.clearModel = true;
             } else if ("--provider".equals(token) && i + 1 < tokens.size()) {
                 options.provider = tokens.get(++i);
+            } else if ("--clear-provider".equals(token)) {
+                options.clearProvider = true;
             } else if (("--base-url".equals(token) || "--base_url".equals(token)) && i + 1 < tokens.size()) {
                 options.baseUrl = tokens.get(++i);
+            } else if ("--clear-base-url".equals(token) || "--clear-base_url".equals(token)) {
+                options.clearBaseUrl = true;
             } else if ("--no-agent".equals(token)) {
                 options.noAgent = true;
             } else if ("--agent".equals(token)) {
@@ -3678,6 +3699,9 @@ public class DefaultCommandService implements CommandService {
         private String model;
         private String provider;
         private String baseUrl;
+        private boolean clearModel;
+        private boolean clearProvider;
+        private boolean clearBaseUrl;
         private boolean clearScript;
         private boolean clearWorkdir;
         private boolean clearContextFrom;

@@ -447,6 +447,17 @@ public class CommandEnhancementTest {
         assertThat(agent.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("no_agent=false");
 
+        GatewayReply clearedModelPinning =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --clear-model --clear-provider --clear-base-url");
+        assertThat(clearedModelPinning.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("model=null")
+                .contains("provider=null")
+                .contains("base_url=null");
+
         GatewayReply clearedRuntime =
                 env.send(
                         "admin-chat",
