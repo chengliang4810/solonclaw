@@ -74,6 +74,7 @@ public interface GatewayCommandConstants {
     String COMMAND_DENY = "deny";
     String COMMAND_ALWAYS = "always";
     String COMMAND_CANCEL = "cancel";
+    String COMMAND_CONFIRM = "confirm";
 
     /** Full slash command text. */
     String SLASH_NEW = COMMAND_PREFIX + COMMAND_NEW;
@@ -115,4 +116,5 @@ public interface GatewayCommandConstants {
     String SLASH_DENY = COMMAND_PREFIX + COMMAND_DENY;
     String SLASH_ALWAYS = COMMAND_PREFIX + COMMAND_ALWAYS;
     String SLASH_CANCEL = COMMAND_PREFIX + COMMAND_CANCEL;
+    String SLASH_CONFIRM = COMMAND_PREFIX + COMMAND_CONFIRM;
 }

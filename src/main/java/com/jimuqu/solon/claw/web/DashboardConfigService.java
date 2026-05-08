@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.noear.solon.core.util.Assert;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -25,6 +26,7 @@ public class DashboardConfigService {
             Arrays.asList("channels.wecom.groups.", "security.website_blocklist.");
     private static final List<String> PASSTHROUGH_KEYS =
             Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");
+    private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
     private static final Object WRITE_LOCK = new Object();
 
     private final AppConfig appConfig;
@@ -70,6 +72,7 @@ public class DashboardConfigService {
     public Map<String, Object> saveConfig(Map<String, Object> nestedConfig) {
         Map<String, Object> flat = flattenFieldMap(nestedConfig);
         validateKeys(flat.keySet());
+        validateValues(flat);
         writeOverrideFile(flat);
         gatewayRuntimeRefreshService.refreshNow();
         return Collections.<String, Object>singletonMap("ok", true);
@@ -78,6 +81,7 @@ public class DashboardConfigService {
     public Map<String, Object> saveRaw(String yamlText) {
         Map<String, Object> flat = loadFieldMap(yamlText);
         validateKeys(flat.keySet());
+        validateValues(flat);
         writeOverrideFile(flat);
         gatewayRuntimeRefreshService.refreshNow();
         return Collections.<String, Object>singletonMap("ok", true);
@@ -92,6 +96,7 @@ public class DashboardConfigService {
         validateKeys(flatUpdates.keySet());
         Map<String, Object> merged = mergeBaseValues();
         merged.putAll(flatUpdates);
+        validateValues(merged);
         writeOverrideFile(merged);
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();
@@ -864,6 +869,117 @@ public class DashboardConfigService {
                 throw new IllegalStateException("Unsupported config key: " + key);
             }
         }
+    }
+
+    private void validateValues(Map<String, Object> values) {
+        validateCredentialFiles(values.get("terminal.credentialFiles"));
+        validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
+        validateWebsiteSharedFiles(values.get("security.website_blocklist.shared_files"));
+    }
+
+    private void validateCredentialFiles(Object rawValue) {
+        for (String path : normalizePathList(rawValue)) {
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            String value = path.trim();
+            if (containsControlCharacter(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles contains an invalid control character");
+            }
+            if (startsWithHomePath(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles must use runtime-relative paths");
+            }
+            if (isAbsolutePathText(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles must use runtime-relative paths");
+            }
+            if (containsTraversal(value)) {
+                throw new IllegalStateException(
+                        "terminal.credentialFiles must not contain path traversal");
+            }
+        }
+    }
+
+    private void validateWebsiteSharedFiles(Object rawValue) {
+        for (String path : normalizePathList(rawValue)) {
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            String value = path.trim();
+            if (containsControlCharacter(value)) {
+                throw new IllegalStateException(
+                        "security.websiteBlocklist.sharedFiles contains an invalid control character");
+            }
+            if (containsTraversal(value)) {
+                throw new IllegalStateException(
+                        "security.websiteBlocklist.sharedFiles must not contain path traversal");
+            }
+            if (value.startsWith("~") && !startsWithHomePath(value)) {
+                throw new IllegalStateException(
+                        "security.websiteBlocklist.sharedFiles only supports ~/ home paths");
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> normalizePathList(Object rawValue) {
+        if (rawValue == null) {
+            return Collections.emptyList();
+        }
+        List<String> values = new ArrayList<String>();
+        if (rawValue instanceof List) {
+            for (Object item : (List<Object>) rawValue) {
+                if (item != null) {
+                    values.add(String.valueOf(item));
+                }
+            }
+            return values;
+        }
+        if (rawValue instanceof String) {
+            String text = (String) rawValue;
+            if (StrUtil.isBlank(text)) {
+                return Collections.emptyList();
+            }
+            for (String item : text.split(",")) {
+                values.add(item);
+            }
+            return values;
+        }
+        throw new IllegalStateException("Path list config must be a list or comma-separated string");
+    }
+
+    private boolean containsControlCharacter(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean startsWithHomePath(String value) {
+        return value.startsWith("~/") || value.startsWith("~\\");
+    }
+
+    private boolean isAbsolutePathText(String value) {
+        String path = StrUtil.nullToEmpty(value).trim();
+        return new File(path).isAbsolute()
+                || path.startsWith("/")
+                || path.startsWith("\\")
+                || WINDOWS_DRIVE_PATH.matcher(path).matches();
+    }
+
+    private boolean containsTraversal(String value) {
+        String normalized = StrUtil.nullToEmpty(value).replace('\\', '/');
+        return normalized.equals("..")
+                || normalized.startsWith("../")
+                || normalized.endsWith("/..")
+                || normalized.contains("/../");
     }
 
     private Map<String, Object> mergeBaseValues() {

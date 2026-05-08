@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -345,7 +346,10 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher --skill maps --model gpt-test-cron --provider default --base-url https://api.example.com/ --no-wrap-response");
+                        "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher --skill maps"
+                                + " --model gpt-test-cron --provider default --base-url https://api.example.com/"
+                                + " --deliver feishu --deliver-chat-id chat-create --deliver-thread-id thread-create"
+                                + " --no-wrap-response");
         assertThat(created.getContent()).contains("已创建定时任务");
         String jobId = env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user")
                 .get(0)
@@ -356,6 +360,9 @@ public class CommandEnhancementTest {
                 .contains("model=gpt-test-cron")
                 .contains("provider=default")
                 .contains("base_url=https://api.example.com")
+                .contains("deliver=feishu")
+                .contains("deliver_chat_id=chat-create")
+                .contains("deliver_thread_id=thread-create")
                 .contains("wrap_response=false");
 
         GatewayReply edited =
@@ -440,6 +447,17 @@ public class CommandEnhancementTest {
         assertThat(agent.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("no_agent=false");
 
+        GatewayReply clearedModelPinning =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --clear-model --clear-provider --clear-base-url");
+        assertThat(clearedModelPinning.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("model=null")
+                .contains("provider=null")
+                .contains("base_url=null");
+
         GatewayReply clearedRuntime =
                 env.send(
                         "admin-chat",
@@ -458,11 +476,18 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/cron edit " + jobId + " --script collect.py --workdir \"" + runtimeHome + "\"");
+                        "/cron edit "
+                                + jobId
+                                + " --script collect.py --workdir \""
+                                + runtimeHome
+                                + "\" --deliver local --clear-deliver-chat-id --clear-deliver-thread-id");
         assertThat(retuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
-                .contains("workdir=" + runtimeHome);
+                .contains("workdir=" + runtimeHome)
+                .contains("deliver=local")
+                .contains("deliver_chat_id=null")
+                .contains("deliver_thread_id=null");
 
         GatewayReply clearedWithJimuquEmptyValues =
                 env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --script \"\" --workdir \"\"");
@@ -589,6 +614,9 @@ public class CommandEnhancementTest {
                 .contains("/cron list --all")
                 .contains("/cron status [--all]")
                 .contains("/cron history <job-id>")
+                .contains("--deliver-chat-id")
+                .contains("--clear-deliver-chat-id")
+                .contains("--clear-model")
                 .contains("当前没有定时任务。");
     }
 
@@ -604,14 +632,29 @@ public class CommandEnhancementTest {
                         "admin-user",
                         "/cron add \"30m\" \"Runtime detail check\" --script collect.py --workdir \""
                                 + runtimeHome
-                                + "\" --no-agent --repeat 3 --deliver feishu:chat-1:topic-2");
+                                + "\" --no-agent --repeat 3 --deliver feishu --no-wrap-response"
+                                + " --deliver-chat-id chat-1 --deliver-thread-id topic-2"
+                                + " --model gpt-cron --provider default --base-url https://api.cron.example/v1/"
+                                + " --toolsets shell,file");
         assertThat(created.getContent()).contains("已创建定时任务");
         String jobId =
                 env.cronJobRepository
                         .listBySource("MEMORY:admin-chat:admin-user")
                         .get(0)
                         .getJobId();
+        GatewayReply createdDependency =
+                env.send("admin-chat", "admin-user", "/cron add \"45m\" \"Dependency detail check\"");
+        assertThat(createdDependency.getContent()).contains("已创建定时任务");
+        String dependencyId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .stream()
+                        .filter(record -> !jobId.equals(record.getJobId()))
+                        .findFirst()
+                        .get()
+                        .getJobId();
         CronJobRecord job = env.cronJobRepository.findById(jobId);
+        job.setContextFromJson(org.noear.snack4.ONode.serialize(Arrays.asList(dependencyId)));
         job.setRepeatCompleted(1);
         job.setLastRunAt(System.currentTimeMillis());
         job.setLastStatus("error");
@@ -623,10 +666,18 @@ public class CommandEnhancementTest {
         assertThat(list.getContent())
                 .contains("ID: " + jobId)
                 .contains("Repeat: 1/3")
-                .contains("Deliver: feishu:chat-1:topic-2")
+                .contains("Deliver: feishu")
+                .contains("Deliver chat: chat-1")
+                .contains("Deliver thread: topic-2")
+                .contains("Wrap response: false")
                 .contains("Script: collect.py")
                 .contains("Mode: no-agent (script stdout delivered directly)")
                 .contains("Workdir: " + runtimeHome)
+                .contains("Context from: " + dependencyId)
+                .contains("Toolsets: shell, file")
+                .contains("Model: gpt-cron")
+                .contains("Provider: default")
+                .contains("Base URL: https://api.cron.example/v1")
                 .contains("Last run:")
                 .contains("(error)")
                 .contains("Delivery failed: send timeout");
@@ -735,8 +786,17 @@ public class CommandEnhancementTest {
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(prompt.getContent()).contains("确认编号").contains("/approve [确认编号]");
 
+        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
+        assertThat(status.getContent())
+                .contains("当前待确认 slash 命令：/reload-mcp")
+                .contains(extractSlashConfirmId(prompt))
+                .contains("/approve [确认编号]");
+
         GatewayReply cancelled = env.send("admin-chat", "admin-user", "/cancel");
         assertThat(cancelled.getContent()).contains("已取消 /reload-mcp");
+
+        GatewayReply emptyStatus = env.send("admin-chat", "admin-user", "/confirm");
+        assertThat(emptyStatus.getContent()).contains("当前没有待确认的 slash 命令");
 
         GatewayReply promptAgain = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(promptAgain.getContent()).contains("/approve");

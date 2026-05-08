@@ -117,6 +117,67 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldRejectUnsafeCredentialFilePathsFromDashboardWrites() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+
+        updates.put("terminal.credentialFiles", Collections.singletonList("credentials/oauth.json"));
+        configService.savePartialFlat(updates, false);
+        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("credentialFiles:")
+                .contains("credentials/oauth.json");
+
+        assertCredentialPathRejected(configService, "../secret.json", "path traversal");
+        assertCredentialPathRejected(configService, "/tmp/secret.json", "runtime-relative");
+        assertCredentialPathRejected(configService, "C:\\Users\\secret.json", "runtime-relative");
+        assertCredentialPathRejected(configService, "~/.ssh/id_rsa", "runtime-relative");
+        assertCredentialPathRejected(configService, "credentials/\u0000secret.json", "control");
+    }
+
+    @Test
+    void shouldRejectUnsafeWebsiteBlocklistSharedFilePathsFromDashboardWrites()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+
+        updates.put(
+                "security.websiteBlocklist.sharedFiles",
+                Collections.singletonList("blocklists/sites.txt"));
+        configService.savePartialFlat(updates, false);
+        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+                .contains("sharedFiles:")
+                .contains("blocklists/sites.txt");
+
+        assertWebsiteSharedFileRejected(configService, "../blocklists/sites.txt", "path traversal");
+        assertWebsiteSharedFileRejected(configService, "blocklists/\u0000sites.txt", "control");
+        assertWebsiteSharedFileRejected(configService, "~other/sites.txt", "home paths");
+    }
+
+    @Test
+    void shouldRejectUnsafePathListsFromRawDashboardConfig() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+
+        assertThatThrownBy(
+                        () ->
+                                configService.saveRaw(
+                                        "solonclaw:\n"
+                                                + "  terminal:\n"
+                                                + "    credentialFiles:\n"
+                                                + "      - ../secret.json\n"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.credentialFiles")
+                .hasMessageContaining("path traversal");
+
+        assertThat(new java.io.File(env.appConfig.getRuntime().getConfigFile())).doesNotExist();
+    }
+
+    @Test
     void shouldRefreshDirectConfigFileChangesAfterValidation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.writeUtf8String(
@@ -266,6 +327,26 @@ public class RuntimeRefreshBehaviorTest {
                 new AppVersionService(env.appConfig),
                 llmProviderService,
                 providerService);
+    }
+
+    private void assertCredentialPathRejected(
+            DashboardConfigService configService, String value, String messagePart) {
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+        updates.put("terminal.credentialFiles", Collections.singletonList(value));
+        assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal.credentialFiles")
+                .hasMessageContaining(messagePart);
+    }
+
+    private void assertWebsiteSharedFileRejected(
+            DashboardConfigService configService, String value, String messagePart) {
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+        updates.put("security.websiteBlocklist.sharedFiles", Collections.singletonList(value));
+        assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("security.websiteBlocklist.sharedFiles")
+                .hasMessageContaining(messagePart);
     }
 
     private static class AllowLocalButBlockMetadataSecurityPolicyService

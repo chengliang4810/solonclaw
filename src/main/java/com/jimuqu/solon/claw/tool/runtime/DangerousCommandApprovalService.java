@@ -376,6 +376,21 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bformat\\s+[a-z]:"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_clear_disk",
+                                    "PowerShell clear disk",
+                                    pattern("\\bClear-Disk\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_remove_partition",
+                                    "PowerShell remove partition",
+                                    pattern("\\bRemove-Partition\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_format_volume",
+                                    "PowerShell format volume",
+                                    pattern("\\bFormat-Volume\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_taskkill",
                                     "Windows force kill",
                                     pattern("\\btaskkill\\b.*\\s/f\\b"),
@@ -389,6 +404,35 @@ public class DangerousCommandApprovalService {
                                     "windows_reg_delete",
                                     "Windows registry delete",
                                     pattern("\\breg\\s+delete\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_execution_policy_weaken",
+                                    "PowerShell execution policy weakened",
+                                    pattern(
+                                            "\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_disable_firewall",
+                                    "Windows firewall disabled",
+                                    pattern(
+                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+\\$?false\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_disable_defender",
+                                    "Windows Defender protection disabled",
+                                    pattern(
+                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+\\$?true|-DisableBehaviorMonitoring\\s+\\$?true|-DisableIOAVProtection\\s+\\$?true))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_export_credentials",
+                                    "Windows credential or certificate export",
+                                    pattern(
+                                            "\\b(?:Export-PfxCertificate|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_delete_shadow_copies",
+                                    "Windows shadow copy deletion",
+                                    pattern("\\bvssadmin\\s+delete\\s+shadows\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "python_rmtree",
@@ -489,7 +533,18 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "hardline_windows_format",
                                     "format Windows volume",
-                                    pattern("\\bformat\\s+[a-z]:(\\s|$)"),
+                                    pattern(
+                                            "\\b(?:format\\s+[a-z]:|Format-Volume\\b)(\\s|$|[^\\n]*\\b(?:-DriveLetter|-Partition|-FileSystem)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_clear_disk",
+                                    "clear Windows disk",
+                                    pattern("\\bClear-Disk\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_windows_remove_partition",
+                                    "remove Windows partition",
+                                    pattern("\\bRemove-Partition\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_windows_delete_drive_root",

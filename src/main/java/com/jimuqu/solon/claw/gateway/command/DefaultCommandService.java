@@ -586,6 +586,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_DENY,
                         GatewayCommandConstants.COMMAND_ALWAYS,
                         GatewayCommandConstants.COMMAND_CANCEL,
+                        GatewayCommandConstants.COMMAND_CONFIRM,
                         GatewayCommandConstants.COMMAND_AGENT,
                         GatewayCommandConstants.COMMAND_HELP)
                 .contains(commandName);
@@ -883,6 +884,10 @@ public class DefaultCommandService implements CommandService {
                 return handleDangerousDeny(message, args);
             }
             return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
+        }
+
+        if (GatewayCommandConstants.COMMAND_CONFIRM.equals(command)) {
+            return handleSlashConfirmStatus(message);
         }
 
         if (GatewayCommandConstants.COMMAND_CRON.equals(command)) {
@@ -1523,6 +1528,15 @@ public class DefaultCommandService implements CommandService {
         return message != null && slashConfirmService.getPending(message.sourceKey()) != null;
     }
 
+    private GatewayReply handleSlashConfirmStatus(GatewayMessage message) {
+        SlashConfirmService.PendingConfirm pending =
+                message == null ? null : slashConfirmService.getPending(message.sourceKey());
+        if (pending == null) {
+            return GatewayReply.ok("当前没有待确认的 slash 命令。");
+        }
+        return GatewayReply.ok("当前待确认 slash 命令：/" + pending.getCommand() + "\n" + formatSlashConfirmPrompt(pending));
+    }
+
     private boolean hasPendingDangerousApproval(GatewayMessage message) {
         if (message == null) {
             return false;
@@ -1967,6 +1981,9 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
                 .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
+                .append("/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
+                .append("/cron edit <job-id> --clear-deliver-chat-id --clear-deliver-thread-id - 清空投递会话与线程\n")
+                .append("/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
                 .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
                 .append("/cron pause <job-id> [--reason 原因] - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")
@@ -2144,6 +2161,13 @@ public class DefaultCommandService implements CommandService {
                     .append(job.getNextRunAt() <= 0 ? "N/A" : String.valueOf(job.getNextRunAt()));
             String deliver = StrUtil.blankToDefault(job.getDeliverPlatform(), "local");
             buffer.append('\n').append("Deliver: ").append(deliver);
+            if (StrUtil.isNotBlank(job.getDeliverChatId())) {
+                buffer.append('\n').append("Deliver chat: ").append(job.getDeliverChatId());
+            }
+            if (StrUtil.isNotBlank(job.getDeliverThreadId())) {
+                buffer.append('\n').append("Deliver thread: ").append(job.getDeliverThreadId());
+            }
+            buffer.append('\n').append("Wrap response: ").append(job.isWrapResponse());
             if (StrUtil.isNotBlank(job.getPausedReason())) {
                 buffer.append('\n').append("Paused reason: ").append(job.getPausedReason());
             }
@@ -2163,6 +2187,17 @@ public class DefaultCommandService implements CommandService {
             if (StrUtil.isNotBlank(job.getWorkdir())) {
                 buffer.append('\n').append("Workdir: ").append(job.getWorkdir());
             }
+            appendCronListIterable(buffer, "Context from", view.get("context_from"));
+            appendCronListIterable(buffer, "Toolsets", view.get("enabled_toolsets"));
+            if (StrUtil.isNotBlank(job.getModel())) {
+                buffer.append('\n').append("Model: ").append(job.getModel());
+            }
+            if (StrUtil.isNotBlank(job.getProvider())) {
+                buffer.append('\n').append("Provider: ").append(job.getProvider());
+            }
+            if (StrUtil.isNotBlank(job.getBaseUrl())) {
+                buffer.append('\n').append("Base URL: ").append(job.getBaseUrl());
+            }
             buffer.append('\n')
                     .append("Prompt: ")
                     .append(StrUtil.blankToDefault(String.valueOf(view.get("prompt_preview")), ""));
@@ -2179,6 +2214,16 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return buffer.toString();
+    }
+
+    private void appendCronListIterable(StringBuilder buffer, String label, Object values) {
+        if (!(values instanceof Iterable)) {
+            return;
+        }
+        String text = joinIterable((Iterable<?>) values, ", ");
+        if (StrUtil.isNotBlank(text)) {
+            buffer.append('\n').append(label).append(": ").append(text);
+        }
     }
 
     private String formatCronRepeat(CronJobRecord job) {
@@ -2332,6 +2377,18 @@ public class DefaultCommandService implements CommandService {
                 body.put("skills", field.substring("-s ".length()).trim());
             } else if (field.startsWith("--deliver ")) {
                 body.put("deliver", field.substring("--deliver ".length()).trim());
+            } else if (field.startsWith("--deliver-chat-id ")) {
+                body.put("deliver_chat_id", field.substring("--deliver-chat-id ".length()).trim());
+            } else if (field.startsWith("--deliver_chat_id ")) {
+                body.put("deliver_chat_id", field.substring("--deliver_chat_id ".length()).trim());
+            } else if ("--clear-deliver-chat-id".equals(field) || "--clear-deliver_chat_id".equals(field)) {
+                body.put("deliver_chat_id", null);
+            } else if (field.startsWith("--deliver-thread-id ")) {
+                body.put("deliver_thread_id", field.substring("--deliver-thread-id ".length()).trim());
+            } else if (field.startsWith("--deliver_thread_id ")) {
+                body.put("deliver_thread_id", field.substring("--deliver_thread_id ".length()).trim());
+            } else if ("--clear-deliver-thread-id".equals(field) || "--clear-deliver_thread_id".equals(field)) {
+                body.put("deliver_thread_id", null);
             } else if (field.startsWith("--repeat ")) {
                 body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
             } else if (field.startsWith("--script ")) {
@@ -2358,12 +2415,18 @@ public class DefaultCommandService implements CommandService {
                 body.put("enabled_toolsets", new ArrayList<String>());
             } else if (field.startsWith("--model ")) {
                 body.put("model", field.substring("--model ".length()).trim());
+            } else if ("--clear-model".equals(field)) {
+                body.put("model", null);
             } else if (field.startsWith("--provider ")) {
                 body.put("provider", field.substring("--provider ".length()).trim());
+            } else if ("--clear-provider".equals(field)) {
+                body.put("provider", null);
             } else if (field.startsWith("--base-url ")) {
                 body.put("base_url", field.substring("--base-url ".length()).trim());
             } else if (field.startsWith("--base_url ")) {
                 body.put("base_url", field.substring("--base_url ".length()).trim());
+            } else if ("--clear-base-url".equals(field) || "--clear-base_url".equals(field)) {
+                body.put("base_url", null);
             } else if ("--no-agent".equals(field)) {
                 body.put("no_agent", Boolean.TRUE);
             } else if ("--agent".equals(field)) {
@@ -2381,6 +2444,14 @@ public class DefaultCommandService implements CommandService {
 
     private void appendCronFlagOptions(Map<String, Object> body, CronFlagOptions options) {
         putIfNotBlank(body, "deliver", options.deliver);
+        putCronStringOption(body, "deliver_chat_id", options.deliverChatId);
+        putCronStringOption(body, "deliver_thread_id", options.deliverThreadId);
+        if (options.clearDeliverChatId) {
+            body.put("deliver_chat_id", null);
+        }
+        if (options.clearDeliverThreadId) {
+            body.put("deliver_thread_id", null);
+        }
         if (options.repeat != null) {
             body.put("repeat", options.repeat);
         }
@@ -2392,6 +2463,15 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "model", options.model);
         putIfNotBlank(body, "provider", options.provider);
         putIfNotBlank(body, "base_url", options.baseUrl);
+        if (options.clearModel) {
+            body.put("model", null);
+        }
+        if (options.clearProvider) {
+            body.put("provider", null);
+        }
+        if (options.clearBaseUrl) {
+            body.put("base_url", null);
+        }
         if (options.clearScript) {
             body.put("script", null);
         }
@@ -2432,6 +2512,16 @@ public class DefaultCommandService implements CommandService {
                 options.name = tokens.get(++i);
             } else if ("--deliver".equals(token) && i + 1 < tokens.size()) {
                 options.deliver = tokens.get(++i);
+            } else if (("--deliver-chat-id".equals(token) || "--deliver_chat_id".equals(token))
+                    && i + 1 < tokens.size()) {
+                options.deliverChatId = tokens.get(++i);
+            } else if ("--clear-deliver-chat-id".equals(token) || "--clear-deliver_chat_id".equals(token)) {
+                options.clearDeliverChatId = true;
+            } else if (("--deliver-thread-id".equals(token) || "--deliver_thread_id".equals(token))
+                    && i + 1 < tokens.size()) {
+                options.deliverThreadId = tokens.get(++i);
+            } else if ("--clear-deliver-thread-id".equals(token) || "--clear-deliver_thread_id".equals(token)) {
+                options.clearDeliverThreadId = true;
             } else if ("--repeat".equals(token) && i + 1 < tokens.size()) {
                 options.repeat = Integer.valueOf(tokens.get(++i));
             } else if ("--limit".equals(token) && i + 1 < tokens.size()) {
@@ -2477,10 +2567,16 @@ public class DefaultCommandService implements CommandService {
                 options.clearToolsets = true;
             } else if ("--model".equals(token) && i + 1 < tokens.size()) {
                 options.model = tokens.get(++i);
+            } else if ("--clear-model".equals(token)) {
+                options.clearModel = true;
             } else if ("--provider".equals(token) && i + 1 < tokens.size()) {
                 options.provider = tokens.get(++i);
+            } else if ("--clear-provider".equals(token)) {
+                options.clearProvider = true;
             } else if (("--base-url".equals(token) || "--base_url".equals(token)) && i + 1 < tokens.size()) {
                 options.baseUrl = tokens.get(++i);
+            } else if ("--clear-base-url".equals(token) || "--clear-base_url".equals(token)) {
+                options.clearBaseUrl = true;
             } else if ("--no-agent".equals(token)) {
                 options.noAgent = true;
             } else if ("--agent".equals(token)) {
@@ -3370,6 +3466,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
                                         + " [now|always]；确认：/approve [确认编号]|/always|/cancel",
                                 "重新加载 MCP 工具并刷新工具变更基线"),
+                        helpLine(GatewayCommandConstants.SLASH_CONFIRM, "查看当前待确认 slash 命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_AGENT
                                         + " [name|list|create|show|model|tools|skills|memory]",
@@ -3599,6 +3696,10 @@ public class DefaultCommandService implements CommandService {
     private static class CronFlagOptions {
         private String name;
         private String deliver;
+        private String deliverChatId;
+        private String deliverThreadId;
+        private boolean clearDeliverChatId;
+        private boolean clearDeliverThreadId;
         private Integer repeat;
         private Integer limit;
         private String reason;
@@ -3617,6 +3718,9 @@ public class DefaultCommandService implements CommandService {
         private String model;
         private String provider;
         private String baseUrl;
+        private boolean clearModel;
+        private boolean clearProvider;
+        private boolean clearBaseUrl;
         private boolean clearScript;
         private boolean clearWorkdir;
         private boolean clearContextFrom;
