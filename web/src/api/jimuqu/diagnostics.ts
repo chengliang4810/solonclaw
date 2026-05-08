@@ -88,6 +88,17 @@ export interface ApprovalHistoryResult {
   items: ApprovalAuditEvent[]
 }
 
+export interface AlwaysApproval {
+  approval: string
+  tool_name?: string
+  pattern_key?: string
+}
+
+export interface AlwaysApprovalsResult {
+  count: number
+  items: AlwaysApproval[]
+}
+
 export interface PendingSlashConfirm {
   confirm_id: string
   source_key?: string
@@ -145,6 +156,17 @@ export async function fetchPendingApprovals(limit = 100): Promise<PendingApprova
 
 export async function fetchApprovalHistory(limit = 100): Promise<ApprovalHistoryResult> {
   return request<ApprovalHistoryResult>(`/api/diagnostics/approvals/history?limit=${limit}`)
+}
+
+export async function fetchAlwaysApprovals(limit = 100): Promise<AlwaysApprovalsResult> {
+  return request<AlwaysApprovalsResult>(`/api/diagnostics/approvals/always?limit=${limit}`)
+}
+
+export async function revokeAlwaysApproval(approval: string): Promise<ResolveApprovalResult> {
+  return request<ResolveApprovalResult>('/api/diagnostics/approvals/always/revoke', {
+    method: 'POST',
+    body: JSON.stringify({ approval }),
+  })
 }
 
 export async function fetchPendingSlashConfirms(limit = 100): Promise<PendingSlashConfirmsResult> {

@@ -1048,6 +1048,24 @@ public class DangerousCommandApprovalService {
         return new ArrayList<String>(loadAlwaysApprovedPatterns());
     }
 
+    public boolean revokeAlwaysApproval(String approvalPattern) throws Exception {
+        String normalized = StrUtil.nullToEmpty(approvalPattern).trim();
+        if (StrUtil.isBlank(normalized)) {
+            return false;
+        }
+        Set<String> approvals = loadAlwaysApprovedPatterns();
+        boolean removed = approvals.remove(normalized);
+        if (!removed) {
+            return false;
+        }
+        if (globalSettingRepository != null) {
+            globalSettingRepository.set(
+                    AgentSettingConstants.DANGEROUS_COMMAND_ALWAYS_PATTERNS,
+                    ONode.serialize(new ArrayList<String>(approvals)));
+        }
+        return true;
+    }
+
     public void clearSessionApprovals(AgentSession session) throws Exception {
         if (session == null) {
             return;

@@ -984,6 +984,65 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldListAndRevokeAlwaysDashboardApprovals() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        seedPendingApproval(
+                "dashboard-always-chat",
+                "MEMORY:dashboard-always-chat:dashboard-user",
+                "Dashboard always approval session",
+                "rm -rf runtime/cache");
+
+        HttpResult pending =
+                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
+        String selector = pendingData.get("selector").getString();
+        assertThat(selector).isNotBlank();
+
+        HttpResult approve =
+                request(
+                        "POST",
+                        "/api/diagnostics/approvals/resolve",
+                        "{\"sessionId\":\"dashboard-always-chat\",\"approvalId\":\""
+                                + jsonEscape(selector)
+                                + "\",\"action\":\"approve\",\"scope\":\"always\",\"resume\":false}",
+                        token);
+        assertThat(approve.status).isEqualTo(200);
+        assertThat(approve.body).contains("\"success\":true").contains("\"action\":\"approve\"");
+
+        HttpResult always =
+                request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
+        assertThat(always.status).isEqualTo(200);
+        assertThat(always.body)
+                .contains("\"count\"")
+                .contains("\"tool_name\":\"execute_shell\"");
+        ONode alwaysData = ONode.ofJson(always.body).get("data").get("items").get(0);
+        String approval = alwaysData.get("approval").getString();
+        String patternKey = alwaysData.get("pattern_key").getString();
+        assertThat(approval).startsWith("execute_shell:");
+        assertThat(patternKey).isNotBlank();
+        assertThat(bean(DangerousCommandApprovalService.class)
+                        .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
+                .isTrue();
+
+        HttpResult revoke =
+                request(
+                        "POST",
+                        "/api/diagnostics/approvals/always/revoke",
+                        "{\"approval\":\"" + jsonEscape(approval) + "\"}",
+                        token);
+        assertThat(revoke.status).isEqualTo(200);
+        assertThat(revoke.body).contains("\"success\":true").contains("长期授权已撤销");
+        assertThat(bean(DangerousCommandApprovalService.class)
+                        .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
+                .isFalse();
+
+        HttpResult after =
+                request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
+        assertThat(after.status).isEqualTo(200);
+        assertThat(after.body).doesNotContain(approval);
+    }
+
+    @Test
     void shouldListAndResolvePendingSlashConfirmsFromDashboard() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 

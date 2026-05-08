@@ -44,6 +44,23 @@ public class DashboardDiagnosticsController {
         return DashboardResponse.ok(diagnosticsService.approvalHistory(limit(context.param("limit"))));
     }
 
+    @Mapping(value = "/api/diagnostics/approvals/always", method = MethodType.GET)
+    public Map<String, Object> alwaysApprovals(Context context) {
+        return DashboardResponse.ok(diagnosticsService.alwaysApprovals(limit(context.param("limit"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Mapping(value = "/api/diagnostics/approvals/always/revoke", method = MethodType.POST)
+    public Map<String, Object> revokeAlwaysApproval(Context context) throws Exception {
+        String raw = context.body();
+        Object body = raw == null || raw.trim().length() == 0 ? null : ONode.ofJson(raw).toData();
+        Map<String, Object> payload =
+                body instanceof Map
+                        ? (Map<String, Object>) body
+                        : new LinkedHashMap<String, Object>();
+        return DashboardResponse.ok(diagnosticsService.revokeAlwaysApproval(payload));
+    }
+
     @Mapping(value = "/api/diagnostics/slash-confirms", method = MethodType.GET)
     public Map<String, Object> pendingSlashConfirms(Context context) {
         return DashboardResponse.ok(diagnosticsService.pendingSlashConfirms(limit(context.param("limit"))));

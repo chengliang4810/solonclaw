@@ -3,12 +3,15 @@ import { computed, onMounted, ref } from 'vue'
 import { NButton, NButtonGroup, NInput, NSelect, NSpin, NSwitch, NTag, useMessage } from 'naive-ui'
 import {
   auditSecurity,
+  fetchAlwaysApprovals,
   fetchApprovalHistory,
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
   resolveApproval,
   resolveSlashConfirm,
+  revokeAlwaysApproval,
+  type AlwaysApproval,
   type ApprovalAuditEvent,
   type Diagnostics,
   type PendingApproval,
@@ -23,10 +26,12 @@ const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
 const historyLoading = ref(false)
+const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
+const alwaysApprovals = ref<AlwaysApproval[]>([])
 const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
 const auditForm = ref({
   action: 'command',
@@ -38,6 +43,7 @@ const auditForm = ref({
   argsJson: '',
 })
 const resolvingKey = ref('')
+const revokingAlwaysKey = ref('')
 const resolvingConfirmKey = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
@@ -51,6 +57,7 @@ const auditActionOptions = [
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 const pendingCount = computed(() => pendingApprovals.value.length)
 const historyCount = computed(() => approvalHistory.value.length)
+const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
@@ -78,7 +85,13 @@ function decisionType(decision: unknown) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadApprovals(), loadHistory(), loadSlashConfirms()])
+    const [diagnosticsData] = await Promise.all([
+      fetchDiagnostics(),
+      loadApprovals(),
+      loadHistory(),
+      loadAlwaysApprovals(),
+      loadSlashConfirms(),
+    ])
     diagnostics.value = diagnosticsData
   } finally {
     loading.value = false
@@ -102,6 +115,16 @@ async function loadHistory() {
     approvalHistory.value = result.items || []
   } finally {
     historyLoading.value = false
+  }
+}
+
+async function loadAlwaysApprovals() {
+  alwaysLoading.value = true
+  try {
+    const result = await fetchAlwaysApprovals(100)
+    alwaysApprovals.value = result.items || []
+  } finally {
+    alwaysLoading.value = false
   }
 }
 
@@ -157,6 +180,23 @@ async function handleApproval(item: PendingApproval, action: 'approve' | 'deny',
 
 function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
   return resolvingKey.value === `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+}
+
+async function handleRevokeAlways(item: AlwaysApproval) {
+  const approval = item.approval || ''
+  revokingAlwaysKey.value = approval
+  try {
+    const result = await revokeAlwaysApproval(approval)
+    if (result.success) {
+      message.success(result.message || '长期授权已撤销')
+      const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadAlwaysApprovals()])
+      diagnostics.value = diagnosticsData
+      return
+    }
+    message.error(result.message || '长期授权撤销失败')
+  } finally {
+    revokingAlwaysKey.value = ''
+  }
 }
 
 async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' | 'always' | 'deny') {
@@ -512,6 +552,41 @@ onMounted(load)
               </article>
             </div>
             <div v-else class="empty-state">暂无审批历史</div>
+          </NSpin>
+        </section>
+        <section class="panel approvals-panel">
+          <div class="panel-title-row">
+            <h3>长期授权</h3>
+            <div class="panel-actions">
+              <NTag size="small" :type="alwaysCount ? 'warning' : 'success'">{{ alwaysCount }}</NTag>
+              <NButton size="small" :loading="alwaysLoading" @click="loadAlwaysApprovals">刷新</NButton>
+            </div>
+          </div>
+          <NSpin :show="alwaysLoading">
+            <div v-if="alwaysApprovals.length" class="approval-list">
+              <article v-for="item in alwaysApprovals" :key="item.approval" class="approval-item">
+                <div class="approval-head">
+                  <div>
+                    <strong>{{ item.pattern_key || item.approval }}</strong>
+                    <span>{{ item.tool_name || '-' }}</span>
+                  </div>
+                  <NTag size="small" type="warning">长期放行</NTag>
+                </div>
+                <pre class="approval-command">{{ item.approval }}</pre>
+                <div class="approval-actions">
+                  <NButton
+                    size="small"
+                    type="error"
+                    ghost
+                    :loading="revokingAlwaysKey === item.approval"
+                    @click="handleRevokeAlways(item)"
+                  >
+                    撤销
+                  </NButton>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state">暂无长期授权</div>
           </NSpin>
         </section>
         <section class="panel approvals-panel">

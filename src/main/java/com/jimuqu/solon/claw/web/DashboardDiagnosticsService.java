@@ -198,6 +198,38 @@ public class DashboardDiagnosticsService {
         return result;
     }
 
+    public Map<String, Object> alwaysApprovals(int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        if (approvalService != null) {
+            for (String approval : approvalService.listAlwaysApprovals()) {
+                items.add(alwaysApprovalItem(approval));
+                if (items.size() >= effectiveLimit) {
+                    break;
+                }
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("count", Integer.valueOf(items.size()));
+        result.put("items", items);
+        return result;
+    }
+
+    public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
+        Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
+        String approval = StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern"));
+        if (StrUtil.isBlank(approval)) {
+            return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
+        }
+        boolean changed = approvalService != null && approvalService.revokeAlwaysApproval(approval);
+        if (!changed) {
+            return resolveResult(false, "approval_not_found", "长期授权项不存在或已撤销。", null);
+        }
+        Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
+        result.put("approval", approval);
+        return result;
+    }
+
     public Map<String, Object> pendingSlashConfirms(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
@@ -454,6 +486,22 @@ public class DashboardDiagnosticsService {
         item.put("created_at", Long.valueOf(event.getCreatedAt()));
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
         item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
+        return item;
+    }
+
+    private Map<String, Object> alwaysApprovalItem(String approval) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        String value = StrUtil.nullToEmpty(approval);
+        String toolName = "";
+        String patternKey = "";
+        int colon = value.indexOf(':');
+        if (colon >= 0) {
+            toolName = value.substring(0, colon);
+            patternKey = value.substring(colon + 1);
+        }
+        item.put("approval", value);
+        item.put("tool_name", toolName);
+        item.put("pattern_key", patternKey);
         return item;
     }
 
