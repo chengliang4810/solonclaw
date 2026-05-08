@@ -14,6 +14,29 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Invoke-ProjectNamingGuard {
+    param([string] $Range)
+
+    if ([string]::IsNullOrWhiteSpace($Range)) {
+        return
+    }
+
+    $scriptPath = Join-Path $PSScriptRoot "check-project-naming.ps1"
+    if (-not (Test-Path -LiteralPath $scriptPath)) {
+        throw "Project naming guard script was not found."
+    }
+
+    $rootPath = (Get-Location).Path
+    $guardOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $scriptPath `
+        -RootPath $rootPath `
+        -CheckGitCommitSubjects `
+        -CheckGitObjectText `
+        -GitCommitRange $Range 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw ("Release naming guard failed for commit range: {0}`n{1}" -f $Range, ($guardOutput | Out-String))
+    }
+}
+
 function Get-BlockedReleaseRegex {
     $patterns = @(
         "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
@@ -88,11 +111,13 @@ Assert-CleanReleaseText $Tag
 Assert-CleanReleaseText $Version
 Assert-CleanReleaseText $CommitRange
 Assert-CleanReleaseText $DisplayRange
+Invoke-ProjectNamingGuard $CommitRange
 $commits = Get-CommitSubjects $CommitRange
 if ($commits.Length -eq 0) {
     $commits = Get-CommitSubjects "HEAD"
     $DisplayRange = (& git rev-parse --short HEAD).Trim()
     Assert-CleanReleaseText $DisplayRange
+    Invoke-ProjectNamingGuard "HEAD"
 }
 foreach ($commit in $commits) {
     Assert-CleanReleaseText $commit

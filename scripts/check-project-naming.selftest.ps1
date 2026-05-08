@@ -6,6 +6,10 @@ $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
+$legacyEnvFixture = ("HER" + "MES_ALLOW_PRIVATE_URLS")
+$legacyEnvFixtureLower = $legacyEnvFixture.ToLowerInvariant()
+$legacyBrandFixture = ("Open" + "Claw")
+$legacyBrandFixtureLower = $legacyBrandFixture.ToLowerInvariant()
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -106,6 +110,26 @@ try {
         throw "Naming check did not block a forbidden term with different casing."
     }
     Assert-NoRawBlockedOutput $caseInsensitiveBlocked.Output @($blockedFixtureLower) "case-insensitive directory text scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-env.txt") -Value ($legacyEnvFixture + "=true") -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "src\legacy-brand.txt") -Value ("Legacy brand: " + $legacyBrandFixture) -Encoding UTF8
+    $legacyNamingBlocked = Invoke-NamingCheck
+    if ($legacyNamingBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block concrete legacy project naming."
+    }
+    Assert-NoRawBlockedOutput $legacyNamingBlocked.Output @($legacyEnvFixture, $legacyBrandFixture) "concrete legacy directory text scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-env.txt") -Value ($legacyEnvFixtureLower + "=true") -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "src\legacy-brand.txt") -Value ("Legacy brand: " + $legacyBrandFixtureLower) -Encoding UTF8
+    $legacyLowerBlocked = Invoke-NamingCheck
+    if ($legacyLowerBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block lower-case concrete legacy project naming."
+    }
+    Assert-NoRawBlockedOutput $legacyLowerBlocked.Output @($legacyEnvFixtureLower, $legacyBrandFixtureLower) "lower-case concrete legacy directory text scan"
 
     Reset-Sandbox
     Push-Location $sandbox
