@@ -22,6 +22,12 @@ public final class SubprocessEnvironmentSanitizer {
                 "TMPDIR", "TMP", "TEMP", "SHELL", "LOGNAME", "XDG_", "PYTHONPATH",
                 "VIRTUAL_ENV", "CONDA", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT"
             };
+    private static final String[] SAFE_CONTEXT_ENV_NAMES =
+            new String[] {
+                "JIMUQU_KANBAN_TASK",
+                "JIMUQU_KANBAN_WORKER",
+                "JIMUQU_PROFILE"
+            };
     private static final String[] SECRET_ENV_SUBSTRINGS =
             new String[] {"KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "PASSWD", "AUTH"};
     private static final String SANE_POSIX_PATH =
@@ -71,6 +77,12 @@ public final class SubprocessEnvironmentSanitizer {
 
     public static boolean isSafeEnvName(String name) {
         String value = StrUtil.nullToEmpty(name);
+        String upper = value.toUpperCase(Locale.ROOT);
+        for (String safeName : SAFE_CONTEXT_ENV_NAMES) {
+            if (safeName.equals(upper)) {
+                return true;
+            }
+        }
         for (String prefix : SAFE_ENV_PREFIXES) {
             if (value.startsWith(prefix)) {
                 return true;
