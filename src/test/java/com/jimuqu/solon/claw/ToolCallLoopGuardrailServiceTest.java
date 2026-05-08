@@ -201,6 +201,43 @@ public class ToolCallLoopGuardrailServiceTest {
     }
 
     @Test
+    void shouldClassifyExternalBrowserToolNamesLikeHermesGuardrail() {
+        AppConfig config = new AppConfig();
+        config.getReact().setToolLoopNoProgressWarnAfter(2);
+        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(config).buildInterceptor();
+        ReActTrace trace = newTrace();
+
+        runSuccessfulCall(
+                interceptor,
+                trace,
+                "browser_snapshot",
+                args("ref", "page"),
+                "{\"status\":\"success\",\"snapshot\":\"same\"}");
+        runSuccessfulCall(
+                interceptor,
+                trace,
+                "browser_snapshot",
+                args("ref", "page"),
+                "{\"snapshot\":\"same\",\"status\":\"success\"}");
+        assertThat(trace.getLastObservation()).contains("idempotent_no_progress_warning");
+
+        ReActTrace mutatingTrace = newTrace();
+        runSuccessfulCall(
+                interceptor,
+                mutatingTrace,
+                "browser_click",
+                args("ref", "button"),
+                "{\"status\":\"success\"}");
+        runSuccessfulCall(
+                interceptor,
+                mutatingTrace,
+                "browser_click",
+                args("ref", "button"),
+                "{\"status\":\"success\"}");
+        assertThat(mutatingTrace.getLastObservation()).doesNotContain("工具循环提醒");
+    }
+
+    @Test
     void shouldResetExactFailureCountAfterSuccessfulCall() {
         AppConfig config = new AppConfig();
         config.getReact().setToolLoopExactFailureWarnAfter(2);
