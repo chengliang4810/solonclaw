@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.cli.TerminalClipboardSupport;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
 
 public class TerminalClipboardSupportTest {
@@ -63,5 +64,24 @@ public class TerminalClipboardSupportTest {
         assertThat(buffer.toString())
                 .contains("model=default/gpt-test")
                 .contains("tokens total=22 input=10 output=5 reasoning=2 cache_read=3 cache_write=4");
+    }
+
+    @Test
+    void shouldRenderVerboseSidecarEventSummary() {
+        StringWriter buffer = new StringWriter();
+        ConsoleEventSink sink = new ConsoleEventSink(new PrintWriter(buffer), true);
+
+        sink.onRunStarted("session");
+        sink.onAttemptStarted("run-1", 1, "default", "gpt-test");
+        sink.onToolStarted("terminal", Collections.<String, Object>emptyMap());
+        sink.onToolCompleted("terminal", "ok", 12L);
+        sink.onAttemptCompleted("run-1", 1, "success", "ok");
+        sink.onRunCompleted("session", "done", null);
+
+        assertThat(buffer.toString())
+                .contains("events total=6 tools=1 failures=0")
+                .contains("tool.done terminal 12ms")
+                .contains("attempt.done attempt=1 status=success ok")
+                .contains("run.done session=session");
     }
 }
