@@ -96,6 +96,11 @@ const router = createRouter({
       component: () => import('@/views/jimuqu/TerminalView.vue'),
     },
     {
+      path: '/jimuqu/mcp',
+      name: 'Jimuqu.mcp',
+      component: () => import('@/views/jimuqu/McpView.vue'),
+    },
+    {
       path: '/jimuqu/files',
       name: 'Jimuqu.files',
       component: () => import('@/views/jimuqu/FilesView.vue'),

@@ -256,6 +256,17 @@ function handleLogout() {
             </svg>
             <span>诊断</span>
           </button>
+          <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.mcp' }" @click="handleNav('Jimuqu.mcp')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 8h8v8H8z" />
+              <path d="M4 12h4" />
+              <path d="M16 12h4" />
+              <path d="M12 4v4" />
+              <path d="M12 16v4" />
+              <circle cx="12" cy="12" r="1.5" />
+            </svg>
+            <span>MCP / ACP</span>
+          </button>
         </div>
       </div>
     </nav>
