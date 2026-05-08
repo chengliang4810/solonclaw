@@ -1641,6 +1641,8 @@ public class KanbanService {
         overview.put("last_worker", firstNonNull(task.get("worker_id"), latestRun == null ? null : latestRun.get("worker_id")));
         overview.put("last_started_at", latestRun == null ? null : latestRun.get("started_at"));
         overview.put("last_ended_at", latestRun == null ? null : latestRun.get("ended_at"));
+        overview.put("last_duration_ms", latestRun == null ? null : latestRun.get("duration_ms"));
+        overview.put("last_timed_out", latestRun == null ? null : latestRun.get("timed_out"));
         overview.put(
                 "last_heartbeat_at",
                 firstNonNull(task.get("last_heartbeat_at"), latestRun == null ? null : latestRun.get("last_heartbeat_at")));
@@ -2564,11 +2566,41 @@ public class KanbanService {
         item.put("last_heartbeat_at", run.getLastHeartbeatAt() <= 0 ? null : iso(run.getLastHeartbeatAt()));
         item.put("started_at", iso(run.getStartedAt()));
         item.put("ended_at", run.getEndedAt() <= 0 ? null : iso(run.getEndedAt()));
+        item.put("finished", Boolean.valueOf(run.getEndedAt() > 0));
+        item.put("running", Boolean.valueOf(isRunningRun(run)));
+        item.put("duration_ms", runDurationMillis(run));
+        item.put("timed_out", Boolean.valueOf(isTimedOutRun(run)));
         item.put("outcome", run.getOutcome());
         item.put("summary", run.getSummary());
         item.put("metadata", parseJson(run.getMetadataJson()));
         item.put("error", run.getError());
         return item;
+    }
+
+    private boolean isRunningRun(KanbanRunRecord run) {
+        return run != null && run.getEndedAt() <= 0 && "running".equalsIgnoreCase(run.getStatus());
+    }
+
+    private Long runDurationMillis(KanbanRunRecord run) {
+        if (run == null || run.getStartedAt() <= 0) {
+            return null;
+        }
+        long end = run.getEndedAt() > 0 ? run.getEndedAt() : System.currentTimeMillis();
+        return Long.valueOf(Math.max(0L, end - run.getStartedAt()));
+    }
+
+    private boolean isTimedOutRun(KanbanRunRecord run) {
+        if (run == null) {
+            return false;
+        }
+        if ("timed_out".equalsIgnoreCase(StrUtil.nullToEmpty(run.getOutcome()))) {
+            return true;
+        }
+        if (!isRunningRun(run) || run.getMaxRuntimeSeconds() <= 0 || run.getStartedAt() <= 0) {
+            return false;
+        }
+        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - run.getStartedAt());
+        return elapsedMillis > run.getMaxRuntimeSeconds() * 1000L;
     }
 
     private List<Map<String, Object>> taskRefs(List<KanbanTaskRecord> tasks) {

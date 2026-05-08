@@ -257,6 +257,11 @@ public class KanbanServiceTest {
         assertThat(running.get("current_run_id")).isNotNull();
         assertThat(String.valueOf(running.get("active_run"))).contains("worker-a").contains("running");
         assertThat(String.valueOf(running.get("runs"))).contains("lock-a");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> activeRun = (Map<String, Object>) running.get("active_run");
+        assertThat(activeRun.get("running")).isEqualTo(Boolean.TRUE);
+        assertThat(activeRun.get("finished")).isEqualTo(Boolean.FALSE);
+        assertThat(((Number) activeRun.get("duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
 
         Map<String, Object> done =
                 service.status(taskId, "done", "执行完成", "handoff summary", null);
@@ -267,6 +272,12 @@ public class KanbanServiceTest {
                 .contains("completed")
                 .contains("handoff summary")
                 .contains("verified_cards");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> completedRun = (Map<String, Object>) done.get("latest_run");
+        assertThat(completedRun.get("running")).isEqualTo(Boolean.FALSE);
+        assertThat(completedRun.get("finished")).isEqualTo(Boolean.TRUE);
+        assertThat(completedRun.get("timed_out")).isEqualTo(Boolean.FALSE);
+        assertThat(((Number) completedRun.get("duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
 
         Map<String, Object> retried = service.retry(taskId, "需要复核");
         assertThat(retried.get("status")).isEqualTo("ready");
@@ -303,6 +314,10 @@ public class KanbanServiceTest {
                 .contains("latest_outcome=reclaimed")
                 .contains("last_event_kind=reclaimed")
                 .contains("next_action=dispatch");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> overview = (Map<String, Object>) drawer.get("execution_overview");
+        assertThat(((Number) overview.get("last_duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(overview.get("last_timed_out")).isEqualTo(Boolean.FALSE);
         assertThat(service.handleCommand("runs " + taskId, "tester"))
                 .contains("运行历史")
                 .contains("reclaimed");
