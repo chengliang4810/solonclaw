@@ -231,13 +231,13 @@ try {
     if ($CheckGitCommitSubjects) {
         $git = Get-Command git -ErrorAction SilentlyContinue
         if ($null -eq $git) {
-            Write-Host "git was not found, cannot check commit subjects." -ForegroundColor Red
+            Write-Host "git was not found, cannot check commit text." -ForegroundColor Red
             exit 1
         }
 
         $insideWorkTree = (& git rev-parse --is-inside-work-tree 2>$null)
         if ($LASTEXITCODE -ne 0 -or $insideWorkTree -ne "true") {
-            Write-Host "Current path is not a git work tree, cannot check commit subjects." -ForegroundColor Red
+            Write-Host "Current path is not a git work tree, cannot check commit text." -ForegroundColor Red
             exit 1
         }
 
@@ -273,6 +273,43 @@ try {
         if ($subjectMatches) {
             Write-Host "Blocked legacy project naming in git commit subjects. Rewrite or replace the commit subject before publishing release notes." -ForegroundColor Red
             $subjectMatches | ForEach-Object { Write-Host (Hide-BlockedText $_) -ForegroundColor Red }
+            exit 1
+        }
+
+        $messageMatches = New-Object System.Collections.Generic.List[string]
+        if ($skipRangeCheck) {
+            $messageCommits = @()
+        } elseif ($CheckAllGitRefs) {
+            $messageCommits = & git log --all --format="%H" 2>$null
+        } else {
+            $messageCommits = & git log --format="%H" $range 2>$null
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ("Failed to read git commits for message scan range: {0}" -f $range) -ForegroundColor Red
+            exit 1
+        }
+        foreach ($commit in $messageCommits) {
+            if ([string]::IsNullOrWhiteSpace($commit)) {
+                continue
+            }
+            $commit = ($commit -as [string]).Trim()
+            if ($commit -notmatch '^[0-9a-fA-F]{7,40}$') {
+                Write-Host "Unexpected git commit id while scanning commit messages." -ForegroundColor Red
+                exit 1
+            }
+            $message = (& git log -1 --format="%B" $commit 2>$null) | Out-String
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host ("Failed to read git commit message for commit: {0}" -f $commit) -ForegroundColor Red
+                exit 1
+            }
+            if ($regex.IsMatch($message)) {
+                $messageMatches.Add(("{0}:<blocked>" -f $commit.Substring(0, 12)))
+            }
+        }
+
+        if ($messageMatches) {
+            Write-Host "Blocked legacy project naming in git commit messages. Rewrite or replace the commit before publishing release notes." -ForegroundColor Red
+            $messageMatches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
             exit 1
         }
     }

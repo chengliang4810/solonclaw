@@ -18,6 +18,7 @@ import {
   reassignKanbanTask,
   retryKanbanTask,
   startKanbanDaemon,
+  stepKanbanTask,
   stopKanbanDaemon,
   switchKanbanBoard,
   updateKanbanTask,
@@ -44,6 +45,7 @@ const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
 const commentText = ref('')
 const recoveryReason = ref('')
 const reassignAssignee = ref('')
+const stepForm = ref({ workflow_template_id: '', step_key: '', note: '' })
 const dispatching = ref(false)
 const daemonBusy = ref(false)
 const daemon = ref<KanbanDaemonStatus | null>(null)
@@ -63,6 +65,10 @@ const taskForm = ref({
   priority: 0,
   max_retries: null as number | null,
   tenant: '',
+  parents: '',
+  skills: '',
+  workflow_template_id: '',
+  current_step_key: '',
 })
 const boardForm = ref({ slug: '', name: '', description: '' })
 
@@ -171,6 +177,41 @@ function filterText(value: string | null | undefined) {
   return (value || '').trim()
 }
 
+function splitList(value: string): string[] {
+  return value
+    .split(/[\s,，]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function taskRefText(tasks?: Array<Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>>): string {
+  return (tasks || [])
+    .map(task => task.task_id || task.id)
+    .filter(Boolean)
+    .join(', ')
+}
+
+function skillsText(skills: unknown): string {
+  if (!skills) return ''
+  if (Array.isArray(skills)) {
+    return skills.map(item => String(item)).filter(Boolean).join(', ')
+  }
+  if (typeof skills === 'string') return skills
+  return ''
+}
+
+function taskPipelineLabel(task: KanbanTask): string {
+  const values = []
+  if (task.workflow_template_id) values.push(task.workflow_template_id)
+  if (task.current_step_key) values.push(task.current_step_key)
+  return values.join(' / ')
+}
+
+function taskRefLabel(task: Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>): string {
+  const owner = task.assignee ? ` @${task.assignee}` : ''
+  return `${task.task_id || task.id} · ${task.title || '-'} · ${statusLabels[task.status as KanbanStatus] || task.status || '-'}${owner}`
+}
+
 async function handleFilterChange() {
   await reloadTasks()
 }
@@ -191,6 +232,10 @@ function openCreateTask() {
     priority: 0,
     max_retries: null,
     tenant: '',
+    parents: '',
+    skills: '',
+    workflow_template_id: '',
+    current_step_key: '',
   }
   showTaskModal.value = true
 }
@@ -206,10 +251,19 @@ async function openTask(task: KanbanTask) {
     priority: selectedTask.value.priority || 0,
     max_retries: selectedTask.value.max_retries || null,
     tenant: selectedTask.value.tenant || '',
+    parents: taskRefText(selectedTask.value.parents),
+    skills: skillsText(selectedTask.value.skills),
+    workflow_template_id: selectedTask.value.workflow_template_id || '',
+    current_step_key: selectedTask.value.current_step_key || '',
   }
   commentText.value = ''
   recoveryReason.value = ''
   reassignAssignee.value = selectedTask.value.assignee || ''
+  stepForm.value = {
+    workflow_template_id: selectedTask.value.workflow_template_id || '',
+    step_key: selectedTask.value.current_step_key || '',
+    note: '',
+  }
   showTaskModal.value = true
 }
 
@@ -227,6 +281,10 @@ async function saveTask() {
     priority: taskForm.value.priority || 0,
     max_retries: taskForm.value.max_retries || null,
     tenant: taskForm.value.tenant.trim(),
+    parents: splitList(taskForm.value.parents),
+    skills: splitList(taskForm.value.skills),
+    workflow_template_id: taskForm.value.workflow_template_id.trim(),
+    current_step_key: taskForm.value.current_step_key.trim(),
   }
   if (selectedTask.value) {
     await updateKanbanTask(selectedTask.value.id, payload)
@@ -252,6 +310,35 @@ async function saveComment() {
   selectedTask.value = selectedDrawer.value.task
   commentText.value = ''
   await reloadTasks()
+}
+
+async function advanceSelectedStep() {
+  if (!selectedTask.value) return
+  if (!stepForm.value.step_key.trim()) {
+    message.error('请输入目标步骤')
+    return
+  }
+  try {
+    selectedTask.value = await stepKanbanTask(selectedTask.value.id, {
+      workflow_template_id: stepForm.value.workflow_template_id.trim(),
+      step_key: stepForm.value.step_key.trim(),
+      note: stepForm.value.note.trim(),
+      actor: 'dashboard',
+    })
+    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+    selectedTask.value = selectedDrawer.value.task
+    stepForm.value = {
+      workflow_template_id: selectedTask.value.workflow_template_id || '',
+      step_key: selectedTask.value.current_step_key || '',
+      note: '',
+    }
+    taskForm.value.workflow_template_id = stepForm.value.workflow_template_id
+    taskForm.value.current_step_key = stepForm.value.step_key
+    message.success('流程步骤已推进')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '推进流程步骤失败')
+  }
 }
 
 async function reclaimSelectedTask() {
@@ -394,16 +481,94 @@ function eventSummary(event: KanbanEvent): string {
   if (event.kind === 'completed') {
     return `完成记录：${String(payload.summary || '')}`
   }
+  if (event.kind === 'step_changed') {
+    const workflow = String(payload.to_workflow || payload.from_workflow || '-')
+    const fromStep = String(payload.from_step || '-')
+    const toStep = String(payload.to_step || '-')
+    const note = payload.note ? `：${String(payload.note)}` : ''
+    return `流程 ${workflow}：${fromStep} -> ${toStep}${note}`
+  }
   return event.kind
 }
 
 function runSummary(run: KanbanRun): string {
-  const outcome = run.outcome || run.status
-  const worker = run.worker_id || run.profile || '-'
-  const state = run.timed_out ? '已超时' : run.running ? '运行中' : run.finished ? '已结束' : '未结束'
+  if (run.summary) return run.summary
+  if (run.error) return run.error
+  return run.outcome || run.status || '-'
+}
+
+function runStatusLabel(run: KanbanRun): string {
+  if (run.timed_out) return '已超时'
+  const value = run.outcome || run.status
+  const labels: Record<string, string> = {
+    running: '运行中',
+    ok: '成功',
+    success: '成功',
+    done: '完成',
+    failed: '失败',
+    error: '错误',
+    cancelled: '已取消',
+    timeout: '超时',
+    timed_out: '超时',
+    pending: '等待',
+  }
+  return value ? labels[value] || value : '-'
+}
+
+function runStateLabel(run: KanbanRun): string {
+  if (run.timed_out) return '超时'
+  if (run.running) return '运行中'
+  if (run.finished) return '已结束'
+  return '未结束'
+}
+
+function runTone(run: KanbanRun): Record<string, boolean> {
+  const value = `${run.outcome || ''} ${run.status || ''}`.toLowerCase()
+  return {
+    active: Boolean(run.running),
+    timeout: Boolean(run.timed_out || value.includes('timeout')),
+    failed: Boolean(value.includes('fail') || value.includes('error')),
+    success: Boolean(value.includes('ok') || value.includes('success') || value.includes('done')),
+  }
+}
+
+function runMetadata(run: KanbanRun): Record<string, unknown> | null {
+  if (run.metadata && typeof run.metadata === 'object' && !Array.isArray(run.metadata)) {
+    return run.metadata as Record<string, unknown>
+  }
+  return null
+}
+
+function compactValue(value: unknown): string {
+  if (value === null || value === undefined) return '-'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function runMetadataSummary(run: KanbanRun): string {
+  const metadata = runMetadata(run)
+  if (!metadata) return ''
+  const entries = Object.entries(metadata).filter(([, value]) => value !== null && value !== undefined)
+  if (!entries.length) return ''
+  return entries
+    .slice(0, 6)
+    .map(([key, value]) => `${key}=${compactValue(value)}`)
+    .join(' / ')
+}
+
+function runTimingSummary(run: KanbanRun): string {
+  const parts = []
+  if (run.started_at) parts.push(`开始 ${run.started_at}`)
+  if (run.ended_at) parts.push(`结束 ${run.ended_at}`)
+  if (run.last_heartbeat_at) parts.push(`心跳 ${run.last_heartbeat_at}`)
   const duration = formatDuration(run.duration_ms)
-  const summary = run.summary ? `：${run.summary}` : ''
-  return `${outcome} / ${worker} / ${state}${duration ? ` / ${duration}` : ''}${summary}`
+  if (duration) parts.push(`耗时 ${duration}`)
+  return parts.join(' / ')
 }
 
 function formatDuration(durationMs?: number | null): string {
@@ -615,6 +780,11 @@ function hasWarnings(task: KanbanTask): boolean {
                 <span>@{{ task.assignee || '未分配' }}</span>
                 <span v-if="task.tenant">{{ task.tenant }}</span>
               </div>
+              <div v-if="taskPipelineLabel(task) || (task.parents || []).length || (task.children || []).length" class="task-pipeline">
+                <span v-if="taskPipelineLabel(task)">{{ taskPipelineLabel(task) }}</span>
+                <span v-if="(task.parents || []).length">前置 {{ (task.parents || []).length }}</span>
+                <span v-if="(task.children || []).length">后续 {{ (task.children || []).length }}</span>
+              </div>
               <div class="task-actions" @click.stop>
                 <NButton
                   v-for="status in visibleStatuses"
@@ -646,6 +816,24 @@ function hasWarnings(task: KanbanTask): boolean {
         </label>
         <div class="form-grid">
           <label>
+            <span>前置任务</span>
+            <NInput v-model:value="taskForm.parents" placeholder="task-1, task-2" />
+          </label>
+          <label>
+            <span>技能绑定</span>
+            <NInput v-model:value="taskForm.skills" placeholder="skill-a, skill-b" />
+          </label>
+          <label>
+            <span>流程模板</span>
+            <NInput v-model:value="taskForm.workflow_template_id" placeholder="可选" />
+          </label>
+          <label>
+            <span>当前步骤</span>
+            <NInput v-model:value="taskForm.current_step_key" placeholder="例如 draft / review / deliver" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
             <span>状态</span>
             <NSelect v-model:value="taskForm.status" :options="statusOptions" />
           </label>
@@ -670,6 +858,32 @@ function hasWarnings(task: KanbanTask): boolean {
           <div class="detail-strip">
             <span>启动失败 {{ selectedTask.spawn_failures || 0 }} 次</span>
             <span>最大重试 {{ selectedTask.max_retries || '跟随派发器' }}</span>
+            <span v-if="selectedTask.workflow_template_id">流程 {{ selectedTask.workflow_template_id }}</span>
+            <span v-if="selectedTask.current_step_key">步骤 {{ selectedTask.current_step_key }}</span>
+            <span v-if="skillsText(selectedTask.skills)">技能 {{ skillsText(selectedTask.skills) }}</span>
+          </div>
+          <div class="pipeline-panel">
+            <div class="panel-title">流程步骤推进</div>
+            <div class="pipeline-actions">
+              <NInput v-model:value="stepForm.workflow_template_id" placeholder="流程模板，例如 delivery" />
+              <NInput v-model:value="stepForm.step_key" placeholder="目标步骤，例如 review" />
+              <NInput v-model:value="stepForm.note" placeholder="推进说明" />
+              <NButton type="primary" @click="advanceSelectedStep">记录推进</NButton>
+            </div>
+          </div>
+          <div v-if="(selectedTask.parents || []).length || (selectedTask.children || []).length" class="task-relations">
+            <div v-if="(selectedTask.parents || []).length">
+              <div class="panel-title">前置任务</div>
+              <div v-for="parent in selectedTask.parents || []" :key="parent.id" class="relation-row">
+                {{ taskRefLabel(parent) }}
+              </div>
+            </div>
+            <div v-if="(selectedTask.children || []).length">
+              <div class="panel-title">后续任务</div>
+              <div v-for="child in selectedTask.children || []" :key="child.id" class="relation-row">
+                {{ taskRefLabel(child) }}
+              </div>
+            </div>
           </div>
           <div v-if="selectedDrawer?.execution_overview" class="execution-overview">
             <div class="panel-title">执行概览</div>
@@ -743,11 +957,40 @@ function hasWarnings(task: KanbanTask): boolean {
           <div v-if="(selectedTask.runs || []).length" class="runs">
             <div class="comments-title">运行历史</div>
             <div v-for="run in selectedTask.runs || []" :key="run.id" class="run-row">
-              <span class="run-status" :class="{ active: run.running, timeout: run.timed_out }">
-                {{ run.timed_out ? 'timeout' : run.status }}
-              </span>
-              <span>{{ runSummary(run) }}</span>
-              <span class="run-time">{{ run.started_at || '-' }}</span>
+              <div class="run-head">
+                <span class="run-status" :class="runTone(run)">{{ runStatusLabel(run) }}</span>
+                <strong>{{ runSummary(run) }}</strong>
+                <span class="run-time">{{ run.run_id || run.id }}</span>
+              </div>
+              <div class="run-grid">
+                <div>
+                  <span>Profile</span>
+                  <strong>{{ run.profile || '-' }}</strong>
+                </div>
+                <div>
+                  <span>步骤</span>
+                  <strong>{{ run.step_key || '-' }}</strong>
+                </div>
+                <div>
+                  <span>Worker</span>
+                  <strong>{{ run.worker_id || '-' }}</strong>
+                </div>
+                <div>
+                  <span>PID</span>
+                  <strong>{{ run.worker_pid || '-' }}</strong>
+                </div>
+                <div>
+                  <span>状态</span>
+                  <strong>{{ runStateLabel(run) }}</strong>
+                </div>
+                <div>
+                  <span>最大运行</span>
+                  <strong>{{ run.max_runtime_seconds ? `${run.max_runtime_seconds}s` : '-' }}</strong>
+                </div>
+              </div>
+              <div v-if="runTimingSummary(run)" class="run-line">{{ runTimingSummary(run) }}</div>
+              <div v-if="run.error" class="run-error">{{ run.error }}</div>
+              <div v-if="runMetadataSummary(run)" class="run-metadata">{{ runMetadataSummary(run) }}</div>
             </div>
           </div>
 
@@ -1017,6 +1260,24 @@ function hasWarnings(task: KanbanTask): boolean {
   font-size: 11px;
 }
 
+.task-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+
+  span {
+    min-width: 0;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: $text-muted;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+}
+
 .task-id {
   font-family: $font-code;
 }
@@ -1117,6 +1378,8 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .recovery-panel,
 .execution-overview,
+.pipeline-panel,
+.task-relations,
 .runs,
 .events,
 .notifications,
@@ -1194,11 +1457,38 @@ function hasWarnings(task: KanbanTask): boolean {
   margin-top: 8px;
 }
 
+.task-relations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.relation-row {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: $text-secondary;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+
+  & + & {
+    margin-top: 6px;
+  }
+}
+
 .recovery-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   margin-top: 8px;
+  align-items: center;
+}
+
+.pipeline-actions {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(160px, 1.2fr) auto;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1213,13 +1503,6 @@ function hasWarnings(task: KanbanTask): boolean {
 .log-meta {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 8px;
-  padding: 5px 0;
-}
-
-.run-row {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 150px;
   gap: 8px;
   padding: 5px 0;
 }
@@ -1249,12 +1532,104 @@ function hasWarnings(task: KanbanTask): boolean {
   font-size: 11px;
 }
 
+.run-row {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: $bg-card-hover;
+}
+
+.run-head {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) minmax(120px, auto);
+  gap: 8px;
+  align-items: center;
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
+
+.run-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+
+  div {
+    min-width: 0;
+  }
+
+  span,
+  strong {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 11px;
+  }
+
+  strong {
+    color: $text-secondary;
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
+.run-line,
+.run-metadata,
+.run-error {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.run-metadata {
+  color: $text-muted;
+  font-family: $font-code;
+  font-size: 11px;
+}
+
+.run-error {
+  color: #b91c1c;
+  font-family: $font-code;
+  font-size: 11px;
+}
+
+.run-status {
+  border: 1px solid $border-color;
+  border-radius: 999px;
+  padding: 2px 7px;
+  text-align: center;
+}
+
 .run-status.active {
   color: #1d4ed8;
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .run-status.timeout {
   color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.run-status.failed {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.run-status.success {
+  color: #047857;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
 }
 
 .comment {
@@ -1379,8 +1754,12 @@ function hasWarnings(task: KanbanTask): boolean {
     grid-template-columns: 1fr;
   }
 
+  .pipeline-actions,
   .recovery-actions,
   .overview-grid,
+  .task-relations,
+  .run-head,
+  .run-grid,
   .run-row,
   .event-row,
   .notification-row,

@@ -96,6 +96,11 @@ public class DashboardKanbanController {
         return DashboardResponse.ok(kanbanService.status(taskId, body(context)));
     }
 
+    @Mapping(value = "/api/kanban/tasks/{taskId}/step", method = MethodType.POST)
+    public Map<String, Object> step(String taskId, Context context) throws Exception {
+        return DashboardResponse.ok(kanbanService.step(taskId, body(context)));
+    }
+
     @Mapping(value = "/api/kanban/tasks/{taskId}/reclaim", method = MethodType.POST)
     public Map<String, Object> reclaim(String taskId, Context context) throws Exception {
         return DashboardResponse.ok(kanbanService.reclaim(taskId, body(context)));

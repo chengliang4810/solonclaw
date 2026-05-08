@@ -297,6 +297,31 @@ public class KanbanService {
         return task(child);
     }
 
+    public Map<String, Object> step(
+            String taskId, String stepKey, String workflowTemplateId, String note, String actor)
+            throws Exception {
+        String tid = requireArg(taskId, "kanban_step task_id");
+        String nextStep = requireArg(stepKey, "kanban_step step_key");
+        KanbanTaskRecord task = requireTask(tid);
+        String previousStep = task.getCurrentStepKey();
+        String previousWorkflow = task.getWorkflowTemplateId();
+        if (StrUtil.isNotBlank(workflowTemplateId)) {
+            task.setWorkflowTemplateId(workflowTemplateId.trim());
+        }
+        task.setCurrentStepKey(nextStep.trim());
+        repository.saveTask(task);
+
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("from_step", previousStep);
+        payload.put("to_step", task.getCurrentStepKey());
+        payload.put("from_workflow", previousWorkflow);
+        payload.put("to_workflow", task.getWorkflowTemplateId());
+        payload.put("note", note);
+        payload.put("actor", StrUtil.blankToDefault(actor, "user"));
+        addEvent(tid, "step_changed", payload);
+        return task(tid);
+    }
+
     public Map<String, Object> status(String taskId, String status, String result) throws Exception {
         return status(taskId, status, result, null, null);
     }
@@ -752,6 +777,9 @@ public class KanbanService {
         if ("create".equals(action) || "new".equals(action)) {
             return createCommand(rest, author);
         }
+        if ("schema".equals(action) || "schema-create".equals(action) || "create-json".equals(action)) {
+            return schemaCreateCommand(rest, author);
+        }
         if ("list".equals(action) || "ls".equals(action)) {
             return listCommand(rest, author);
         }
@@ -785,6 +813,9 @@ public class KanbanService {
             }
             unlink(tokens[0], tokens[1]);
             return "已移除依赖：" + tokens[0] + " -> " + tokens[1];
+        }
+        if ("step".equals(action) || "pipeline".equals(action)) {
+            return stepCommand(rest, author);
         }
         if ("reclaim".equals(action)) {
             ParsedKanbanOptions parsed = parseCommandOptions(rest);
@@ -937,6 +968,28 @@ public class KanbanService {
         return kanbanHelp();
     }
 
+    private String stepCommand(String rest, String author) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<String> tokens = positionalTokens(parsed);
+        if (tokens.size() < 2) {
+            return "用法：/kanban step <task-id> <step-key> [--workflow template] [--note text] [--json]";
+        }
+        String taskId = tokens.get(0);
+        String stepKey = tokens.get(1);
+        String note = firstNonBlank(parsed.value("note"), joinTokens(tokens, 2));
+        Map<String, Object> detail = step(taskId, stepKey, parsed.value("workflow"), note, author);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(detail);
+        }
+        return "已推进任务步骤："
+                + taskId
+                + " -> "
+                + detail.get("current_step_key")
+                + "（流程："
+                + StrUtil.blankToDefault(String.valueOf(detail.get("workflow_template_id")), "-")
+                + "）";
+    }
+
     private String createCommand(String rest, String author) throws Exception {
         String createUsage = "/kanban create <title> [--body text] [--assignee name] [--parent task-id] [--max-retries N]";
         String raw = requireArg(rest, createUsage);
@@ -986,6 +1039,31 @@ public class KanbanService {
             return ONode.serialize(created);
         }
         return "已创建看板任务："
+                + taskId(created)
+                + "  ("
+                + created.get("status")
+                + ", assignee="
+                + StrUtil.blankToDefault((String) created.get("assignee"), "-")
+                + ")";
+    }
+
+    private String schemaCreateCommand(String rest, String author) throws Exception {
+        String usage = "/kanban schema <task-json> [--json]";
+        String raw = requireArg(rest, usage);
+        ParsedKanbanOptions parsed = parseCommandOptions(raw);
+        String json = parsed.positionalText();
+        if (StrUtil.isBlank(json)) {
+            return "用法：" + usage;
+        }
+        Map<String, Object> body = parseJsonObject(json, "kanban schema task");
+        if (!body.containsKey("created_by")) {
+            body.put("created_by", StrUtil.blankToDefault(author, "user"));
+        }
+        Map<String, Object> created = createTask(body);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(created);
+        }
+        return "已创建结构化看板任务："
                 + taskId(created)
                 + "  ("
                 + created.get("status")
@@ -1948,9 +2026,11 @@ public class KanbanService {
                 Arrays.asList(
                         "/kanban list - 查看当前看板任务",
                         "/kanban create <title> - 创建任务",
+                        "/kanban schema <task-json> - 用 JSON 创建结构化任务",
                         "/kanban show <task-id> - 查看任务详情",
                         "/kanban move <task-id> <status> - 移动任务状态",
                         "/kanban assign <task-id> <assignee> - 分配执行人",
+                        "/kanban step <task-id> <step-key> [--workflow template] [--note text] - 推进任务流程步骤",
                         "/kanban reclaim <task-id> [reason] - 收回运行中的任务",
                         "/kanban reassign <task-id> <assignee> [--reclaim] - 重新分配任务",
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",
@@ -2751,6 +2831,20 @@ public class KanbanService {
             throw new IllegalArgumentException("kanban edit --metadata must be a JSON object");
         }
         return ONode.serialize(parsed);
+    }
+
+    private Map<String, Object> parseJsonObject(String json, String label) {
+        Object parsed = ONode.deserialize(json, Object.class);
+        if (!(parsed instanceof Map<?, ?>)) {
+            throw new IllegalArgumentException(label + " must be a JSON object");
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) parsed).entrySet()) {
+            if (entry.getKey() != null) {
+                result.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return result;
     }
 
     private Map<String, Object> assigneeEntry(String name) {

@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -899,6 +900,42 @@ public class DefaultCronSchedulerTest {
                 .isEqualTo("ok");
         assertThat(env.cronJobRepository.listRuns("job-delivery-error", 5).get(0).getDeliveryError())
                 .contains("platform offline");
+    }
+
+    @Test
+    void shouldRecordCronDeliveryResultPerTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobRecord job = job("job-delivery-result", "MEMORY:first-room:admin-user");
+        job.setDeliverPlatform("MEMORY:first-room,MEMORY:second-room");
+        env.cronJobRepository.save(job);
+        SelectiveFailingDeliveryService deliveryService = new SelectiveFailingDeliveryService("second-room", "second offline");
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        deliveryService,
+                        env.gatewayPolicyRepository);
+        scheduler.tick();
+
+        List<CronJobRunRecord> runs = env.cronJobRepository.listRuns("job-delivery-result", 5);
+        assertThat(runs).hasSize(1);
+        CronJobRunRecord run = runs.get(0);
+        assertThat(run.getStatus()).isEqualTo("ok");
+        assertThat(run.getDeliveryError()).contains("1/2 delivery target");
+        assertThat(run.getDeliveryResultJson()).contains("\"total\":2");
+        assertThat(run.getDeliveryResultJson()).contains("\"delivered\":1");
+        assertThat(run.getDeliveryResultJson()).contains("\"failed\":1");
+        assertThat(run.getDeliveryResultJson()).contains("first-room");
+        assertThat(run.getDeliveryResultJson()).contains("second offline");
+
+        Object deliveryResult = new CronJobService(env.appConfig, env.cronJobRepository)
+                .runToView(run)
+                .get("delivery_result");
+        assertThat(String.valueOf(deliveryResult)).contains("delivered=1");
+        assertThat(String.valueOf(deliveryResult)).contains("failed=1");
     }
 
     @Test
@@ -3413,6 +3450,24 @@ public class DefaultCronSchedulerTest {
         @Override
         public List<com.jimuqu.solon.claw.core.model.ChannelStatus> statuses() {
             return java.util.Collections.emptyList();
+        }
+    }
+
+    private static class SelectiveFailingDeliveryService extends RecordingDeliveryService {
+        private final String failingChatId;
+        private final String message;
+
+        private SelectiveFailingDeliveryService(String failingChatId, String message) {
+            this.failingChatId = failingChatId;
+            this.message = message;
+        }
+
+        @Override
+        public void deliver(DeliveryRequest request) {
+            if (failingChatId.equals(request.getChatId())) {
+                throw new IllegalStateException(message);
+            }
+            super.deliver(request);
         }
     }
 

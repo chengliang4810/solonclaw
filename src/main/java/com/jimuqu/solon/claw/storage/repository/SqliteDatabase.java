@@ -408,7 +408,8 @@ public class SqliteDatabase {
                             + "summary text,"
                             + "output text,"
                             + "error text,"
-                            + "delivery_error text"
+                            + "delivery_error text,"
+                            + "delivery_result_json text"
                             + ")");
             addColumn(statement, "cron_runs", "source_key text");
             addColumn(statement, "cron_runs", "trigger_type text");
@@ -416,6 +417,7 @@ public class SqliteDatabase {
             addColumn(statement, "cron_runs", "output text");
             addColumn(statement, "cron_runs", "error text");
             addColumn(statement, "cron_runs", "delivery_error text");
+            addColumn(statement, "cron_runs", "delivery_result_json text");
             statement.execute(
                     "create index if not exists idx_cron_runs_job_started on cron_runs(job_id, started_at desc)");
             statement.execute(

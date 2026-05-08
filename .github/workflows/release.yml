@@ -81,7 +81,7 @@ jobs:
         shell: pwsh
         run: ./scripts/resolve-release-range.ps1
 
-      - name: Check release commit subjects
+      - name: Check release commit text
         shell: pwsh
         run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -GitCommitRange "${{ steps.release_range.outputs.git_range }}"
 
@@ -171,3 +171,9 @@ jobs:
           files: |
             ${{ steps.artifact.outputs.jar_path }}
             ${{ steps.artifact.outputs.sha_path }}
+
+      - name: Check published release naming
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/check-release-naming.ps1 -Tag "${{ steps.release.outputs.tag }}"

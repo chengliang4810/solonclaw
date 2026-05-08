@@ -401,6 +401,8 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("trigger").getString()).isEqualTo("manual");
         assertThat(latestCronRun.get("output").getString())
                 .contains("dashboard trigger ok: daily summary");
+        assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
+        assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
         HttpResult pauseCron =
                 request(
@@ -820,6 +822,19 @@ public class DashboardControllerHttpTest {
         assertThat(moveTask.status).isEqualTo(200);
         assertThat(moveTask.body).contains("\"status\":\"ready\"");
 
+        HttpResult stepTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/" + taskId + "/step",
+                        "{\"step_key\":\"review\",\"workflow_template_id\":\"delivery\",\"note\":\"dashboard step\",\"actor\":\"dashboard\"}",
+                        token);
+        assertThat(stepTask.status).isEqualTo(200);
+        assertThat(stepTask.body)
+                .contains("\"current_step_key\":\"review\"")
+                .contains("\"workflow_template_id\":\"delivery\"")
+                .contains("step_changed")
+                .contains("dashboard step");
+
         HttpResult createChildTask =
                 request(
                         "POST",
@@ -915,7 +930,7 @@ public class DashboardControllerHttpTest {
         HttpResult kanbanEvents =
                 request("GET", "/api/kanban/tasks/" + taskId + "/events", null, token);
         assertThat(kanbanEvents.status).isEqualTo(200);
-        assertThat(kanbanEvents.body).contains("reassigned").contains("unblocked").contains("edited");
+        assertThat(kanbanEvents.body).contains("step_changed").contains("reassigned").contains("unblocked").contains("edited");
 
         HttpResult kanbanContext =
                 request("GET", "/api/kanban/tasks/" + taskId + "/context", null, token);

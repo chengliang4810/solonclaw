@@ -66,8 +66,10 @@ public class ToolRegistryExposureTest {
                         "kanban_complete",
                         "kanban_block",
                         "kanban_heartbeat",
+                        "kanban_step",
                         "kanban_comment",
                         "kanban_create",
+                        "kanban_schema_create",
                         "kanban_link",
                         "kanban_unlink",
                         "agent_manage",
@@ -131,8 +133,10 @@ public class ToolRegistryExposureTest {
                         "kanban_complete",
                         "kanban_block",
                         "kanban_heartbeat",
+                        "kanban_step",
                         "kanban_comment",
                         "kanban_create",
+                        "kanban_schema_create",
                         "kanban_link",
                         "kanban_unlink");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey, kanbanScope).toString())

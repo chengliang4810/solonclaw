@@ -37,6 +37,27 @@ public class KanbanToolsTest {
         String duplicate = tools.kanbanCreate("子任务", "worker", "执行子任务", parentId, "child-key", null, null, null);
         assertThat(duplicate).contains(childId);
 
+        String schemaCreated =
+                tools.kanbanSchemaCreate(
+                        "{"
+                                + "\"title\":\"结构化任务\","
+                                + "\"assignee\":\"schema-worker\","
+                                + "\"body\":\"按结构化字段执行\","
+                                + "\"parents\":[\""
+                                + parentId
+                                + "\"],"
+                                + "\"skills\":[\"schema-skill\",\"review\"],"
+                                + "\"workflow_template_id\":\"delivery\","
+                                + "\"current_step_key\":\"review\","
+                                + "\"max_runtime_seconds\":120"
+                                + "}");
+        assertThat(schemaCreated)
+                .contains("\"success\":true")
+                .contains("结构化任务")
+                .contains("schema-skill")
+                .contains("workflow_template_id")
+                .contains("current_step_key");
+
         String reviewId = task(service, "复核任务", "reviewer");
         String link = tools.kanbanLink(childId, reviewId);
         assertThat(link).contains("\"success\":true").contains(childId).contains(reviewId);
@@ -55,6 +76,14 @@ public class KanbanToolsTest {
 
         String heartbeat = tools.kanbanHeartbeat(parentId, "working");
         assertThat(heartbeat).contains("\"success\":true").contains("heartbeat");
+
+        String step = tools.kanbanStep(parentId, "review", "delivery", "准备复核");
+        assertThat(step)
+                .contains("\"success\":true")
+                .contains("Advanced Kanban step")
+                .contains("current_step_key")
+                .contains("review");
+        assertThat(String.valueOf(service.task(parentId).get("events"))).contains("step_changed").contains("准备复核");
 
         String blocked = tools.kanbanBlock(parentId, "需要人工确认");
         assertThat(blocked).contains("\"success\":true").contains("blocked");

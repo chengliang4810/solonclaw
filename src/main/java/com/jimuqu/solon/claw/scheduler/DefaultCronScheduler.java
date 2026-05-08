@@ -488,6 +488,7 @@ public class DefaultCronScheduler {
         String output = "";
         String error = null;
         String deliveryError = null;
+        String deliveryResultJson = null;
         String runStatus = "ok";
         try {
             GatewayReply reply;
@@ -528,8 +529,10 @@ public class DefaultCronScheduler {
                                 AgentRunPreview.safe(output),
                                 completed,
                                 nextStatus);
-                        deliveryError = deliverBestEffort(job, reply);
-                        recordRun(job, now, runStatus, null, output, deliveryError, completed, triggerType);
+                        CronDeliveryReport deliveryReport = deliverBestEffort(job, reply);
+                        deliveryError = deliveryReport.errorSummary();
+                        deliveryResultJson = deliveryReport.toJson();
+                        recordRun(job, now, runStatus, null, output, deliveryError, deliveryResultJson, completed, triggerType);
                         return;
                     }
                     if (scriptResult != null && StrUtil.isBlank(scriptResult.output)) {
@@ -544,8 +547,10 @@ public class DefaultCronScheduler {
                                 AgentRunPreview.safe(output),
                                 completed,
                                 nextStatus);
-                        deliveryError = deliverBestEffort(job, reply);
-                        recordRun(job, now, runStatus, null, output, deliveryError, completed, triggerType);
+                        CronDeliveryReport deliveryReport = deliverBestEffort(job, reply);
+                        deliveryError = deliveryReport.errorSummary();
+                        deliveryResultJson = deliveryReport.toJson();
+                        recordRun(job, now, runStatus, null, output, deliveryError, deliveryResultJson, completed, triggerType);
                         return;
                     }
                     if (scriptResult != null) {
@@ -588,11 +593,16 @@ public class DefaultCronScheduler {
                     completed,
                     nextStatus);
             if (error == null) {
-                deliveryError = deliverBestEffort(job, reply);
+                CronDeliveryReport deliveryReport = deliverBestEffort(job, reply);
+                deliveryError = deliveryReport.errorSummary();
+                deliveryResultJson = deliveryReport.toJson();
             } else if (reply != null && reply.isError()) {
-                deliveryError = deliverBestEffort(job, GatewayReply.error(cronFailureMessage(job, error)));
+                CronDeliveryReport deliveryReport =
+                        deliverBestEffort(job, GatewayReply.error(cronFailureMessage(job, error)));
+                deliveryError = deliveryReport.errorSummary();
+                deliveryResultJson = deliveryReport.toJson();
             }
-            recordRun(job, now, runStatus, error, output, deliveryError, completed, triggerType);
+            recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
         } catch (Exception e) {
             runStatus = "error";
             error = safeError(e);
@@ -605,8 +615,10 @@ public class DefaultCronScheduler {
                     AgentRunPreview.safe(output),
                     completed,
                     done ? "COMPLETED" : "ACTIVE");
-            deliveryError = deliverErrorBestEffort(job, error);
-            recordRun(job, now, runStatus, error, output, deliveryError, completed, triggerType);
+            CronDeliveryReport deliveryReport = deliverErrorBestEffort(job, error);
+            deliveryError = deliveryReport.errorSummary();
+            deliveryResultJson = deliveryReport.toJson();
+            recordRun(job, now, runStatus, error, output, deliveryError, deliveryResultJson, completed, triggerType);
             throw e;
         }
     }
@@ -825,23 +837,23 @@ public class DefaultCronScheduler {
         return value == null ? null : String.valueOf(value);
     }
 
-    private String deliverBestEffort(CronJobRecord job, GatewayReply reply) {
+    private CronDeliveryReport deliverBestEffort(CronJobRecord job, GatewayReply reply) {
         try {
             return deliver(job, reply);
         } catch (Exception e) {
             String error = safeError(e);
             log.warn("Cron delivery failed: jobId={}, error={}", job.getJobId(), error);
             markDeliveryErrorBestEffort(job.getJobId(), error);
-            return error;
+            return CronDeliveryReport.failed(error);
         }
     }
 
-    private String deliver(CronJobRecord job, GatewayReply reply) throws Exception {
+    private CronDeliveryReport deliver(CronJobRecord job, GatewayReply reply) throws Exception {
         if (reply == null || StrUtil.isBlank(reply.getContent())) {
-            return null;
+            return CronDeliveryReport.skipped("empty");
         }
         if (isSilent(reply.getContent())) {
-            return null;
+            return CronDeliveryReport.skipped("silent");
         }
         List<CronDeliveryTarget> targets = resolveDeliveryTargets(job);
         if (targets.isEmpty()) {
@@ -850,11 +862,12 @@ public class DefaultCronScheduler {
             if (!"local".equalsIgnoreCase(deliver.trim())) {
                 String error = "no delivery target resolved for deliver=" + deliver;
                 cronJobRepository.markDeliveryError(job.getJobId(), error);
-                return error;
+                return CronDeliveryReport.failed(error);
             }
-            return null;
+            return CronDeliveryReport.skipped("local");
         }
         CronDeliveryPayload payload = parseDeliveryPayload(formatDelivery(job, reply.getContent()));
+        CronDeliveryReport report = new CronDeliveryReport();
         for (CronDeliveryTarget target : targets) {
             DeliveryRequest request = new DeliveryRequest();
             request.setPlatform(target.platform);
@@ -864,12 +877,23 @@ public class DefaultCronScheduler {
             request.setAttachments(resolveMediaAttachments(target.platform, payload.media));
             try {
                 deliveryService.deliver(request);
+                report.addOk(target, request.getAttachments() == null ? 0 : request.getAttachments().size());
             } catch (Exception e) {
-                cronJobRepository.markDeliveryError(job.getJobId(), safeError(e));
-                throw e;
+                String error = safeError(e);
+                report.addError(target, request.getAttachments() == null ? 0 : request.getAttachments().size(), error);
+                log.warn(
+                        "Cron delivery target failed: jobId={}, platform={}, chatId={}, threadId={}, error={}",
+                        job.getJobId(),
+                        target.platform,
+                        safeTarget(target.chatId),
+                        safeTarget(target.threadId),
+                        error);
             }
         }
-        return null;
+        if (report.hasErrors()) {
+            cronJobRepository.markDeliveryError(job.getJobId(), report.errorSummary());
+        }
+        return report;
     }
 
     private CronDeliveryPayload parseDeliveryPayload(String content) {
@@ -1430,27 +1454,25 @@ public class DefaultCronScheduler {
         return true;
     }
 
-    private String deliverErrorBestEffort(CronJobRecord job, String error) {
+    private CronDeliveryReport deliverErrorBestEffort(CronJobRecord job, String error) {
         if (!job.isNoAgent()) {
             if (!isCronPromptSecurityBlock(error)) {
-                return null;
+                return CronDeliveryReport.skipped("agent_error");
             }
             try {
-                deliver(job, GatewayReply.error(blockedPromptFailureMessage(job, error)));
-                return null;
+                return deliver(job, GatewayReply.error(blockedPromptFailureMessage(job, error)));
             } catch (Exception e) {
                 String deliveryError = safeError(e);
                 markDeliveryErrorBestEffort(job.getJobId(), deliveryError);
-                return deliveryError;
+                return CronDeliveryReport.failed(deliveryError);
             }
         }
         try {
-            deliver(job, GatewayReply.error(noAgentScriptFailureMessage(job, error)));
-            return null;
+            return deliver(job, GatewayReply.error(noAgentScriptFailureMessage(job, error)));
         } catch (Exception e) {
             String deliveryError = safeError(e);
             markDeliveryErrorBestEffort(job.getJobId(), deliveryError);
-            return deliveryError;
+            return CronDeliveryReport.failed(deliveryError);
         }
     }
 
@@ -1501,6 +1523,7 @@ public class DefaultCronScheduler {
             String error,
             String output,
             String deliveryError,
+            String deliveryResultJson,
             int attempt,
             String triggerType) {
         try {
@@ -1516,6 +1539,7 @@ public class DefaultCronScheduler {
             run.setOutput(AgentRunPreview.safe(output));
             run.setError(AgentRunPreview.safe(error));
             run.setDeliveryError(AgentRunPreview.safe(deliveryError));
+            run.setDeliveryResultJson(deliveryResultJson);
             run.setSummary(summary(status, error, output, deliveryError));
             cronJobRepository.saveRun(run);
         } catch (Exception e) {
@@ -1556,6 +1580,10 @@ public class DefaultCronScheduler {
 
     private String safeText(String value) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
+    }
+
+    private String safeTarget(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 160);
     }
 
     private byte[] readAll(java.io.InputStream inputStream) throws Exception {
@@ -1653,6 +1681,103 @@ public class DefaultCronScheduler {
         private CronMediaRef(String path, boolean voice) {
             this.path = path;
             this.voice = voice;
+        }
+    }
+
+    private static class CronDeliveryReport {
+        private int delivered;
+        private int failed;
+        private int total;
+        private String skipped;
+        private String error;
+        private final List<Map<String, Object>> targets = new ArrayList<Map<String, Object>>();
+
+        private static CronDeliveryReport skipped(String reason) {
+            CronDeliveryReport report = new CronDeliveryReport();
+            report.skipped = reason;
+            return report;
+        }
+
+        private static CronDeliveryReport failed(String error) {
+            CronDeliveryReport report = new CronDeliveryReport();
+            report.error = SecretRedactor.redact(StrUtil.nullToEmpty(error), 1000);
+            report.failed = 1;
+            report.total = 1;
+            return report;
+        }
+
+        private void addOk(CronDeliveryTarget target, int attachmentCount) {
+            delivered++;
+            total++;
+            targets.add(targetMap(target, "ok", null, attachmentCount));
+        }
+
+        private void addError(CronDeliveryTarget target, int attachmentCount, String error) {
+            failed++;
+            total++;
+            targets.add(targetMap(target, "error", SecretRedactor.redact(StrUtil.nullToEmpty(error), 1000), attachmentCount));
+        }
+
+        private boolean hasErrors() {
+            return failed > 0 || StrUtil.isNotBlank(error);
+        }
+
+        private String errorSummary() {
+            if (StrUtil.isNotBlank(error)) {
+                return error;
+            }
+            if (failed <= 0) {
+                return null;
+            }
+            StringBuilder buffer = new StringBuilder();
+            buffer.append(failed).append('/').append(total).append(" delivery target(s) failed");
+            for (Map<String, Object> target : targets) {
+                if (!"error".equals(target.get("status"))) {
+                    continue;
+                }
+                buffer.append(": ")
+                        .append(target.get("platform"))
+                        .append(':')
+                        .append(target.get("chat_id"));
+                Object targetError = target.get("error");
+                if (targetError != null) {
+                    buffer.append(" ").append(targetError);
+                }
+                break;
+            }
+            return buffer.toString();
+        }
+
+        private String toJson() {
+            if (total <= 0 && StrUtil.isBlank(skipped) && StrUtil.isBlank(error)) {
+                return null;
+            }
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("total", Integer.valueOf(total));
+            data.put("delivered", Integer.valueOf(delivered));
+            data.put("failed", Integer.valueOf(failed));
+            if (StrUtil.isNotBlank(skipped)) {
+                data.put("skipped", skipped);
+            }
+            if (StrUtil.isNotBlank(error)) {
+                data.put("error", error);
+            }
+            data.put("targets", targets);
+            return ONode.serialize(data);
+        }
+
+        private Map<String, Object> targetMap(
+                CronDeliveryTarget target, String status, String error, int attachmentCount) {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("platform", target.platform == null ? null : target.platform.name());
+            map.put("chat_id", SecretRedactor.redact(StrUtil.nullToEmpty(target.chatId), 160));
+            map.put("thread_id", SecretRedactor.redact(StrUtil.nullToEmpty(target.threadId), 160));
+            map.put("status", status);
+            map.put("attachments", Integer.valueOf(attachmentCount));
+            if (StrUtil.isNotBlank(error)) {
+                map.put("error", error);
+            }
+            return map;
         }
     }
 

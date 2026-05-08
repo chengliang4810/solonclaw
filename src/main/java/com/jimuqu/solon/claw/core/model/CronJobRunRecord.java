@@ -42,6 +42,9 @@ public class CronJobRunRecord {
     /** 投递错误。 */
     private String deliveryError;
 
+    /** 结构化投递结果 JSON。 */
+    private String deliveryResultJson;
+
     /** 兼容旧 summary 字段。 */
     private String summary;
 }

@@ -56,7 +56,26 @@ export interface JobRun {
   output: string | null
   error: string | null
   delivery_error: string | null
+  delivery_result?: JobRunDeliveryResult | null
   summary: string | null
+}
+
+export interface JobRunDeliveryResultTarget {
+  platform?: string | null
+  chat_id?: string | null
+  thread_id?: string | null
+  status?: string | null
+  attachments?: number | null
+  error?: string | null
+}
+
+export interface JobRunDeliveryResult {
+  total?: number
+  delivered?: number
+  failed?: number
+  skipped?: string | null
+  error?: string | null
+  targets?: JobRunDeliveryResultTarget[]
 }
 
 export interface CreateJobRequest {

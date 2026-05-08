@@ -4,6 +4,7 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
 $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1"
+$publishedReleaseScriptPath = Join-Path $repoRoot "scripts\check-release-naming.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
@@ -14,14 +15,6 @@ $blockedLegacyEnvFixture =
         + ([string][char]80) + ([string][char]82) + ([string][char]69) `
         + ([string][char]70) + ([string][char]73) + ([string][char]88) `
         + "_ALLOW_PRIVATE_URLS")
-$legacyUpperPrefixFixture =
-    (([string][char]72) + ([string][char]69) + ([string][char]82) `
-        + ([string][char]77) + ([string][char]69) + ([string][char]83))
-$legacySpacedNameFixture =
-    (([string][char]79) + ([string][char]112) + ([string][char]101) `
-        + ([string][char]110) + " " + ([string][char]67) + ([string][char]108) `
-        + ([string][char]97) + ([string][char]119))
-$legacyPrivateUrlFixture = $legacyUpperPrefixFixture + "_ALLOW_PRIVATE_URLS"
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -130,12 +123,12 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\default-private-url-env.txt") -Value ($legacyPrivateUrlFixture + "=true") -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "src\default-private-url-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
     $blockedDefaultPrivateUrlEnv = Invoke-NamingCheck
     if ($blockedDefaultPrivateUrlEnv.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden default private URL environment variable."
     }
-    Assert-NoRawBlockedOutput $blockedDefaultPrivateUrlEnv.Output @($legacyPrivateUrlFixture) "default private URL environment variable scan"
+    Assert-NoRawBlockedOutput $blockedDefaultPrivateUrlEnv.Output @($blockedLegacyEnvFixture) "default private URL environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
@@ -148,12 +141,12 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\default-legacy-name.md") -Value ("Old upstream name: " + $legacySpacedNameFixture) -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "docs\default-legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyEnvFixture) -Encoding UTF8
     $blockedDefaultLegacyName = Invoke-NamingCheck
     if ($blockedDefaultLegacyName.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden default legacy project name."
     }
-    Assert-NoRawBlockedOutput $blockedDefaultLegacyName.Output @($legacySpacedNameFixture) "default legacy project name scan"
+    Assert-NoRawBlockedOutput $blockedDefaultLegacyName.Output @($blockedLegacyEnvFixture) "default legacy project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
@@ -192,6 +185,21 @@ try {
         throw "Naming check did not block forbidden naming in git commit subjects."
     }
     Assert-NoRawBlockedOutput $blockedCommit.Output @($blockedFixture) "git commit subject scan"
+
+    Push-Location $sandbox
+    try {
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean body fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean subject with polluted body / Clean subject with polluted body" `
+            -m ("body uses " + $blockedLegacyEnvFixture) | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $blockedCommitBody = Invoke-GitNamingCheck -Range "HEAD"
+    if ($blockedCommitBody.ExitCode -eq 0) {
+        throw "Naming check did not block forbidden naming in git commit messages."
+    }
+    Assert-NoRawBlockedOutput $blockedCommitBody.Output @($blockedLegacyEnvFixture) "git commit body scan"
 
     Push-Location $sandbox
     try {
@@ -321,7 +329,7 @@ try {
         & git config user.email "naming-check@example.invalid" | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean file for release private URL fixture" -Encoding UTF8
         & git add README.md | Out-Null
-        & git commit -m ("fix: block " + $legacyPrivateUrlFixture + " release leak") | Out-Null
+        & git commit -m ("fix: block " + $blockedLegacyEnvFixture + " release leak") | Out-Null
 
         $releaseDefaultSubjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
@@ -332,7 +340,7 @@ try {
         if ($LASTEXITCODE -eq 0) {
             throw "Release notes generation should fail when forbidden default private URL naming exists in a commit subject."
         }
-        Assert-NoRawBlockedOutput ($releaseDefaultSubjectOutput | Out-String) @($legacyPrivateUrlFixture) "release notes default private URL subject generation"
+        Assert-NoRawBlockedOutput ($releaseDefaultSubjectOutput | Out-String) @($blockedLegacyEnvFixture) "release notes default private URL subject generation"
     } finally {
         Pop-Location
     }
@@ -417,6 +425,49 @@ try {
         Assert-NoRawBlockedOutput ($releaseObjectOutput | Out-String) @($blockedFixture) "release notes git object text generation"
     } finally {
         Pop-Location
+    }
+
+    Reset-Sandbox
+    $publishedReleaseFixturePath = Join-Path $sandbox "published-release.json"
+    $publishedReleaseFixture = [PSCustomObject]@{
+        name = "jimuqu-agent v2099.01.04-def0123"
+        tag_name = "v2099.01.04-def0123"
+        body = "Published release body mentions $blockedLegacyEnvFixture"
+        assets = @(
+            [PSCustomObject]@{
+                name = "jimuqu-agent-0.0.0-test.jar"
+                label = ""
+                content_type = "application/java-archive"
+            }
+        )
+    }
+    $publishedReleaseFixture | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $publishedReleaseFixturePath -Encoding UTF8
+    $publishedReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $publishedReleaseScriptPath `
+        -LocalJsonPath $publishedReleaseFixturePath 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        throw "Published release naming check should fail when blocked naming exists in release metadata."
+    }
+    Assert-NoRawBlockedOutput ($publishedReleaseOutput | Out-String) @($blockedLegacyEnvFixture) "published release metadata scan"
+
+    Reset-Sandbox
+    $cleanPublishedReleaseFixturePath = Join-Path $sandbox "published-release-clean.json"
+    $cleanPublishedReleaseFixture = [PSCustomObject]@{
+        name = "jimuqu-agent v2099.01.05-ef01234"
+        tag_name = "v2099.01.05-ef01234"
+        body = "Clean published release body"
+        assets = @(
+            [PSCustomObject]@{
+                name = "jimuqu-agent-0.0.0-test.jar"
+                label = ""
+                content_type = "application/java-archive"
+            }
+        )
+    }
+    $cleanPublishedReleaseFixture | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $cleanPublishedReleaseFixturePath -Encoding UTF8
+    $cleanPublishedReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $publishedReleaseScriptPath `
+        -LocalJsonPath $cleanPublishedReleaseFixturePath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Published release naming check should pass for clean release metadata: $($cleanPublishedReleaseOutput | Out-String)"
     }
 
 } finally {

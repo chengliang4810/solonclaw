@@ -30,7 +30,7 @@ jobs:
           ./scripts/check-raw-exception-logging.selftest.ps1
           ./scripts/check-raw-exception-logging.ps1
 
-      - name: Check new commit subjects
+      - name: Check new commit text
         shell: pwsh
         env:
           EVENT_NAME: ${{ github.event_name }}

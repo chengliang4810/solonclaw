@@ -135,6 +135,37 @@ public class KanbanTools {
     }
 
     @ToolMapping(
+            name = "kanban_step",
+            description =
+                    "Advance a Kanban task to a workflow/pipeline step and record a step_changed event. Worker-scoped calls may only mutate their own task.")
+    public String kanbanStep(
+            @Param(name = "task_id", description = "Task id. Optional when worker env is set.", required = false)
+                    String taskId,
+            @Param(name = "step_key", description = "Target workflow step key.") String stepKey,
+            @Param(name = "workflow_template_id", description = "Optional workflow template id.", required = false)
+                    String workflowTemplateId,
+            @Param(name = "note", description = "Optional transition note.", required = false) String note) {
+        String tid = defaultTaskId(taskId);
+        String ownership = ownershipError(tid);
+        if (ownership != null) {
+            return ownership;
+        }
+        if (StrUtil.isBlank(stepKey)) {
+            return error("step_key is required");
+        }
+        try {
+            Map<String, Object> detail =
+                    kanbanService.step(tid, stepKey, workflowTemplateId, note, defaultWorkerName());
+            return ToolResultEnvelope.ok("Advanced Kanban step: " + tid + " -> " + detail.get("current_step_key"))
+                    .data("task", detail)
+                    .preview(String.valueOf(detail.get("worker_context")))
+                    .toJson();
+        } catch (Exception e) {
+            return error("kanban_step: " + e.getMessage());
+        }
+    }
+
+    @ToolMapping(
             name = "kanban_comment",
             description =
                     "Append a durable comment to a Kanban task. Comments may target any task for handoffs, questions, or findings.")
@@ -205,6 +236,44 @@ public class KanbanTools {
                     .toJson();
         } catch (Exception e) {
             return error("kanban_create: " + e.getMessage());
+        }
+    }
+
+    @ToolMapping(
+            name = "kanban_schema_create",
+            description =
+                    "Create a Kanban task from a structured JSON object. Supports title, body, assignee, board, status, priority, tenant, parents, skills, workflow_template_id, current_step_key, idempotency_key, max_retries, and max_runtime_seconds.")
+    public String kanbanSchemaCreate(
+            @Param(
+                            name = "task_json",
+                            description =
+                                    "Task JSON object. Example: {\"title\":\"Review API\",\"assignee\":\"reviewer\",\"parents\":[\"task-1\"],\"skills\":[\"review\"],\"workflow_template_id\":\"delivery\",\"current_step_key\":\"review\"}.")
+                    String taskJson) {
+        if (StrUtil.isBlank(taskJson)) {
+            return error("task_json is required");
+        }
+        try {
+            Map<String, Object> request = parseTaskJson(taskJson);
+            if (request == null || request.isEmpty()) {
+                return error("task_json must be a JSON object");
+            }
+            if (StrUtil.isBlank(stringValue(request.get("title")))) {
+                return error("title is required");
+            }
+            if (StrUtil.isBlank(stringValue(request.get("assignee")))) {
+                return error("assignee is required");
+            }
+            if (!request.containsKey("created_by")) {
+                request.put("created_by", defaultWorkerName());
+            }
+            Map<String, Object> detail = kanbanService.createTask(request);
+            return ToolResultEnvelope.ok("Created Kanban schema task: " + detail.get("id"))
+                    .data("task", detail)
+                    .data("task_id", detail.get("id"))
+                    .preview(detail.get("id") + " " + detail.get("title"))
+                    .toJson();
+        } catch (Exception e) {
+            return error("kanban_schema_create: " + e.getMessage());
         }
     }
 
@@ -308,6 +377,25 @@ public class KanbanTools {
         } catch (Exception e) {
             return metadata;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseTaskJson(String taskJson) {
+        Object parsed = ONode.deserialize(taskJson, Object.class);
+        if (!(parsed instanceof Map<?, ?>)) {
+            return null;
+        }
+        Map<String, Object> request = new LinkedHashMap<String, Object>();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) parsed).entrySet()) {
+            if (entry.getKey() != null) {
+                request.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return request;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String error(String message) {
