@@ -228,6 +228,9 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "URL 包含疑似 API key 或 token，禁止通过 URL 发送凭据");
         }
 
+        if (raw.startsWith("//")) {
+            return checkUrl("http:" + raw, allowPrivateOverride);
+        }
         if (!raw.contains("://")) {
             if (hasSchemelessUserInfo(raw)) {
                 return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
@@ -629,6 +632,7 @@ public class SecurityPolicyService {
         }
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
+        extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
@@ -756,6 +760,16 @@ public class SecurityPolicyService {
             }
         }
         return tokens;
+    }
+
+    private void extractProtocolRelativeUrlish(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (String token : tokens) {
+            String value = cleanUrlToken(token);
+            if (value.startsWith("//") && value.length() > 2) {
+                urls.add(value);
+            }
+        }
     }
 
     private void extractSchemelessUserInfoUrlish(String text, List<String> urls) {

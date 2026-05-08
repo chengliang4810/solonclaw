@@ -232,6 +232,33 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckProtocolRelativeUrlsInCommandsAndArguments() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict privateDirect =
+                privatePolicy.checkUrl("//internal.example/path");
+        SecurityPolicyService.UrlVerdict privateCommand =
+                privatePolicy.checkCommandUrls("curl //internal.example/path");
+        SecurityPolicyService.UrlVerdict userInfoCommand =
+                publicPolicy.checkCommandUrls("curl //alice:secret@example.com/path");
+        SecurityPolicyService.UrlVerdict publicCommand =
+                publicPolicy.checkCommandUrls("curl //example.com/path");
+
+        assertThat(privateDirect.isAllowed()).isFalse();
+        assertThat(privateDirect.getMessage()).contains("内网");
+        assertThat(privateCommand.isAllowed()).isFalse();
+        assertThat(privateCommand.getMessage()).contains("内网");
+        assertThat(userInfoCommand.isAllowed()).isFalse();
+        assertThat(userInfoCommand.getMessage()).contains("userinfo");
+        assertThat(publicCommand.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
