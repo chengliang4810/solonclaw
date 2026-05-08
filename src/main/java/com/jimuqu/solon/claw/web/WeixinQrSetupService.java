@@ -273,7 +273,8 @@ public class WeixinQrSetupService {
 
     private String safeMessage(Exception e) {
         String message = e.getMessage();
-        return StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
+        return SecretRedactor.redact(safe, 1000);
     }
 
     private void assertSafeBaseUrl(String baseUrl, String purpose) {

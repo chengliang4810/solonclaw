@@ -186,6 +186,26 @@ public class WeixinQrSetupServiceTest {
         assertThat(new File(runtimeHome, "config.yml")).doesNotExist();
     }
 
+    @Test
+    void shouldRedactQrFailureMessages() throws Exception {
+        AppConfig config = testConfig();
+        config.getChannels().getWeixin().setBaseUrl("https://safe.example.test");
+        GatewayRuntimeRefreshService refreshService = refreshService(config);
+        WeixinQrSetupService service =
+                new WeixinQrSetupService(
+                        config,
+                        new DashboardConfigService(config, refreshService),
+                        refreshService,
+                        new TokenMessageSecurityPolicyService(config));
+
+        Map<String, Object> start = service.start();
+        Map<String, Object> current = waitForTerminal(service, String.valueOf(start.get("ticket")));
+
+        assertThat(current.get("status")).isEqualTo("failed");
+        assertThat(current.get("error_message").toString()).contains("token=***");
+        assertThat(current.get("error_message").toString()).doesNotContain("sk-test-weixinqr12345");
+    }
+
     private AppConfig testConfig() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-weixin-qr").toFile();
         AppConfig config = new AppConfig();
@@ -247,6 +267,17 @@ public class WeixinQrSetupServiceTest {
                 return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
             }
             return new InetAddress[] {InetAddress.getByName(host)};
+        }
+    }
+
+    private static class TokenMessageSecurityPolicyService extends SecurityPolicyService {
+        private TokenMessageSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            return UrlVerdict.block(url, "blocked token=sk-test-weixinqr12345");
         }
     }
 }
