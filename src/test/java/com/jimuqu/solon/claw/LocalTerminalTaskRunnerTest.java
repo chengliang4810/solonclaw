@@ -40,10 +40,20 @@ public class LocalTerminalTaskRunnerTest {
         assertThat(started.await(1, TimeUnit.SECONDS)).isTrue();
         assertThat(future.isDone()).isFalse();
         assertThat(runner.hasRunning()).isTrue();
+        assertThat(runner.snapshots()).hasSize(1);
+        assertThat(runner.snapshots().get(0).getStatusLabel()).isEqualTo("running");
+        assertThat(runner.renderTasks())
+                .contains("终端后台任务")
+                .contains("running=1")
+                .contains("long request")
+                .contains("exit=-");
         assertThat(buffer.toString(StandardCharsets.UTF_8.name())).contains("已提交到后台");
 
         release.countDown();
         assertThat(future.get(1, TimeUnit.SECONDS)).isEqualTo(0);
+        assertThat(runner.snapshots().get(0).getStatusLabel()).isEqualTo("success");
+        assertThat(runner.snapshots().get(0).getExitCodeText()).isEqualTo("0");
+        assertThat(runner.renderTasks()).contains("success").contains("exit=0");
         runner.close();
     }
 
@@ -79,6 +89,38 @@ public class LocalTerminalTaskRunnerTest {
                 });
 
         assertThat(stopCalled).isTrue();
+        assertThat(runner.snapshots().get(0).getStatusLabel()).isEqualTo("interrupted");
+        assertThat(runner.snapshots().get(0).getExitCodeText()).isEqualTo("130");
         assertThat(buffer.toString(StandardCharsets.UTF_8.name())).contains("终端任务已中断");
+    }
+
+    @Test
+    void shouldRetainOnlyRecentTerminalTasks() throws Exception {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        LocalTerminalTaskRunner runner =
+                new LocalTerminalTaskRunner(
+                        new PrintWriter(
+                                new java.io.OutputStreamWriter(buffer, StandardCharsets.UTF_8),
+                                true));
+
+        for (int i = 1; i <= 22; i++) {
+            final int index = i;
+            runner.submit(
+                            "task " + index,
+                            new Callable<Integer>() {
+                                @Override
+                                public Integer call() {
+                                    return Integer.valueOf(index == 22 ? 2 : 0);
+                                }
+                            })
+                    .get(1, TimeUnit.SECONDS);
+        }
+
+        assertThat(runner.snapshots()).hasSize(20);
+        assertThat(runner.snapshots().get(0).getLabel()).isEqualTo("task 3");
+        assertThat(runner.snapshots().get(19).getLabel()).isEqualTo("task 22");
+        assertThat(runner.snapshots().get(19).getStatusLabel()).isEqualTo("failed");
+        assertThat(runner.snapshots().get(19).getExitCodeText()).isEqualTo("2");
+        runner.close();
     }
 }

@@ -2,9 +2,10 @@ package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
 import java.io.PrintWriter;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,10 +15,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Runs local terminal requests in the background so control input stays responsive. */
 public class LocalTerminalTaskRunner implements AutoCloseable {
+    private static final int MAX_RECENT_TASKS = 20;
+
     private final PrintWriter writer;
     private final ExecutorService executorService;
-    private final Set<Future<Integer>> futures = Collections.synchronizedSet(new HashSet<Future<Integer>>());
     private final AtomicInteger running = new AtomicInteger();
+    private final AtomicInteger sequence = new AtomicInteger();
+    private final List<TaskRecord> records = new ArrayList<TaskRecord>();
 
     public LocalTerminalTaskRunner(PrintWriter writer) {
         this(writer, Executors.newCachedThreadPool());
@@ -36,7 +40,46 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         return running.get() > 0;
     }
 
+    public String renderTasks() {
+        List<TaskSnapshot> snapshots = snapshots();
+        if (snapshots.isEmpty()) {
+            return "暂无终端后台任务。";
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("终端后台任务：running=")
+                .append(runningCount())
+                .append(" recent=")
+                .append(snapshots.size());
+        for (TaskSnapshot snapshot : snapshots) {
+            buffer.append('\n')
+                    .append('#')
+                    .append(snapshot.getId())
+                    .append(' ')
+                    .append(snapshot.getStatusLabel())
+                    .append(" exit=")
+                    .append(snapshot.getExitCodeText())
+                    .append(" started=")
+                    .append(formatTime(snapshot.getStartedAtMillis()));
+            if (snapshot.getCompletedAtMillis() > 0L) {
+                buffer.append(" completed=").append(formatTime(snapshot.getCompletedAtMillis()));
+            }
+            buffer.append(" input=").append(snapshot.getLabel());
+        }
+        return buffer.toString();
+    }
+
+    public List<TaskSnapshot> snapshots() {
+        synchronized (records) {
+            List<TaskSnapshot> snapshots = new ArrayList<TaskSnapshot>(records.size());
+            for (TaskRecord record : records) {
+                snapshots.add(record.snapshot());
+            }
+            return snapshots;
+        }
+    }
+
     public Future<Integer> submit(final String input, final Callable<Integer> task) {
+        final TaskRecord record = addRecord(input);
         running.incrementAndGet();
         Future<Integer> future =
                 executorService.submit(
@@ -44,12 +87,17 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
                             @Override
                             public Integer call() {
                                 try {
-                                    return task.call();
+                                    Integer exitCode = task.call();
+                                    int code = exitCode == null ? 0 : exitCode.intValue();
+                                    record.complete(statusForExitCode(code), code);
+                                    return Integer.valueOf(code);
                                 } catch (InterruptedException e) {
                                     Thread.currentThread().interrupt();
+                                    record.complete(TaskStatus.INTERRUPTED, 130);
                                     printLine("终端任务已中断：" + label(input));
                                     return Integer.valueOf(130);
                                 } catch (Exception e) {
+                                    record.complete(TaskStatus.FAILED, 1);
                                     printLine(
                                             "终端任务失败："
                                                     + label(input)
@@ -61,7 +109,6 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
                                 }
                             }
                         });
-        futures.add(future);
         printLine("已提交到后台；运行中可继续输入 /queue、/steer、/stop 或 /busy status。");
         return future;
     }
@@ -103,6 +150,34 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         return value.substring(0, 40) + "...";
     }
 
+    private TaskRecord addRecord(String input) {
+        TaskRecord record = new TaskRecord(sequence.incrementAndGet(), label(input));
+        synchronized (records) {
+            records.add(record);
+            while (records.size() > MAX_RECENT_TASKS) {
+                records.remove(0);
+            }
+        }
+        return record;
+    }
+
+    private TaskStatus statusForExitCode(int exitCode) {
+        if (exitCode == 0) {
+            return TaskStatus.SUCCESS;
+        }
+        if (exitCode == 130) {
+            return TaskStatus.INTERRUPTED;
+        }
+        return TaskStatus.FAILED;
+    }
+
+    private String formatTime(long millis) {
+        if (millis <= 0L) {
+            return "-";
+        }
+        return new SimpleDateFormat("HH:mm:ss").format(new Date(millis));
+    }
+
     private void printLine(String text) {
         if (writer == null) {
             return;
@@ -110,6 +185,96 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         synchronized (writer) {
             writer.println(text);
             writer.flush();
+        }
+    }
+
+    private enum TaskStatus {
+        RUNNING("running"),
+        SUCCESS("success"),
+        FAILED("failed"),
+        INTERRUPTED("interrupted");
+
+        private final String label;
+
+        TaskStatus(String label) {
+            this.label = label;
+        }
+    }
+
+    private static final class TaskRecord {
+        private final int id;
+        private final String label;
+        private final long startedAtMillis;
+        private TaskStatus status = TaskStatus.RUNNING;
+        private long completedAtMillis;
+        private Integer exitCode;
+
+        private TaskRecord(int id, String label) {
+            this.id = id;
+            this.label = label;
+            this.startedAtMillis = System.currentTimeMillis();
+        }
+
+        private synchronized void complete(TaskStatus status, int exitCode) {
+            this.status = status;
+            this.exitCode = Integer.valueOf(exitCode);
+            this.completedAtMillis = System.currentTimeMillis();
+        }
+
+        private synchronized TaskSnapshot snapshot() {
+            return new TaskSnapshot(id, label, status.label, startedAtMillis, completedAtMillis, exitCode);
+        }
+    }
+
+    public static final class TaskSnapshot {
+        private final int id;
+        private final String label;
+        private final String statusLabel;
+        private final long startedAtMillis;
+        private final long completedAtMillis;
+        private final Integer exitCode;
+
+        private TaskSnapshot(
+                int id,
+                String label,
+                String statusLabel,
+                long startedAtMillis,
+                long completedAtMillis,
+                Integer exitCode) {
+            this.id = id;
+            this.label = label;
+            this.statusLabel = statusLabel;
+            this.startedAtMillis = startedAtMillis;
+            this.completedAtMillis = completedAtMillis;
+            this.exitCode = exitCode;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+        public String getStatusLabel() {
+            return statusLabel;
+        }
+
+        public long getStartedAtMillis() {
+            return startedAtMillis;
+        }
+
+        public long getCompletedAtMillis() {
+            return completedAtMillis;
+        }
+
+        public Integer getExitCode() {
+            return exitCode;
+        }
+
+        public String getExitCodeText() {
+            return exitCode == null ? "-" : String.valueOf(exitCode.intValue());
         }
     }
 }

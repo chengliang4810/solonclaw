@@ -22,8 +22,8 @@ public class CliShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/models", "/sessions", "/session", "/history", "/copy", "/exit",
-                "/quit"
+                "/platforms", "/models", "/sessions", "/session", "/history", "/tasks", "/copy",
+                "/exit", "/quit"
             };
 
     private final CliRuntime cliRuntime;
@@ -79,7 +79,7 @@ public class CliShell {
         PrintWriter writer = terminal.writer();
         String sessionId = StrUtil.blankToDefault(mode.getSessionId(), "cli");
         if (StrUtil.isNotBlank(mode.getInput())) {
-            return sendOnce(writer, sessionId, mode.getInput(), true);
+            return sendOnce(null, writer, sessionId, mode.getInput(), true);
         }
 
         LineReader reader =
@@ -132,7 +132,7 @@ public class CliShell {
             final String line)
             throws Exception {
         if (shouldHandleInline(line)) {
-            sendOnce(writer, sessionId, line, true);
+            sendOnce(taskRunner, writer, sessionId, line, true);
             return;
         }
         taskRunner.submit(
@@ -140,14 +140,16 @@ public class CliShell {
                 new Callable<Integer>() {
                     @Override
                     public Integer call() throws Exception {
-                        return Integer.valueOf(sendOnce(writer, sessionId, line, true));
+                        return Integer.valueOf(sendOnce(taskRunner, writer, sessionId, line, true));
                     }
                 });
     }
 
     private boolean shouldHandleInline(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
-        if (LocalTerminalHelp.isHelp(value) || "/copy".equalsIgnoreCase(value)) {
+        if (LocalTerminalHelp.isHelp(value)
+                || "/copy".equalsIgnoreCase(value)
+                || "/tasks".equalsIgnoreCase(value)) {
             return true;
         }
         return value.startsWith("/")
@@ -155,7 +157,12 @@ public class CliShell {
                 && !value.toLowerCase(java.util.Locale.ROOT).startsWith("/retry ");
     }
 
-    private int sendOnce(PrintWriter writer, String sessionId, String input, boolean verbose)
+    private int sendOnce(
+            LocalTerminalTaskRunner taskRunner,
+            PrintWriter writer,
+            String sessionId,
+            String input,
+            boolean verbose)
             throws Exception {
         String trimmed = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(trimmed)) {
@@ -190,6 +197,11 @@ public class CliShell {
         }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
+        }
+        if ("/tasks".equalsIgnoreCase(trimmed)) {
+            writer.println(taskRunner == null ? "暂无终端后台任务。" : taskRunner.renderTasks());
+            writer.flush();
+            return 0;
         }
         ConsoleEventSink sink = new ConsoleEventSink(writer, verbose);
         CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);

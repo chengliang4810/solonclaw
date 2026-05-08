@@ -24,7 +24,7 @@ public class TuiShell {
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress", "/rollback",
                 "/version", "/copy", "/models", "/sessions", "/session", "/history", "/events",
-                "/tips", "/skin", "/exit"
+                "/tasks", "/tips", "/skin", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -102,7 +102,7 @@ public class TuiShell {
         String sessionId = StrUtil.blankToDefault(mode.getSessionId(), "tui");
         if (StrUtil.isNotBlank(mode.getInput())) {
             renderHeader(writer, sessionId);
-            return send(writer, sessionId, mode.getInput());
+            return send(null, writer, sessionId, mode.getInput());
         }
 
         LineReader reader =
@@ -158,7 +158,7 @@ public class TuiShell {
             final String input)
             throws Exception {
         if (shouldHandleInline(input)) {
-            send(writer, sessionId, input);
+            send(taskRunner, writer, sessionId, input);
             return;
         }
         taskRunner.submit(
@@ -166,7 +166,7 @@ public class TuiShell {
                 new Callable<Integer>() {
                     @Override
                     public Integer call() throws Exception {
-                        return Integer.valueOf(send(writer, sessionId, input));
+                        return Integer.valueOf(send(taskRunner, writer, sessionId, input));
                     }
                 });
     }
@@ -176,6 +176,7 @@ public class TuiShell {
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
                 || "/events".equalsIgnoreCase(value)
+                || "/tasks".equalsIgnoreCase(value)
                 || TerminalTips.isTipsCommand(value)) {
             return true;
         }
@@ -184,7 +185,8 @@ public class TuiShell {
                 && !value.toLowerCase(java.util.Locale.ROOT).startsWith("/retry ");
     }
 
-    private int send(PrintWriter writer, String sessionId, String input) throws Exception {
+    private int send(LocalTerminalTaskRunner taskRunner, PrintWriter writer, String sessionId, String input)
+            throws Exception {
         String trimmed = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(trimmed)) {
             writer.println(LocalTerminalHelp.text());
@@ -232,6 +234,11 @@ public class TuiShell {
         }
         if ("/events".equalsIgnoreCase(trimmed)) {
             writer.println(renderEvents());
+            writer.flush();
+            return 0;
+        }
+        if ("/tasks".equalsIgnoreCase(trimmed)) {
+            writer.println(taskRunner == null ? "暂无终端后台任务。" : taskRunner.renderTasks());
             writer.flush();
             return 0;
         }
@@ -309,7 +316,7 @@ public class TuiShell {
         writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
                 skin.dim(
-                        "tips: /help 命令  /tips 提示  /queue 排队  /steer 引导  /sessions 会话  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
+                        "tips: /help 命令  /tips 提示  /tasks 任务  /queue 排队  /steer 引导  /sessions 会话  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
         writer.println(skin.dim("tip: " + TerminalTips.current(sessionId)));
         writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
