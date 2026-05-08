@@ -2658,6 +2658,9 @@ public class DefaultCronSchedulerTest {
         FileUtil.mkdir(sshDir);
         File projectDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/safe-cron");
         FileUtil.mkdir(projectDir);
+        String leakedToken = "sk-1234567890abcdef";
+        File tokenDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/" + leakedToken);
+        FileUtil.mkdir(tokenDir);
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
         Map<String, Object> unsafeCreate = new LinkedHashMap<String, Object>();
@@ -2682,7 +2685,7 @@ public class DefaultCronSchedulerTest {
         metacharCreate.put("name", "metachar-workdir");
         metacharCreate.put("schedule", "30m");
         metacharCreate.put("prompt", "inspect");
-        metacharCreate.put("workdir", projectDir.getAbsolutePath() + "; rm -rf runtime");
+        metacharCreate.put("workdir", tokenDir.getAbsolutePath() + "; rm -rf runtime");
         assertThatThrownBy(
                         new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
                             @Override
@@ -2691,7 +2694,9 @@ public class DefaultCronSchedulerTest {
                             }
                         })
                 .hasMessageContaining("workdir blocked by security policy")
-                .hasMessageContaining("disallowed character");
+                .hasMessageContaining("disallowed character")
+                .hasMessageContaining("***")
+                .hasMessageNotContaining(leakedToken);
 
         Map<String, Object> safeCreate = new LinkedHashMap<String, Object>();
         safeCreate.put("name", "safe-workdir");
@@ -2713,6 +2718,19 @@ public class DefaultCronSchedulerTest {
                 .hasMessageContaining("[REDACTED_PATH]")
                 .hasMessageNotContaining(sshDir.getAbsolutePath())
                 .hasMessageNotContaining(".ssh");
+
+        Map<String, Object> tokenUpdate = new LinkedHashMap<String, Object>();
+        tokenUpdate.put("workdir", tokenDir.getAbsolutePath() + "; rm -rf runtime");
+        assertThatThrownBy(
+                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
+                            @Override
+                            public void call() throws Throwable {
+                                service.update(job.getJobId(), tokenUpdate);
+                            }
+                        })
+                .hasMessageContaining("workdir blocked by security policy")
+                .hasMessageContaining("***")
+                .hasMessageNotContaining(leakedToken);
     }
 
     @Test

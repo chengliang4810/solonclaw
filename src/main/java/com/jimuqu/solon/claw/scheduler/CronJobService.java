@@ -485,7 +485,7 @@ public class CronJobService {
                 throw new IllegalStateException("script must stay within runtime/scripts");
             }
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("script path could not be validated: " + e.getMessage());
+            throw new IllegalStateException("script path could not be validated: " + safeError(e));
         }
     }
 
@@ -533,8 +533,15 @@ public class CronJobService {
             }
             return normalized;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("workdir path could not be validated: " + e.getMessage());
+            throw new IllegalStateException("workdir path could not be validated: " + safeError(e));
         }
+    }
+
+    private String safeError(Exception e) {
+        if (e == null) {
+            return "Exception";
+        }
+        return SecretRedactor.redact(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     private boolean usesForwardSlash(String path) {
