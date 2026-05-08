@@ -228,6 +228,22 @@ function timeText(value?: number) {
   return new Date(value).toLocaleString()
 }
 
+function expiresText(item: PendingApproval) {
+  if (item.expired) return '已过期'
+  if (typeof item.expires_in_seconds === 'number') {
+    return `${item.expires_in_seconds} 秒`
+  }
+  return timeText(item.expires_at)
+}
+
+function canApproveScope(item: PendingApproval, scope: string) {
+  if (item.expired) return false
+  const scopes = item.scope_options || []
+  if (scopes.length > 0) return scopes.includes(scope)
+  if (scope === 'always') return item.permanent_allowed === true
+  return true
+}
+
 function auditChoiceText(item: ApprovalAuditEvent) {
   if (item.event_type === 'request') return '请求审批'
   if (item.choice === 'deny') return '已拒绝'
@@ -485,24 +501,32 @@ onMounted(load)
                   <span>{{ item.selector || item.approval_id || '-' }}</span>
                   <span>创建：{{ timeText(item.created_at) }}</span>
                   <span>过期：{{ timeText(item.expires_at) }}</span>
+                  <span :class="{ 'approval-expired': item.expired }">剩余：{{ expiresText(item) }}</span>
+                </div>
+                <div v-if="item.scope_options?.length" class="approval-scopes">
+                  <NTag v-for="scope in item.scope_options" :key="scope" size="small" :bordered="false">
+                    {{ scope === 'once' ? '本次' : scope === 'session' ? '本会话' : '长期' }}
+                  </NTag>
                 </div>
                 <div class="approval-actions">
                   <NButtonGroup size="small">
                     <NButton
                       type="primary"
+                      :disabled="!canApproveScope(item, 'once')"
                       :loading="approvalBusy(item, 'approve', 'once')"
                       @click="handleApproval(item, 'approve', 'once')"
                     >
                       批准本次
                     </NButton>
                     <NButton
+                      :disabled="!canApproveScope(item, 'session')"
                       :loading="approvalBusy(item, 'approve', 'session')"
                       @click="handleApproval(item, 'approve', 'session')"
                     >
                       本会话批准
                     </NButton>
                     <NButton
-                      :disabled="!item.permanent_allowed"
+                      :disabled="!canApproveScope(item, 'always')"
                       :loading="approvalBusy(item, 'approve', 'always')"
                       @click="handleApproval(item, 'approve', 'always')"
                     >
@@ -513,6 +537,7 @@ onMounted(load)
                     size="small"
                     type="error"
                     ghost
+                    :disabled="item.expired"
                     :loading="approvalBusy(item, 'deny')"
                     @click="handleApproval(item, 'deny')"
                   >
@@ -876,6 +901,17 @@ dd {
   margin-top: 8px;
   font-size: 12px;
   color: $text-muted;
+}
+
+.approval-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.approval-expired {
+  color: $error;
 }
 
 .approval-actions {
