@@ -1057,6 +1057,11 @@ public class DefaultCommandService implements CommandService {
                         ? AgentRunStopResult.none()
                         : agentRunControlService.stop(message.sourceKey());
         int stoppedProcesses = processRegistry.stopAll();
+        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
+        if (session != null && dangerousCommandApprovalService != null) {
+            dangerousCommandApprovalService.clearSessionApprovals(
+                    new SqliteAgentSession(session, sessionRepository));
+        }
 
         StringBuilder buffer = new StringBuilder();
         if (stopResult.isActiveRun()) {
@@ -1066,7 +1071,6 @@ public class DefaultCommandService implements CommandService {
         }
         buffer.append("\n已停止后台进程：").append(stoppedProcesses).append(" 个。");
 
-        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         GatewayReply reply = GatewayReply.ok(buffer.toString());
         if (session != null) {
             reply.setSessionId(session.getSessionId());

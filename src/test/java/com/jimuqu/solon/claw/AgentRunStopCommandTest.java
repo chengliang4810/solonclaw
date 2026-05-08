@@ -6,7 +6,9 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +40,41 @@ public class AgentRunStopCommandTest {
         assertThat(env.agentRunControlService.isRunning("MEMORY:admin-chat:admin-user")).isFalse();
 
         executorService.shutdownNow();
+    }
+
+    @Test
+    void shouldClearDangerousPendingApprovalWhenStoppingSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.send("admin-chat", "admin-user", "准备执行危险命令");
+
+        SessionRecord session =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession agentSession =
+                new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(agentSession)).isNotNull();
+
+        GatewayReply stopReply = env.send("admin-chat", "admin-user", "/stop");
+        assertThat(stopReply.getContent()).contains("已停止后台进程");
+
+        SqliteAgentSession reloadedSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user"),
+                        env.sessionRepository);
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(reloadedSession)).isNull();
+
+        GatewayReply approveReply = env.send("admin-chat", "admin-user", "/approve always");
+        assertThat(approveReply.isError()).isTrue();
+        assertThat(approveReply.getContent()).contains("当前没有待审批的危险命令");
+        assertThat(env.dangerousCommandApprovalService.listAlwaysApprovals()).isEmpty();
+        assertThat(env.dangerousCommandApprovalService.listSessionApprovals(reloadedSession))
+                .isEmpty();
     }
 
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
