@@ -348,6 +348,17 @@ public class DashboardControllerHttpTest {
         HttpResult cronJobs = request("GET", "/api/cron/jobs", null, token);
         assertThat(cronJobs.body).contains("Daily summary");
         assertThat(cronJobs.body).contains("\"model\":\"gpt-5-mini\"");
+        HttpResult cronDetail = request("GET", "/api/cron/jobs/" + dashboardCronId, null, token);
+        assertThat(cronDetail.status).isEqualTo(200);
+        assertThat(cronDetail.body)
+                .contains("\"id\":\"" + dashboardCronId + "\"")
+                .contains("\"name\":\"Daily summary\"")
+                .contains("\"script\":\"dashboard-trigger.py\"");
+        HttpResult cronNext = request("GET", "/api/cron/jobs/next?limit=1", null, token);
+        assertThat(cronNext.status).isEqualTo(200);
+        ONode cronNextData = ONode.ofJson(cronNext.body).get("data");
+        assertThat(cronNextData.get("count").getInt()).isEqualTo(1);
+        assertThat(cronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
 
         HttpResult triggerCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
@@ -1323,6 +1334,12 @@ public class DashboardControllerHttpTest {
         HttpResult get = request("GET", "/api/jobs/" + jobId, null, token);
         assertThat(get.status).isEqualTo(200);
         assertThat(get.body).contains("\"job\"").contains("compat prompt");
+
+        HttpResult next = request("GET", "/api/jobs/next?limit=1", null, token);
+        assertThat(next.status).isEqualTo(200);
+        ONode nextJob = ONode.ofJson(next.body).get("jobs").get(0);
+        assertThat(nextJob.get("id").getString()).isEqualTo(jobId);
+        assertThat(nextJob.get("name").getString()).isEqualTo("compat-cron");
 
         HttpResult invalidId = request("GET", "/api/jobs/not-a-valid-hex!", null, token);
         assertThat(invalidId.status).isEqualTo(400);

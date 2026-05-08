@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +41,43 @@ public class DashboardCronService {
 
     public Map<String, Object> get(String id) throws Exception {
         return toDashboardView(cronJobService.require(id));
+    }
+
+    public List<Map<String, Object>> nextJobs(int limit) throws Exception {
+        int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
+        List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
+        for (CronJobRecord record : cronJobService.listAll(true)) {
+            if (record.getNextRunAt() <= 0L) {
+                continue;
+            }
+            if ("PAUSED".equalsIgnoreCase(record.getStatus()) || "COMPLETED".equalsIgnoreCase(record.getStatus())) {
+                continue;
+            }
+            jobs.add(record);
+        }
+        Collections.sort(
+                jobs,
+                new Comparator<CronJobRecord>() {
+                    @Override
+                    public int compare(CronJobRecord left, CronJobRecord right) {
+                        long delta = left.getNextRunAt() - right.getNextRunAt();
+                        if (delta < 0L) {
+                            return -1;
+                        }
+                        if (delta > 0L) {
+                            return 1;
+                        }
+                        String leftId = left.getJobId() == null ? "" : left.getJobId();
+                        String rightId = right.getJobId() == null ? "" : right.getJobId();
+                        return leftId.compareTo(rightId);
+                    }
+                });
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        int count = Math.min(safeLimit, jobs.size());
+        for (int i = 0; i < count; i++) {
+            result.add(toDashboardView(jobs.get(i)));
+        }
+        return result;
     }
 
     public Map<String, Object> create(Map<String, Object> body) throws Exception {
