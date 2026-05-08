@@ -193,6 +193,10 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict certutil =
                 policy.checkCommandAlwaysBlockedUrls(
                         "certutil -urlcache -split -f 2852039166 payload.bin");
+        SecurityPolicyService.UrlVerdict aria =
+                policy.checkCommandAlwaysBlockedUrls("aria2c 0xa9fea9fe");
+        SecurityPolicyService.UrlVerdict httpie =
+                policy.checkCommandAlwaysBlockedUrls("http 2852039166");
         SecurityPolicyService.UrlVerdict safeNumber =
                 policy.checkCommandAlwaysBlockedUrls("printf 12345");
 
@@ -204,6 +208,10 @@ public class SecurityPolicyServiceTest {
         assertThat(bits.getMessage()).contains("元数据");
         assertThat(certutil.isAllowed()).isFalse();
         assertThat(certutil.getMessage()).contains("元数据");
+        assertThat(aria.isAllowed()).isFalse();
+        assertThat(aria.getMessage()).contains("元数据");
+        assertThat(httpie.isAllowed()).isFalse();
+        assertThat(httpie.getMessage()).contains("元数据");
         assertThat(safeNumber.isAllowed()).isTrue();
     }
 

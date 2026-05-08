@@ -169,7 +169,7 @@ public class SecurityPolicyService {
                     "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
     private static final Pattern BARE_HOST_FETCH_CONTEXT_PATTERN =
             Pattern.compile(
-                    "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
+                    "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
 
     private final AppConfig appConfig;
 
