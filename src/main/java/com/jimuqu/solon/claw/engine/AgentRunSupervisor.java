@@ -126,7 +126,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             summary.put("attempts", Integer.valueOf(record.getAttempts()));
             return summary;
         } catch (Exception e) {
-            log.debug("activeRunSummary failed: sourceKey={}", sourceKey, e);
+            log.debug("activeRunSummary failed: sourceKey={}, error={}", sourceKey, safeError(e));
             return null;
         }
     }
@@ -901,8 +901,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     resolved,
                     runContext);
         } catch (Exception e) {
-            runContext.event("recovery.error", safeError(e));
-            log.warn("Agent recovery failed: sessionId={}", session.getSessionId(), e);
+            String error = safeError(e);
+            runContext.event("recovery.error", error);
+            log.warn("Agent recovery failed: sessionId={}, error={}", session.getSessionId(), error);
             return null;
         } finally {
             if (runContext != null) {
@@ -1043,7 +1044,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             messages.add(ChatMessage.ofAssistant(extractText(recovered.getAssistantMessage())));
             recovered.setNdjson(MessageSupport.toNdjson(messages));
         } catch (Exception e) {
-            log.warn("Failed to sanitize recovery transcript; using model transcript", e);
+            log.warn(
+                    "Failed to sanitize recovery transcript; using model transcript: error={}",
+                    safeError(e));
         }
     }
 
@@ -1203,7 +1206,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             agentSession.pending(true, resumeReason);
             agentSession.updateSnapshot();
         } catch (Exception e) {
-            log.warn("mark resume pending failed: sourceKey={}", sourceKey, e);
+            log.warn("mark resume pending failed: sourceKey={}, error={}", sourceKey, safeError(e));
         }
     }
 
@@ -1216,7 +1219,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         try {
             agentRunRepository.markStaleRuns(before, now);
         } catch (Exception e) {
-            log.warn("recoverStaleRuns failed", e);
+            log.warn("recoverStaleRuns failed: error={}", safeError(e));
         }
     }
 
@@ -1358,7 +1361,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             try {
                 queued = agentRunRepository.findNextQueuedMessage(sourceKey, sessionId);
             } catch (Exception e) {
-                log.warn("find queued run failed: sourceKey={}", sourceKey, e);
+                log.warn("find queued run failed: sourceKey={}, error={}", sourceKey, safeError(e));
                 return;
             }
             if (queued == null) {
@@ -1376,7 +1379,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             queued.getQueueId(), "failed", System.currentTimeMillis(), safeError(e));
                 } catch (Exception ignored) {
                 }
-                log.warn("queued run failed: queueId={}", queued.getQueueId(), e);
+                log.warn("queued run failed: queueId={}, error={}", queued.getQueueId(), safeError(e));
             }
         }
     }

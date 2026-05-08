@@ -22,6 +22,9 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -35,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.LoggerFactory;
 
 public class AgentRunSupervisorTest {
     @Test
@@ -143,6 +147,44 @@ public class AgentRunSupervisorTest {
             }
         }
         assertThat(sawRedactedEvent).isTrue();
+    }
+
+    @Test
+    void shouldRedactRecoveryFailureLogs() throws Exception {
+        Fixture fixture = fixture();
+        String leakedToken = "sk-supervisor-recovery12345";
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new FailingRecoveryGateway(leakedToken),
+                        noCompressionBudget(),
+                        noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:room:user");
+        Logger logger = (Logger) LoggerFactory.getLogger(AgentRunSupervisor.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            supervisor.run(
+                    session,
+                    "system",
+                    "hello",
+                    Collections.emptyList(),
+                    ConversationFeedbackSink.noop(),
+                    ConversationEventSink.noop(),
+                    false);
+        } catch (Exception expected) {
+            // The assertions below inspect the recovery failure log surface.
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(message -> message.contains("Agent recovery failed"))
+                .anyMatch(message -> message.contains("token=***"))
+                .noneMatch(message -> message.contains(leakedToken));
     }
 
     @Test
@@ -504,6 +546,59 @@ public class AgentRunSupervisorTest {
             result.setInputTokens(3);
             result.setOutputTokens(7);
             result.setTotalTokens(10);
+            return result;
+        }
+    }
+
+    private static class FailingRecoveryGateway implements LlmGateway {
+        private final String leakedToken;
+        private int attempts;
+
+        private FailingRecoveryGateway(String leakedToken) {
+            this.leakedToken = leakedToken;
+        }
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext)
+                throws Exception {
+            attempts++;
+            if (userMessage != null && userMessage.contains("没有输出最终答复")) {
+                throw new IllegalStateException("recovery failed token=" + leakedToken);
+            }
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setAssistantMessage(new AssistantMessage(""));
+            result.setNdjson(
+                    ChatMessage.toNdjson(
+                            java.util.Arrays.asList(
+                                    ChatMessage.ofUser("hello"),
+                                    ChatMessage.ofTool("tool done", "shell", "call_1"),
+                                    ChatMessage.ofAssistant(""))));
             return result;
         }
     }
