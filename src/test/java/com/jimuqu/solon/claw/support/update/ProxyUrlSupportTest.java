@@ -45,7 +45,7 @@ public class ProxyUrlSupportTest {
     }
 
     @Test
-    void shouldValidateProxyEnvironmentValuesLikeHermes() {
+    void shouldValidateProxyEnvironmentValuesLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("HTTP_PROXY", "http://127.0.0.1:6153");
         env.put("HTTPS_PROXY", "https://proxy.example.com:8443");
@@ -61,7 +61,7 @@ public class ProxyUrlSupportTest {
     }
 
     @Test
-    void shouldIgnoreBlankProxyEnvironmentValuesLikeHermes() {
+    void shouldIgnoreBlankProxyEnvironmentValuesLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("HTTP_PROXY", " ");
         env.put("https_proxy", "");
@@ -72,7 +72,7 @@ public class ProxyUrlSupportTest {
     }
 
     @Test
-    void shouldNormalizeSocksAliasInProxyEnvironmentLikeHermes() {
+    void shouldNormalizeSocksAliasInProxyEnvironmentLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("ALL_PROXY", "socks://127.0.0.1:1080/");
 
@@ -82,7 +82,7 @@ public class ProxyUrlSupportTest {
     }
 
     @Test
-    void shouldRejectMalformedProxyEnvironmentPortLikeHermes() {
+    void shouldRejectMalformedProxyEnvironmentPortLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("http_proxy", "http://127.0.0.1:6153export");
 

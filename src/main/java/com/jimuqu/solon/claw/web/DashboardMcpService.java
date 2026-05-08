@@ -326,7 +326,7 @@ public class DashboardMcpService {
             throw new IllegalStateException("client_id is required for MCP OAuth");
         }
         if (StrUtil.isBlank(redirectUri)) {
-            redirectUri = "http://127.0.0.1:8765/api/hermes/mcp/" + serverId + "/oauth/callback";
+            redirectUri = "http://127.0.0.1:8765/api/jimuqu/mcp/" + serverId + "/oauth/callback";
         }
         String state = randomBase64Url(32);
         String codeVerifier = randomBase64Url(32);

@@ -131,7 +131,7 @@ public class LobeHubSkillSource implements SkillSource {
                 .append(StrUtil.blankToDefault(description, title))
                 .append("\n");
         buffer.append("metadata:\n");
-        buffer.append("  hermes:\n");
+        buffer.append("  Jimuqu:\n");
         buffer.append("    tags: [").append(String.join(", ", tags)).append("]\n");
         buffer.append("---\n\n");
         buffer.append("# ").append(title).append("\n\n");

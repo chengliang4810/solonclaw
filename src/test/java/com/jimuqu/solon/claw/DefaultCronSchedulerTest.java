@@ -180,7 +180,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldInferCronJobNameLikeHermesWhenNameIsMissing() throws Exception {
+    void shouldInferCronJobNameLikeJimuquWhenNameIsMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -395,7 +395,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldExposeHermesScheduleKinds() throws Exception {
+    void shouldExposeJimuquScheduleKinds() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -451,7 +451,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldSupportHermesDurationAliases() throws Exception {
+    void shouldSupportJimuquDurationAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -998,7 +998,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldAllowDangerousCronScriptWhenHermesCronApprovalModeApproves() throws Exception {
+    void shouldAllowDangerousCronScriptWhenJimuquCronApprovalModeApproves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setCronMode("approve");
         env.send("admin-dm", "admin-user", "hello");
@@ -1040,7 +1040,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldInjectAgentCronScriptFailureIntoPromptLikeHermes() throws Exception {
+    void shouldInjectAgentCronScriptFailureIntoPromptLikeJimuqu() throws Exception {
         RecordingUserMessageOrchestrator orchestrator = new RecordingUserMessageOrchestrator();
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
@@ -1086,7 +1086,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldPersistHermesCronFieldsAndRejectUnsafePrompt() throws Exception {
+    void shouldPersistJimuquCronFieldsAndRejectUnsafePrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getScheduler().setWrapResponse(false);
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -1200,7 +1200,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldMatchHermesCronPromptThreatScanning() throws Exception {
+    void shouldMatchJimuquCronPromptThreatScanning() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -1364,7 +1364,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldMatchHermesCronjobToolIncludeDisabledAndWrapResponse() throws Exception {
+    void shouldMatchJimuquCronjobToolIncludeDisabledAndWrapResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         CronjobTools tools = new CronjobTools(service, "MEMORY:tool-room:user");
@@ -1879,7 +1879,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldExposeHermesCronjobSchemaGuidance() throws Exception {
+    void shouldExposeJimuquCronjobSchemaGuidance() throws Exception {
         Method method = cronjobToolMethod();
         ToolMapping mapping = method.getAnnotation(ToolMapping.class);
 
@@ -2206,7 +2206,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldRecoverRecurringNextRunFromLastRunAtLikeHermes() throws Exception {
+    void shouldRecoverRecurringNextRunFromLastRunAtLikeJimuqu() throws Exception {
         RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
         long now = System.currentTimeMillis();
@@ -2635,7 +2635,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldNormalizeCronWorkdirLikeHermes() throws Exception {
+    void shouldNormalizeCronWorkdirLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         File realDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/workdir-normalized");

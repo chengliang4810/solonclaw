@@ -56,7 +56,7 @@ public class DangerousCommandApprovalService {
             "(?:~|\\$home|\\$\\{home\\}|\\$env:home|\\$env:userprofile|%userprofile%|%homepath%)";
     private static final String AGENT_HOME_PATH_PREFIX =
             "(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%|"
-                    + "\\$hermes_home|\\$\\{hermes_home\\}|\\$env:hermes_home|%hermes_home%)";
+                    + "\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%)";
     private static final String SENSITIVE_WRITE_TARGET =
             "(?:/etc/|/dev/sd|"
                     + HOME_PATH_PREFIX
@@ -72,7 +72,7 @@ public class DangerousCommandApprovalService {
                     + "\\.(?:netrc|pgpass|npmrc|pypirc)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:jimuqu-agent|hermes)"
+                    + "\\.(?:jimuqu-agent|Jimuqu)"
                     + PATH_SEPARATOR
                     + "\\.env\\b|"
                     + AGENT_HOME_PATH_PREFIX
@@ -245,12 +245,12 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "gateway_stop_restart",
                                     "stop/restart gateway (kills running agents)",
-                                    pattern("\\b(?:hermes|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
+                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "app_update_restart",
                                     "agent update (restarts gateway, kills running agents)",
-                                    pattern("\\b(?:hermes|jimuqu-agent|solon-claw)\\s+update\\b"),
+                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+update\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gateway_run_detached",
@@ -261,7 +261,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "kill_agent_process",
                                     "kill agent/gateway process (self-termination)",
-                                    pattern("\\b(pkill|killall)\\b.*\\b(hermes|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
+                                    pattern("\\b(pkill|killall)\\b.*\\b(Jimuqu|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
@@ -1735,12 +1735,12 @@ public class DangerousCommandApprovalService {
                 && appConfig.getApprovals().isSubagentAutoApprove();
     }
 
-    protected String hermesYoloModeEnv() {
-        return System.getenv("HERMES_YOLO_MODE");
+    protected String jimuquYoloModeEnv() {
+        return System.getenv("JIMUQU_YOLO_MODE");
     }
 
     private boolean isCompatibilityYoloModeEnabled() {
-        String value = StrUtil.nullToEmpty(hermesYoloModeEnv()).trim();
+        String value = StrUtil.nullToEmpty(jimuquYoloModeEnv()).trim();
         return "true".equalsIgnoreCase(value)
                 || "1".equals(value)
                 || "yes".equalsIgnoreCase(value)

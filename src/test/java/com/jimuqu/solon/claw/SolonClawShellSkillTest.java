@@ -27,7 +27,7 @@ import org.noear.solon.annotation.Param;
 
 public class SolonClawShellSkillTest {
     @Test
-    void shouldReturnCleanTerminalErrorForNullCommandLikeHermes() throws Exception {
+    void shouldReturnCleanTerminalErrorForNullCommandLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -50,7 +50,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldReturnCleanTerminalErrorForBlankCommandLikeHermes() throws Exception {
+    void shouldReturnCleanTerminalErrorForBlankCommandLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -70,7 +70,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldHandleNullSudoTransformLikeHermes() throws Exception {
+    void shouldHandleNullSudoTransformLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("secret");
         SolonClawShellSkill skill =
@@ -127,7 +127,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRewriteOnlyRealCompoundSudoInvocationsLikeHermes() throws Exception {
+    void shouldRewriteOnlyRealCompoundSudoInvocationsLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
         SolonClawShellSkill skill =
@@ -171,7 +171,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldTreatExplicitEmptySudoPasswordAsConfiguredLikeHermes() throws Exception {
+    void shouldTreatExplicitEmptySudoPasswordAsConfiguredLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("");
         SolonClawShellSkill skill =
@@ -185,7 +185,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldValidateWindowsWorkdirTextLikeHermesTerminalGuardrail() {
+    void shouldValidateWindowsWorkdirTextLikeJimuquTerminalGuardrail() {
         assertThat(SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project").isAllowed())
                 .isTrue();
         assertThat(SecurityPolicyService.checkWorkdirText("C:/Users/Alice/project").isAllowed())
@@ -217,13 +217,13 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldStripEightBitAnsiFromTerminalOutputLikeHermes() throws Exception {
+    void shouldStripEightBitAnsiFromTerminalOutputLikeJimuqu() throws Exception {
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m"))
                 .isEqualTo("red");
     }
 
     @Test
-    void shouldStripEcma48AnsiSequencesLikeHermes() {
+    void shouldStripEcma48AnsiSequencesLikeJimuqu() {
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B[38:2:255:0:0mred\u001B[0m"))
                 .isEqualTo("red");
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u001B[?1049halt\u001B[?1049l"))
@@ -241,7 +241,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldResolveDefaultShellInitFilesInHermesOrder() throws Exception {
+    void shouldResolveDefaultShellInitFilesInJimuquOrder() throws Exception {
         Path home = Files.createTempDirectory("jimuqu-shell-init-home");
         Path profile = home.resolve(".profile");
         Path bashProfile = home.resolve(".bash_profile");
@@ -266,7 +266,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldLetExplicitShellInitFilesWinOverAutoLikeHermes() throws Exception {
+    void shouldLetExplicitShellInitFilesWinOverAutoLikeJimuqu() throws Exception {
         Path home = Files.createTempDirectory("jimuqu-shell-init-explicit");
         Path bashrc = home.resolve(".bashrc");
         Path custom = home.resolve("custom.sh");
@@ -285,7 +285,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldExpandShellInitEnvVarsAndSkipMissingFilesLikeHermes() throws Exception {
+    void shouldExpandShellInitEnvVarsAndSkipMissingFilesLikeJimuqu() throws Exception {
         Path home = Files.createTempDirectory("jimuqu-shell-init-env");
         Path rc = home.resolve("rc");
         Files.createDirectories(rc);
@@ -325,7 +325,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldPrependGuardedShellInitSourceLinesLikeHermes() {
+    void shouldPrependGuardedShellInitSourceLinesLikeJimuqu() {
         String wrapped =
                 SolonClawShellSkill.prependShellInit(
                         "echo hi",
@@ -339,7 +339,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRejectWorkdirWithShellMetacharactersLikeHermesTerminalGuardrail() {
+    void shouldRejectWorkdirWithShellMetacharactersLikeJimuquTerminalGuardrail() {
         AppConfig config = new AppConfig();
 
         assertThatThrownBy(
@@ -353,7 +353,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldResolveSafeCwdToNearestExistingAncestorLikeHermes() throws Exception {
+    void shouldResolveSafeCwdToNearestExistingAncestorLikeJimuqu() throws Exception {
         Path root = Files.createTempDirectory("jimuqu-safe-cwd");
         Path nested = root.resolve("child").resolve("grandchild");
         Files.createDirectories(nested);
@@ -365,7 +365,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldResolveSafeCwdToFallbackWhenPathIsBlankLikeHermes() throws Exception {
+    void shouldResolveSafeCwdToFallbackWhenPathIsBlankLikeJimuqu() throws Exception {
         Path fallback = Files.createTempDirectory("jimuqu-safe-cwd-fallback");
 
         File safe = SolonClawShellSkill.resolveSafeCwd("", fallback.toFile());
@@ -374,7 +374,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRecoverForegroundTerminalWhenRequestedWorkdirWasDeletedLikeHermes()
+    void shouldRecoverForegroundTerminalWhenRequestedWorkdirWasDeletedLikeJimuqu()
             throws Exception {
         AppConfig config = new AppConfig();
         Path root = Files.createTempDirectory("jimuqu-shell-cwd");
@@ -398,7 +398,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRunForegroundTerminalInWorkdirWithSpacesLikeHermes() throws Exception {
+    void shouldRunForegroundTerminalInWorkdirWithSpacesLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         Path root = Files.createTempDirectory("jimuqu-shell-cwd");
         Path spaced = root.resolve("project with spaces");
@@ -420,7 +420,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRejectForegroundAndBackgroundWorkdirsWithShellMetacharactersLikeHermes()
+    void shouldRejectForegroundAndBackgroundWorkdirsWithShellMetacharactersLikeJimuqu()
             throws Exception {
         AppConfig config = new AppConfig();
         Path root = Files.createTempDirectory("jimuqu-shell-cwd");
@@ -490,7 +490,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRejectForegroundTimeoutAboveHermesCap() throws Exception {
+    void shouldRejectForegroundTimeoutAboveJimuquCap() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setMaxForegroundTimeoutSeconds(1);
         SolonClawShellSkill skill =
@@ -504,7 +504,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldExposeForegroundTimeoutCapInToolParameterDescriptionsLikeHermes()
+    void shouldExposeForegroundTimeoutCapInToolParameterDescriptionsLikeJimuqu()
             throws Exception {
         Method execute = SolonClawShellSkill.class.getMethod("execute", String.class, Integer.class);
         Method terminal =
@@ -528,7 +528,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldNotRejectDefaultTerminalTimeoutAboveCapLikeHermes() throws Exception {
+    void shouldNotRejectDefaultTerminalTimeoutAboveCapLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setMaxForegroundTimeoutSeconds(1);
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -549,7 +549,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldApplyHermesCompoundBackgroundRewriteBeforeForegroundExecution() throws Exception {
+    void shouldApplyJimuquCompoundBackgroundRewriteBeforeForegroundExecution() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -660,7 +660,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldDetectHermesPipeStdinCommandsThatCannotUsePty() throws Exception {
+    void shouldDetectJimuquPipeStdinCommandsThatCannotUsePty() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -673,7 +673,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldReturnPtyDisabledNoteForHermesPipeStdinBackgroundCommands() throws Exception {
+    void shouldReturnPtyDisabledNoteForJimuquPipeStdinBackgroundCommands() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -698,7 +698,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldInterpretHermesTerminalExitCodeSemantics() throws Exception {
+    void shouldInterpretJimuquTerminalExitCodeSemantics() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -752,7 +752,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldStartHermesTerminalBackgroundProcessInRegistry() throws Exception {
+    void shouldStartJimuquTerminalBackgroundProcessInRegistry() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -779,7 +779,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldStoreHermesWatchPatternsForManagedBackgroundTerminalProcesses()
+    void shouldStoreJimuquWatchPatternsForManagedBackgroundTerminalProcesses()
             throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
@@ -812,7 +812,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldDropWatchPatternsWhenNotifyOnCompleteIsSetLikeHermes() throws Exception {
+    void shouldDropWatchPatternsWhenNotifyOnCompleteIsSetLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -899,7 +899,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldDisableNoisyWatchPatternsAndFallBackToCompletionLikeHermes() throws Exception {
+    void shouldDisableNoisyWatchPatternsAndFallBackToCompletionLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry(null, 250L, 2, 100, 1000L, 1000L);
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -930,7 +930,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldSkipCompletionEventWhenWaitAlreadyConsumedItLikeHermes() throws Exception {
+    void shouldSkipCompletionEventWhenWaitAlreadyConsumedItLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -955,7 +955,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldReturnHermesJsonForForegroundTerminalCommands() throws Exception {
+    void shouldReturnJimuquJsonForForegroundTerminalCommands() throws Exception {
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
         SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
@@ -986,7 +986,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRetryForegroundTerminalExecutionFailuresLikeHermes() throws Exception {
+    void shouldRetryForegroundTerminalExecutionFailuresLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setForegroundMaxRetries(3);
         config.getTerminal().setForegroundRetryBaseDelaySeconds(0);
@@ -1054,7 +1054,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldIgnoreNullTerminalOutputTransformerResultLikeHermesHook() throws Exception {
+    void shouldIgnoreNullTerminalOutputTransformerResultLikeJimuquHook() throws Exception {
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
         SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
@@ -1122,7 +1122,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldStillNormalizeTransformedTerminalOutputLikeHermes() throws Exception {
+    void shouldStillNormalizeTransformedTerminalOutputLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTask().setToolOutputInlineLimit(300);
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
@@ -1272,7 +1272,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRejectLongLivedServerCommandsOnForegroundTerminalLikeHermes() throws Exception {
+    void shouldRejectLongLivedServerCommandsOnForegroundTerminalLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -1295,7 +1295,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRejectShellLevelBackgroundWrappersOnForegroundTerminalLikeHermes()
+    void shouldRejectShellLevelBackgroundWrappersOnForegroundTerminalLikeJimuqu()
             throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
@@ -1317,7 +1317,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldRejectAmpersandBackgroundingOnForegroundTerminalLikeHermes()
+    void shouldRejectAmpersandBackgroundingOnForegroundTerminalLikeJimuqu()
             throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
@@ -1339,7 +1339,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldAllowHelpVariantForLongLivedForegroundCommandLikeHermes() throws Exception {
+    void shouldAllowHelpVariantForLongLivedForegroundCommandLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -1381,7 +1381,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldApplySudoRewriteBeforeStartingManagedBackgroundProcessLikeHermes()
+    void shouldApplySudoRewriteBeforeStartingManagedBackgroundProcessLikeJimuqu()
             throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
@@ -1429,7 +1429,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldPreservePartialForegroundOutputOnTimeoutLikeHermes() throws Exception {
+    void shouldPreservePartialForegroundOutputOnTimeoutLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -1443,7 +1443,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldPreservePartialTerminalJsonOutputOnTimeoutLikeHermes() throws Exception {
+    void shouldPreservePartialTerminalJsonOutputOnTimeoutLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
         SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
@@ -1465,7 +1465,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldCloseForegroundStdinWhenNoInputIsProvidedLikeHermesPipedStdinGuardrail()
+    void shouldCloseForegroundStdinWhenNoInputIsProvidedLikeJimuquPipedStdinGuardrail()
             throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
@@ -1477,7 +1477,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldApplyHermesForegroundOutputByteLimit() throws Exception {
+    void shouldApplyJimuquForegroundOutputByteLimit() throws Exception {
         AppConfig config = new AppConfig();
         config.getTask().setToolOutputInlineLimit(300);
         SolonClawShellSkill skill =
@@ -1495,7 +1495,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldPreserveSafePathForForegroundTerminalEnvLikeHermes() throws Exception {
+    void shouldPreserveSafePathForForegroundTerminalEnvLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -1508,7 +1508,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldAppendSudoFailureHintForExecuteLikeHermesMessagingGuardrail() throws Exception {
+    void shouldAppendSudoFailureHintForExecuteLikeJimuquMessagingGuardrail() throws Exception {
         AppConfig config = new AppConfig();
         SolonClawShellSkill skill =
                 new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
@@ -1522,7 +1522,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldAppendSudoFailureHintForTerminalJsonOutputLikeHermes() throws Exception {
+    void shouldAppendSudoFailureHintForTerminalJsonOutputLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         String workdir = Files.createTempDirectory("jimuqu-shell").toString();
         SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);

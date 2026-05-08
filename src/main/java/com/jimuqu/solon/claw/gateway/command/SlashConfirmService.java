@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import org.noear.snack4.ONode;
 
-/** Hermes-style slash-command confirmation state. */
+/** reference-style slash-command confirmation state. */
 public class SlashConfirmService {
     public static final String CHOICE_ONCE = "once";
     public static final String CHOICE_ALWAYS = "always";

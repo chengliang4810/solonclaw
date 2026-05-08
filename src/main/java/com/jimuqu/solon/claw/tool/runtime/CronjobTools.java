@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes-style cronjob tool. */
+/** reference-style cronjob tool. */
 @RequiredArgsConstructor
 public class CronjobTools {
     private final CronJobService cronJobService;

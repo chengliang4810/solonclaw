@@ -14,7 +14,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 
-/** Hermes Curator 对齐的技能后台维护器。 */
+/** Jimuqu Curator 对齐的技能后台维护器。 */
 @RequiredArgsConstructor
 public class SkillCuratorService {
     private final AppConfig appConfig;
@@ -288,8 +288,8 @@ public class SkillCuratorService {
         if (curator instanceof Map && asBoolean(((Map<String, Object>) curator).get("pinned"))) {
             return true;
         }
-        Object hermes = metadata.get("hermes");
-        return hermes instanceof Map && asBoolean(((Map<String, Object>) hermes).get("pinned"));
+        Object Jimuqu = metadata.get("Jimuqu");
+        return Jimuqu instanceof Map && asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
     }
 
     private boolean asBoolean(Object value) {

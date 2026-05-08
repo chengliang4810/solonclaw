@@ -17,7 +17,7 @@ const options = [
 
 function handleChange(val: string) {
   locale.value = val
-  localStorage.setItem('hermes_locale', val)
+  localStorage.setItem('jimuqu_locale', val)
 }
 </script>
 

@@ -12,7 +12,7 @@ import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
-/** Hermes-style line-oriented CLI. */
+/** reference-style line-oriented CLI. */
 public class CliShell {
     private static final String PROMPT = "\u001B[36mjimuqu>\u001B[0m ";
     private static final String[] COMMANDS =

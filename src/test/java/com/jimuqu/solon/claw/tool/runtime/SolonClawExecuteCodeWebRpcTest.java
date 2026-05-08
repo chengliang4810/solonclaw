@@ -12,7 +12,7 @@ import org.noear.solon.ai.rag.Document;
 
 public class SolonClawExecuteCodeWebRpcTest {
     @Test
-    void shouldExposeHermesWebSearchAndExtractInsideExecuteCode() throws Exception {
+    void shouldExposeJimuquWebSearchAndExtractInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =

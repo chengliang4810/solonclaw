@@ -9,10 +9,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.noear.snack4.ONode;
 
-/** Hermes 中央索引来源。 */
+/** Jimuqu 中央索引来源。 */
 public class SolonClawIndexSource implements SkillSource {
     private static final String INDEX_URL =
-            "https://hermes-agent.nousresearch.com/docs/api/skills-index.json";
+            "https://jimuqu-agent.local/docs/api/skills-index.json";
 
     private final SkillHubHttpClient httpClient;
     private final SkillHubStateStore stateStore;
@@ -88,7 +88,7 @@ public class SolonClawIndexSource implements SkillSource {
 
     @Override
     public String sourceId() {
-        return "hermes-index";
+        return "Jimuqu-index";
     }
 
     @Override
@@ -104,12 +104,12 @@ public class SolonClawIndexSource implements SkillSource {
     }
 
     private ONode loadIndex() throws Exception {
-        String cached = stateStore.readCachedIndex("hermes-index");
+        String cached = stateStore.readCachedIndex("Jimuqu-index");
         if (StrUtil.isNotBlank(cached)) {
             return ONode.ofJson(cached);
         }
         String text = httpClient.getText(INDEX_URL, null);
-        stateStore.writeCachedIndex("hermes-index", text);
+        stateStore.writeCachedIndex("Jimuqu-index", text);
         return ONode.ofJson(text);
     }
 

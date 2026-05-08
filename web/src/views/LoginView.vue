@@ -16,7 +16,7 @@ const errorMsg = ref("");
 
 // If already has a key, try to go to main page
 if (hasApiKey()) {
-  router.replace("/hermes/chat");
+  router.replace("/jimuqu/chat");
 }
 
 async function handleLogin() {
@@ -41,7 +41,7 @@ async function handleLogin() {
     }
 
     setApiKey(key);
-    router.replace("/hermes/chat");
+    router.replace("/jimuqu/chat");
   } catch {
     errorMsg.value = t("login.connectionFailed");
   } finally {

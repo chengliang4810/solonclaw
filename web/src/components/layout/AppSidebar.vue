@@ -3,7 +3,7 @@ import { computed, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { NButton, useMessage } from "naive-ui";
-import { useAppStore } from "@/stores/hermes/app";
+import { useAppStore } from "@/stores/jimuqu/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
 import danceVideoLight from "@/assets/dance-light.mp4";
 import danceVideoDark from "@/assets/dance-dark.mp4";
@@ -93,7 +93,7 @@ function handleLogout() {
 
 <template>
   <aside class="sidebar" :class="{ open: appStore.sidebarOpen }">
-    <div class="sidebar-logo" @click="router.push('/hermes/chat')">
+    <div class="sidebar-logo" @click="router.push('/jimuqu/chat')">
       <img :src="logoPath" alt="SolonClaw" class="logo-img" />
       <span class="logo-text">SolonClaw</span>
       <video class="logo-dance" :src="isDark ? danceVideoDark : danceVideoLight" autoplay loop muted playsinline />
@@ -101,14 +101,14 @@ function handleLogout() {
 
     <nav class="sidebar-nav">
       <!-- Chat (standalone) -->
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.chat' }" @click="handleNav('hermes.chat')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.chat' }" @click="handleNav('Jimuqu.chat')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         <span>{{ t("sidebar.chat") }}</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.agents' }" @click="handleNav('hermes.agents')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.agents' }" @click="handleNav('Jimuqu.agents')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="7" r="4" />
           <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
@@ -117,7 +117,7 @@ function handleLogout() {
         <span>{{ t("sidebar.agents") }}</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.skills' }" @click="handleNav('hermes.skills')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.skills' }" @click="handleNav('Jimuqu.skills')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="12 2 2 7 12 12 22 7 12 2" />
           <polyline points="2 17 12 22 22 17" />
@@ -126,7 +126,7 @@ function handleLogout() {
         <span>{{ t("sidebar.skills") }}</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.jobs' }" @click="handleNav('hermes.jobs')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.jobs' }" @click="handleNav('Jimuqu.jobs')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
@@ -136,7 +136,7 @@ function handleLogout() {
         <span>{{ t("sidebar.jobs") }}</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.kanban' }" @click="handleNav('hermes.kanban')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.kanban' }" @click="handleNav('Jimuqu.kanban')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="16" rx="2" />
           <path d="M9 4v16" />
@@ -148,14 +148,14 @@ function handleLogout() {
         <span>看板</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.channels' }" @click="handleNav('hermes.channels')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.channels' }" @click="handleNav('Jimuqu.channels')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
         </svg>
         <span>{{ t("sidebar.channels") }}</span>
       </button>
 
-      <button class="nav-item" :class="{ active: selectedKey === 'hermes.models' }" @click="handleNav('hermes.models')">
+      <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.models' }" @click="handleNav('Jimuqu.models')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3" />
           <path d="M12 1v4" />
@@ -183,8 +183,8 @@ function handleLogout() {
             v-for="item in personaItems"
             :key="item.key"
             class="nav-item"
-            :class="{ active: (item.key === 'journal' && selectedKey === 'hermes.persona.journal') || (selectedKey === 'hermes.persona.file' && route.params.key === item.key) }"
-            @click="item.key === 'journal' ? router.push({ name: 'hermes.persona.journal' }) : router.push({ name: 'hermes.persona.file', params: { key: item.key } })"
+            :class="{ active: (item.key === 'journal' && selectedKey === 'Jimuqu.persona.journal') || (selectedKey === 'Jimuqu.persona.file' && route.params.key === item.key) }"
+            @click="item.key === 'journal' ? router.push({ name: 'Jimuqu.persona.journal' }) : router.push({ name: 'Jimuqu.persona.file', params: { key: item.key } })"
           >
             <span class="nav-item-icon" v-html="item.icon"></span>
             <span>{{ item.title }}</span>
@@ -201,7 +201,7 @@ function handleLogout() {
           </svg>
         </div>
         <div v-show="!isGroupCollapsed('monitoring')">
-          <button class="nav-item" :class="{ active: selectedKey === 'hermes.logs' }" @click="handleNav('hermes.logs')">
+          <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.logs' }" @click="handleNav('Jimuqu.logs')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
@@ -211,7 +211,7 @@ function handleLogout() {
             </svg>
             <span>{{ t("sidebar.logs") }}</span>
           </button>
-          <button class="nav-item" :class="{ active: selectedKey === 'hermes.usage' }" @click="handleNav('hermes.usage')">
+          <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.usage' }" @click="handleNav('Jimuqu.usage')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="12" width="4" height="9" rx="1" />
               <rect x="10" y="7" width="4" height="14" rx="1" />
@@ -219,7 +219,7 @@ function handleLogout() {
             </svg>
             <span>{{ t("sidebar.usage") }}</span>
           </button>
-          <button class="nav-item" :class="{ active: selectedKey === 'hermes.runs' }" @click="handleNav('hermes.runs')">
+          <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.runs' }" @click="handleNav('Jimuqu.runs')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19V5" />
               <path d="M4 19h16" />
@@ -239,14 +239,14 @@ function handleLogout() {
           </svg>
         </div>
         <div v-show="!isGroupCollapsed('system')">
-          <button class="nav-item" :class="{ active: selectedKey === 'hermes.settings' }" @click="handleNav('hermes.settings')">
+          <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.settings' }" @click="handleNav('Jimuqu.settings')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
             <span>{{ t("sidebar.settings") }}</span>
           </button>
-          <button class="nav-item" :class="{ active: selectedKey === 'hermes.diagnostics' }" @click="handleNav('hermes.diagnostics')">
+          <button class="nav-item" :class="{ active: selectedKey === 'Jimuqu.diagnostics' }" @click="handleNav('Jimuqu.diagnostics')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 3v3" />
               <path d="M12 18v3" />

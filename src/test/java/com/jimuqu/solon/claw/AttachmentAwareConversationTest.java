@@ -77,7 +77,7 @@ public class AttachmentAwareConversationTest {
     }
 
     @Test
-    void shouldRejectMediaCacheSymlinkEscapingRuntimeLikeHermesContextReferences()
+    void shouldRejectMediaCacheSymlinkEscapingRuntimeLikeJimuquContextReferences()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);

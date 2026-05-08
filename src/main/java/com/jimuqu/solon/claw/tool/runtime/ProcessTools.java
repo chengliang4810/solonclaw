@@ -13,7 +13,7 @@ import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes 风格的受管后台进程工具。 */
+/** Jimuqu 风格的受管后台进程工具。 */
 public class ProcessTools {
     private final ProcessRegistry processRegistry;
     private final String defaultWorkDir;

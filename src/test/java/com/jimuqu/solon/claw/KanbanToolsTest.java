@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 public class KanbanToolsTest {
     @Test
-    void shouldExposeHermesStyleKanbanWorkerTools() throws Exception {
+    void shouldExposeJimuquStyleKanbanWorkerTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
         KanbanTools tools = new KanbanTools(service);

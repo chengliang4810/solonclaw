@@ -191,7 +191,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesToolOutputAliases() throws Exception {
+    void shouldLoadJimuquToolOutputAliases() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-tool-output").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -226,7 +226,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldUseHermesDefaultToolOutputMaxBytes() throws Exception {
+    void shouldUseJimuquDefaultToolOutputMaxBytes() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-default").toFile();
 
         Props props = new Props();
@@ -240,7 +240,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldCoerceHermesToolOutputStringIntegers() throws Exception {
+    void shouldCoerceJimuquToolOutputStringIntegers() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-string").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -261,7 +261,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldFallbackForInvalidHermesToolOutputValues() throws Exception {
+    void shouldFallbackForInvalidJimuquToolOutputValues() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-invalid").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -282,7 +282,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldFallbackWhenHermesToolOutputSectionIsNotMap() throws Exception {
+    void shouldFallbackWhenJimuquToolOutputSectionIsNotMap() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-section").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String("tool_output: nonsense\n", configFile);
@@ -298,13 +298,13 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesTerminalCredentialFilesAlias() throws Exception {
+    void shouldLoadJimuquTerminalCredentialFilesAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-config").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
                 "terminal:\n"
                         + "  credential_files:\n"
-                        + "    - credentials/hermes-token.json\n"
+                        + "    - credentials/jimuqu-token.json\n"
                         + "  env_passthrough:\n"
                         + "    - TENOR_API_KEY\n",
                 configFile);
@@ -315,12 +315,12 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTerminal().getCredentialFiles())
-                .containsExactly("credentials/hermes-token.json");
+                .containsExactly("credentials/jimuqu-token.json");
         assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
     }
 
     @Test
-    void shouldLoadHermesTerminalShellInitAliases() throws Exception {
+    void shouldLoadJimuquTerminalShellInitAliases() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-init").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -342,7 +342,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldTreatHermesBooleanFalseApprovalModeAsOff() throws Exception {
+    void shouldTreatJimuquBooleanFalseApprovalModeAsOff() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-approvals-mode").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -359,7 +359,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesExternalSkillsDirsAlias() throws Exception {
+    void shouldLoadJimuquExternalSkillsDirsAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-external-skills").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -379,12 +379,12 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesTerminalSudoPasswordAlias() throws Exception {
+    void shouldLoadJimuquTerminalSudoPasswordAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-sudo").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
                 "terminal:\n"
-                        + "  sudo_password: hermes-pass\n",
+                        + "  sudo_password: Jimuqu-pass\n",
                 configFile);
 
         Props props = new Props();
@@ -392,11 +392,11 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("hermes-pass");
+        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("Jimuqu-pass");
     }
 
     @Test
-    void shouldLoadHermesTerminalTimeoutAlias() throws Exception {
+    void shouldLoadJimuquTerminalTimeoutAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-timeout").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -413,12 +413,12 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesTerminalWriteSafeRootAlias() throws Exception {
+    void shouldLoadJimuquTerminalWriteSafeRootAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-write-root").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
                 "terminal:\n"
-                        + "  write_safe_root: D:/workspace/hermes-safe\n",
+                        + "  write_safe_root: D:/workspace/jimuqu-safe\n",
                 configFile);
 
         Props props = new Props();
@@ -426,11 +426,11 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/hermes-safe");
+        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/jimuqu-safe");
     }
 
     @Test
-    void shouldLoadHermesWebsiteBlocklistAlias() throws Exception {
+    void shouldLoadJimuquWebsiteBlocklistAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-website-policy").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -457,7 +457,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesAllowPrivateUrlsAlias() throws Exception {
+    void shouldLoadJimuquAllowPrivateUrlsAlias() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-private-url-policy").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
@@ -474,7 +474,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldLoadHermesBrowserAllowPrivateUrlsFallback() throws Exception {
+    void shouldLoadJimuquBrowserAllowPrivateUrlsFallback() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-browser-private-url").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(

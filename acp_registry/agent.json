@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "jimuqu-agent",
   "display_name": "Jimuqu Agent",
-  "description": "Hermes Agent compatible Java agent built with Solon and Solon AI",
+  "description": "参考 Agent compatible Java agent built with Solon and Solon AI",
   "icon": "icon.svg",
   "distribution": {
     "type": "command",

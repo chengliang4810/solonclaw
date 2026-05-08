@@ -1,6 +1,6 @@
 package com.jimuqu.solon.claw.kanban;
 
-/** Durable Hermes-style Kanban task. */
+/** Durable reference-style Kanban task. */
 public class KanbanTaskRecord {
     private String taskId;
     private String boardSlug;

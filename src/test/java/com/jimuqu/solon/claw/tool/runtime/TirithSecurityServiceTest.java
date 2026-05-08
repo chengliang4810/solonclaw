@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 public class TirithSecurityServiceTest {
     @Test
-    void shouldMapTirithExitCodesLikeHermes() throws Exception {
+    void shouldMapTirithExitCodesLikeJimuqu() throws Exception {
         TirithSecurityService.ScanResult allow =
                 scan(script("printf '%s\\n' '{\"findings\":[],\"summary\":\"\"}'", 0));
         TirithSecurityService.ScanResult block =
@@ -39,7 +39,7 @@ public class TirithSecurityServiceTest {
     }
 
     @Test
-    void shouldKeepExitCodeDecisionWhenTirithJsonIsInvalidLikeHermes() throws Exception {
+    void shouldKeepExitCodeDecisionWhenTirithJsonIsInvalidLikeJimuqu() throws Exception {
         TirithSecurityService.ScanResult block = scan(script("printf '%s\\n' 'NOT JSON'", 1));
         TirithSecurityService.ScanResult warn = scan(script("printf '%s\\n' '{broken'", 2));
         TirithSecurityService.ScanResult allow = scan(script("printf '%s\\n' 'NOT JSON'", 0));
@@ -53,7 +53,7 @@ public class TirithSecurityServiceTest {
     }
 
     @Test
-    void shouldApplyHermesTirithFindingAndSummaryCaps() throws Exception {
+    void shouldApplyJimuquTirithFindingAndSummaryCaps() throws Exception {
         TirithSecurityService.ScanResult result = scan(script(printJson(manyFindingsJson(60)), 2));
 
         assertThat(result.getAction()).isEqualTo("warn");
@@ -64,7 +64,7 @@ public class TirithSecurityServiceTest {
     }
 
     @Test
-    void shouldFailOpenOrClosedForUnknownTirithExitCodeLikeHermes() throws Exception {
+    void shouldFailOpenOrClosedForUnknownTirithExitCodeLikeJimuqu() throws Exception {
         Path binary = script("", 99);
         AppConfig openConfig = config(binary);
         openConfig.getSecurity().setTirithFailOpen(true);

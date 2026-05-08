@@ -65,7 +65,7 @@ public class RuntimeConfigResolver {
         return getInstance().getRaw(key);
     }
 
-    /** Hermes cfg_get 对齐入口：按嵌套路径读取 runtime/config.yml 的原始值。 */
+    /** Jimuqu cfg_get 对齐入口：按嵌套路径读取 runtime/config.yml 的原始值。 */
     public static Object cfgGet(String path, Object defaultValue) {
         return getInstance().getByPath(path, defaultValue);
     }

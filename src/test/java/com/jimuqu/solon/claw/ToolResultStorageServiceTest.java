@@ -28,7 +28,7 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
-    void shouldPersistLargeToolResultAndReturnHermesBlock() throws Exception {
+    void shouldPersistLargeToolResultAndReturnJimuquBlock() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 256, 200000, 300);
         String large = repeat("line\n", 200);

@@ -297,13 +297,13 @@ public class DashboardControllerHttpTest {
         HttpResult createMcp =
                 request(
                         "POST",
-                        "/api/hermes/mcp",
+                        "/api/jimuqu/mcp",
                         "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"}]}",
                         token);
         assertThat(createMcp.status).isEqualTo(200);
 
         HttpResult checkMcp =
-                request("POST", "/api/hermes/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcp.status).isEqualTo(200);
         assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
         assertThat(checkMcp.body).contains("\"tool_changed_notification\":true");
@@ -312,20 +312,20 @@ public class DashboardControllerHttpTest {
         assertThat(checkMcp.body).contains("\"schema_sanitizer\":\"snack4\"");
 
         HttpResult checkMcpAgain =
-                request("POST", "/api/hermes/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcpAgain.status).isEqualTo(200);
         assertThat(checkMcpAgain.body).contains("\"tool_changed_notification\":false");
 
         HttpResult updateMcp =
                 request(
                         "POST",
-                        "/api/hermes/mcp",
+                        "/api/jimuqu/mcp",
                         "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_search\",\"description\":\"Search docs\"},{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
                         token);
         assertThat(updateMcp.status).isEqualTo(200);
 
         HttpResult changedMcp =
-                request("POST", "/api/hermes/mcp/dashboard-local-docs/check", "{}", token);
+                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(changedMcp.status).isEqualTo(200);
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
@@ -333,7 +333,7 @@ public class DashboardControllerHttpTest {
                 .containsExactly("docs_fetch", "docs_search");
         assertThat(stringsAt(changedMcp.body, "removed_tools")).isEmpty();
 
-        HttpResult mcpList = request("GET", "/api/hermes/mcp", null, token);
+        HttpResult mcpList = request("GET", "/api/jimuqu/mcp", null, token);
         assertThat(mcpList.status).isEqualTo(200);
         assertThat(mcpList.body).contains("Local Docs");
         assertThat(mcpList.body).contains("\"oauth\"");
@@ -343,13 +343,13 @@ public class DashboardControllerHttpTest {
         HttpResult updateMcpOAuth =
                 request(
                         "POST",
-                        "/api/hermes/mcp",
+                        "/api/jimuqu/mcp",
                         "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(updateMcpOAuth.status).isEqualTo(200);
 
         HttpResult oauthStatus =
-                request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+                request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
         assertThat(oauthStatus.status).isEqualTo(200);
         assertThat(oauthStatus.body).contains("\"status\":\"authenticated\"");
         assertThat(oauthStatus.body).contains("\"has_access_token\":true");
@@ -358,14 +358,14 @@ public class DashboardControllerHttpTest {
         assertThat(oauthStatus.body).doesNotContain("secret-access");
         assertThat(oauthStatus.body).doesNotContain("secret-refresh");
 
-        HttpResult mcpListWithOAuth = request("GET", "/api/hermes/mcp", null, token);
+        HttpResult mcpListWithOAuth = request("GET", "/api/jimuqu/mcp", null, token);
         assertThat(mcpListWithOAuth.body).contains("\"has_access_token\":true");
         assertThat(mcpListWithOAuth.body).doesNotContain("secret-access");
 
         HttpResult beginOAuth =
                 request(
                         "POST",
-                        "/api/hermes/mcp/oauth-docs/oauth/begin",
+                        "/api/jimuqu/mcp/oauth-docs/oauth/begin",
                         "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                 + "https://example.com/oauth/token"
                                 + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
@@ -381,14 +381,14 @@ public class DashboardControllerHttpTest {
         HttpResult blockedAuthorizationEndpoint =
                 request(
                         "POST",
-                        "/api/hermes/mcp/oauth-docs/oauth/begin",
+                        "/api/jimuqu/mcp/oauth-docs/oauth/begin",
                         "{\"authorization_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-auth\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\"}",
                         token);
         assertThat(blockedAuthorizationEndpoint.status).isGreaterThanOrEqualTo(400);
         assertThat(blockedAuthorizationEndpoint.body).doesNotContain("secret-auth");
 
         HttpResult pendingStatus =
-                request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+                request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
         assertThat(pendingStatus.body).contains("\"status\":\"pending\"");
         assertThat(pendingStatus.body).contains("\"has_access_token\":false");
         assertThat(pendingStatus.body).contains("\"has_code_verifier\":true");
@@ -399,7 +399,7 @@ public class DashboardControllerHttpTest {
         HttpResult blockedTokenEndpoint =
                 request(
                         "POST",
-                        "/api/hermes/mcp/oauth-docs/oauth/callback",
+                        "/api/jimuqu/mcp/oauth-docs/oauth/callback",
                         "{\"code\":\"auth-code-blocked\",\"state\":\""
                                 + pendingState
                                 + "\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-token\"}",
@@ -410,7 +410,7 @@ public class DashboardControllerHttpTest {
         HttpResult stateMismatch =
                 request(
                         "POST",
-                        "/api/hermes/mcp/oauth-docs/oauth/callback",
+                        "/api/jimuqu/mcp/oauth-docs/oauth/callback",
                         "{\"code\":\"bad-code\",\"state\":\"wrong\",\"token_endpoint\":\"http://127.0.0.1:1/token\"}",
                         token);
         assertThat(stateMismatch.status).isGreaterThanOrEqualTo(400);
@@ -420,19 +420,19 @@ public class DashboardControllerHttpTest {
             beginOAuth =
                     request(
                             "POST",
-                            "/api/hermes/mcp/oauth-docs/oauth/begin",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
                             "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
             pendingStatus =
-                    request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             HttpResult completeOAuth =
                     request(
                             "GET",
-                            "/api/hermes/mcp/oauth-docs/oauth/callback"
+                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
                                     + "?code=auth-code-1&state="
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
@@ -450,7 +450,7 @@ public class DashboardControllerHttpTest {
             assertThat(tokenEndpoint.lastForm.get("code_verifier")).isNotBlank();
 
             HttpResult authenticatedStatus =
-                    request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
             assertThat(authenticatedStatus.body).contains("\"status\":\"authenticated\"");
             assertThat(authenticatedStatus.body).contains("\"has_access_token\":true");
             assertThat(authenticatedStatus.body).doesNotContain("token-secret-1");
@@ -458,7 +458,7 @@ public class DashboardControllerHttpTest {
             HttpResult refreshOAuth =
                     request(
                             "POST",
-                            "/api/hermes/mcp/oauth-docs/oauth/refresh",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/refresh",
                             "{}",
                             token);
             assertThat(refreshOAuth.status).isEqualTo(200);
@@ -478,7 +478,7 @@ public class DashboardControllerHttpTest {
             HttpResult handle401 =
                     request(
                             "POST",
-                            "/api/hermes/mcp/oauth-docs/oauth/handle-401",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/handle-401",
                             "{}",
                             token);
             assertThat(handle401.status).isEqualTo(200);
@@ -494,19 +494,19 @@ public class DashboardControllerHttpTest {
             beginOAuth =
                     request(
                             "POST",
-                            "/api/hermes/mcp/oauth-docs/oauth/begin",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
                             "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
                                     + tokenEndpoint.redirectUrl()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
             pendingStatus =
-                    request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             HttpResult redirectedTokenEndpoint =
                     request(
                             "GET",
-                            "/api/hermes/mcp/oauth-docs/oauth/callback"
+                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
                                     + "?code=auth-code-redirect&state="
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
@@ -523,34 +523,34 @@ public class DashboardControllerHttpTest {
         HttpResult blockedRefreshServer =
                 request(
                         "POST",
-                        "/api/hermes/mcp",
+                        "/api/jimuqu/mcp",
                         "{\"serverId\":\"blocked-oauth-docs\",\"name\":\"Blocked OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"authenticated\",\"client_id\":\"client-1\",\"access_token\":\"secret-access\",\"refresh_token\":\"refresh-secret\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-refresh-url\"},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(blockedRefreshServer.status).isEqualTo(200);
         HttpResult blockedRefresh =
                 request(
                         "POST",
-                        "/api/hermes/mcp/blocked-oauth-docs/oauth/refresh",
+                        "/api/jimuqu/mcp/blocked-oauth-docs/oauth/refresh",
                         "{}",
                         token);
         assertThat(blockedRefresh.status).isGreaterThanOrEqualTo(400);
         assertThat(blockedRefresh.body).doesNotContain("secret-refresh-url");
 
         HttpResult clearOAuth =
-                request("POST", "/api/hermes/mcp/oauth-docs/oauth/clear", "{}", token);
+                request("POST", "/api/jimuqu/mcp/oauth-docs/oauth/clear", "{}", token);
         assertThat(clearOAuth.status).isEqualTo(200);
         assertThat(clearOAuth.body).contains("\"cleared\":true");
         assertThat(clearOAuth.body).doesNotContain("secret-refresh");
 
         HttpResult clearedStatus =
-                request("GET", "/api/hermes/mcp/oauth-docs/oauth/status", null, token);
+                request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
         assertThat(clearedStatus.body).contains("\"status\":\"cleared\"");
         assertThat(clearedStatus.body).contains("\"has_access_token\":false");
 
         HttpResult handle401AfterClear =
                 request(
                         "POST",
-                        "/api/hermes/mcp/oauth-docs/oauth/handle-401",
+                        "/api/jimuqu/mcp/oauth-docs/oauth/handle-401",
                         "{}",
                         token);
         assertThat(handle401AfterClear.status).isEqualTo(200);

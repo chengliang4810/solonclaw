@@ -2427,13 +2427,7 @@ public class AppConfig {
     }
 
     private static boolean readAllowPrivateUrls(Props props, Map<String, Object> overrides) {
-        String env = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_ALLOW_PRIVATE_URLS")).trim();
-        if (env.length() == 0) {
-            env = StrUtil.nullToEmpty(System.getenv("JIMUQU_ALLOW_PRIVATE_URLS")).trim();
-        }
-        if (env.length() == 0) {
-            env = StrUtil.nullToEmpty(System.getenv("HERMES_ALLOW_PRIVATE_URLS")).trim();
-        }
+        String env = StrUtil.nullToEmpty(System.getenv("JIMUQU_ALLOW_PRIVATE_URLS")).trim();
         if (env.length() > 0) {
             return parseBooleanText(env, false);
         }
@@ -3057,7 +3051,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class SkillsConfig {
-        /** 对齐 Hermes skills.external_dirs，额外只读技能目录清单。 */
+        /** 对齐 Jimuqu skills.external_dirs，额外只读技能目录清单。 */
         private List<String> externalDirs = new ArrayList<String>();
     }
 
@@ -3076,7 +3070,7 @@ public class AppConfig {
         /** 单文件快照大小上限，单位 MB。 */
         private int maxFileSizeMb = CheckpointConstants.DEFAULT_MAX_FILE_SIZE_MB;
 
-        /** Hermes v2 风格的默认排除模式，避免 checkpoint 膨胀或保存密钥。 */
+        /** Jimuqu v2 风格的默认排除模式，避免 checkpoint 膨胀或保存密钥。 */
         private List<String> excludePatterns =
                 new ArrayList<String>(
                         Arrays.asList(
@@ -3287,10 +3281,10 @@ public class AppConfig {
         /** 单轮工具输出累计超过该长度时，后续输出会落盘/摘要化。 */
         private int toolOutputTurnBudget = 200000;
 
-        /** 对齐 Hermes tool_output.max_lines，供文件读取/分页输出限制使用。 */
+        /** 对齐 Jimuqu tool_output.max_lines，供文件读取/分页输出限制使用。 */
         private int toolOutputMaxLines = 2000;
 
-        /** 对齐 Hermes tool_output.max_line_length，供单行输出截断使用。 */
+        /** 对齐 Jimuqu tool_output.max_line_length，供单行输出截断使用。 */
         private int toolOutputMaxLineLength = 2000;
 
         /** 媒体缓存 TTL，单位小时。 */
@@ -3301,34 +3295,34 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class TerminalConfig {
-        /** 对齐 Hermes terminal.credential_files，相对 runtime home 的凭据文件挂载清单。 */
+        /** 对齐 Jimuqu terminal.credential_files，相对 runtime home 的凭据文件挂载清单。 */
         private List<String> credentialFiles = new ArrayList<String>();
 
-        /** 对齐 Hermes terminal.env_passthrough，允许技能显式传给本地子进程的第三方环境变量名。 */
+        /** 对齐 Jimuqu terminal.env_passthrough，允许技能显式传给本地子进程的第三方环境变量名。 */
         private List<String> envPassthrough = new ArrayList<String>();
 
-        /** 对齐 Hermes terminal.shell_init_files，执行非 Windows 本地 shell 前静默 source 的初始化文件。 */
+        /** 对齐 Jimuqu terminal.shell_init_files，执行非 Windows 本地 shell 前静默 source 的初始化文件。 */
         private List<String> shellInitFiles = new ArrayList<String>();
 
-        /** 对齐 Hermes terminal.auto_source_bashrc，未显式配置初始化文件时自动尝试 ~/.profile 等文件。 */
+        /** 对齐 Jimuqu terminal.auto_source_bashrc，未显式配置初始化文件时自动尝试 ~/.profile 等文件。 */
         private boolean autoSourceBashrc = true;
 
-        /** 对齐 Hermes SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
+        /** 对齐 Jimuqu SUDO_PASSWORD / terminal.sudo_password，用于 sudo -S 改写。 */
         private String sudoPassword;
 
-        /** 对齐 Hermes HERMES_WRITE_SAFE_ROOT / terminal.write_safe_root；为空表示不限制工作区写入根。 */
+        /** 对齐 Jimuqu JIMUQU_WRITE_SAFE_ROOT / terminal.write_safe_root；为空表示不限制工作区写入根。 */
         private String writeSafeRoot;
 
-        /** 对齐 Hermes TERMINAL_MAX_FOREGROUND_TIMEOUT；单位秒。 */
+        /** 对齐 Jimuqu TERMINAL_MAX_FOREGROUND_TIMEOUT；单位秒。 */
         private int maxForegroundTimeoutSeconds = 600;
 
-        /** 对齐 Hermes foreground terminal transient failure retry count。 */
+        /** 对齐 Jimuqu foreground terminal transient failure retry count。 */
         private int foregroundMaxRetries = 3;
 
         /** 前台 terminal 执行异常重试的指数退避基准，单位秒；默认 2 秒，即 2/4/8。 */
         private int foregroundRetryBaseDelaySeconds = 2;
 
-        /** 对齐 Hermes TERMINAL_TIMEOUT，限制 process(wait) 单次阻塞时长，单位秒。 */
+        /** 对齐 Jimuqu TERMINAL_TIMEOUT，限制 process(wait) 单次阻塞时长，单位秒。 */
         private int processWaitTimeoutSeconds = 180;
     }
 
@@ -3390,16 +3384,16 @@ public class AppConfig {
         /** cron 遇到危险命令时的模式：deny / approve。 */
         private String cronMode = "deny";
 
-        /** 子 Agent 遇到危险命令时是否自动批准一次；对齐 Hermes delegation.subagent_auto_approve，默认拒绝。 */
+        /** 子 Agent 遇到危险命令时是否自动批准一次；对齐 Jimuqu delegation.subagent_auto_approve，默认拒绝。 */
         private boolean subagentAutoApprove = false;
 
-        /** CLI/直接审批超时秒数；对齐 Hermes approvals.timeout。 */
+        /** CLI/直接审批超时秒数；对齐 Jimuqu approvals.timeout。 */
         private int timeoutSeconds = 60;
 
-        /** 网关/渠道审批超时秒数；对齐 Hermes approvals.gateway_timeout。 */
+        /** 网关/渠道审批超时秒数；对齐 Jimuqu approvals.gateway_timeout。 */
         private int gatewayTimeoutSeconds = 300;
 
-        /** /reload-mcp 是否需要确认；对齐 Hermes approvals.mcp_reload_confirm，默认开启。 */
+        /** /reload-mcp 是否需要确认；对齐 Jimuqu approvals.mcp_reload_confirm，默认开启。 */
         private boolean mcpReloadConfirm = true;
     }
 

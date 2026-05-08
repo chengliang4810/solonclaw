@@ -7,8 +7,8 @@ import { getThemeOverrides } from '@/styles/theme'
 import { useTheme } from '@/composables/useTheme'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
-import { useAppStore } from '@/stores/hermes/app'
-import SessionSearchModal from '@/components/hermes/chat/SessionSearchModal.vue'
+import { useAppStore } from '@/stores/jimuqu/app'
+import SessionSearchModal from '@/components/jimuqu/chat/SessionSearchModal.vue'
 
 const { isDark } = useTheme()
 const { t } = useI18n()

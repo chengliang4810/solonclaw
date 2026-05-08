@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Outcome of one Hermes-style Kanban dispatcher pass. */
+/** Outcome of one reference-style Kanban dispatcher pass. */
 public class KanbanDispatchResult {
     private int reclaimed;
     private int promoted;

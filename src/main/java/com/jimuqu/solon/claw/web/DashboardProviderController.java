@@ -23,13 +23,13 @@ public class DashboardProviderController {
         return providerService.listProviders();
     }
 
-    @Mapping(value = "/api/hermes/models", method = MethodType.GET)
-    public Map<String, Object> hermesModels() {
-        return DashboardResponse.ok(providerService.hermesModels());
+    @Mapping(value = "/api/jimuqu/models", method = MethodType.GET)
+    public Map<String, Object> JimuquModels() {
+        return DashboardResponse.ok(providerService.JimuquModels());
     }
 
-    @Mapping(value = "/api/hermes/models/health", method = MethodType.GET)
-    public Map<String, Object> hermesModelHealth() {
+    @Mapping(value = "/api/jimuqu/models/health", method = MethodType.GET)
+    public Map<String, Object> JimuquModelHealth() {
         return DashboardResponse.ok(providerService.health());
     }
 

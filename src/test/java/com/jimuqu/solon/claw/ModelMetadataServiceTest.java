@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 public class ModelMetadataServiceTest {
     @Test
-    void shouldResolveHermesModelCapabilitiesFromProviderConfig() {
+    void shouldResolveJimuquModelCapabilitiesFromProviderConfig() {
         AppConfig config = new AppConfig();
         config.getModel().setProviderKey("anthropic-main");
         config.getLlm().setContextWindowTokens(0);

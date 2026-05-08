@@ -217,7 +217,7 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldBuildQqbotNativeApprovalKeyboardWithHermesChoices() {
+    void shouldBuildQqbotNativeApprovalKeyboardWithJimuquChoices() {
         AppConfig config = new AppConfig();
         TestQQBotAdapter adapter = new TestQQBotAdapter(config);
         DeliveryRequest request = new DeliveryRequest();
@@ -292,7 +292,7 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldIgnoreQqbotNonHermesApprovalDecision() {
+    void shouldIgnoreQqbotNonJimuquApprovalDecision() {
         AppConfig config = new AppConfig();
         config.getChannels().getQqbot().setAllowAllUsers(true);
         TestQQBotAdapter adapter = new TestQQBotAdapter(config);
@@ -478,7 +478,7 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldRejectHermesStyleWeakCredentialAliasesCaseInsensitively() {
+    void shouldRejectJimuquStyleWeakCredentialAliasesCaseInsensitively() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);
         config.getChannels().getFeishu().setAppId("app");

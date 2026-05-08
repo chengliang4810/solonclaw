@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>solon-claw</name>
-    <description>Hermes-Agent style Java agent built with Solon and Solon AI</description>
+    <description>Jimuqu Java agent built with Solon and Solon AI</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

@@ -51,7 +51,7 @@ public class SessionRecord {
     /** ReAct/AgentSession 的 FlowContext 快照 JSON。 */
     private String agentSnapshotJson;
 
-    /** Hermes-style /goal 长目标循环状态 JSON。 */
+    /** reference-style /goal 长目标循环状态 JSON。 */
     private String goalStateJson;
 
     /** 最近一次学习闭环执行时间。 */

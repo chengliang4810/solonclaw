@@ -14,7 +14,7 @@ import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Hermes-style OSV malware checks for MCP stdio package launchers. */
+/** reference-style OSV malware checks for MCP stdio package launchers. */
 public class McpPackageSecurityService {
     private static final Logger log = LoggerFactory.getLogger(McpPackageSecurityService.class);
     private static final String DEFAULT_OSV_ENDPOINT = "https://api.osv.dev/v1/query";

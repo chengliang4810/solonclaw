@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Hermes-style URL and website access guardrails. */
+/** reference-style URL and website access guardrails. */
 public class SecurityPolicyService {
     private static final String[] ALWAYS_BLOCKED_HOSTS =
             new String[] {"metadata.google.internal", "metadata.goog"};
@@ -48,7 +48,6 @@ public class SecurityPolicyService {
                     ".docker",
                     ".azure",
                     ".claude",
-                    ".hermes",
                     ".codex",
                     ".qwen",
                     ".config/gh",
@@ -104,7 +103,6 @@ public class SecurityPolicyService {
     private static final List<String> CREDENTIAL_PATH_SUFFIXES =
             Arrays.asList(
                     ".claude/.credentials.json",
-                    ".hermes/.anthropic_oauth.json",
                     ".codex/auth.json",
                     ".qwen/oauth_creds.json",
                     ".config/gcloud/application_default_credentials.json");
@@ -150,7 +148,7 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.hermes|\\.codex|\\.qwen|\\.config[/\\\\](?:gh|gcloud))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.codex|\\.qwen|\\.config[/\\\\](?:gh|gcloud))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
@@ -305,9 +303,7 @@ public class SecurityPolicyService {
 
         boolean allowPrivate =
                 allowPrivateOverride == null
-                        ? appConfig != null
-                                && appConfig.getSecurity() != null
-                                && appConfig.getSecurity().isAllowPrivateUrls()
+                        ? resolveAllowPrivateUrls()
                         : allowPrivateOverride.booleanValue();
         boolean trustedPrivateHost =
                 ("https".equals(scheme) || "wss".equals(scheme))
@@ -374,6 +370,10 @@ public class SecurityPolicyService {
 
     protected InetAddress[] resolveHost(String host) throws Exception {
         return InetAddress.getAllByName(host);
+    }
+
+    protected String readEnvironment(String name) {
+        return System.getenv(name);
     }
 
     public FileVerdict checkFileToolArgs(String toolName, Map<String, Object> args) {
@@ -1086,7 +1086,7 @@ public class SecurityPolicyService {
             safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("HERMES_WRITE_SAFE_ROOT")).trim();
+            safeRoot = StrUtil.nullToEmpty(System.getenv("JIMUQU_WRITE_SAFE_ROOT")).trim();
         }
         if (StrUtil.isBlank(safeRoot)) {
             return false;
@@ -1585,6 +1585,38 @@ public class SecurityPolicyService {
         int a = rawAddress[0] & 0xff;
         int b = rawAddress[1] & 0xff;
         return a == 198 && (b == 18 || b == 19);
+    }
+
+    private boolean resolveAllowPrivateUrls() {
+        Boolean envOverride = parseBooleanOverride(readEnvironment("JIMUQU_ALLOW_PRIVATE_URLS"));
+        if (envOverride != null) {
+            return envOverride.booleanValue();
+        }
+        return appConfig != null
+                && appConfig.getSecurity() != null
+                && appConfig.getSecurity().isAllowPrivateUrls();
+    }
+
+    private Boolean parseBooleanOverride(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim().toLowerCase(Locale.ROOT);
+        if (value.length() == 0) {
+            return null;
+        }
+        if ("1".equals(value)
+                || "true".equals(value)
+                || "yes".equals(value)
+                || "y".equals(value)
+                || "on".equals(value)) {
+            return Boolean.TRUE;
+        }
+        if ("0".equals(value)
+                || "false".equals(value)
+                || "no".equals(value)
+                || "n".equals(value)
+                || "off".equals(value)) {
+            return Boolean.FALSE;
+        }
+        return null;
     }
 
     private boolean isBlockedIpv6Address(byte[] rawAddress) {

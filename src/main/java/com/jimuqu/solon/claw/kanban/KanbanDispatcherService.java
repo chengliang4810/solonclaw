@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Hermes-style Kanban dispatcher tick. */
+/** reference-style Kanban dispatcher tick. */
 public class KanbanDispatcherService {
     private static final long DEFAULT_CLAIM_TTL_SECONDS = 900L;
     private static final int DEFAULT_FAILURE_LIMIT = 3;

@@ -74,7 +74,7 @@ public class SessionArtifactServiceTest {
     }
 
     @Test
-    void shouldSaveTrajectoryAsHermesJsonlArtifact() throws Exception {
+    void shouldSaveTrajectoryAsJimuquJsonlArtifact() throws Exception {
         File artifactsDir = Files.createTempDirectory("trajectory-artifacts").toFile();
         SessionRecord session = new SessionRecord();
         session.setSessionId("session-jsonl");

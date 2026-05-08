@@ -17,13 +17,13 @@ public class DashboardMediaController {
         this.mediaService = mediaService;
     }
 
-    @Mapping(value = "/api/hermes/media", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/media", method = MethodType.GET)
     public Map<String, Object> list(Context context) throws Exception {
         return DashboardResponse.ok(
                 mediaService.list(context.param("platform"), context.paramAsInt("limit", 50)));
     }
 
-    @Mapping(value = "/api/hermes/media/index", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/media/index", method = MethodType.POST)
     public Map<String, Object> index(Context context) throws Exception {
         return DashboardResponse.ok(
                 mediaService.indexLocal(
@@ -31,22 +31,22 @@ public class DashboardMediaController {
                                 ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
     }
 
-    @Mapping(value = "/api/hermes/media/{mediaId}", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/media/{mediaId}", method = MethodType.GET)
     public Map<String, Object> detail(String mediaId) throws Exception {
         return DashboardResponse.ok(mediaService.detail(mediaId));
     }
 
-    @Mapping(value = "/api/hermes/media/{mediaId}/refresh", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/media/{mediaId}/refresh", method = MethodType.POST)
     public Map<String, Object> refresh(String mediaId) throws Exception {
         return DashboardResponse.ok(mediaService.refresh(mediaId));
     }
 
-    @Mapping(value = "/api/hermes/media/{mediaId}/download", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/media/{mediaId}/download", method = MethodType.POST)
     public Map<String, Object> download(String mediaId) throws Exception {
         return DashboardResponse.ok(mediaService.download(mediaId));
     }
 
-    @Mapping(value = "/api/hermes/media/{mediaId}/reference", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/media/{mediaId}/reference", method = MethodType.POST)
     public Map<String, Object> reference(String mediaId) throws Exception {
         return DashboardResponse.ok(mediaService.reference(mediaId));
     }

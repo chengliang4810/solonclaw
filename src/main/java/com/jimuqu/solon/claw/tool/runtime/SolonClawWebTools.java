@@ -30,7 +30,7 @@ import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
 import org.noear.solon.ai.skills.web.WebsearchTool;
 
-/** Solon AI web tools wrapped with Hermes-style URL and website policy checks. */
+/** Solon AI web tools wrapped with reference-style URL and website policy checks. */
 public class SolonClawWebTools {
     private static final String BRAVE_FREE_BACKEND = "brave-free";
     private static final String DDGS_BACKEND = "ddgs";

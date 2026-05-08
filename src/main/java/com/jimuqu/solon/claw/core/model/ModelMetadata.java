@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Hermes 对齐的模型能力元数据。 */
+/** Jimuqu 对齐的模型能力元数据。 */
 @Getter
 @Setter
 @NoArgsConstructor

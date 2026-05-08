@@ -75,7 +75,7 @@ public class CompressionCommandTest {
     }
 
     @Test
-    void shouldCompactCurrentSessionAsHermesCompatibleAlias() throws Exception {
+    void shouldCompactCurrentSessionAsJimuquCompatibleAlias() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.send("admin-chat", "admin-user", "hello");

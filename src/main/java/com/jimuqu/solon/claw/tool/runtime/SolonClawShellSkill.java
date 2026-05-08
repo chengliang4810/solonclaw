@@ -185,7 +185,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "pty",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for Hermes compatibility. PTY execution is disabled for stdin-pipe commands.")
+                            description = "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
                     Boolean pty) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, pty, null);
     }
@@ -223,7 +223,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "pty",
                             required = false,
                             defaultValue = "false",
-                            description = "Accepted for Hermes compatibility. PTY execution is disabled for stdin-pipe commands.")
+                            description = "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
                     Boolean pty,
             @Param(
                             name = "watch_patterns",

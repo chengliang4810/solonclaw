@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Resolves local and configured external skill directories using Hermes-compatible rules. */
+/** Resolves local and configured external skill directories using Jimuqu-compatible rules. */
 public class SkillDirectoryResolver {
     private final AppConfig appConfig;
     private final File runtimeHome;

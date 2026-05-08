@@ -127,7 +127,7 @@ public class DefaultDelegationService implements DelegationService {
 
     private final Semaphore concurrencyLimiter;
 
-    /** Hermes 风格暂停新子代理 spawn。 */
+    /** Jimuqu 风格暂停新子代理 spawn。 */
     private volatile boolean spawnPaused;
 
     public DefaultDelegationService(

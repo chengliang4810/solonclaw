@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** 本地技能目录服务，支持 Hermes 风格分类目录与渐进披露读取。 */
+/** 本地技能目录服务，支持 Jimuqu 风格分类目录与渐进披露读取。 */
 public class LocalSkillService implements SkillCatalogService {
     /** 技能名允许字符。 */
     private static final String VALID_NAME_PATTERN = "^[a-z0-9][a-z0-9._-]*$";
@@ -627,10 +627,10 @@ public class LocalSkillService implements SkillCatalogService {
                 pinned = pinned || asBoolean(((Map<String, Object>) curator).get("pinned"));
                 readOnly = readOnly || asBoolean(((Map<String, Object>) curator).get("readonly"));
             }
-            Object hermes = metadata.get("hermes");
-            if (hermes instanceof Map) {
-                pinned = pinned || asBoolean(((Map<String, Object>) hermes).get("pinned"));
-                readOnly = readOnly || asBoolean(((Map<String, Object>) hermes).get("readonly"));
+            Object Jimuqu = metadata.get("Jimuqu");
+            if (Jimuqu instanceof Map) {
+                pinned = pinned || asBoolean(((Map<String, Object>) Jimuqu).get("pinned"));
+                readOnly = readOnly || asBoolean(((Map<String, Object>) Jimuqu).get("readonly"));
             }
         }
         if (pinned || readOnly || !"agent-created".equals(descriptor.getTrustLevel())) {
@@ -806,29 +806,29 @@ public class LocalSkillService implements SkillCatalogService {
         if (SkillSetupState.UNSUPPORTED.name().equals(descriptor.getSetupState())) {
             return false;
         }
-        Map<String, Object> hermes =
+        Map<String, Object> Jimuqu =
                 SkillFrontmatterSupport.getCompatibilityMetadata(descriptor.getMetadata());
         if (!checkRequiresTools(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("requires_tools")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_tools")),
                 agentScope)) {
             return false;
         }
         if (!checkRequiresToolsets(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("requires_toolsets")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("requires_toolsets")),
                 agentScope)) {
             return false;
         }
         if (!checkFallbackTools(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("fallback_for_tools")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_tools")),
                 agentScope)) {
             return false;
         }
         return checkFallbackToolsets(
                 sourceKey,
-                SkillFrontmatterSupport.parseStringList(hermes.get("fallback_for_toolsets")),
+                SkillFrontmatterSupport.parseStringList(Jimuqu.get("fallback_for_toolsets")),
                 agentScope);
     }
 

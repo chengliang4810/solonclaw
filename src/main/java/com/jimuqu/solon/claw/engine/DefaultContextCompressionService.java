@@ -259,7 +259,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return start;
     }
 
-    /** Hermes 对齐：最后一条用户消息永远不能被压进摘要。 */
+    /** Jimuqu 对齐：最后一条用户消息永远不能被压进摘要。 */
     private int findLastUserIndex(List<ChatMessage> messages) {
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);

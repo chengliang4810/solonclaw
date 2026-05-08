@@ -337,7 +337,7 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldSupportHermesCronFlagSyntaxAndSkillEditing() throws Exception {
+    void shouldSupportJimuquCronFlagSyntaxAndSkillEditing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
@@ -464,9 +464,9 @@ public class CommandEnhancementTest {
                 .contains("script=collect.py")
                 .contains("workdir=" + runtimeHome);
 
-        GatewayReply clearedWithHermesEmptyValues =
+        GatewayReply clearedWithJimuquEmptyValues =
                 env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --script \"\" --workdir \"\"");
-        assertThat(clearedWithHermesEmptyValues.getContent()).contains("已更新定时任务");
+        assertThat(clearedWithJimuquEmptyValues.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("script=null").contains("workdir=null");
 
         GatewayReply invalidNoAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent");
@@ -477,7 +477,7 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldSupportHermesCronDeleteAlias() throws Exception {
+    void shouldSupportJimuquCronDeleteAlias() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
@@ -541,7 +541,7 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldMatchHermesCronListAllSemantics() throws Exception {
+    void shouldMatchJimuquCronListAllSemantics() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
@@ -593,7 +593,7 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldShowHermesCronListRuntimeDetails() throws Exception {
+    void shouldShowJimuquCronListRuntimeDetails() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
@@ -852,7 +852,7 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldPrioritizeDangerousApprovalWhenCancelIsUsedLikeHermes() throws Exception {
+    void shouldPrioritizeDangerousApprovalWhenCancelIsUsedLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
         DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);

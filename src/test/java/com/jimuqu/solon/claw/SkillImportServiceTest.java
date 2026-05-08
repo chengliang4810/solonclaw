@@ -108,6 +108,6 @@ public class SkillImportServiceTest {
                 + name
                 + "\ndescription: "
                 + description
-                + "\nmetadata:\n  hermes:\n    tags: [imported]\n---\n\n# Steps\n- example\n";
+                + "\nmetadata:\n  Jimuqu:\n    tags: [imported]\n---\n\n# Steps\n- example\n";
     }
 }

@@ -73,7 +73,7 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldUpdateHermesWebsiteBlocklistRuntimeKeysWithoutReconnectingChannels()
+    void shouldUpdateJimuquWebsiteBlocklistRuntimeKeysWithoutReconnectingChannels()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
@@ -101,7 +101,7 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldUpdateHermesAllowPrivateUrlRuntimeKeysWithoutReconnectingChannels()
+    void shouldUpdateJimuquAllowPrivateUrlRuntimeKeysWithoutReconnectingChannels()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);

@@ -11,10 +11,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** Hermes-style subprocess environment filtering for local tools. */
+/** reference-style subprocess environment filtering for local tools. */
 public final class SubprocessEnvironmentSanitizer {
     public static final String FORCE_PREFIX = "_JIMUQU_FORCE_";
-    public static final String HERMES_FORCE_PREFIX = "_HERMES_FORCE_";
 
     private static final Pattern ENV_NAME_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final String[] SAFE_ENV_PREFIXES =
@@ -209,9 +208,6 @@ public final class SubprocessEnvironmentSanitizer {
         String value = StrUtil.nullToEmpty(name);
         if (value.startsWith(FORCE_PREFIX) && value.length() > FORCE_PREFIX.length()) {
             return value.substring(FORCE_PREFIX.length());
-        }
-        if (value.startsWith(HERMES_FORCE_PREFIX) && value.length() > HERMES_FORCE_PREFIX.length()) {
-            return value.substring(HERMES_FORCE_PREFIX.length());
         }
         return null;
     }

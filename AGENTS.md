@@ -2,7 +2,7 @@
 
 ## 项目目标
 
-- 本项目目标是使用 Java 语言，基于 Solon 与 Solon AI，对 `D:\projects\hermes-agent` 进行功能复刻。
+- 本项目目标是使用 Java 语言，基于 Solon 与 Solon AI，对外部对标仓库进行功能复刻；本仓库内不得出现旧项目命名。
 - 复刻的目标是“行为与能力对齐”，不是逐行或逐模块照搬 Python 实现；允许使用更符合 Java / Solon 生态的实现方式。
 - 后续需求、设计、拆解、编码、测试都必须优先服务这个目标，避免偏离成泛用聊天应用、泛工作流平台或无关的 AI Demo。
 
@@ -28,23 +28,18 @@
 - Solon 源码：`D:\projects\solon-main`
 - Solon AI 源码：`D:\projects\solon-ai-main`
 - Hutool 源码：`D:\projects\hutool-v5-master`
-- Hermes Agent 参考源码：`D:\projects\hermes-agent`
+- 外部 Agent 对标源码：路径由当前任务上下文提供，禁止在本仓库文件中写入旧项目名。
 
 遇到框架用法、设计取舍、扩展点不明确时，先查本地源码目录，再决定实现方案。
 
 ## 上游参考与同步策略
 
-- `D:\projects\hermes-agent` 是功能对标基线。
-- 实现新能力前，先定位 Hermes 对应模块、配置项、交互方式、约束和用户可见行为。
-- 若任务依赖 Hermes 的最新变动，先同步参考仓库，再继续实现。建议命令：
-
-```powershell
-git -C D:\projects\hermes-agent fetch origin
-git -C D:\projects\hermes-agent log origin/main -1 --date=iso
-git -C D:\projects\hermes-agent status --short --branch
-```
+- 外部对标仓库是功能对标基线。
+- 实现新能力前，先定位外部对标仓库中的对应模块、配置项、交互方式、约束和用户可见行为。
+- 若任务依赖外部对标仓库的最新变动，先同步参考仓库，再继续实现；具体路径由任务上下文提供。
 
 - 若本地参考仓库与上游存在明显差异，优先说明本次实现参考的是哪个提交或本地状态。
+- 禁止在本仓库代码、文档、配置、测试、路由、环境变量名、存储键中出现旧项目关键词；环境变量和用户可见命名统一使用 `JIMUQU` / `jimuqu`。
 
 ## 复刻范围约束
 
@@ -52,7 +47,7 @@ git -C D:\projects\hermes-agent status --short --branch
 
 - 仅保留中国国内消息渠道支持。
 - 海外或非目标渠道默认不做，包括但不限于：Telegram、Discord、Slack、WhatsApp、Signal、Matrix、Mattermost、BlueBubbles、Home Assistant、Email。
-- Hermes 当前代码中与国内场景相关、可作为参考候选的渠道适配器，仅保留：`feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
+- 外部对标代码中与国内场景相关、可作为参考候选的渠道适配器，仅保留：`feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
 - 明确不做：`sms`、`webhook`。
 - 在你确认最终渠道清单之前，后续任务只允许建设“国内渠道抽象和适配能力”，不要投入任何海外渠道实现。
 
@@ -69,11 +64,11 @@ git -C D:\projects\hermes-agent status --short --branch
 
 ### 3. 设计边界
 
-- 复刻重点是 Agent 核心能力、国内渠道接入、模型协议适配、工具系统、记忆/技能/会话等与 Hermes 主产品价值直接相关的部分。
+- 复刻重点是 Agent 核心能力、国内渠道接入、模型协议适配、工具系统、记忆/技能/会话等与对标产品价值直接相关的部分。
 - 渠道接入与诊断入口默认走现有 dashboard/API，优先补齐 dashboard-first setup / doctor，而不是新增完整 CLI 向导。
-- 渠道传输层遵循 websocket-first：平台官方支持 websocket / stream 时优先采用；仅微信保留 Hermes 原有 iLink long-poll。
+- 渠道传输层遵循 websocket-first：平台官方支持 websocket / stream 时优先采用；仅微信保留对标行为中的 iLink long-poll。
 - 不要因为某个技术点实现方便，就偏离成以脚本、前端展示页、营销官网、实验性研究代码为中心的项目。
-- 若出现“为了兼容 Hermes 原实现而牺牲 Java/Solon 可维护性”的情况，优先保持 Java 侧架构清晰，再在行为层面对齐。
+- 若出现“为了兼容外部对标实现而牺牲 Java/Solon 可维护性”的情况，优先保持 Java 侧架构清晰，再在行为层面对齐。
 - 已明确不做：多模态模型输入、图像生成、独立 TTS/语音转写服务、浏览器自动化内置实现、价格分析/价格计算、研究与实验能力、完整 CLI/TUI 交互层。
 - 浏览器自动化能力不进入内置主线；如后续需要，按“用户自行安装 skill 扩展”的方式处理。
 
@@ -93,8 +88,8 @@ git -C D:\projects\hermes-agent status --short --branch
 
 ### 2. 任务判断原则
 
-- 每次开发前，先回答“这个任务对应 Hermes 的哪项能力”。
-- 如果对应不上 Hermes 的明确能力，或与本项目目标无关，应先暂停并确认，而不是直接扩展范围。
+- 每次开发前，先回答“这个任务对应外部对标仓库的哪项能力”。
+- 如果对应不上外部对标仓库的明确能力，或与本项目目标无关，应先暂停并确认，而不是直接扩展范围。
 - 没有用户明确要求时，优先实现最小可用版本，再逐步补齐兼容能力。
 
 ### 3. 架构原则
@@ -102,11 +97,11 @@ git -C D:\projects\hermes-agent status --short --branch
 - 先定义清晰的领域边界，再落地代码。
 - 配置、协议、渠道、工具、Agent 核心循环要解耦。
 - 避免把渠道逻辑、模型协议逻辑、工具执行逻辑直接耦合在一个类中。
-- 面向接口或抽象层设计，方便后续逐步补齐 Hermes 功能。
+- 面向接口或抽象层设计，方便后续逐步补齐对标能力。
 
-## 待确认的 Hermes 功能清单
+## 待确认的对标功能清单
 
-以下是 Hermes Agent 现有功能面，后续需要逐项确认哪些保留、哪些裁剪。未确认前，可以做架构预留，但不要默认全部深度实现。
+以下是外部对标 Agent 现有功能面，后续需要逐项确认哪些保留、哪些裁剪。未确认前，可以做架构预留，但不要默认全部深度实现。
 
 ### A. Agent 核心与会话
 
@@ -253,7 +248,7 @@ git -C D:\projects\hermes-agent status --short --branch
 
 ## 后续任务执行要求
 
-- 所有任务都应优先说明它对应 Hermes 的哪个能力点。
+- 所有任务都应优先说明它对应外部对标仓库的哪个能力点。
 - 所有实现都应优先复用 Solon、Solon AI、Hutool、Snack4 的能力。
 - 做方案设计时，要显式标注“已确认范围”和“待确认范围”。
 - 新增依赖、新增协议、新增渠道、新增核心架构分层时，必须检查是否违反本文件约束。
