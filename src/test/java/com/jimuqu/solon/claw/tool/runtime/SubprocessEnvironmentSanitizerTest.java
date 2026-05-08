@@ -39,6 +39,7 @@ public class SubprocessEnvironmentSanitizerTest {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("_JIMUQU_FORCE_OPENAI_API_KEY", "sk-explicit");
         env.put("_JIMUQU_FORCE_CUSTOM_TOKEN", "token-explicit");
+        env.put("_JIMUQU_FORCE_BAD-NAME", "bad");
 
         SubprocessEnvironmentSanitizer.sanitize(env);
 
@@ -46,7 +47,11 @@ public class SubprocessEnvironmentSanitizerTest {
                 .containsEntry("OPENAI_API_KEY", "sk-explicit")
                 .containsEntry("CUSTOM_TOKEN", "token-explicit");
         assertThat(env)
-                .doesNotContainKeys("_JIMUQU_FORCE_OPENAI_API_KEY", "_JIMUQU_FORCE_CUSTOM_TOKEN");
+                .doesNotContainKeys(
+                        "_JIMUQU_FORCE_OPENAI_API_KEY",
+                        "_JIMUQU_FORCE_CUSTOM_TOKEN",
+                        "_JIMUQU_FORCE_BAD-NAME",
+                        "BAD-NAME");
     }
 
     @Test

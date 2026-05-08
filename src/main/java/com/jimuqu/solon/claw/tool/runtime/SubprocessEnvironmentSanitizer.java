@@ -219,7 +219,7 @@ public final class SubprocessEnvironmentSanitizer {
     private static String forcedName(String name) {
         String value = StrUtil.nullToEmpty(name);
         if (value.startsWith(FORCE_PREFIX) && value.length() > FORCE_PREFIX.length()) {
-            return value.substring(FORCE_PREFIX.length());
+            return normalizeEnvName(value.substring(FORCE_PREFIX.length()));
         }
         return null;
     }
