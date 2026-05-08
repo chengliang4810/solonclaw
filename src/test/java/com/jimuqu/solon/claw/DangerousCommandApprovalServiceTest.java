@@ -2068,6 +2068,11 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> genericRead = new LinkedHashMap<String, Object>();
         genericRead.put("action", "read");
         genericRead.put("file_path", "D:/workspace/other/file.txt");
+        Map<String, Object> nestedWriteTool = new LinkedHashMap<String, Object>();
+        nestedWriteTool.put("tool_name", "write_file");
+        Map<String, Object> nestedWriteArgs = new LinkedHashMap<String, Object>();
+        nestedWriteArgs.put("path", "D:/workspace/other/tool-name-write.txt");
+        nestedWriteTool.put("tool_args", nestedWriteArgs);
 
         SecurityPolicyService.FileVerdict write =
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericWrite);
@@ -2075,6 +2080,8 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkFileToolArgs("tool_gateway", nestedPatch);
         SecurityPolicyService.FileVerdict read =
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericRead);
+        SecurityPolicyService.FileVerdict toolNameWrite =
+                securityPolicyService.checkFileToolArgs("tool_gateway", nestedWriteTool);
 
         assertThat(write.isAllowed()).isFalse();
         assertThat(write.getMessage()).contains("安全写入根");
@@ -2083,6 +2090,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(patch.getMessage()).contains("敏感系统");
         assertThat(patch.getPath()).isEqualTo("/etc/systemd/evil.service");
         assertThat(read.isAllowed()).isTrue();
+        assertThat(toolNameWrite.isAllowed()).isFalse();
+        assertThat(toolNameWrite.getMessage()).contains("安全写入根");
+        assertThat(toolNameWrite.getPath()).isEqualTo("D:/workspace/other/tool-name-write.txt");
     }
 
     @Test

@@ -918,6 +918,10 @@ public class SecurityPolicyService {
         if (raw == null) {
             return;
         }
+        if (raw instanceof Map) {
+            collectPaths(raw, paths);
+            return;
+        }
         if (raw instanceof Collection) {
             for (Object item : (Collection<?>) raw) {
                 addPathValue(paths, item);
@@ -965,7 +969,8 @@ public class SecurityPolicyService {
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
                 String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
                 Object value = entry.getValue();
-                if (looksLikeActionKey(key) && isWriteIntentValue(value)) {
+                if ((looksLikeActionKey(key) || looksLikeToolNameKey(key))
+                        && isWriteIntentValue(value)) {
                     return true;
                 }
                 if (hasWriteIntent(value)) {
@@ -1064,14 +1069,29 @@ public class SecurityPolicyService {
     private boolean isWriteIntentValue(Object raw) {
         String value = StrUtil.nullToEmpty(String.valueOf(raw)).trim().toLowerCase(Locale.ROOT);
         return "write".equals(value)
+                || "file_write".equals(value)
+                || "write_file".equals(value)
                 || "append".equals(value)
+                || "file_append".equals(value)
+                || "append_file".equals(value)
                 || "delete".equals(value)
+                || "file_delete".equals(value)
+                || "delete_file".equals(value)
                 || "remove".equals(value)
+                || "remove_file".equals(value)
                 || "move".equals(value)
+                || "file_move".equals(value)
+                || "move_file".equals(value)
                 || "rename".equals(value)
+                || "file_rename".equals(value)
+                || "rename_file".equals(value)
                 || "create".equals(value)
+                || "create_file".equals(value)
+                || "file_create".equals(value)
                 || "mkdir".equals(value)
+                || "file_mkdir".equals(value)
                 || "edit".equals(value)
+                || "edit_file".equals(value)
                 || "patch".equals(value)
                 || "apply_patch".equals(value)
                 || "install".equals(value)
