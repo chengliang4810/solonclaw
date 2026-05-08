@@ -30,6 +30,7 @@ public class LocalTerminalTranscriptTest {
                 .contains("assistant: world")
                 .contains("user: next")
                 .doesNotContain("user: hello");
+        assertThat(transcript.count()).isEqualTo(3);
         assertThat(transcript.lines()).contains("user: hello", "assistant: world", "user: next");
     }
 

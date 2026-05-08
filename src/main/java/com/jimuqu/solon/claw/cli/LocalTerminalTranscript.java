@@ -65,6 +65,12 @@ public class LocalTerminalTranscript {
         return lines;
     }
 
+    public int count() {
+        synchronized (entries) {
+            return entries.size();
+        }
+    }
+
     private void add(String role, String text) {
         String value = trim(text);
         if (StrUtil.isBlank(value)) {

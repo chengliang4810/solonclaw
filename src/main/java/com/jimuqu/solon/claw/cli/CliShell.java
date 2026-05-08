@@ -121,6 +121,7 @@ public class CliShell {
                 dispatchInteractive(taskRunner, writer, sessionId, line);
             }
         } finally {
+            renderShutdownSummary(writer, sessionId, taskRunner);
             taskRunner.cancelAndClose(
                     new Runnable() {
                         @Override
@@ -302,6 +303,13 @@ public class CliShell {
     private boolean isForceExitCommand(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
         return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
+    }
+
+    private void renderShutdownSummary(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+        writer.println(
+                TerminalLifecycleSummary.render(
+                        sessionId, taskRunner, transcript, null, StrUtil.isNotBlank(lastReply)));
+        writer.flush();
     }
 
     private boolean isAttachmentPreviewCommand(String input) {

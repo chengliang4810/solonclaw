@@ -148,6 +148,7 @@ public class TuiShell {
                 writer.flush();
             }
         } finally {
+            renderShutdownSummary(writer, sessionId, taskRunner);
             taskRunner.cancelAndClose(
                     new Runnable() {
                         @Override
@@ -361,6 +362,18 @@ public class TuiShell {
 
     private void renderFooter(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(skin.dim(footerLine(sessionId, taskRunner)));
+    }
+
+    private void renderShutdownSummary(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+        writer.println(
+                skin.dim(
+                        TerminalLifecycleSummary.render(
+                                sessionId,
+                                taskRunner,
+                                transcript,
+                                lastEventSnapshot,
+                                StrUtil.isNotBlank(lastReply))));
+        writer.flush();
     }
 
     private String footerLine(String sessionId, LocalTerminalTaskRunner taskRunner) {
