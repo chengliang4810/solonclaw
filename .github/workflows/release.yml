@@ -95,6 +95,10 @@ jobs:
           echo "git_range=$GIT_RANGE" >> "$GITHUB_OUTPUT"
           echo "display_range=$DISPLAY_RANGE" >> "$GITHUB_OUTPUT"
 
+      - name: Check release commit subjects
+        shell: pwsh
+        run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -GitCommitRange "${{ steps.release_range.outputs.git_range }}"
+
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'
         shell: bash

@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.noear.snack4.ONode;
 import org.junit.jupiter.api.Test;
 
 public class DashboardRunServiceTest {
@@ -43,14 +44,102 @@ public class DashboardRunServiceTest {
         assertThat(metadata.get("raw")).isEqualTo("{\"preview\":\"unterminated");
     }
 
+    @Test
+    void shouldRedactSecretsFromRunDetails() throws Exception {
+        FakeAgentRunRepository repository = new FakeAgentRunRepository();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-secret");
+        run.setSessionId("session-secret");
+        run.setInputPreview("use api_key=sk-test-runinputsecret");
+        run.setFinalReplyPreview("done token=ghp_runreplysecret123");
+        run.setAgentSnapshotJson(
+                ONode.serialize(Collections.singletonMap("env", "OPENAI_API_KEY=sk-test-snapshotsecret")));
+        run.setRecoveryHint("retry with password=run-password");
+        run.setError("failed with Authorization: Bearer ghp_runerrorsecret123");
+        repository.runs.add(run);
+
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId("event-secret");
+        event.setRunId("run-secret");
+        event.setSessionId("session-secret");
+        event.setSummary("metadata token=ghp_eventsummary123");
+        event.setMetadataJson(
+                ONode.serialize(Collections.singletonMap("url", "https://u:p@example.com/cb?token=event-token")));
+        repository.events.add(event);
+
+        ToolCallRecord tool = new ToolCallRecord();
+        tool.setToolCallId("tool-secret");
+        tool.setRunId("run-secret");
+        tool.setArgsPreview("OPENAI_API_KEY=sk-test-toolargsecret");
+        tool.setResultPreview("Authorization: Bearer ghp_toolresult123");
+        tool.setError("password=tool-password");
+        repository.tools.add(tool);
+
+        SubagentRunRecord subagent = new SubagentRunRecord();
+        subagent.setSubagentId("subagent-secret");
+        subagent.setParentRunId("run-secret");
+        subagent.setGoalPreview("inspect token=ghp_subagentgoal123");
+        subagent.setOutputTailJson(
+                ONode.serialize(Collections.singletonList("api_key=sk-test-subagenttail")));
+        subagent.setError("secret=subagent-secret-value");
+        repository.subagents.add(subagent);
+
+        RunRecoveryRecord recovery = new RunRecoveryRecord();
+        recovery.setRecoveryId("recovery-secret");
+        recovery.setRunId("run-secret");
+        recovery.setSummary("recover token=ghp_recoverysummary123");
+        recovery.setPayloadJson(
+                ONode.serialize(Collections.singletonMap("authorization", "Bearer ghp_recoverypayload123")));
+        repository.recoveries.add(recovery);
+
+        RunControlCommand command = new RunControlCommand();
+        command.setCommandId("command-secret");
+        command.setRunId("run-secret");
+        command.setCommand("steer api_key=sk-test-commandsecret");
+        command.setPayloadJson(ONode.serialize(Collections.singletonMap("token", "ghp_commandpayload123")));
+        repository.commands.add(command);
+
+        DashboardRunService service = new DashboardRunService(repository);
+        String response = ONode.serialize(service.detail("run-secret"));
+
+        assertThat(response).doesNotContain("sk-test-runinputsecret");
+        assertThat(response).doesNotContain("ghp_runreplysecret123");
+        assertThat(response).doesNotContain("sk-test-snapshotsecret");
+        assertThat(response).doesNotContain("run-password");
+        assertThat(response).doesNotContain("ghp_runerrorsecret123");
+        assertThat(response).doesNotContain("ghp_eventsummary123");
+        assertThat(response).doesNotContain("event-token");
+        assertThat(response).doesNotContain("sk-test-toolargsecret");
+        assertThat(response).doesNotContain("ghp_toolresult123");
+        assertThat(response).doesNotContain("tool-password");
+        assertThat(response).doesNotContain("ghp_subagentgoal123");
+        assertThat(response).doesNotContain("sk-test-subagenttail");
+        assertThat(response).doesNotContain("subagent-secret-value");
+        assertThat(response).doesNotContain("ghp_recoverysummary123");
+        assertThat(response).doesNotContain("ghp_recoverypayload123");
+        assertThat(response).doesNotContain("sk-test-commandsecret");
+        assertThat(response).doesNotContain("ghp_commandpayload123");
+        assertThat(response).contains("***");
+    }
+
     private static class FakeAgentRunRepository implements AgentRunRepository {
         private final List<AgentRunEventRecord> events = new ArrayList<AgentRunEventRecord>();
+        private final List<AgentRunRecord> runs = new ArrayList<AgentRunRecord>();
+        private final List<ToolCallRecord> tools = new ArrayList<ToolCallRecord>();
+        private final List<SubagentRunRecord> subagents = new ArrayList<SubagentRunRecord>();
+        private final List<RunRecoveryRecord> recoveries = new ArrayList<RunRecoveryRecord>();
+        private final List<RunControlCommand> commands = new ArrayList<RunControlCommand>();
 
         @Override
         public void saveRun(AgentRunRecord record) {}
 
         @Override
         public AgentRunRecord findRun(String runId) {
+            for (AgentRunRecord run : runs) {
+                if (runId.equals(run.getRunId())) {
+                    return run;
+                }
+            }
             return null;
         }
 
@@ -104,7 +193,7 @@ public class DashboardRunServiceTest {
 
         @Override
         public List<RunControlCommand> listRunControlCommands(String runId) {
-            return Collections.emptyList();
+            return commands;
         }
 
         @Override
@@ -131,7 +220,7 @@ public class DashboardRunServiceTest {
 
         @Override
         public List<ToolCallRecord> listToolCalls(String runId) {
-            return Collections.emptyList();
+            return tools;
         }
 
         @Override
@@ -152,7 +241,7 @@ public class DashboardRunServiceTest {
 
         @Override
         public List<SubagentRunRecord> listSubagents(String parentRunId) {
-            return Collections.emptyList();
+            return subagents;
         }
 
         @Override
@@ -160,7 +249,7 @@ public class DashboardRunServiceTest {
 
         @Override
         public List<RunRecoveryRecord> listRecoveries(String runId) {
-            return Collections.emptyList();
+            return recoveries;
         }
 
         @Override

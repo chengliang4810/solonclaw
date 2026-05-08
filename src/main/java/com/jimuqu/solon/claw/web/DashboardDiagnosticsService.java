@@ -282,10 +282,10 @@ public class DashboardDiagnosticsService {
 
     private Map<String, Object> runtime() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("home", appConfig.getRuntime().getHome());
-        map.put("state_db", appConfig.getRuntime().getStateDb());
-        map.put("cache_dir", appConfig.getRuntime().getCacheDir());
-        map.put("logs_dir", appConfig.getRuntime().getLogsDir());
+        map.put("home", runtimeReference(appConfig.getRuntime().getHome()));
+        map.put("state_db", runtimeReference(appConfig.getRuntime().getStateDb()));
+        map.put("cache_dir", runtimeReference(appConfig.getRuntime().getCacheDir()));
+        map.put("logs_dir", runtimeReference(appConfig.getRuntime().getLogsDir()));
         map.put("home_exists", new File(appConfig.getRuntime().getHome()).exists());
         map.put("state_parent_writable", canWriteParent(appConfig.getRuntime().getStateDb()));
         return map;
@@ -299,7 +299,7 @@ public class DashboardDiagnosticsService {
             item.put("provider", entry.getKey());
             item.put("name", entry.getValue().getName());
             item.put("dialect", entry.getValue().getDialect());
-            item.put("base_url", entry.getValue().getBaseUrl());
+            item.put("base_url", SecretRedactor.maskUrl(entry.getValue().getBaseUrl()));
             item.put("default_model", entry.getValue().getDefaultModel());
             item.put("has_api_key", StrUtil.isNotBlank(entry.getValue().getApiKey()));
             items.add(item);
@@ -320,7 +320,9 @@ public class DashboardDiagnosticsService {
             item.put("connected", status.isConnected());
             item.put("setup_state", status.getSetupState());
             item.put("connection_mode", status.getConnectionMode());
-            item.put("last_error_message", status.getLastErrorMessage());
+            item.put(
+                    "last_error_message",
+                    SecretRedactor.redact(status.getLastErrorMessage(), 1000));
             items.add(item);
         }
         return items;
@@ -427,7 +429,7 @@ public class DashboardDiagnosticsService {
         item.put("approval_id", pending.getApprovalId());
         item.put("selector", StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()));
         item.put("tool_name", pending.getToolName());
-        item.put("description", pending.getDescription());
+        item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
         item.put("pattern_key", pending.getPatternKey());
         item.put("pattern_keys", pending.effectivePatternKeys());
         item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
@@ -484,7 +486,7 @@ public class DashboardDiagnosticsService {
         item.put("approval_key", event.getApprovalKey());
         item.put("command_hash", event.getCommandHash());
         item.put("command_preview", event.getCommandPreview());
-        item.put("description", event.getDescription());
+        item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
         item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
         item.put("created_at", Long.valueOf(event.getCreatedAt()));
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
@@ -541,7 +543,7 @@ public class DashboardDiagnosticsService {
         item.put("confirm_id", pending.getConfirmId());
         item.put("source_key", pending.getSourceKey());
         item.put("command", pending.getCommand());
-        item.put("prompt", pending.getPrompt());
+        item.put("prompt", SecretRedactor.redact(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getCreatedAt() + 300000L));
@@ -586,6 +588,38 @@ public class DashboardDiagnosticsService {
         }
         File parent = new File(path).getAbsoluteFile().getParentFile();
         return parent != null && parent.exists() && parent.canWrite();
+    }
+
+    private String runtimeReference(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (StrUtil.isBlank(text)) {
+            return text;
+        }
+        File runtimeHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+        File file = new File(text).getAbsoluteFile();
+        try {
+            runtimeHome = runtimeHome.getCanonicalFile();
+            file = file.getCanonicalFile();
+        } catch (Exception ignored) {
+        }
+        String homePath = normalized(runtimeHome);
+        String filePath = normalized(file);
+        if (filePath.equals(homePath)) {
+            return "runtime://";
+        }
+        if (filePath.startsWith(homePath + File.separator)) {
+            String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
+            return "runtime://" + relative;
+        }
+        return SecretRedactor.redact(text, 400);
+    }
+
+    private String normalized(File file) {
+        String path = file.getAbsolutePath();
+        if (File.separatorChar == '\\') {
+            return path.toLowerCase(java.util.Locale.ROOT);
+        }
+        return path;
     }
 
     private int size(List<?> values) {

@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
@@ -281,7 +282,9 @@ public class DashboardConfiguration {
 
     @Bean
     public DashboardMediaService dashboardMediaService(
-            SqliteDatabase sqliteDatabase, RuntimePathGuard runtimePathGuard) {
-        return new DashboardMediaService(sqliteDatabase, runtimePathGuard);
+            SqliteDatabase sqliteDatabase,
+            RuntimePathGuard runtimePathGuard,
+            AttachmentCacheService attachmentCacheService) {
+        return new DashboardMediaService(sqliteDatabase, runtimePathGuard, attachmentCacheService);
     }
 }

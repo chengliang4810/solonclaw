@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -418,6 +419,26 @@ public class DashboardControllerHttpTest {
         assertThat(mcpList.body).contains("\"oauth\"");
         assertThat(mcpList.body).contains("\"capabilities\"");
         assertThat(mcpList.body).contains("\"last_tools_hash\"");
+
+        HttpResult secretMcp =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-endpoint-token\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
+                        token);
+        assertThat(secretMcp.status).isEqualTo(200);
+        HttpResult secretMcpList = request("GET", "/api/jimuqu/mcp", null, token);
+        assertThat(secretMcpList.status).isEqualTo(200);
+        assertThat(secretMcpList.body)
+                .contains("OPENAI_API_KEY=***")
+                .contains("--token=***")
+                .contains("Authorization: Bearer ***")
+                .contains("https://user:***@example.com/sse?token=***")
+                .doesNotContain("sk-test-dashboard-secret")
+                .doesNotContain("secret-arg-value")
+                .doesNotContain("secret-endpoint-pass")
+                .doesNotContain("secret-endpoint-token")
+                .doesNotContain("ghp_mcpsecret12345");
 
         HttpResult updateMcpOAuth =
                 request(
@@ -929,7 +950,8 @@ public class DashboardControllerHttpTest {
                 "dashboard-approval-chat",
                 "MEMORY:dashboard-approval-chat:dashboard-user",
                 "Dashboard approval session",
-                "printf api_key=sk-test-secret-token-value");
+                "printf api_key=sk-test-secret-token-value",
+                "需要确认危险命令 Authorization: Bearer ghp_dashboardsecret12345");
 
         HttpResult pending =
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);
@@ -939,7 +961,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"session_id\":\"dashboard-approval-chat\"")
                 .contains("\"tool_name\":\"execute_shell\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
-                .doesNotContain("sk-test-secret-token-value");
+                .doesNotContain("sk-test-secret-token-value")
+                .doesNotContain("ghp_dashboardsecret12345")
+                .contains("Authorization: Bearer ***");
 
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
@@ -951,7 +975,9 @@ public class DashboardControllerHttpTest {
         assertThat(historyBefore.body)
                 .contains("\"event_type\":\"request\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
-                .doesNotContain("sk-test-secret-token-value");
+                .doesNotContain("sk-test-secret-token-value")
+                .doesNotContain("ghp_dashboardsecret12345")
+                .contains("Authorization: Bearer ***");
 
         HttpResult resolve =
                 request(
@@ -975,7 +1001,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"choice\":\"deny\"")
                 .contains("\"approver\":\"dashboard\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
-                .doesNotContain("sk-test-secret-token-value");
+                .doesNotContain("sk-test-secret-token-value")
+                .doesNotContain("ghp_dashboardsecret12345")
+                .contains("Authorization: Bearer ***");
 
         HttpResult after =
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);
@@ -1095,6 +1123,40 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRedactSlashConfirmPromptFromDashboard() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        bean(SlashConfirmService.class)
+                .register(
+                        "MEMORY:dashboard-secret-confirm:user",
+                        "reload-mcp",
+                        "确认刷新 Authorization: Bearer ghp_slashsecret12345");
+
+        HttpResult confirms =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+
+        assertThat(confirms.status).isEqualTo(200);
+        assertThat(confirms.body)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_slashsecret12345");
+        ONode items = ONode.ofJson(confirms.body).get("data").get("items");
+        String confirmId = "";
+        for (int i = 0; i < items.size(); i++) {
+            ONode item = items.get(i);
+            if ("MEMORY:dashboard-secret-confirm:user".equals(item.get("source_key").getString())) {
+                confirmId = item.get("confirm_id").getString();
+            }
+        }
+        assertThat(confirmId).isNotBlank();
+        request(
+                "POST",
+                "/api/diagnostics/slash-confirms/resolve",
+                "{\"sourceKey\":\"MEMORY:dashboard-secret-confirm:user\",\"confirmId\":\""
+                        + jsonEscape(confirmId)
+                        + "\",\"action\":\"deny\"}",
+                token);
+    }
+
+    @Test
     void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
@@ -1189,7 +1251,23 @@ public class DashboardControllerHttpTest {
                 requestMultipart("/api/chat/uploads", token, "hello.txt", "hello world");
         assertThat(upload.status).isEqualTo(200);
         assertThat(upload.body).contains("\"local_path\"");
+        assertThat(upload.body).contains("media://");
+        assertThat(upload.body).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(upload.body).contains("\"mime_type\"");
+
+        String uploadedLocalPath =
+                ONode.ofJson(upload.body).get("files").get(0).get("local_path").getString();
+        HttpResult attachmentRun =
+                request(
+                        "POST",
+                        "/api/chat/runs",
+                        "{\"input\":\"看附件\",\"session_id\":\"dashboard-chat-upload-ref\","
+                                + "\"attachments\":[{\"name\":\"hello.txt\",\"local_path\":\""
+                                + jsonEscape(uploadedLocalPath)
+                                + "\",\"kind\":\"file\",\"mime_type\":\"text/plain\"}]}",
+                        token);
+        assertThat(attachmentRun.status).isEqualTo(200);
+        assertThat(attachmentRun.body).contains("\"run_id\"");
 
         ONode startStatus =
                 ONode.ofJson(
@@ -1290,6 +1368,55 @@ public class DashboardControllerHttpTest {
                                 token)
                         .body;
         assertThat(undoEvents).contains("event: run.completed");
+    }
+
+    @Test
+    void shouldHideMediaCacheHostPaths() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");
+        FileUtil.mkdir(mediaDir);
+        File cached = new File(mediaDir, "dashboard-secret-token.txt");
+        FileUtil.writeUtf8String("cached media", cached);
+
+        HttpResult index =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/index",
+                        "{\"mediaId\":\"dashboard-media-secret\",\"platform\":\"MEMORY\","
+                                + "\"localPath\":\""
+                                + jsonEscape(cached.getAbsolutePath())
+                                + "\",\"originalName\":\"dashboard-secret-token.txt\","
+                                + "\"kind\":\"file\",\"mimeType\":\"text/plain\","
+                                + "\"remoteId\":\"token=ghp_mediasecret123\"}",
+                        token);
+        assertThat(index.status).isEqualTo(200);
+
+        HttpResult detail =
+                request("GET", "/api/jimuqu/media/dashboard-media-secret", null, token);
+        assertThat(detail.status).isEqualTo(200);
+        assertThat(detail.body).contains("media://MEMORY/dashboard-secret-token.txt");
+        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(detail.body).doesNotContain("ghp_mediasecret123");
+
+        HttpResult download =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/dashboard-media-secret/download",
+                        "{}",
+                        token);
+        assertThat(download.status).isEqualTo(200);
+        assertThat(download.body).contains("media://MEMORY/dashboard-secret-token.txt");
+        assertThat(download.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult reference =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/dashboard-media-secret/reference",
+                        "{}",
+                        token);
+        assertThat(reference.status).isEqualTo(200);
+        assertThat(reference.body).contains("media://MEMORY/dashboard-secret-token.txt");
+        assertThat(reference.body).doesNotContain(runtimeHome.getAbsolutePath());
     }
 
     @Test
@@ -1414,6 +1541,12 @@ public class DashboardControllerHttpTest {
 
     private static void seedPendingApproval(
             String sessionId, String sourceKey, String title, String command) throws Exception {
+        seedPendingApproval(sessionId, sourceKey, title, command, "需要确认危险命令");
+    }
+
+    private static void seedPendingApproval(
+            String sessionId, String sourceKey, String title, String command, String description)
+            throws Exception {
         SessionRepository repository = bean(SessionRepository.class);
         DangerousCommandApprovalService approvalService =
                 bean(DangerousCommandApprovalService.class);
@@ -1436,7 +1569,7 @@ public class DashboardControllerHttpTest {
                 agentSession,
                 "execute_shell",
                 "rm_recursive_root",
-                "需要确认危险命令",
+                description,
                 command);
     }
 

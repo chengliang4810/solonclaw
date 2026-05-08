@@ -19,6 +19,7 @@ public class AttachmentCacheService {
 
     private final File runtimeHome;
     private final File cacheRoot;
+    private static final String MEDIA_REFERENCE_PREFIX = "media://";
 
     public AttachmentCacheService(AppConfig appConfig) {
         String runtimeHomeValue = null;
@@ -155,6 +156,48 @@ public class AttachmentCacheService {
                 cacheRoot,
                 String.valueOf(platform == null ? PlatformType.MEMORY : platform)
                         .toLowerCase(Locale.ROOT));
+    }
+
+    public String mediaReference(MessageAttachment attachment) {
+        if (attachment == null) {
+            return "";
+        }
+        return mediaReference(new File(attachment.getLocalPath()));
+    }
+
+    public String mediaReference(File file) {
+        File canonical = FileUtil.file(file).getAbsoluteFile();
+        if (!isUnderMediaRoot(canonical)) {
+            throw new IllegalArgumentException("Attachment file is outside media cache: " + file);
+        }
+        try {
+            String relative =
+                    cacheRoot.getCanonicalFile()
+                            .toPath()
+                            .relativize(canonical.getCanonicalFile().toPath())
+                            .toString()
+                            .replace('\\', '/');
+            return MEDIA_REFERENCE_PREFIX + relative;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Invalid media cache path: " + file, e);
+        }
+    }
+
+    public File resolveMediaReference(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (!text.startsWith(MEDIA_REFERENCE_PREFIX)) {
+            return FileUtil.file(text);
+        }
+        String relative = text.substring(MEDIA_REFERENCE_PREFIX.length()).replace('\\', '/');
+        if (StrUtil.isBlank(relative) || relative.startsWith("/") || relative.contains("..")) {
+            throw new IllegalArgumentException("Invalid media reference");
+        }
+        File file = new File(cacheRoot, relative);
+        File canonical = FileUtil.file(file).getAbsoluteFile();
+        if (!isUnderMediaRoot(canonical)) {
+            throw new IllegalArgumentException("Attachment file is outside media cache: " + value);
+        }
+        return canonical;
     }
 
     public static String normalizeKind(String kind, String name, String mimeType) {
