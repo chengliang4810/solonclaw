@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -27,6 +30,64 @@ public class ProcessRegistryTest {
         assertThatThrownBy(() -> registry.start("  ", new File(".")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("expected non-empty string");
+    }
+
+    @Test
+    void shouldRedactOutputReaderFailureMessage() throws Exception {
+        Process process =
+                new Process() {
+                    @Override
+                    public OutputStream getOutputStream() {
+                        return new OutputStream() {
+                            @Override
+                            public void write(int b) {}
+                        };
+                    }
+
+                    @Override
+                    public InputStream getInputStream() {
+                        return new InputStream() {
+                            @Override
+                            public int read() throws IOException {
+                                throw new IOException(
+                                        "stream failed token=sk-test1234567890abcdef");
+                            }
+                        };
+                    }
+
+                    @Override
+                    public InputStream getErrorStream() {
+                        return new InputStream() {
+                            @Override
+                            public int read() {
+                                return -1;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public int waitFor() {
+                        return 0;
+                    }
+
+                    @Override
+                    public int exitValue() {
+                        return 0;
+                    }
+
+                    @Override
+                    public void destroy() {}
+                };
+        ProcessRegistry registry = new ProcessRegistry();
+        String id = registry.add(process);
+        registry.get(id).startReader();
+
+        Thread.sleep(200L);
+
+        ProcessRegistry.ManagedProcess managed = registry.get(id);
+        assertThat(managed.getOutput()).contains("process output reader failed");
+        assertThat(managed.getOutput()).contains("token=***");
+        assertThat(managed.getOutput()).doesNotContain("sk-test1234567890abcdef");
     }
 
     @Test

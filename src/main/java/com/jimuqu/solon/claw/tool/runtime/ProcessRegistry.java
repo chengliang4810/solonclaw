@@ -786,7 +786,12 @@ public class ProcessRegistry {
                     appendOutput(new String(chars, 0, read));
                 }
             } catch (Exception e) {
-                appendOutput("\n[process output reader failed: " + e.getMessage() + "]");
+                String message =
+                        StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
+                appendOutput(
+                        "\n[process output reader failed: "
+                                + SecretRedactor.redact(message, 1000)
+                                + "]");
             } finally {
                 try {
                     process.waitFor();
