@@ -1027,6 +1027,30 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRejectDashboardChatAttachmentPathsOutsideMediaCache() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File secret = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String("providers:\n  default:\n    apiKey: secret\n", secret);
+
+        HttpResult rejected =
+                request(
+                        "POST",
+                        "/api/chat/runs",
+                        "{\"input\":\"看附件\",\"session_id\":\"dashboard-chat-attachment-guard\","
+                                + "\"attachments\":[{\"name\":\"config.yml\","
+                                + "\"local_path\":\""
+                                + jsonEscape(secret.getAbsolutePath())
+                                + "\",\"kind\":\"file\",\"mime_type\":\"text/yaml\"}]}",
+                        token);
+
+        assertThat(rejected.status).isEqualTo(400);
+        assertThat(rejected.body).contains("outside media cache");
+        assertThat(rejected.body).doesNotContain("run_id");
+        assertThat(request("GET", "/api/sessions?limit=20&offset=0", null, token).body)
+                .doesNotContain("dashboard-chat-attachment-guard");
+    }
+
+    @Test
     void shouldNotExposeTodoApis() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
@@ -1100,6 +1124,10 @@ public class DashboardControllerHttpTest {
         Matcher matcher = Pattern.compile("__APP_SESSION_TOKEN__=\\\"([^\\\"]+)\\\"").matcher(html);
         assertThat(matcher.find()).isTrue();
         return matcher.group(1);
+    }
+
+    private static String jsonEscape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static List<String> stringsAt(String body, String field) {
