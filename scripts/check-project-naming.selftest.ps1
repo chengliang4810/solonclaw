@@ -4,6 +4,7 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
 $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1"
+$publishedReleaseScriptPath = Join-Path $repoRoot "scripts\check-release-naming.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
@@ -432,6 +433,49 @@ try {
         Assert-NoRawBlockedOutput ($releaseObjectOutput | Out-String) @($blockedFixture) "release notes git object text generation"
     } finally {
         Pop-Location
+    }
+
+    Reset-Sandbox
+    $publishedReleaseFixturePath = Join-Path $sandbox "published-release.json"
+    $publishedReleaseFixture = [PSCustomObject]@{
+        name = "jimuqu-agent v2099.01.04-def0123"
+        tag_name = "v2099.01.04-def0123"
+        body = "Published release body mentions $legacyPrivateUrlFixture"
+        assets = @(
+            [PSCustomObject]@{
+                name = "jimuqu-agent-0.0.0-test.jar"
+                label = ""
+                content_type = "application/java-archive"
+            }
+        )
+    }
+    $publishedReleaseFixture | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $publishedReleaseFixturePath -Encoding UTF8
+    $publishedReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $publishedReleaseScriptPath `
+        -LocalJsonPath $publishedReleaseFixturePath 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        throw "Published release naming check should fail when blocked naming exists in release metadata."
+    }
+    Assert-NoRawBlockedOutput ($publishedReleaseOutput | Out-String) @($legacyPrivateUrlFixture) "published release metadata scan"
+
+    Reset-Sandbox
+    $cleanPublishedReleaseFixturePath = Join-Path $sandbox "published-release-clean.json"
+    $cleanPublishedReleaseFixture = [PSCustomObject]@{
+        name = "jimuqu-agent v2099.01.05-ef01234"
+        tag_name = "v2099.01.05-ef01234"
+        body = "Clean published release body"
+        assets = @(
+            [PSCustomObject]@{
+                name = "jimuqu-agent-0.0.0-test.jar"
+                label = ""
+                content_type = "application/java-archive"
+            }
+        )
+    }
+    $cleanPublishedReleaseFixture | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $cleanPublishedReleaseFixturePath -Encoding UTF8
+    $cleanPublishedReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $publishedReleaseScriptPath `
+        -LocalJsonPath $cleanPublishedReleaseFixturePath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Published release naming check should pass for clean release metadata: $($cleanPublishedReleaseOutput | Out-String)"
     }
 
 } finally {

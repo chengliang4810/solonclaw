@@ -171,3 +171,9 @@ jobs:
           files: |
             ${{ steps.artifact.outputs.jar_path }}
             ${{ steps.artifact.outputs.sha_path }}
+
+      - name: Check published release naming
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/check-release-naming.ps1 -Tag "${{ steps.release.outputs.tag }}"

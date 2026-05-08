@@ -48,24 +48,24 @@ if ([string]::IsNullOrWhiteSpace($shortHead)) {
 }
 
 $cleanBaseReachable = Test-GitAncestor $CleanNamingBase $HeadSha
-$previousTag = Invoke-GitLine -Arguments @("describe", "--tags", "--match", "v*", "--abbrev=0", "$HeadSha^")
-$previousTagCommit = ""
-if (-not [string]::IsNullOrWhiteSpace($previousTag)) {
-    $previousTagCommit = Invoke-GitLine -Arguments @("rev-list", "-n", "1", $previousTag)
-}
 
 if ($cleanBaseReachable -and $HeadSha -eq $CleanNamingBase) {
     $gitRange = $HeadSha
     $displayRange = $shortHead
-} elseif ($cleanBaseReachable -and (
-        [string]::IsNullOrWhiteSpace($previousTag) -or
-        (Test-GitAncestor $previousTagCommit $CleanNamingBase))) {
+} elseif ($cleanBaseReachable) {
     $gitRange = "$CleanNamingBase..$HeadSha"
     $displayRange = "clean naming baseline..$shortHead"
-} elseif (-not [string]::IsNullOrWhiteSpace($previousTag)) {
+} else {
+    $previousTag = Invoke-GitLine -Arguments @("describe", "--tags", "--match", "v*", "--abbrev=0", "$HeadSha^")
+    if ([string]::IsNullOrWhiteSpace($previousTag)) {
+        $previousTag = ""
+    }
+}
+
+if (-not $cleanBaseReachable -and -not [string]::IsNullOrWhiteSpace($previousTag)) {
     $gitRange = "$previousTag..$HeadSha"
     $displayRange = "$previousTag..$shortHead"
-} else {
+} elseif (-not $cleanBaseReachable) {
     $commits = @(& git rev-list --max-count=30 $HeadSha)
     if ($LASTEXITCODE -ne 0 -or $commits.Length -eq 0) {
         throw ("Cannot resolve fallback release range for: {0}" -f $HeadSha)
