@@ -401,11 +401,14 @@ public class KanbanService {
 
     public Map<String, Object> taskDrawer(String taskId, int logTailBytes) throws Exception {
         Map<String, Object> detail = task(taskId);
+        List<Map<String, Object>> runList = runs(taskId);
+        List<Map<String, Object>> eventList = events(taskId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("task_id", taskId);
         result.put("task", detail);
-        result.put("runs", runs(taskId));
-        result.put("events", events(taskId));
+        result.put("runs", runList);
+        result.put("events", eventList);
+        result.put("execution_overview", drawerExecutionOverview(detail, runList, eventList));
         result.put("context", context(taskId));
         result.put("notifications", notifyList(taskId));
         result.put("log", log(taskId, logTailBytes <= 0 ? 4096 : logTailBytes));
@@ -1609,6 +1612,131 @@ public class KanbanService {
         actions.put("can_unblock", Boolean.valueOf(blocked));
         actions.put("can_edit_result", Boolean.valueOf(done));
         return actions;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> drawerExecutionOverview(
+            Map<String, Object> task, List<Map<String, Object>> runs, List<Map<String, Object>> events) {
+        Map<String, Object> overview = new LinkedHashMap<String, Object>();
+        String status = String.valueOf(task.get("status"));
+        Map<String, Object> activeRun =
+                task.get("active_run") instanceof Map<?, ?> ? (Map<String, Object>) task.get("active_run") : null;
+        Map<String, Object> latestRun =
+                task.get("latest_run") instanceof Map<?, ?> ? (Map<String, Object>) task.get("latest_run") : null;
+        Map<String, Object> lastEvent = events.isEmpty() ? null : events.get(events.size() - 1);
+        List<?> warnings = task.get("warnings") instanceof List<?> ? (List<?>) task.get("warnings") : Collections.emptyList();
+
+        overview.put("stage", drawerStage(status, task, activeRun, warnings));
+        overview.put("status", status);
+        overview.put("attempt_count", Integer.valueOf(runs.size()));
+        overview.put("retry_count", task.get("retry_count"));
+        overview.put("warning_count", Integer.valueOf(warnings.size()));
+        overview.put("event_count", Integer.valueOf(events.size()));
+        overview.put("active", Boolean.valueOf(activeRun != null || "running".equals(status)));
+        overview.put("current_run_id", task.get("current_run_id"));
+        overview.put("latest_run_id", latestRun == null ? null : latestRun.get("run_id"));
+        overview.put("latest_outcome", latestRun == null ? null : latestRun.get("outcome"));
+        overview.put("latest_summary", latestRun == null ? null : latestRun.get("summary"));
+        overview.put("latest_error", latestRun == null ? null : latestRun.get("error"));
+        overview.put("last_worker", firstNonNull(task.get("worker_id"), latestRun == null ? null : latestRun.get("worker_id")));
+        overview.put("last_started_at", latestRun == null ? null : latestRun.get("started_at"));
+        overview.put("last_ended_at", latestRun == null ? null : latestRun.get("ended_at"));
+        overview.put(
+                "last_heartbeat_at",
+                firstNonNull(task.get("last_heartbeat_at"), latestRun == null ? null : latestRun.get("last_heartbeat_at")));
+        overview.put("last_event_kind", lastEvent == null ? null : lastEvent.get("kind"));
+        overview.put("last_event_at", lastEvent == null ? null : lastEvent.get("created_at"));
+        overview.put("last_event_summary", lastEventSummary(lastEvent));
+        overview.put("next_action", drawerNextAction(status, task, activeRun, warnings));
+        return overview;
+    }
+
+    private String drawerStage(String status, Map<String, Object> task, Map<String, Object> activeRun, List<?> warnings) {
+        if (!warnings.isEmpty()) {
+            return "needs_review";
+        }
+        if (activeRun != null || "running".equals(status)) {
+            return "running";
+        }
+        if ("blocked".equals(status)) {
+            return "blocked";
+        }
+        if ("ready".equals(status)) {
+            return isBlankObject(task.get("assignee")) ? "waiting_assignee" : "ready";
+        }
+        if ("todo".equals(status) || "triage".equals(status)) {
+            return "planning";
+        }
+        if ("done".equals(status)) {
+            return "completed";
+        }
+        if ("archived".equals(status)) {
+            return "archived";
+        }
+        return status;
+    }
+
+    private String drawerNextAction(String status, Map<String, Object> task, Map<String, Object> activeRun, List<?> warnings) {
+        if (!warnings.isEmpty()) {
+            return "review_warnings";
+        }
+        if (activeRun != null || "running".equals(status)) {
+            return "watch_or_reclaim";
+        }
+        if ("blocked".equals(status)) {
+            return "unblock_or_retry";
+        }
+        if ("ready".equals(status)) {
+            return isBlankObject(task.get("assignee")) ? "assign" : "dispatch";
+        }
+        if ("todo".equals(status) || "triage".equals(status)) {
+            return "promote_when_ready";
+        }
+        if ("done".equals(status)) {
+            return "review_or_edit_result";
+        }
+        if ("archived".equals(status)) {
+            return "restore_if_needed";
+        }
+        return "inspect";
+    }
+
+    private boolean isBlankObject(Object value) {
+        return value == null || StrUtil.isBlank(String.valueOf(value));
+    }
+
+    private Object firstNonNull(Object first, Object second) {
+        return first == null ? second : first;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String lastEventSummary(Map<String, Object> event) {
+        if (event == null) {
+            return null;
+        }
+        Object payloadObject = event.get("payload");
+        Map<String, Object> payload =
+                payloadObject instanceof Map<?, ?> ? (Map<String, Object>) payloadObject : Collections.<String, Object>emptyMap();
+        String kind = String.valueOf(event.get("kind"));
+        if ("completion_blocked_hallucination".equals(kind)) {
+            return "completion blocked: " + payload.get("failures");
+        }
+        if ("suspected_hallucinated_references".equals(kind)) {
+            return "suspected missing cards: " + payload.get("suspected_ids");
+        }
+        if ("reclaimed".equals(kind) || "retry".equals(kind) || "unblocked".equals(kind)) {
+            return kind + ": " + payload.get("reason");
+        }
+        if ("reassigned".equals(kind)) {
+            return "reassigned to " + payload.get("assignee");
+        }
+        if ("completed".equals(kind)) {
+            return "completed: " + payload.get("summary");
+        }
+        if ("spawn_failed".equals(kind) || "gave_up".equals(kind)) {
+            return kind + ": " + payload.get("error");
+        }
+        return kind;
     }
 
     private String formatTaskList(List<Map<String, Object>> tasks) {

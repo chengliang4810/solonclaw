@@ -117,6 +117,28 @@ export interface KanbanTaskDrawer {
   task: KanbanTask
   runs: KanbanRun[]
   events: KanbanEvent[]
+  execution_overview?: {
+    stage: string
+    status: string
+    attempt_count: number
+    retry_count?: number | null
+    warning_count: number
+    event_count: number
+    active: boolean
+    current_run_id?: string | null
+    latest_run_id?: string | null
+    latest_outcome?: string | null
+    latest_summary?: string | null
+    latest_error?: string | null
+    last_worker?: string | null
+    last_started_at?: string | null
+    last_ended_at?: string | null
+    last_heartbeat_at?: string | null
+    last_event_kind?: string | null
+    last_event_at?: string | null
+    last_event_summary?: string | null
+    next_action: string
+  }
   context: {
     task_id: string
     worker_context?: string

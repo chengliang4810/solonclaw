@@ -297,6 +297,12 @@ public class KanbanServiceTest {
         assertThat(String.valueOf(drawer.get("notifications"))).contains("[]");
         assertThat(String.valueOf(drawer.get("log"))).contains("exists=false");
         assertThat(String.valueOf(drawer.get("actions"))).contains("can_retry=false").contains("can_reassign=true");
+        assertThat(String.valueOf(drawer.get("execution_overview")))
+                .contains("stage=ready")
+                .contains("attempt_count=2")
+                .contains("latest_outcome=reclaimed")
+                .contains("last_event_kind=reclaimed")
+                .contains("next_action=dispatch");
         assertThat(service.handleCommand("runs " + taskId, "tester"))
                 .contains("运行历史")
                 .contains("reclaimed");

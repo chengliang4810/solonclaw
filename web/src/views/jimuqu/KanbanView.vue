@@ -396,6 +396,35 @@ function notificationSummary(notification: KanbanNotification): string {
   return `${notification.platform} / ${notification.chat_id}${thread}`
 }
 
+function executionStageLabel(stage?: string | null): string {
+  const labels: Record<string, string> = {
+    needs_review: '需要复核',
+    running: '执行中',
+    blocked: '阻塞',
+    waiting_assignee: '等待分配',
+    ready: '等待派发',
+    planning: '规划中',
+    completed: '已完成',
+    archived: '已归档',
+  }
+  return stage ? labels[stage] || stage : '-'
+}
+
+function nextActionLabel(action?: string | null): string {
+  const labels: Record<string, string> = {
+    review_warnings: '处理告警',
+    watch_or_reclaim: '观察或收回',
+    unblock_or_retry: '解除阻塞或重试',
+    assign: '分配执行人',
+    dispatch: '派发执行',
+    promote_when_ready: '确认后转就绪',
+    review_or_edit_result: '复核或修正结果',
+    restore_if_needed: '按需恢复',
+    inspect: '检查任务',
+  }
+  return action ? labels[action] || action : '-'
+}
+
 function drawerActions() {
   return selectedDrawer.value?.actions
 }
@@ -541,6 +570,38 @@ function hasWarnings(task: KanbanTask): boolean {
           <div class="detail-strip">
             <span>启动失败 {{ selectedTask.spawn_failures || 0 }} 次</span>
             <span>最大重试 {{ selectedTask.max_retries || '跟随派发器' }}</span>
+          </div>
+          <div v-if="selectedDrawer?.execution_overview" class="execution-overview">
+            <div class="panel-title">执行概览</div>
+            <div class="overview-grid">
+              <div>
+                <span>阶段</span>
+                <strong>{{ executionStageLabel(selectedDrawer.execution_overview.stage) }}</strong>
+              </div>
+              <div>
+                <span>建议动作</span>
+                <strong>{{ nextActionLabel(selectedDrawer.execution_overview.next_action) }}</strong>
+              </div>
+              <div>
+                <span>尝试次数</span>
+                <strong>{{ selectedDrawer.execution_overview.attempt_count }}</strong>
+              </div>
+              <div>
+                <span>告警</span>
+                <strong>{{ selectedDrawer.execution_overview.warning_count }}</strong>
+              </div>
+              <div>
+                <span>最后执行人</span>
+                <strong>{{ selectedDrawer.execution_overview.last_worker || '-' }}</strong>
+              </div>
+              <div>
+                <span>最后事件</span>
+                <strong>{{ selectedDrawer.execution_overview.last_event_kind || '-' }}</strong>
+              </div>
+            </div>
+            <div v-if="selectedDrawer.execution_overview.last_event_summary" class="overview-summary">
+              {{ selectedDrawer.execution_overview.last_event_summary }}
+            </div>
           </div>
           <div
             v-if="(selectedTask.warnings || []).length || selectedTask.claim_lock || (selectedTask.runs || []).length"
@@ -883,6 +944,7 @@ function hasWarnings(task: KanbanTask): boolean {
 }
 
 .recovery-panel,
+.execution-overview,
 .runs,
 .events,
 .notifications,
@@ -902,6 +964,7 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .claim-detail,
 .warning-row,
+.overview-summary,
 .run-row,
 .event-row,
 .notification-row,
@@ -921,6 +984,42 @@ function hasWarnings(task: KanbanTask): boolean {
 .warning-row {
   color: #b45309;
   margin-bottom: 6px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+
+  div {
+    min-width: 0;
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    padding: 8px;
+    background: $bg-card-hover;
+  }
+
+  span,
+  strong {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.overview-summary {
+  margin-top: 8px;
 }
 
 .recovery-actions {
@@ -1035,6 +1134,7 @@ function hasWarnings(task: KanbanTask): boolean {
   }
 
   .recovery-actions,
+  .overview-grid,
   .run-row,
   .event-row,
   .notification-row,
