@@ -289,6 +289,32 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
+    void shouldKeepNonSecretJimuquExecutionContextButDropSafetyTogglesAndTokens() {
+        Map<String, String> env = new LinkedHashMap<String, String>();
+        env.put("PATH", "/usr/bin");
+        env.put("JIMUQU_KANBAN_TASK", "task-123");
+        env.put("jimuqu_kanban_worker", "worker-a");
+        env.put("JIMUQU_PROFILE", "reviewer");
+        env.put("JIMUQU_RPC_DIR", "/tmp/jimuqu-rpc");
+        env.put("JIMUQU_ALLOW_PRIVATE_URLS", "true");
+        env.put("JIMUQU_WRITE_SAFE_ROOT", "/");
+        env.put("JIMUQU_DASHBOARD_ACCESS_TOKEN", "dashboard-secret");
+
+        SubprocessEnvironmentSanitizer.sanitize(env);
+
+        assertThat(env)
+                .containsEntry("JIMUQU_KANBAN_TASK", "task-123")
+                .containsEntry("jimuqu_kanban_worker", "worker-a")
+                .containsEntry("JIMUQU_PROFILE", "reviewer");
+        assertThat(env)
+                .doesNotContainKeys(
+                        "JIMUQU_RPC_DIR",
+                        "JIMUQU_ALLOW_PRIVATE_URLS",
+                        "JIMUQU_WRITE_SAFE_ROOT",
+                        "JIMUQU_DASHBOARD_ACCESS_TOKEN");
+    }
+
+    @Test
     void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeJimuqu() {
         String result =
                 SubprocessEnvironmentSanitizer.pathWithSaneFallback(

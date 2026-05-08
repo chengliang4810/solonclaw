@@ -2209,7 +2209,7 @@ public class DangerousCommandApprovalService {
         buffer.append("BLOCKED: 文件安全策略阻止访问：");
         buffer.append(verdict.getMessage());
         buffer.append("\n工具：").append(toolLabel(toolName));
-        buffer.append("\n路径：").append(verdict.getPath());
+        buffer.append("\n路径：").append(SecretRedactor.redact(verdict.getPath(), 400));
         buffer.append("\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。");
         return buffer.toString();
     }

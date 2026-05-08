@@ -332,7 +332,7 @@ public class ProcessRegistry {
         }
 
         Map<String, Object> event = baseEvent("watch_match", managed);
-        event.put("pattern", matchedPattern);
+        event.put("pattern", SecretRedactor.redact(matchedPattern));
         event.put("output", SecretRedactor.redact(limitWatchOutput(matchedLines)));
         event.put("lines", redactLines(matchedLines));
         event.put("suppressed", Integer.valueOf(suppressed));
@@ -522,7 +522,12 @@ public class ProcessRegistry {
         }
         String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
         return SolonClawShellSkill.resolveShellInitFiles(
-                configured, autoSource, isWindows(), home, System.getenv());
+                configured,
+                autoSource,
+                isWindows(),
+                home,
+                System.getenv(),
+                appConfig == null ? null : new SecurityPolicyService(appConfig));
     }
 
     static String rewriteCompoundBackground(String command) {
@@ -914,6 +919,7 @@ public class ProcessRegistry {
             redactMapText(map, "cwd");
             redactMapText(map, "output");
             redactMapText(map, "output_preview");
+            redactMapStringList(map, "watch_patterns");
             return map;
         }
 
@@ -922,6 +928,23 @@ public class ProcessRegistry {
             if (value instanceof String) {
                 map.put(key, SecretRedactor.redact((String) value));
             }
+        }
+
+        @SuppressWarnings("unchecked")
+        private void redactMapStringList(Map<String, Object> map, String key) {
+            Object value = map.get(key);
+            if (!(value instanceof List)) {
+                return;
+            }
+            List<Object> redacted = new ArrayList<Object>();
+            for (Object item : (List<Object>) value) {
+                if (item instanceof String) {
+                    redacted.add(SecretRedactor.redact((String) item));
+                } else {
+                    redacted.add(item);
+                }
+            }
+            map.put(key, redacted);
         }
 
         public String getId() {

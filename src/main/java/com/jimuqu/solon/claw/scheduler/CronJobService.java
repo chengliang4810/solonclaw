@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
@@ -507,7 +508,7 @@ public class CronJobService {
         if (!textVerdict.isAllowed()) {
             throw new IllegalStateException(
                     "workdir blocked by security policy: "
-                            + textVerdict.getPath()
+                            + SecretRedactor.redact(textVerdict.getPath(), 400)
                             + " - "
                             + textVerdict.getMessage());
         }
@@ -522,7 +523,7 @@ public class CronJobService {
             if (!verdict.isAllowed()) {
                 throw new IllegalStateException(
                         "workdir blocked by security policy: "
-                                + verdict.getPath()
+                                + SecretRedactor.redact(verdict.getPath(), 400)
                                 + " - "
                                 + verdict.getMessage());
             }

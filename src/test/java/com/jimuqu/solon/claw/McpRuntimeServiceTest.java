@@ -266,7 +266,8 @@ public class McpRuntimeServiceTest {
         assertThatThrownBy(() -> docsFetch.handle(unsafePath))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(".env");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".env");
 
         Map<String, Object> nestedUnsafeUrl = new LinkedHashMap<String, Object>();
         Map<String, Object> metadata = new LinkedHashMap<String, Object>();

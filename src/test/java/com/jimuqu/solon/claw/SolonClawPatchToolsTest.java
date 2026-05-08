@@ -210,7 +210,10 @@ public class SolonClawPatchToolsTest {
 
         Map<?, ?> result = parse(json);
         assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
-        assertThat(String.valueOf(result.get("error"))).contains("BLOCKED").contains(".env.local");
+        assertThat(String.valueOf(result.get("error")))
+                .contains("BLOCKED")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env.local");
         assertThat(Files.exists(dir.resolve(".env.local"))).isFalse();
     }
 

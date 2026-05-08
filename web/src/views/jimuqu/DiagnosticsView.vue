@@ -231,6 +231,7 @@ function timeText(value?: number) {
 function auditChoiceText(item: ApprovalAuditEvent) {
   if (item.event_type === 'request') return '请求审批'
   if (item.choice === 'deny') return '已拒绝'
+  if (item.choice === 'revoke') return '已撤销'
   if (item.choice === 'timeout') return '已超时'
   if (item.choice === 'session') return '本会话批准'
   if (item.choice === 'always') return '长期批准'
@@ -240,7 +241,7 @@ function auditChoiceText(item: ApprovalAuditEvent) {
 
 function auditChoiceType(item: ApprovalAuditEvent) {
   if (item.event_type === 'request') return 'warning'
-  if (item.choice === 'deny' || item.choice === 'timeout') return 'error'
+  if (item.choice === 'deny' || item.choice === 'timeout' || item.choice === 'revoke') return 'error'
   if (item.choice === 'once' || item.choice === 'session' || item.choice === 'always') return 'success'
   return 'default'
 }

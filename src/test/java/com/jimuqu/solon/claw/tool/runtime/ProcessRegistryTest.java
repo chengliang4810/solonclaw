@@ -2,11 +2,17 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class ProcessRegistryTest {
@@ -82,5 +88,91 @@ public class ProcessRegistryTest {
                         true);
 
         assertThat(command).containsExactly("cmd", "/c", "npm run dev");
+    }
+
+    @Test
+    void shouldFilterSensitiveExplicitShellInitFilesWithPolicyLikeJimuqu() throws Exception {
+        Path home = Files.createTempDirectory("jimuqu-shell-init-sensitive");
+        Path ssh = home.resolve(".ssh");
+        Files.createDirectories(ssh);
+        Path custom = home.resolve("custom.sh");
+        Path envFile = home.resolve(".env");
+        Path credentials = home.resolve("credentials.json");
+        Path privateKey = ssh.resolve("id_rsa");
+        Files.write(custom, Collections.singletonList("export FROM_CUSTOM=1"));
+        Files.write(envFile, Collections.singletonList("TOKEN=secret"));
+        Files.write(credentials, Collections.singletonList("{\"token\":\"secret\"}"));
+        Files.write(privateKey, Collections.singletonList("PRIVATE KEY"));
+
+        AppConfig config = new AppConfig();
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+        List<String> resolved =
+                SolonClawShellSkill.resolveShellInitFiles(
+                        Arrays.asList(
+                                custom.toString(),
+                                envFile.toString(),
+                                credentials.toString(),
+                                privateKey.toString()),
+                        false,
+                        false,
+                        home.toString(),
+                        Collections.<String, String>emptyMap(),
+                        policy);
+
+        assertThat(resolved).containsExactly(custom.toString());
+    }
+
+    @Test
+    void shouldNotPrependSensitiveConfiguredShellInitFilesAtRuntimeLikeJimuqu()
+            throws Exception {
+        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        Path home = Files.createTempDirectory("jimuqu-shell-init-runtime");
+        Path safe = home.resolve("safe.sh");
+        Path envFile = home.resolve(".env");
+        Path credentials = home.resolve("credentials.json");
+        Files.write(safe, Collections.singletonList("export SAFE_INIT=1"));
+        Files.write(envFile, Collections.singletonList("TOKEN=secret"));
+        Files.write(credentials, Collections.singletonList("{\"token\":\"secret\"}"));
+        AppConfig config = new AppConfig();
+        config.getTerminal()
+                .setShellInitFiles(
+                        Arrays.asList(
+                                safe.toString(), envFile.toString(), credentials.toString()));
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(
+                        home.toString(), config, new SecurityPolicyService(config));
+
+        String wrapped = skill.prependShellInit("echo hi");
+
+        assertThat(wrapped).contains(safe.toString());
+        assertThat(wrapped).doesNotContain(envFile.toString());
+        assertThat(wrapped).doesNotContain(credentials.toString());
+    }
+
+    @Test
+    void shouldExpandAndFilterConfiguredShellInitEnvVarsLikeJimuqu() throws Exception {
+        Path home = Files.createTempDirectory("jimuqu-shell-init-env-filter");
+        Path safeDir = home.resolve("safe");
+        Path secretDir = home.resolve(".ssh");
+        Files.createDirectories(safeDir);
+        Files.createDirectories(secretDir);
+        Path safe = safeDir.resolve("init.sh");
+        Path privateKey = secretDir.resolve("id_ed25519");
+        Files.write(safe, Collections.singletonList("export SAFE_INIT=1"));
+        Files.write(privateKey, Collections.singletonList("PRIVATE KEY"));
+        Map<String, String> env = new HashMap<String, String>();
+        env.put("SAFE_DIR", safeDir.toString());
+        env.put("SECRET_DIR", secretDir.toString());
+
+        List<String> resolved =
+                SolonClawShellSkill.resolveShellInitFiles(
+                        Arrays.asList("${SAFE_DIR}/init.sh", "${SECRET_DIR}/id_ed25519"),
+                        false,
+                        false,
+                        home.toString(),
+                        env,
+                        new SecurityPolicyService(new AppConfig()));
+
+        assertThat(resolved).containsExactly(safe.toString());
     }
 }

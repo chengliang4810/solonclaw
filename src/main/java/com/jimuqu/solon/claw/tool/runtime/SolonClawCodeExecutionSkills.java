@@ -1043,7 +1043,7 @@ public class SolonClawCodeExecutionSkills {
                 + "\n工具："
                 + toolName
                 + "\n路径："
-                + StrUtil.nullToEmpty(verdict.getPath())
+                + SecretRedactor.redact(verdict.getPath(), 400)
                 + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
     }
 

@@ -1036,6 +1036,15 @@ public class DashboardControllerHttpTest {
                         .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
                 .isFalse();
 
+        HttpResult history =
+                request("GET", "/api/diagnostics/approvals/history?limit=20", null, token);
+        assertThat(history.status).isEqualTo(200);
+        assertThat(history.body)
+                .contains("\"choice\":\"revoke\"")
+                .contains("\"approver\":\"dashboard\"")
+                .contains("\"approval_key\":\"" + jsonEscape(approval) + "\"")
+                .contains("撤销长期审批授权");
+
         HttpResult after =
                 request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);

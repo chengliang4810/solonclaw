@@ -218,6 +218,59 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsInSecurityAuditFindingsLikeJimuqu() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
+
+        ONode command =
+                ONode.ofJson(
+                        tools.audit(
+                                "command",
+                                "execute_shell",
+                                "curl https://blocked.example/docs?token=secret123",
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode url =
+                ONode.ofJson(
+                        tools.audit(
+                                "url",
+                                null,
+                                null,
+                                "https://blocked.example/docs?token=secret123",
+                                null,
+                                null,
+                                null));
+        ONode toolArgs =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "webfetch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"url\":\"https://blocked.example/docs?token=secret123\"}"));
+
+        assertThat(command.get("decision").getString()).isEqualTo("block");
+        assertThat(command.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(url.get("decision").getString()).isEqualTo("block");
+        assertThat(url.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
+        assertThat(toolArgs.toJson()).contains("token=***").doesNotContain("secret123");
+    }
+
+    @Test
     void shouldManageJimuquStyleBackgroundProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =
@@ -309,6 +362,39 @@ public class ToolRegistryExposureTest {
                 .contains("notify_on_complete")
                 .contains("watch_patterns")
                 .contains("ready");
+
+        assertThat(env.processRegistry.stop(managed.getId())).isTrue();
+    }
+
+    @Test
+    void shouldRedactSensitiveWatchPatternsThroughProcessToolLikeJimuqu() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry.ManagedProcess managed =
+                env.processRegistry.start(javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
+        managed.setWatchPatterns(java.util.Collections.singletonList("token=secret123"));
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode polled =
+                ONode.ofJson(
+                        tools.process(
+                                "poll",
+                                null,
+                                managed.getId(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+
+        assertThat(polled.get("watch_patterns").get(0).getString()).isEqualTo("token=***");
+        assertThat(polled.toJson()).doesNotContain("secret123");
+        assertThat(listed.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(managed.getWatchPatterns()).containsExactly("token=secret123");
 
         assertThat(env.processRegistry.stop(managed.getId())).isTrue();
     }
@@ -1357,7 +1443,8 @@ public class ToolRegistryExposureTest {
                                         Integer.valueOf(1000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(".env");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".env");
         assertThatThrownBy(
                         () ->
                                 nodejs.execute(
@@ -1579,7 +1666,10 @@ public class ToolRegistryExposureTest {
 
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("tool_calls_made").getInt()).isEqualTo(1);
-        assertThat(result.get("output").getString()).contains("文件安全策略").contains(".env");
+        assertThat(result.get("output").getString())
+                .contains("文件安全策略")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env");
     }
 
     @Test
@@ -1737,21 +1827,27 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(() -> fileSkill.read(".env"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(".env");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".env");
         assertThatThrownBy(() -> fileSkill.read("credentials.json"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("credentials.json");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials.json");
         assertThatThrownBy(() -> fileSkill.write("credentials", "token=secret"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("credentials");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials");
         assertThatThrownBy(() -> fileSkill.write("../outside.txt", "x"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("路径遍历");
         assertThatThrownBy(() -> fileSkill.delete("~/.ssh/id_rsa"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感");
+                .hasMessageContaining("敏感")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".ssh")
+                .hasMessageNotContaining("id_rsa");
     }
 
     @Test
@@ -1911,12 +2007,19 @@ public class ToolRegistryExposureTest {
 
         assertThatThrownBy(() -> fileSkill.read("credentials/oauth.json"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("凭据");
+                .hasMessageContaining("凭据")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials/oauth.json");
         assertThatThrownBy(() -> fileSkill.write("credentials/oauth.json", "{\"token\":\"new\"}"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("凭据");
+                .hasMessageContaining("凭据")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials/oauth.json");
         assertThat(patchResult.get("success").getBoolean()).isFalse();
-        assertThat(patchResult.get("error").getString()).contains("凭据");
+        assertThat(patchResult.get("error").getString())
+                .contains("凭据")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("credentials/oauth.json");
         assertThat(new String(Files.readAllBytes(credentialFile), StandardCharsets.UTF_8))
                 .contains("old")
                 .doesNotContain("new");

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.context;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -604,8 +605,7 @@ public class SkillCredentialFileService {
 
         private Map<String, Object> toMetadata() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
-            map.put("path", relativePath);
-            map.put("host_path", hostPath);
+            map.put("path", "registered".equals(status) ? relativePath : SecretRedactor.redact(relativePath, 400));
             map.put("container_path", containerPath);
             map.put("status", status);
             map.put("reason", reason);

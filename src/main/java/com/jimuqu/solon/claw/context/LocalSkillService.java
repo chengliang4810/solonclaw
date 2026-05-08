@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.skillhub.model.SkillSetupState;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -774,7 +775,7 @@ public class LocalSkillService implements SkillCatalogService {
         if (!verdict.isAllowed()) {
             throw new IllegalStateException(
                     "Skill file path blocked by security policy: "
-                            + verdict.getPath()
+                            + SecretRedactor.redact(verdict.getPath(), 400)
                             + " - "
                             + verdict.getMessage());
         }

@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -218,6 +219,7 @@ public class DashboardDiagnosticsService {
     public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         String approval = StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern"));
+        String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
         if (StrUtil.isBlank(approval)) {
             return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
         }
@@ -225,6 +227,7 @@ public class DashboardDiagnosticsService {
         if (!changed) {
             return resolveResult(false, "approval_not_found", "长期授权项不存在或已撤销。", null);
         }
+        appendAlwaysApprovalRevokedAudit(approval, approver);
         Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
         result.put("approval", approval);
         return result;
@@ -503,6 +506,34 @@ public class DashboardDiagnosticsService {
         item.put("tool_name", toolName);
         item.put("pattern_key", patternKey);
         return item;
+    }
+
+    private void appendAlwaysApprovalRevokedAudit(String approval, String approver) {
+        if (approvalAuditRepository == null) {
+            return;
+        }
+        Map<String, Object> item = alwaysApprovalItem(approval);
+        ApprovalAuditEvent audit = new ApprovalAuditEvent();
+        audit.setEventId(IdSupport.newId());
+        audit.setSessionId("");
+        audit.setEventType("response");
+        audit.setChoice("revoke");
+        audit.setApprover(StrUtil.nullToEmpty(approver));
+        audit.setToolName(StrUtil.nullToEmpty(String.valueOf(item.get("tool_name"))));
+        audit.setApprovalId("");
+        audit.setApprovalKey(StrUtil.nullToEmpty(approval));
+        audit.setCommandHash("");
+        audit.setCommandPreview("");
+        audit.setDescription("撤销长期审批授权");
+        audit.setPatternKeysJson(ONode.serialize(Collections.singletonList(item.get("pattern_key"))));
+        audit.setCreatedAt(System.currentTimeMillis());
+        audit.setApprovalCreatedAt(0L);
+        audit.setApprovalExpiresAt(0L);
+        try {
+            approvalAuditRepository.append(audit);
+        } catch (Exception ignored) {
+            // Audit persistence must not affect safety-critical approval handling.
+        }
     }
 
     private Map<String, Object> slashConfirmItem(SlashConfirmService.PendingConfirm pending) {

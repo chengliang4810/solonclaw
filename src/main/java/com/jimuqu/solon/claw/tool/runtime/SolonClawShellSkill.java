@@ -364,13 +364,24 @@ public class SolonClawShellSkill extends ShellSkill {
             envelope.data("watch_patterns_ignored", conflictNote);
         }
         if (!normalizedWatchPatterns.isEmpty()) {
-            envelope.data("watch_patterns", normalizedWatchPatterns);
+            envelope.data("watch_patterns", redactedWatchPatterns(normalizedWatchPatterns));
         }
         if (ptyNote != null) {
             envelope.data("pty", Boolean.FALSE);
             envelope.data("pty_note", ptyNote);
         }
         return envelope.toJson();
+    }
+
+    private List<String> redactedWatchPatterns(List<String> watchPatterns) {
+        if (watchPatterns == null || watchPatterns.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> redacted = new ArrayList<String>();
+        for (String pattern : watchPatterns) {
+            redacted.add(SecretRedactor.redact(pattern));
+        }
+        return Collections.unmodifiableList(redacted);
     }
 
     private List<String> normalizeWatchPatterns(List<String> watchPatterns) {
@@ -773,7 +784,13 @@ public class SolonClawShellSkill extends ShellSkill {
             autoSource = appConfig.getTerminal().isAutoSourceBashrc();
         }
         String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
-        return resolveShellInitFiles(configured, autoSource, isWindows(), home, System.getenv());
+        return resolveShellInitFiles(
+                configured,
+                autoSource,
+                isWindows(),
+                home,
+                System.getenv(),
+                effectiveSecurityPolicyService());
     }
 
     public static List<String> resolveShellInitFiles(
@@ -782,11 +799,23 @@ public class SolonClawShellSkill extends ShellSkill {
             boolean windows,
             String home,
             Map<String, String> env) {
+        return resolveShellInitFiles(
+                configured, autoSourceBashrc, windows, home, env, null);
+    }
+
+    static List<String> resolveShellInitFiles(
+            List<String> configured,
+            boolean autoSourceBashrc,
+            boolean windows,
+            String home,
+            Map<String, String> env,
+            SecurityPolicyService securityPolicyService) {
         if (windows) {
             return Collections.emptyList();
         }
         List<String> candidates = new ArrayList<String>();
-        if (configured != null && !configured.isEmpty()) {
+        boolean explicit = configured != null && !configured.isEmpty();
+        if (explicit) {
             candidates.addAll(configured);
         } else if (autoSourceBashrc) {
             candidates.add("~/.profile");
@@ -805,12 +834,34 @@ public class SolonClawShellSkill extends ShellSkill {
             try {
                 Path normalized = Paths.get(path);
                 if (Files.isRegularFile(normalized)) {
-                    resolved.add(normalized.toString());
+                    String value = normalized.toString();
+                    if (!explicit || isSafeConfiguredShellInit(value, securityPolicyService)) {
+                        resolved.add(value);
+                    }
                 }
             } catch (Exception ignored) {
             }
         }
         return Collections.unmodifiableList(resolved);
+    }
+
+    private static boolean isSafeConfiguredShellInit(
+            String path, SecurityPolicyService securityPolicyService) {
+        if (securityPolicyService == null) {
+            return true;
+        }
+        SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkPath(path, false);
+        return verdict.isAllowed();
+    }
+
+    private SecurityPolicyService effectiveSecurityPolicyService() {
+        if (securityPolicyService != null) {
+            return securityPolicyService;
+        }
+        if (appConfig == null) {
+            return null;
+        }
+        return new SecurityPolicyService(appConfig);
     }
 
     private static String expandShellInitPath(String raw, String home, Map<String, String> env) {

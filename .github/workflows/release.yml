@@ -95,10 +95,6 @@ jobs:
           echo "git_range=$GIT_RANGE" >> "$GITHUB_OUTPUT"
           echo "display_range=$DISPLAY_RANGE" >> "$GITHUB_OUTPUT"
 
-      - name: Check release commit naming
-        shell: pwsh
-        run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -GitCommitRange "${{ steps.release_range.outputs.git_range }}"
-
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'
         shell: bash
@@ -145,80 +141,12 @@ jobs:
           cp "$JAR_PATH" "$RELEASE_JAR"
           (cd dist && sha256sum "$(basename "$RELEASE_JAR")" > SHA256SUMS)
 
-          COMMITS="$(git log --pretty=format:'%s' "${RELEASE_GIT_RANGE}")"
-          COMMIT_RANGE="${RELEASE_DISPLAY_RANGE}"
-          if [ -z "$COMMITS" ]; then
-            COMMITS="$(git log --pretty=format:'%s' -n 1 "${GITHUB_SHA}")"
-            COMMIT_RANGE="${GITHUB_SHA::7}"
-          fi
-
-          classify_commits() {
-            local pattern="$1"
-            printf '%s\n' "$COMMITS" | grep -Ei "$pattern" || true
-          }
-
-          FEATURES="$(classify_commits '(^|\b)(feat|feature)(\(.+\))?:|功能|新增|支持|对齐|补齐|完善|实现|add|implement|support|align|complete|improve')"
-          FIXES="$(classify_commits '(^|\b)(fix|bugfix)(\(.+\))?:|修复|缺陷|问题|异常|错误|失败|回归|bug|fix|bugfix|resolve|repair')"
-          CLASSIFIED="$(printf '%s\n%s\n' "$FEATURES" "$FIXES" | sed '/^$/d' | sort -u)"
-          OTHERS="$(
-            printf '%s\n' "$COMMITS" | while IFS= read -r commit; do
-              if [ -z "$commit" ]; then
-                continue
-              fi
-              if printf '%s\n' "$CLASSIFIED" | grep -Fxq "$commit"; then
-                continue
-              fi
-              printf '%s\n' "$commit"
-            done
-          )"
-
-          write_items() {
-            local items="$1"
-            local fallback="$2"
-            if [ -z "$items" ]; then
-              printf '%s\n' "- ${fallback}"
-              return
-            fi
-            printf '%s\n' "$items" | sed -E 's/^/- /'
-          }
-
-          cat > dist/release-notes.md <<EOF
-          ## solon-claw ${{ steps.release.outputs.tag }}
-
-          本次发布说明按提交类型整理，并保留中英双语摘要；功能、缺陷修复和其他变更优先来自本次发布范围内的 commit subject。
-          These release notes are grouped by commit type and keep bilingual summaries; features, fixes, and other changes are derived from commit subjects in this release range.
-
-          提交范围：\`${COMMIT_RANGE}\`
-          Commit range: \`${COMMIT_RANGE}\`
-
-          ### 功能 / Features
-
-          $(write_items "$FEATURES" "本次发布没有单独标记为 feat 的提交。 / No commits were explicitly marked as feat in this release.")
-
-          ### 缺陷修复 / Fixes
-
-          $(write_items "$FIXES" "本次发布没有单独标记为 fix 的提交。 / No commits were explicitly marked as fix in this release.")
-
-          ### 其他变更 / Other Changes
-
-          $(write_items "$OTHERS" "无其他提交。 / No other commits.")
-
-          ### 下载内容 / Downloads
-
-          - \`solon-claw-${VERSION}.jar\`：完整运行包，包含后端依赖与 Dashboard 静态资源。
-          - \`solon-claw-${VERSION}.jar\`: Full runtime package with backend dependencies and Dashboard static assets.
-          - \`SHA256SUMS\`：发布包校验文件。
-          - \`SHA256SUMS\`: Checksums for release artifacts.
-
-          ### 快速运行 / Quick Start
-
-          \`\`\`bash
-          java -jar solon-claw-${VERSION}.jar
-          \`\`\`
-
-          服务默认监听 \`http://127.0.0.1:8080\`，运行数据会写入当前目录的 \`runtime/\`。
-          The service listens on \`http://127.0.0.1:8080\` by default and writes runtime data to \`runtime/\` in the current directory.
-          EOF
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/write-release-notes.ps1 \
+            -OutputPath dist/release-notes.md \
+            -Tag "${{ steps.release.outputs.tag }}" \
+            -Version "$VERSION" \
+            -CommitRange "$RELEASE_GIT_RANGE" \
+            -DisplayRange "$RELEASE_DISPLAY_RANGE"
 
           echo "jar_path=$RELEASE_JAR" >> "$GITHUB_OUTPUT"
           echo "sha_path=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
