@@ -51,13 +51,22 @@ function Invoke-ProjectNamingGuard {
     }
 }
 
+function New-TextFromCodes {
+    param([int[]] $Codes)
+
+    return (($Codes | ForEach-Object { [string] [char] $_ }) -join "")
+}
+
 function Get-BlockedReleaseRegex {
-    $patterns = @(
-        "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-        "[Hh][Ee][Rr][Mm][Ee][Ss](?:[_\-.])",
-        "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?",
-        "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww](?:[_\-.])"
-    )
+    $firstExternalName = [Regex]::Escape((New-TextFromCodes @(72, 69, 82, 77, 69, 83)))
+    $secondExternalNamePartA = [Regex]::Escape((New-TextFromCodes @(79, 80, 69, 78)))
+    $secondExternalNamePartB = [Regex]::Escape((New-TextFromCodes @(67, 76, 65, 87)))
+    $secondExternalName = $secondExternalNamePartA + "(?:[_\-\.\s])?" + $secondExternalNamePartB
+    $patterns = @()
+    $patterns += ($firstExternalName + "_?")
+    $patterns += ($firstExternalName + "(?:[_\-.])")
+    $patterns += ($secondExternalName + "[_\-]?")
+    $patterns += ($secondExternalName + "(?:[_\-.])")
     foreach ($blockedTerm in $ExtraBlockedTerms) {
         if (-not [string]::IsNullOrWhiteSpace($blockedTerm)) {
             $patterns += [Regex]::Escape($blockedTerm)

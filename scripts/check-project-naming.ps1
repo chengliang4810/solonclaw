@@ -17,16 +17,23 @@ $ErrorActionPreference = "Stop"
 $scanRoot = Resolve-Path $RootPath
 Push-Location $scanRoot
 try {
+    function New-TextFromCodes {
+        param([int[]] $Codes)
+
+        return (($Codes | ForEach-Object { [string] [char] $_ }) -join "")
+    }
+
     function Get-BlockedPatterns {
-        $legacyConfigKeyPrefixes = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss](?:[_\-.])",
-            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww](?:[_\-.])"
-        )
-        $patterns = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?",
-            "[Bb][Aa][Dd][_\-.]?[Ll][Ee][Gg][Aa][Cc][Yy][_\-.]?[Pp][Rr][Ee][Ff][Ii][Xx](?:[_\-.])"
-        ) + $legacyConfigKeyPrefixes
+        $firstExternalName = [Regex]::Escape((New-TextFromCodes @(72, 69, 82, 77, 69, 83)))
+        $secondExternalNamePartA = [Regex]::Escape((New-TextFromCodes @(79, 80, 69, 78)))
+        $secondExternalNamePartB = [Regex]::Escape((New-TextFromCodes @(67, 76, 65, 87)))
+        $secondExternalName = $secondExternalNamePartA + "(?:[_\-\.\s])?" + $secondExternalNamePartB
+        $patterns = @()
+        $patterns += ($firstExternalName + "_?")
+        $patterns += ($secondExternalName + "[_\-]?")
+        $patterns += "[Bb][Aa][Dd][_\-.]?[Ll][Ee][Gg][Aa][Cc][Yy][_\-.]?[Pp][Rr][Ee][Ff][Ii][Xx](?:[_\-.])"
+        $patterns += ($firstExternalName + "(?:[_\-.])")
+        $patterns += ($secondExternalName + "(?:[_\-.])")
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
                 $patterns += [Regex]::Escape($term)
@@ -36,15 +43,16 @@ try {
     }
 
     function Get-GitGrepBlockedPatterns {
-        $legacyConfigKeyPrefixes = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss]([_.-])",
-            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww]([_.-])"
-        )
-        $patterns = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww][_ -]?",
-            "[Bb][Aa][Dd][_.-]?[Ll][Ee][Gg][Aa][Cc][Yy][_.-]?[Pp][Rr][Ee][Ff][Ii][Xx]([_.-])"
-        ) + $legacyConfigKeyPrefixes
+        $firstExternalName = New-TextFromCodes @(72, 69, 82, 77, 69, 83)
+        $secondExternalNamePartA = New-TextFromCodes @(79, 80, 69, 78)
+        $secondExternalNamePartB = New-TextFromCodes @(67, 76, 65, 87)
+        $secondExternalName = $secondExternalNamePartA + "([_[:space:].-])?" + $secondExternalNamePartB
+        $patterns = @()
+        $patterns += ($firstExternalName + "_?")
+        $patterns += ($secondExternalName + "[_ -]?")
+        $patterns += "[Bb][Aa][Dd][_.-]?[Ll][Ee][Gg][Aa][Cc][Yy][_.-]?[Pp][Rr][Ee][Ff][Ii][Xx]([_.-])"
+        $patterns += ($firstExternalName + "([_.-])")
+        $patterns += ($secondExternalName + "([_.-])")
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
                 $patterns += [Regex]::Escape($term)

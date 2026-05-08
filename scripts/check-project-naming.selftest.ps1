@@ -8,6 +8,13 @@ $publishedReleaseScriptPath = Join-Path $repoRoot "scripts\check-release-naming.
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
+$blockedExternalEnvFixture =
+    (([string][char]72) + ([string][char]69) + ([string][char]82) `
+        + ([string][char]77) + ([string][char]69) + ([string][char]83) `
+        + "_ALLOW_PRIVATE_URLS")
+$blockedExternalNameFixture =
+    (([string][char]79) + ([string][char]112) + ([string][char]101) + ([string][char]110) `
+        + ([string][char]67) + ([string][char]108) + ([string][char]97) + ([string][char]119))
 $blockedLegacyEnvFixture =
     (([string][char]66) + ([string][char]65) + ([string][char]68) + "_" `
         + ([string][char]76) + ([string][char]69) + ([string][char]71) `
@@ -102,6 +109,24 @@ try {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
     Assert-NoRawBlockedOutput $blocked.Output @($blockedFixture) "directory text scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\external-env.txt") -Value ($blockedExternalEnvFixture + "=true") -Encoding UTF8
+    $blockedExternalEnv = Invoke-NamingCheck
+    if ($blockedExternalEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden external-name environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedExternalEnv.Output @($blockedExternalEnvFixture) "external-name environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "docs\external-name.md") -Value ("Old upstream name: " + $blockedExternalNameFixture) -Encoding UTF8
+    $blockedExternalName = Invoke-NamingCheck
+    if ($blockedExternalName.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden external project name."
+    }
+    Assert-NoRawBlockedOutput $blockedExternalName.Output @($blockedExternalNameFixture) "external project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
