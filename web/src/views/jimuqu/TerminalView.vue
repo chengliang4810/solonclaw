@@ -5,7 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { getApiKey, getBaseUrlValue } from "@/api/client";
-import { copyToClipboard } from "@/utils/clipboard";
+import { copyToClipboard, readFromClipboard } from "@/utils/clipboard";
 import { NButton, NPopconfirm, NTooltip, NSelect, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import type { ITheme } from "@xterm/xterm";
@@ -270,6 +270,14 @@ const terminalBg = computed(
   () => TERMINAL_THEMES[selectedTheme.value]?.theme.background ?? "#1a1a2e",
 );
 
+const shortcutHint = computed(() =>
+  t("terminal.shortcuts", {
+    modifier: navigator.platform.toLowerCase().includes("mac")
+      ? "Cmd"
+      : "Ctrl",
+  }),
+);
+
 // ─── WebSocket ──────────────────────────────────────────────────
 
 function buildWsUrl(): string {
@@ -467,6 +475,40 @@ function handleTerminalDrop(event: DragEvent) {
   pasteIntoTerminal(uriList || text);
 }
 
+async function handleTerminalKeydown(event: KeyboardEvent) {
+  const modifier = event.ctrlKey || event.metaKey;
+  if (!modifier) return;
+
+  const key = event.key.toLowerCase();
+  if (event.altKey && /^[1-9]$/.test(key)) {
+    event.preventDefault();
+    switchSessionByIndex(Number.parseInt(key, 10) - 1);
+    return;
+  }
+
+  switch (key) {
+    case "n":
+      event.preventDefault();
+      createSession();
+      break;
+    case "w":
+      event.preventDefault();
+      closeActiveSession();
+      break;
+    case "l":
+      event.preventDefault();
+      activeTerm?.clear();
+      activeTerm?.focus();
+      break;
+    case "c":
+      await copySelectionToClipboard(event);
+      break;
+    case "v":
+      await pasteFromSystemClipboard(event);
+      break;
+  }
+}
+
 function pasteFileReferences(files: File[]) {
   const refs = files.map(fileToTerminalPath).filter(Boolean);
   if (refs.length === 0) return;
@@ -504,6 +546,40 @@ function pasteIntoTerminal(text: string) {
   if (!text || !activeTerm) return;
   activeTerm.paste(text);
   activeTerm.focus();
+}
+
+function switchSessionByIndex(index: number) {
+  const session = sessions.value[index];
+  if (!session) return;
+  switchSession(session.id);
+}
+
+function closeActiveSession() {
+  if (!activeSessionId.value || sessions.value.length <= 1) return;
+  closeSession(activeSessionId.value);
+}
+
+async function copySelectionToClipboard(event: KeyboardEvent) {
+  const selection = activeTerm?.getSelection();
+  if (!selection) return;
+  event.preventDefault();
+  const copied = await copyToClipboard(selection);
+  if (copied) {
+    message.success(t("terminal.selectionCopied"));
+  } else {
+    message.warning(t("terminal.clipboardUnavailable"));
+  }
+  activeTerm?.focus();
+}
+
+async function pasteFromSystemClipboard(event: KeyboardEvent) {
+  event.preventDefault();
+  const text = await readFromClipboard();
+  if (text == null) {
+    message.warning(t("terminal.clipboardUnavailable"));
+    return;
+  }
+  pasteIntoTerminal(text);
 }
 
 function switchSession(id: string) {
@@ -767,6 +843,7 @@ onUnmounted(() => {
           <span v-if="activeSession" class="header-session-title">{{
             activeSession.title
           }}</span>
+          <span class="header-shortcuts">{{ shortcutHint }}</span>
         </div>
         <div class="header-actions">
           <NSelect
@@ -801,8 +878,10 @@ onUnmounted(() => {
           class="terminal-xterm"
           :style="{ backgroundColor: terminalBg }"
           @paste="handleTerminalPaste"
+          @keydown="handleTerminalKeydown"
           @dragover.prevent
           @drop="handleTerminalDrop"
+          tabindex="0"
         />
       </div>
     </div>
@@ -1031,6 +1110,12 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.header-shortcuts {
+  color: $text-muted;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .header-actions {
