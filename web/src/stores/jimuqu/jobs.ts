@@ -40,8 +40,8 @@ export const useJobsStore = defineStore('jobs', () => {
     jobs.value = jobs.value.filter(j => !matchId(j, jobId))
   }
 
-  async function pauseJob(jobId: string) {
-    const job = await jobsApi.pauseJob(jobId)
+  async function pauseJob(jobId: string, reason?: string) {
+    const job = await jobsApi.pauseJob(jobId, reason)
     const idx = jobs.value.findIndex(j => matchId(j, jobId))
     if (idx !== -1) jobs.value[idx] = job
   }

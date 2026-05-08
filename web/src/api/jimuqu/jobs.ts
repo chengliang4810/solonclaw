@@ -253,8 +253,11 @@ export async function deleteJob(jobId: string): Promise<{ ok: boolean }> {
   })
 }
 
-export async function pauseJob(jobId: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/pause`, { method: 'POST' })
+export async function pauseJob(jobId: string, reason?: string): Promise<Job> {
+  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/pause`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason?.trim() || undefined }),
+  })
   return getJob(jobId)
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NButton, NDrawer, NDrawerContent, NSpin, NTooltip, useMessage } from 'naive-ui'
+import { NButton, NDrawer, NDrawerContent, NInput, NModal, NSpin, NTooltip, useMessage } from 'naive-ui'
 import type { Job, JobRun } from '@/api/jimuqu/jobs'
 import { useJobsStore } from '@/stores/jimuqu/jobs'
 import { useI18n } from 'vue-i18n'
@@ -14,6 +14,8 @@ const { t } = useI18n()
 const jobsStore = useJobsStore()
 const message = useMessage()
 const showRuns = ref(false)
+const showPauseModal = ref(false)
+const pauseReason = ref('')
 const runsLoading = ref(false)
 const runs = ref<JobRun[]>([])
 
@@ -78,11 +80,18 @@ function boolDetail(value: boolean) {
 
 async function handlePause() {
   try {
-    await jobsStore.pauseJob(jobId.value)
+    await jobsStore.pauseJob(jobId.value, pauseReason.value)
+    showPauseModal.value = false
+    pauseReason.value = ''
     message.success(t('jobs.jobPaused'))
   } catch (e: any) {
     message.error(e.message)
   }
+}
+
+function openPauseModal() {
+  pauseReason.value = props.job.paused_reason || ''
+  showPauseModal.value = true
 }
 
 async function handleResume() {
@@ -174,6 +183,9 @@ async function handleDelete() {
       <div v-if="job.last_error || job.last_delivery_error" class="error-line">
         {{ job.last_error || job.last_delivery_error }}
       </div>
+      <div v-if="job.paused_reason" class="pause-line">
+        {{ t('jobs.pauseReason') }}：{{ job.paused_reason }}
+      </div>
       <div v-if="job.last_output" class="output-preview">
         {{ job.last_output }}
       </div>
@@ -182,7 +194,7 @@ async function handleDelete() {
     <div class="card-actions">
       <NTooltip v-if="job.state !== 'paused' && job.enabled">
         <template #trigger>
-          <NButton size="tiny" quaternary @click="handlePause">{{ t('jobs.action.pause') }}</NButton>
+          <NButton size="tiny" quaternary @click="openPauseModal">{{ t('jobs.action.pause') }}</NButton>
         </template>
         {{ t('jobs.action.pauseJob') }}
       </NTooltip>
@@ -202,6 +214,24 @@ async function handleDelete() {
       <NButton size="tiny" quaternary @click="emit('edit', jobId)">{{ t('common.edit') }}</NButton>
       <NButton size="tiny" quaternary type="error" @click="handleDelete">{{ t('common.delete') }}</NButton>
     </div>
+
+    <NModal
+      v-model:show="showPauseModal"
+      preset="dialog"
+      :title="t('jobs.pauseTitle')"
+      :positive-text="t('jobs.action.pause')"
+      :negative-text="t('common.cancel')"
+      @positive-click="handlePause"
+    >
+      <NInput
+        v-model:value="pauseReason"
+        type="textarea"
+        :rows="3"
+        :maxlength="300"
+        show-count
+        :placeholder="t('jobs.pauseReasonPlaceholder')"
+      />
+    </NModal>
 
     <NDrawer v-model:show="showRuns" placement="right" :width="520">
       <NDrawerContent :title="t('jobs.historyTitle', { name: job.name })" closable>
@@ -375,6 +405,13 @@ async function handleDelete() {
 
 .error-line {
   color: $error;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pause-line {
+  color: $warning;
   font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;

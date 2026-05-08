@@ -65,7 +65,11 @@ public class DashboardCronService {
     }
 
     public Map<String, Object> pause(String id) throws Exception {
-        return toDashboardView(cronJobService.pause(id, "paused from dashboard"));
+        return pause(id, Collections.<String, Object>emptyMap());
+    }
+
+    public Map<String, Object> pause(String id, Map<String, Object> body) throws Exception {
+        return toDashboardView(cronJobService.pause(id, pauseReason(body)));
     }
 
     public Map<String, Object> resume(String id) throws Exception {
@@ -146,6 +150,15 @@ public class DashboardCronService {
         }
         validatePromptLength(body.get("prompt"));
         validateApiRepeat(body.get("repeat"));
+    }
+
+    private String pauseReason(Map<String, Object> body) {
+        if (body == null) {
+            return "paused from dashboard";
+        }
+        Object value = body.containsKey("reason") ? body.get("reason") : body.get("paused_reason");
+        String reason = value == null ? "" : String.valueOf(value).trim();
+        return reason.length() == 0 ? "paused from dashboard" : reason;
     }
 
     private void validateApiPatch(Map<String, Object> updates) {

@@ -91,15 +91,15 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/pause", method = MethodType.POST)
-    public Map<String, Object> pause(String id) throws Exception {
-        return DashboardResponse.ok(cronService.pause(id));
+    public Map<String, Object> pause(String id, Context context) throws Exception {
+        return DashboardResponse.ok(cronService.pause(id, body(context)));
     }
 
     @Mapping(value = "/api/jobs/{id}/pause", method = MethodType.POST)
     public Map<String, Object> apiPause(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
-            return apiJobResponse(cronService.pause(id));
+            return apiJobResponse(cronService.pause(id, body(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return apiError(e.getMessage());

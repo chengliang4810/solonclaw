@@ -320,6 +320,16 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("output").getString())
                 .contains("dashboard trigger ok: daily summary");
 
+        HttpResult pauseCron =
+                request(
+                        "POST",
+                        "/api/cron/jobs/" + dashboardCronId + "/pause",
+                        "{\"reason\":\"dashboard maintenance\"}",
+                        token);
+        assertThat(pauseCron.status).isEqualTo(200);
+        assertThat(ONode.ofJson(pauseCron.body).get("data").get("paused_reason").getString())
+                .isEqualTo("dashboard maintenance");
+
         HttpResult createMcp =
                 request(
                         "POST",
