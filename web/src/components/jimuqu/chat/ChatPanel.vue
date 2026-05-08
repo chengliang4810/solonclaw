@@ -201,6 +201,27 @@ const activeGoalTitle = computed(() => {
   return parts.filter(Boolean).join('\n')
 })
 
+const canPauseGoal = computed(() =>
+  currentMode.value === 'chat' && activeGoalState.value?.status === 'active' && !chatStore.isStreaming,
+)
+
+const canResumeGoal = computed(() =>
+  currentMode.value === 'chat' && activeGoalState.value?.status === 'paused' && !chatStore.isStreaming,
+)
+
+const canClearGoal = computed(() =>
+  currentMode.value === 'chat'
+    && !!activeGoalState.value
+    && activeGoalState.value.status !== 'done'
+    && !chatStore.isStreaming,
+)
+
+async function runGoalCommand(action: 'pause' | 'resume' | 'clear') {
+  const ok = await chatStore.sendSlashCommand(`/goal ${action}`)
+  if (!ok) return
+  await chatStore.refreshActiveSession()
+}
+
 function handleNewChat() {
   chatStore.newChat()
 }
@@ -393,6 +414,46 @@ async function handleRenameConfirm() {
           >
             {{ activeGoalLabel }}
           </span>
+          <div v-if="activeGoalState" class="goal-actions">
+            <NTooltip v-if="activeGoalState.status === 'active'" trigger="hover">
+              <template #trigger>
+                <NButton quaternary size="tiny" :disabled="!canPauseGoal" circle @click="runGoalCommand('pause')">
+                  <template #icon>
+                    <svg class="goal-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                    </svg>
+                  </template>
+                </NButton>
+              </template>
+              暂停目标
+            </NTooltip>
+            <NTooltip v-if="activeGoalState.status === 'paused'" trigger="hover">
+              <template #trigger>
+                <NButton quaternary size="tiny" :disabled="!canResumeGoal" circle @click="runGoalCommand('resume')">
+                  <template #icon>
+                    <svg class="goal-action-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </template>
+                </NButton>
+              </template>
+              恢复目标
+            </NTooltip>
+            <NTooltip v-if="activeGoalState.status !== 'done'" trigger="hover">
+              <template #trigger>
+                <NButton quaternary size="tiny" :disabled="!canClearGoal" circle @click="runGoalCommand('clear')">
+                  <template #icon>
+                    <svg class="goal-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </template>
+                </NButton>
+              </template>
+              清除目标
+            </NTooltip>
+          </div>
         </div>
         <div class="header-actions">
           <AgentSelector v-if="currentMode === 'chat'" :session-id="chatStore.activeSessionId" />
@@ -826,6 +887,18 @@ async function handleRenameConfirm() {
   &--done {
     color: $text-muted;
   }
+}
+
+.goal-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.goal-action-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .header-actions {
