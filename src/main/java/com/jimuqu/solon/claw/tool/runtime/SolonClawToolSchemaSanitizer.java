@@ -32,7 +32,8 @@ public final class SolonClawToolSchemaSanitizer {
             top.put("properties", new LinkedHashMap<String, Object>());
         }
         Object stripped = stripNullableUnions(top, true);
-        Object compatible = stripTopLevelForbiddenCombinators(stripped);
+        Object patternSafe = stripPatternAndFormat(stripped).getSchema();
+        Object compatible = stripTopLevelForbiddenCombinators(patternSafe);
         return ONode.serialize(compatible instanceof Map ? compatible : defaultObjectSchema());
     }
 
@@ -50,7 +51,8 @@ public final class SolonClawToolSchemaSanitizer {
             top.put("properties", new LinkedHashMap<String, Object>());
         }
         Object stripped = stripNullableUnions(top, true);
-        Object compatible = stripTopLevelForbiddenCombinators(stripped);
+        Object patternSafe = stripPatternAndFormat(stripped).getSchema();
+        Object compatible = stripTopLevelForbiddenCombinators(patternSafe);
         return compatible instanceof Map ? compatible : defaultObjectSchema();
     }
 

@@ -135,6 +135,23 @@ public class SolonClawToolSchemaSanitizerTest {
     }
 
     @Test
+    void shouldStripPatternAndFormatDuringSchemaSanitization() {
+        ONode root =
+                ONode.ofJson(
+                        SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
+                                "{"
+                                        + "\"type\":\"object\","
+                                        + "\"properties\":{\"date\":{\"type\":\"string\",\"pattern\":\"\\\\d+\",\"format\":\"date-time\"}}"
+                                        + "}"));
+
+        ONode date = root.get("properties").get("date");
+
+        assertThat(date.get("type").getString()).isEqualTo("string");
+        assertThat(date.hasKey("pattern")).isFalse();
+        assertThat(date.hasKey("format")).isFalse();
+    }
+
+    @Test
     void shouldSanitizeItemsAndAdditionalProperties() {
         ONode root =
                 ONode.ofJson(
