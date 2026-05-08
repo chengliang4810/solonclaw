@@ -8,6 +8,10 @@ param(
     [switch] $CheckCurrentBranchRange
 )
 
+# Normal validation should use the working tree plus an explicit commit range, or
+# -CheckCurrentBranchRange for the commits ahead of the default branch. The
+# all-ref mode is intentionally reserved for manual audits of old refs/tags.
+
 $ErrorActionPreference = "Stop"
 
 $scanRoot = Resolve-Path $RootPath
