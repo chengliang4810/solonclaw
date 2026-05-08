@@ -21,6 +21,7 @@ public class LocalTerminalHelpTest {
                 .contains("/model pick")
                 .contains("/sessions")
                 .contains("/session pick")
+                .contains("/history")
                 .contains("/exit")
                 .contains("/quit")
                 .contains("粘贴本地文件路径")

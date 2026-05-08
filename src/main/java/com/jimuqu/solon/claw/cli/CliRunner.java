@@ -14,6 +14,7 @@ public class CliRunner {
     private final CliAttachmentResolver attachmentResolver;
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
+    private final TerminalHistoryViewer historyViewer;
 
     public CliRunner(CliRuntime cliRuntime) {
         this(cliRuntime, null, null, null, null, null);
@@ -65,6 +66,8 @@ public class CliRunner {
                         : new TerminalModelPicker(appConfig, llmProviderService);
         this.sessionBrowser =
                 sessionRepository == null ? null : new TerminalSessionBrowser(sessionRepository);
+        this.historyViewer =
+                sessionRepository == null ? null : new TerminalHistoryViewer(sessionRepository, cliRuntime);
     }
 
     public int run(CliMode mode) throws Exception {
@@ -83,9 +86,12 @@ public class CliRunner {
                             attachmentResolver,
                             appConfig,
                             modelPicker,
-                            sessionBrowser)
+                            sessionBrowser,
+                            historyViewer)
                     .run();
         }
-        return new CliShell(cliRuntime, mode, attachmentResolver, modelPicker, sessionBrowser).run();
+        return new CliShell(
+                        cliRuntime, mode, attachmentResolver, modelPicker, sessionBrowser, historyViewer)
+                .run();
     }
 }

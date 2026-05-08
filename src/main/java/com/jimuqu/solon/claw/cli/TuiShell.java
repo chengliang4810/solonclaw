@@ -27,7 +27,7 @@ public class TuiShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/copy",
-                "/models", "/sessions", "/session", "/exit"
+                "/models", "/sessions", "/session", "/history", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -36,6 +36,7 @@ public class TuiShell {
     private final AppConfig appConfig;
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
+    private final TerminalHistoryViewer historyViewer;
     private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
@@ -70,12 +71,24 @@ public class TuiShell {
             AppConfig appConfig,
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser) {
+        this(cliRuntime, mode, attachmentResolver, appConfig, modelPicker, sessionBrowser, null);
+    }
+
+    public TuiShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            AppConfig appConfig,
+            TerminalModelPicker modelPicker,
+            TerminalSessionBrowser sessionBrowser,
+            TerminalHistoryViewer historyViewer) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
         this.appConfig = appConfig;
         this.modelPicker = modelPicker;
         this.sessionBrowser = sessionBrowser;
+        this.historyViewer = historyViewer;
     }
 
     public int run() throws Exception {
@@ -195,6 +208,11 @@ public class TuiShell {
             trimmed = command;
             input = command;
         }
+        if (historyViewer != null && historyViewer.isHistoryCommand(trimmed)) {
+            writer.println(historyViewer.render(sessionId, trimmed));
+            writer.flush();
+            return 0;
+        }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
         }
@@ -246,7 +264,7 @@ public class TuiShell {
         writer.println(DIM + statusLine(sessionId) + RESET);
         writer.println(
                 DIM
-                        + "tips: /help 命令  /sessions 浏览会话  /copy 复制上一条回复  粘贴文件路径可作为附件  /exit 退出"
+                        + "tips: /help 命令  /sessions 浏览会话  /history 预览历史  /copy 复制上一条回复  /exit 退出"
                         + RESET);
         writer.println(DIM + BORDER + RESET);
         writer.flush();

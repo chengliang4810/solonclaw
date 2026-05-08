@@ -62,10 +62,10 @@ public class TerminalSessionBrowserTest {
         return record;
     }
 
-    private static class FakeSessionRepository implements SessionRepository {
+    static class FakeSessionRepository implements SessionRepository {
         private final List<SessionRecord> records;
 
-        private FakeSessionRepository(List<SessionRecord> records) {
+        FakeSessionRepository(List<SessionRecord> records) {
             this.records = records;
         }
 

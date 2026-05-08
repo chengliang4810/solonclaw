@@ -22,7 +22,8 @@ public class CliShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/models", "/sessions", "/session", "/copy", "/exit", "/quit"
+                "/platforms", "/models", "/sessions", "/session", "/history", "/copy", "/exit",
+                "/quit"
             };
 
     private final CliRuntime cliRuntime;
@@ -30,6 +31,7 @@ public class CliShell {
     private final CliAttachmentResolver attachmentResolver;
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
+    private final TerminalHistoryViewer historyViewer;
 
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
         this(cliRuntime, mode, null, null, null);
@@ -53,11 +55,22 @@ public class CliShell {
             CliAttachmentResolver attachmentResolver,
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser) {
+        this(cliRuntime, mode, attachmentResolver, modelPicker, sessionBrowser, null);
+    }
+
+    public CliShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            TerminalModelPicker modelPicker,
+            TerminalSessionBrowser sessionBrowser,
+            TerminalHistoryViewer historyViewer) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
         this.modelPicker = modelPicker;
         this.sessionBrowser = sessionBrowser;
+        this.historyViewer = historyViewer;
     }
 
     public int run() throws Exception {
@@ -169,6 +182,11 @@ public class CliShell {
             }
             trimmed = command;
             input = command;
+        }
+        if (historyViewer != null && historyViewer.isHistoryCommand(trimmed)) {
+            writer.println(historyViewer.render(sessionId, trimmed));
+            writer.flush();
+            return 0;
         }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
