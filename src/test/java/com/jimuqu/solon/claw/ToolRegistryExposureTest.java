@@ -271,6 +271,34 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecurityAuditArgsJsonParseErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "webfetch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"url\":\"https://example.test/?token=secret123"));
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("summary").getString()).contains("argsJson parse failed");
+        assertThat(result.toJson()).contains("token=***").doesNotContain("secret123");
+    }
+
+    @Test
     void shouldManageJimuquStyleBackgroundProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =

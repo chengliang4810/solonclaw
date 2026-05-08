@@ -271,7 +271,14 @@ public class SecurityAuditTools {
             } catch (Exception e) {
                 result.success = false;
                 result.decision = "error";
-                result.summary = "argsJson parse failed: " + e.getMessage();
+                result.summary =
+                        "argsJson parse failed: "
+                                + SecretRedactor.redact(
+                                        StrUtil.blankToDefault(
+                                                e.getMessage(), e.getClass().getSimpleName()),
+                                        1000)
+                                + "; input="
+                                + SecretRedactor.redact(StrUtil.nullToEmpty(argsJson), 1000);
                 return result;
             }
         }
