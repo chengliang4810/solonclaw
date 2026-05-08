@@ -3462,6 +3462,27 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("tool_args 必须是 JSON 对象")
                 .contains("工具：terminal");
         assertThat(service.getPendingApproval(arrayTrace.session)).isNull();
+
+        assertMalformedGatewayAliasFailsClosed(service, "http_get", "webfetch");
+        assertMalformedGatewayAliasFailsClosed(service, "run_python", "execute_python");
+        assertMalformedGatewayAliasFailsClosed(service, "apply_patch", "patch");
+    }
+
+    private static void assertMalformedGatewayAliasFailsClosed(
+            DangerousCommandApprovalService service, String alias, String canonicalTool) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("tool_name", alias);
+        args.put("tool_args", "[\"not\", \"an\", \"object\"]");
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("工具网关参数格式无效")
+                .contains("tool_args 必须是 JSON 对象")
+                .contains("工具：" + canonicalTool);
+        assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
     @Test
