@@ -33,7 +33,9 @@ public class ShellCompletionGenerator {
                             "/skin",
                             "/copy",
                             "/exit",
-                            "/quit"));
+                            "/quit",
+                            "/exit!",
+                            "/quit!"));
 
     public int write(String shell, PrintStream out, PrintStream err) {
         String normalized = StrUtil.blankToDefault(shell, "bash").trim().toLowerCase();

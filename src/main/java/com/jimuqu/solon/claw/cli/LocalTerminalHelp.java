@@ -24,7 +24,8 @@ public final class LocalTerminalHelp {
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
                 + TerminalShortcuts.helpLine() + "\n"
-                + "/exit 或 /quit - 退出当前终端会话\n"
+                + "/exit 或 /quit - 退出当前终端会话；有后台任务时先显示退出保护\n"
+                + "/exit! 或 /quit! - 停止运行中的后台任务并强制退出\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
                 + "\n"
                 + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/title、/status、/model、/cron、/kanban、/approve、/deny、/busy 等。";

@@ -68,6 +68,20 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         return buffer.toString();
     }
 
+    public String renderExitGuard(String exitCommand) {
+        String command = StrUtil.blankToDefault(exitCommand, "/exit").trim();
+        String forceCommand = command.endsWith("!") ? command : command + "!";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("仍有终端后台任务运行中，已暂停退出。")
+                .append('\n')
+                .append("输入 ")
+                .append(forceCommand)
+                .append(" 将停止运行中的任务并退出，输入 /tasks 查看详情。")
+                .append('\n')
+                .append(renderTasks());
+        return buffer.toString();
+    }
+
     public List<TaskSnapshot> snapshots() {
         synchronized (records) {
             List<TaskSnapshot> snapshots = new ArrayList<TaskSnapshot>(records.size());

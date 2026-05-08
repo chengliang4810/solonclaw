@@ -95,6 +95,45 @@ public class LocalTerminalTaskRunnerTest {
     }
 
     @Test
+    void shouldRenderExitGuardWhenTerminalWorkIsRunning() throws Exception {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        LocalTerminalTaskRunner runner =
+                new LocalTerminalTaskRunner(
+                        new PrintWriter(
+                                new java.io.OutputStreamWriter(buffer, StandardCharsets.UTF_8),
+                                true));
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        Future<Integer> future =
+                runner.submit(
+                        "long request",
+                        new Callable<Integer>() {
+                            @Override
+                            public Integer call() throws Exception {
+                                started.countDown();
+                                release.await(2, TimeUnit.SECONDS);
+                                return Integer.valueOf(0);
+                            }
+                        });
+
+        assertThat(started.await(1, TimeUnit.SECONDS)).isTrue();
+
+        String guard = runner.renderExitGuard("/quit");
+
+        assertThat(guard)
+                .contains("仍有终端后台任务运行中")
+                .contains("输入 /quit!")
+                .contains("/tasks")
+                .contains("running=1")
+                .contains("long request");
+
+        release.countDown();
+        assertThat(future.get(1, TimeUnit.SECONDS)).isEqualTo(0);
+        runner.close();
+    }
+
+    @Test
     void shouldRetainOnlyRecentTerminalTasks() throws Exception {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         LocalTerminalTaskRunner runner =

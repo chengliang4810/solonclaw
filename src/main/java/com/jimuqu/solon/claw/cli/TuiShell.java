@@ -24,7 +24,7 @@ public class TuiShell {
                 "/title", "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/deny", "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/copy", "/models", "/sessions", "/session", "/history",
-                "/events", "/tasks", "/attachments", "/tips", "/skin", "/exit"
+                "/events", "/tasks", "/attachments", "/tips", "/skin", "/exit", "/exit!", "/quit!"
             };
 
     private final CliRuntime cliRuntime;
@@ -131,7 +131,12 @@ public class TuiShell {
                 if (StrUtil.isBlank(input)) {
                     continue;
                 }
-                if ("/exit".equalsIgnoreCase(input) || "/quit".equalsIgnoreCase(input)) {
+                if (isExitCommand(input)) {
+                    if (taskRunner.hasRunning() && !isForceExitCommand(input)) {
+                        writer.println(skin.dim(taskRunner.renderExitGuard(input)));
+                        writer.flush();
+                        continue;
+                    }
                     break;
                 }
                 dispatchInteractive(taskRunner, writer, sessionId, input);
@@ -329,6 +334,19 @@ public class TuiShell {
         writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
         writer.flush();
+    }
+
+    private boolean isExitCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/exit".equalsIgnoreCase(value)
+                || "/quit".equalsIgnoreCase(value)
+                || "/exit!".equalsIgnoreCase(value)
+                || "/quit!".equalsIgnoreCase(value);
+    }
+
+    private boolean isForceExitCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
     }
 
     private void renderFooter(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {

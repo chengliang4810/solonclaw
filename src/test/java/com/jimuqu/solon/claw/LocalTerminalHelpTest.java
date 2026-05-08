@@ -32,7 +32,9 @@ public class LocalTerminalHelpTest {
                 .contains("/skin")
                 .contains("Ctrl-G")
                 .contains("/exit")
+                .contains("/exit!")
                 .contains("/quit")
+                .contains("/quit!")
                 .contains("粘贴本地文件路径")
                 .contains("/busy");
     }

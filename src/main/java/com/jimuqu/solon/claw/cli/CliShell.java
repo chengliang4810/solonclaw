@@ -23,7 +23,8 @@ public class CliShell {
                 "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
                 "/cron", "/approve", "/kanban", "/deny", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/platforms", "/models", "/sessions", "/session",
-                "/history", "/tasks", "/attachments", "/copy", "/exit", "/quit"
+                "/history", "/tasks", "/attachments", "/copy", "/exit", "/quit", "/exit!",
+                "/quit!"
             };
 
     private final CliRuntime cliRuntime;
@@ -108,7 +109,12 @@ public class CliShell {
                 if (StrUtil.isBlank(line)) {
                     continue;
                 }
-                if ("/exit".equalsIgnoreCase(line) || "/quit".equalsIgnoreCase(line)) {
+                if (isExitCommand(line)) {
+                    if (taskRunner.hasRunning() && !isForceExitCommand(line)) {
+                        writer.println(taskRunner.renderExitGuard(line));
+                        writer.flush();
+                        continue;
+                    }
                     break;
                 }
                 dispatchInteractive(taskRunner, writer, sessionId, line);
@@ -274,6 +280,19 @@ public class CliShell {
         } catch (Exception ignored) {
             // best effort only
         }
+    }
+
+    private boolean isExitCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/exit".equalsIgnoreCase(value)
+                || "/quit".equalsIgnoreCase(value)
+                || "/exit!".equalsIgnoreCase(value)
+                || "/quit!".equalsIgnoreCase(value);
+    }
+
+    private boolean isForceExitCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/exit!".equalsIgnoreCase(value) || "/quit!".equalsIgnoreCase(value);
     }
 
     private boolean isAttachmentPreviewCommand(String input) {
