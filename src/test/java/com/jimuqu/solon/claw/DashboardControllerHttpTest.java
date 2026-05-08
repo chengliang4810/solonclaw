@@ -234,7 +234,18 @@ public class DashboardControllerHttpTest {
 
         HttpResult diagnostics = request("GET", "/api/diagnostics", null, token);
         assertThat(diagnostics.status).isEqualTo(200);
-        assertThat(diagnostics.body).contains("\"providers\"").contains("\"channels\"");
+        assertThat(diagnostics.body)
+                .contains("\"providers\"")
+                .contains("\"channels\"")
+                .contains("\"security\"")
+                .contains("\"approvals\"")
+                .contains("\"allow_private_urls\"")
+                .contains("\"credential_file_count\"")
+                .contains("\"sudo_password_configured\"");
+        assertThat(diagnostics.body)
+                .doesNotContain("\"sudo_password\"")
+                .doesNotContain("\"credential_files\"")
+                .doesNotContain("\"env_passthrough\"");
 
         HttpResult skills = request("GET", "/api/skills", null, token);
         assertThat(skills.status).isEqualTo(200);

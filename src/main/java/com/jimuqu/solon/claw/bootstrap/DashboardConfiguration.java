@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.support.RuntimePathGuard;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardAuthFilter;
@@ -125,9 +126,14 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             DeliveryService deliveryService,
             LlmProviderService llmProviderService,
-            ToolRegistry toolRegistry) {
+            ToolRegistry toolRegistry,
+            DangerousCommandApprovalService dangerousCommandApprovalService) {
         return new DashboardDiagnosticsService(
-                appConfig, deliveryService, llmProviderService, toolRegistry);
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                dangerousCommandApprovalService);
     }
 
     @Bean

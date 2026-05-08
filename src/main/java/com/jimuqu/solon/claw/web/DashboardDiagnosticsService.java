@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -18,16 +19,19 @@ public class DashboardDiagnosticsService {
     private final DeliveryService deliveryService;
     private final LlmProviderService llmProviderService;
     private final ToolRegistry toolRegistry;
+    private final DangerousCommandApprovalService approvalService;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
             LlmProviderService llmProviderService,
-            ToolRegistry toolRegistry) {
+            ToolRegistry toolRegistry,
+            DangerousCommandApprovalService approvalService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
         this.toolRegistry = toolRegistry;
+        this.approvalService = approvalService;
     }
 
     public Map<String, Object> diagnostics() {
@@ -37,6 +41,7 @@ public class DashboardDiagnosticsService {
         result.put("channels", channels());
         result.put("tools", tools());
         result.put("mcp", mcp());
+        result.put("security", security());
         return result;
     }
 
@@ -100,11 +105,91 @@ public class DashboardDiagnosticsService {
         return map;
     }
 
+    private Map<String, Object> security() {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        Map<String, Object> approvals = new LinkedHashMap<String, Object>();
+        approvals.put("mode", StrUtil.nullToEmpty(appConfig.getApprovals().getMode()));
+        approvals.put("cron_mode", StrUtil.nullToEmpty(appConfig.getApprovals().getCronMode()));
+        approvals.put(
+                "subagent_auto_approve",
+                Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
+        approvals.put(
+                "timeout_seconds",
+                Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
+        approvals.put(
+                "gateway_timeout_seconds",
+                Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
+        approvals.put(
+                "mcp_reload_confirm",
+                Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
+        approvals.put(
+                "always_approval_count",
+                Integer.valueOf(
+                        approvalService == null
+                                ? 0
+                                : approvalService.listAlwaysApprovals().size()));
+        map.put("approvals", approvals);
+
+        Map<String, Object> policy = new LinkedHashMap<String, Object>();
+        policy.put(
+                "allow_private_urls",
+                Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
+        policy.put("tirith_enabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
+        policy.put(
+                "tirith_configured",
+                Boolean.valueOf(StrUtil.isNotBlank(appConfig.getSecurity().getTirithPath())));
+        policy.put(
+                "tirith_timeout_seconds",
+                Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));
+        policy.put(
+                "tirith_fail_open",
+                Boolean.valueOf(appConfig.getSecurity().isTirithFailOpen()));
+        policy.put(
+                "website_blocklist_enabled",
+                Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
+        policy.put(
+                "website_blocklist_domain_count",
+                Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getDomains())));
+        policy.put(
+                "website_blocklist_shared_file_count",
+                Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
+        map.put("policy", policy);
+
+        Map<String, Object> terminal = new LinkedHashMap<String, Object>();
+        terminal.put(
+                "credential_file_count",
+                Integer.valueOf(size(appConfig.getTerminal().getCredentialFiles())));
+        terminal.put(
+                "env_passthrough_count",
+                Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
+        terminal.put(
+                "sudo_password_configured",
+                Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())));
+        terminal.put(
+                "write_safe_root_configured",
+                Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
+        terminal.put(
+                "max_foreground_timeout_seconds",
+                Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
+        terminal.put(
+                "foreground_max_retries",
+                Integer.valueOf(appConfig.getTerminal().getForegroundMaxRetries()));
+        terminal.put(
+                "foreground_retry_base_delay_seconds",
+                Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
+        map.put("terminal", terminal);
+        return map;
+    }
+
     private boolean canWriteParent(String path) {
         if (path == null) {
             return false;
         }
         File parent = new File(path).getAbsoluteFile().getParentFile();
         return parent != null && parent.exists() && parent.canWrite();
+    }
+
+    private int size(List<?> values) {
+        return values == null ? 0 : values.size();
     }
 }
