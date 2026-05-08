@@ -423,6 +423,10 @@ public class SecurityPolicyService {
         if (code.length() == 0) {
             return FileVerdict.allow();
         }
+        FileVerdict compactOutputVerdict = checkCompactOutputOptionCredentialPaths(code);
+        if (!compactOutputVerdict.allowed) {
+            return compactOutputVerdict;
+        }
         Matcher relativeCredentialMatcher = SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN.matcher(code);
         while (relativeCredentialMatcher.find()) {
             FileVerdict verdict = checkPath(relativeCredentialMatcher.group(1), false);
@@ -449,6 +453,35 @@ public class SecurityPolicyService {
             return configuredCredentialVerdict;
         }
         return FileVerdict.allow();
+    }
+
+    private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {
+        List<String> tokens = shellLikeTokens(command, 200);
+        for (String token : tokens) {
+            String path = compactOutputOptionPath(token);
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            FileVerdict verdict = checkPath(path, false);
+            if (!verdict.allowed) {
+                return verdict;
+            }
+        }
+        return FileVerdict.allow();
+    }
+
+    private String compactOutputOptionPath(String raw) {
+        String token = cleanUrlToken(raw);
+        if (token.length() <= 2) {
+            return "";
+        }
+        if (token.startsWith("-o") && !token.startsWith("--")) {
+            return token.substring(2);
+        }
+        if (token.startsWith("-O") && !token.startsWith("--")) {
+            return token.substring(2);
+        }
+        return "";
     }
 
     public UrlVerdict checkCommandUrls(String command) {
