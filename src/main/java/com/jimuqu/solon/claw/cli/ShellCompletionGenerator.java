@@ -23,6 +23,7 @@ public class ShellCompletionGenerator {
                             "/sessions",
                             "/session",
                             "/history",
+                            "/title",
                             "/events",
                             "/tasks",
                             "/attachments",

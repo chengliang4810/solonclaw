@@ -22,6 +22,7 @@ public class LocalTerminalHelpTest {
                 .contains("/sessions")
                 .contains("/session pick")
                 .contains("/history")
+                .contains("/title")
                 .contains("/events")
                 .contains("/tasks")
                 .contains("/attachments")

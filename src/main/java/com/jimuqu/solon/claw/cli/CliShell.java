@@ -20,10 +20,10 @@ public class CliShell {
     private static final String[] COMMANDS =
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
-                "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
-                "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/models", "/sessions", "/session", "/history", "/tasks",
-                "/attachments", "/copy", "/exit", "/quit"
+                "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
+                "/cron", "/approve", "/kanban", "/deny", "/restart", "/stop", "/compress",
+                "/rollback", "/version", "/platforms", "/models", "/sessions", "/session",
+                "/history", "/tasks", "/attachments", "/copy", "/exit", "/quit"
             };
 
     private final CliRuntime cliRuntime;

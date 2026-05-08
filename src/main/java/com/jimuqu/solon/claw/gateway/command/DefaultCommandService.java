@@ -52,6 +52,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -619,6 +620,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_UNDO,
                         GatewayCommandConstants.COMMAND_BRANCH,
                         GatewayCommandConstants.COMMAND_RESUME,
+                        GatewayCommandConstants.COMMAND_TITLE,
                         GatewayCommandConstants.COMMAND_STATUS,
                         GatewayCommandConstants.COMMAND_USAGE,
                         GatewayCommandConstants.COMMAND_BUSY,
@@ -756,6 +758,10 @@ public class DefaultCommandService implements CommandService {
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
+        }
+
+        if (GatewayCommandConstants.COMMAND_TITLE.equals(command)) {
+            return handleTitle(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_STATUS.equals(command)) {
@@ -1495,6 +1501,54 @@ public class DefaultCommandService implements CommandService {
     private boolean isCompressionCommand(String command) {
         return GatewayCommandConstants.COMMAND_COMPRESS.equals(command)
                 || GatewayCommandConstants.COMMAND_COMPACT.equals(command);
+    }
+
+    private GatewayReply handleTitle(GatewayMessage message, String args) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        String raw = StrUtil.nullToEmpty(args).trim();
+        if (StrUtil.isBlank(raw)) {
+            GatewayReply reply =
+                    GatewayReply.ok(
+                            "当前会话标题："
+                                    + StrUtil.blankToDefault(session.getTitle(), "(未设置)"));
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        String action = firstToken(raw);
+        if ("clear".equalsIgnoreCase(action) || "reset".equalsIgnoreCase(action)) {
+            session.setTitle("");
+            session.setUpdatedAt(System.currentTimeMillis());
+            sessionRepository.save(session);
+            GatewayReply reply = GatewayReply.ok("已清空当前会话标题：" + session.getSessionId());
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        String title = normalizeSessionTitle(raw);
+        if (StrUtil.isBlank(title)) {
+            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]");
+        }
+        session.setTitle(title);
+        session.setUpdatedAt(System.currentTimeMillis());
+        sessionRepository.save(session);
+        GatewayReply reply = GatewayReply.ok("已更新当前会话标题：" + title);
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("title", title);
+        return reply;
+    }
+
+    private String normalizeSessionTitle(String raw) {
+        String title = normalizeResumeReference(raw);
+        title = title.replace('\r', ' ').replace('\n', ' ').trim();
+        while (title.contains("  ")) {
+            title = title.replace("  ", " ");
+        }
+        if (title.length() <= CompressionConstants.MAX_TITLE_LENGTH) {
+            return title;
+        }
+        return title.substring(0, CompressionConstants.MAX_TITLE_LENGTH) + "...";
     }
 
     private GatewayReply handleReloadMcp(GatewayMessage message, String args) throws Exception {
@@ -3508,6 +3562,9 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_RESUME + " <session-or-branch>",
                                 "恢复指定会话或分支"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
+                                "查看、设置或清空当前会话标题"),
                         helpLine(GatewayCommandConstants.SLASH_STATUS, "查看当前会话状态"),
                         helpLine(GatewayCommandConstants.SLASH_USAGE, "查看当前会话运行信息"),
                         helpLine(

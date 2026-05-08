@@ -317,6 +317,34 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldViewSetAndClearCurrentSessionTitle() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.send("admin-chat", "admin-user", "需要标题的会话");
+        SessionRecord session =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+
+        GatewayReply view = env.send("admin-chat", "admin-user", "/title");
+        assertThat(view.getContent()).contains("当前会话标题").contains("需要标题的会话");
+
+        GatewayReply set = env.send("admin-chat", "admin-user", "/title \"客户问题复盘\"");
+        assertThat(set.getContent()).contains("已更新当前会话标题").contains("客户问题复盘");
+        assertThat(set.getRuntimeMetadata()).containsEntry("title", "客户问题复盘");
+        assertThat(env.sessionRepository.findById(session.getSessionId()).getTitle())
+                .isEqualTo("客户问题复盘");
+
+        GatewayReply resumed = env.send("admin-chat", "admin-user", "/resume 客户问题复盘");
+        assertThat(resumed.getSessionId()).isEqualTo(session.getSessionId());
+
+        GatewayReply clear = env.send("admin-chat", "admin-user", "/title clear");
+        assertThat(clear.getContent()).contains("已清空当前会话标题");
+        assertThat(env.sessionRepository.findById(session.getSessionId()).getTitle()).isEmpty();
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+        assertThat(help.getContent()).contains("/title [clear|新标题]");
+    }
+
+    @Test
     void shouldSupportGoalCommandLifecycle() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         GatewayMessage message =

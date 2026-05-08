@@ -21,10 +21,10 @@ public class TuiShell {
     private static final String[] COMMANDS =
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
-                "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
-                "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress", "/rollback",
-                "/version", "/copy", "/models", "/sessions", "/session", "/history", "/events",
-                "/tasks", "/attachments", "/tips", "/skin", "/exit"
+                "/title", "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve",
+                "/deny", "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress",
+                "/rollback", "/version", "/copy", "/models", "/sessions", "/session", "/history",
+                "/events", "/tasks", "/attachments", "/tips", "/skin", "/exit"
             };
 
     private final CliRuntime cliRuntime;

@@ -15,6 +15,7 @@ public final class LocalTerminalHelp {
                 + "/models 或 /model pick - 列出可选模型；/model pick <编号> 切换\n"
                 + "/sessions [关键词] - 浏览或搜索最近会话；/session pick <编号> 恢复\n"
                 + "/history [条数] - 预览当前终端会话的最近历史\n"
+                + "/title [clear|新标题] - 查看、设置或清空当前会话标题\n"
                 + "/events - 查看最近一次运行的终端事件\n"
                 + "/tasks - 查看当前和最近终端后台任务\n"
                 + "/attachments <文本或路径> - 预检粘贴内容中会被识别的本地附件\n"
@@ -26,6 +27,6 @@ public final class LocalTerminalHelp {
                 + "/exit 或 /quit - 退出当前终端会话\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
                 + "\n"
-                + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/status、/model、/cron、/kanban、/approve、/deny、/busy 等。";
+                + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/title、/status、/model、/cron、/kanban、/approve、/deny、/busy 等。";
     }
 }
