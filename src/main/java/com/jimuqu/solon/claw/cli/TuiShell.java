@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Callable;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -77,30 +78,71 @@ public class TuiShell {
                         .variable(LineReader.HISTORY_FILE, ".jimuqu-tui-history")
                         .build();
         renderHeader(writer, sessionId);
-        while (true) {
-            String input;
-            try {
-                input = reader.readLine(BOLD + CYAN + "你" + RESET + " > ");
-            } catch (UserInterruptException e) {
-                writer.println(DIM + "输入已取消。继续输入，或 /exit 退出。" + RESET);
+        LocalTerminalTaskRunner taskRunner = new LocalTerminalTaskRunner(writer);
+        try {
+            while (true) {
+                String input;
+                try {
+                    input = reader.readLine(BOLD + CYAN + "你" + RESET + " > ");
+                } catch (UserInterruptException e) {
+                    writer.println(DIM + "输入已取消。运行中的任务可用 /stop 停止，或 /exit 退出。" + RESET);
+                    writer.flush();
+                    continue;
+                } catch (EndOfFileException e) {
+                    break;
+                }
+                input = StrUtil.nullToEmpty(input).trim();
+                if (StrUtil.isBlank(input)) {
+                    continue;
+                }
+                if ("/exit".equalsIgnoreCase(input) || "/quit".equalsIgnoreCase(input)) {
+                    break;
+                }
+                dispatchInteractive(taskRunner, writer, sessionId, input);
+                writer.println();
+                writer.println(DIM + BORDER + RESET);
                 writer.flush();
-                continue;
-            } catch (EndOfFileException e) {
-                break;
             }
-            input = StrUtil.nullToEmpty(input).trim();
-            if (StrUtil.isBlank(input)) {
-                continue;
-            }
-            if ("/exit".equalsIgnoreCase(input) || "/quit".equalsIgnoreCase(input)) {
-                break;
-            }
-            send(writer, sessionId, input);
-            writer.println();
-            writer.println(DIM + BORDER + RESET);
-            writer.flush();
+        } finally {
+            taskRunner.cancelAndClose(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            cliRuntime.stop(sessionId);
+                        }
+                    });
         }
         return 0;
+    }
+
+    private void dispatchInteractive(
+            LocalTerminalTaskRunner taskRunner,
+            final PrintWriter writer,
+            final String sessionId,
+            final String input)
+            throws Exception {
+        if (shouldHandleInline(input)) {
+            send(writer, sessionId, input);
+            return;
+        }
+        taskRunner.submit(
+                input,
+                new Callable<Integer>() {
+                    @Override
+                    public Integer call() throws Exception {
+                        return Integer.valueOf(send(writer, sessionId, input));
+                    }
+                });
+    }
+
+    private boolean shouldHandleInline(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        if (LocalTerminalHelp.isHelp(value) || "/copy".equalsIgnoreCase(value)) {
+            return true;
+        }
+        return value.startsWith("/")
+                && !"/retry".equalsIgnoreCase(value)
+                && !value.toLowerCase(java.util.Locale.ROOT).startsWith("/retry ");
     }
 
     private int send(PrintWriter writer, String sessionId, String input) throws Exception {
