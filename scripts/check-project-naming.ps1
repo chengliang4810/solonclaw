@@ -2,7 +2,8 @@ param(
     [string] $RootPath = (Join-Path $PSScriptRoot ".."),
     [string[]] $ExtraBlockedTerms = @(),
     [string] $GitCommitRange = "",
-    [switch] $CheckGitCommitSubjects
+    [switch] $CheckGitCommitSubjects,
+    [switch] $CheckGitObjectText
 )
 
 $ErrorActionPreference = "Stop"
@@ -185,6 +186,74 @@ try {
         if ($subjectMatches) {
             Write-Host "Blocked legacy project naming in git commit subjects. Rewrite or replace the commit subject before publishing release notes." -ForegroundColor Red
             $subjectMatches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            exit 1
+        }
+    }
+
+    if ($CheckGitObjectText) {
+        $git = Get-Command git -ErrorAction SilentlyContinue
+        if ($null -eq $git) {
+            Write-Host "git was not found, cannot check git object text." -ForegroundColor Red
+            exit 1
+        }
+
+        $insideWorkTree = (& git rev-parse --is-inside-work-tree 2>$null)
+        if ($LASTEXITCODE -ne 0 -or $insideWorkTree -ne "true") {
+            Write-Host "Current path is not a git work tree, cannot check git object text." -ForegroundColor Red
+            exit 1
+        }
+
+        $range = $GitCommitRange
+        if ([string]::IsNullOrWhiteSpace($range)) {
+            $range = "HEAD"
+        }
+
+        $commits = & git rev-list $range 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ("Failed to read git commits for range: {0}" -f $range) -ForegroundColor Red
+            exit 1
+        }
+
+        $objectMatches = New-Object System.Collections.Generic.List[string]
+        $objectMatchCount = 0
+        $objectMatchLimit = 200
+        $grepArgs = @("grep", "-I", "-n", "-i")
+        foreach ($term in $terms) {
+            $grepArgs += @("-e", $term)
+        }
+        foreach ($commit in $commits) {
+            if ([string]::IsNullOrWhiteSpace($commit)) {
+                continue
+            }
+            $grepOutput = & git @grepArgs $commit -- . ":(exclude).git/**" ":(exclude)web/node_modules/**" ":(exclude)node_modules/**" ":(exclude)target/**" 2>$null
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -ne 0 -and $exitCode -ne 1) {
+                Write-Host ("Failed to scan git object text for commit: {0}" -f $commit) -ForegroundColor Red
+                exit 1
+            }
+            foreach ($line in $grepOutput) {
+                if ([string]::IsNullOrWhiteSpace($line)) {
+                    continue
+                }
+                $objectMatchCount++
+                $parts = $line -split ":", 4
+                if ($objectMatches.Count -lt $objectMatchLimit) {
+                    if ($parts.Length -ge 3) {
+                        $objectMatches.Add(("{0}:{1}:{2}:<blocked>" -f $parts[0], $parts[1], $parts[2]))
+                    } else {
+                        $objectMatches.Add(("{0}:<blocked>" -f $commit))
+                    }
+                }
+            }
+        }
+
+        if ($objectMatchCount -gt 0) {
+            Write-Host "Blocked legacy project naming in git object text. Rewrite the range, remove the polluted release range, or publish from a clean range before generating release notes." -ForegroundColor Red
+            Write-Host ("Total blocked git object text matches: {0}" -f $objectMatchCount) -ForegroundColor Red
+            $objectMatches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            if ($objectMatchCount -gt $objectMatches.Count) {
+                Write-Host ("Additional matches omitted: {0}" -f ($objectMatchCount - $objectMatches.Count)) -ForegroundColor Red
+            }
             exit 1
         }
     }

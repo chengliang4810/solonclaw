@@ -97,7 +97,7 @@ jobs:
 
       - name: Check release commit subjects
         shell: pwsh
-        run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -GitCommitRange "${{ steps.release_range.outputs.git_range }}"
+        run: ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -GitCommitRange "${{ steps.release_range.outputs.git_range }}"
 
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'

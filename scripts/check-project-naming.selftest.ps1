@@ -37,7 +37,8 @@ function Reset-Sandbox {
 function Invoke-GitNamingCheck {
     param(
         [string] $Range,
-        [switch] $WithExtraFixture
+        [switch] $WithExtraFixture,
+        [switch] $CheckObjectText
     )
 
     $args = @(
@@ -50,6 +51,9 @@ function Invoke-GitNamingCheck {
         $sandbox,
         "-CheckGitCommitSubjects"
     )
+    if ($CheckObjectText) {
+        $args += @("-CheckGitObjectText")
+    }
     if (-not [string]::IsNullOrWhiteSpace($Range)) {
         $args += @("-GitCommitRange", $Range)
     }
@@ -124,6 +128,22 @@ try {
     $blockedCommit = Invoke-GitNamingCheck -Range "HEAD" -WithExtraFixture
     if ($blockedCommit.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in git commit subjects."
+    }
+
+    Push-Location $sandbox
+    try {
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value ($blockedFixture + " removed later") -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: temporary polluted file / Temporary polluted file" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean again" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean polluted file / Clean polluted file" | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $blockedObjectText = Invoke-GitNamingCheck -Range "HEAD~2..HEAD" -WithExtraFixture -CheckObjectText
+    if ($blockedObjectText.ExitCode -eq 0) {
+        throw "Naming check did not block forbidden naming in git object text inside a release range."
     }
 
     $releaseDir = Join-Path $sandbox "dist"
