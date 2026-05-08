@@ -18,6 +18,7 @@ public final class LocalTerminalHelp {
                 + "/title [clear|新标题] - 查看、设置或清空当前会话标题\n"
                 + "/events - 查看最近一次运行的终端事件\n"
                 + "/tasks - 查看当前和最近终端后台任务\n"
+                + "/transcript [条数] - 查看当前终端会话的虚拟历史\n"
                 + "/attachments <文本或路径> - 预检粘贴内容中会被识别的本地附件\n"
                 + "/tips - 查看终端提示\n"
                 + "/queue <提示> - 将新输入排到当前任务之后执行\n"

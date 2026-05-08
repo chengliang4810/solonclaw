@@ -23,8 +23,8 @@ public class CliShell {
                 "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
                 "/cron", "/approve", "/kanban", "/deny", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/platforms", "/models", "/sessions", "/session",
-                "/history", "/tasks", "/attachments", "/copy", "/exit", "/quit", "/exit!",
-                "/quit!"
+                "/history", "/tasks", "/attachments", "/transcript", "/copy", "/exit", "/quit",
+                "/exit!", "/quit!"
             };
 
     private final CliRuntime cliRuntime;
@@ -33,6 +33,7 @@ public class CliShell {
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
     private final TerminalHistoryViewer historyViewer;
+    private final LocalTerminalTranscript transcript = new LocalTerminalTranscript();
 
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
         this(cliRuntime, mode, null, null, null);
@@ -156,6 +157,7 @@ public class CliShell {
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
                 || "/tasks".equalsIgnoreCase(value)
+                || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
                 || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ")) {
             return true;
@@ -211,6 +213,11 @@ public class CliShell {
             writer.flush();
             return 0;
         }
+        if (transcript.isTranscriptCommand(trimmed)) {
+            writer.println(transcript.render(trimmed));
+            writer.flush();
+            return 0;
+        }
         if (isAttachmentPreviewCommand(trimmed)) {
             writer.println(renderAttachmentPreview(trimmed));
             writer.flush();
@@ -218,6 +225,7 @@ public class CliShell {
         }
         ConsoleEventSink sink = new ConsoleEventSink(writer, verbose);
         CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);
+        transcript.user(resolved.getText());
         if (!resolved.getAttachments().isEmpty()) {
             writer.println("已附加本地文件：" + resolved.getAttachments().size());
             writer.flush();
@@ -230,6 +238,7 @@ public class CliShell {
         }
         if (StrUtil.isNotBlank(finalText)) {
             lastReply = finalText;
+            transcript.assistant(finalText);
         }
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
             writer.println(reply.getContent());

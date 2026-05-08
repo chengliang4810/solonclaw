@@ -27,6 +27,7 @@ public class ShellCompletionGenerator {
                             "/events",
                             "/tasks",
                             "/attachments",
+                            "/transcript",
                             "/tips",
                             "/queue",
                             "/steer",

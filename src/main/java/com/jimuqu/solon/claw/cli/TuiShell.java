@@ -24,7 +24,8 @@ public class TuiShell {
                 "/title", "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/deny", "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/copy", "/models", "/sessions", "/session", "/history",
-                "/events", "/tasks", "/attachments", "/tips", "/skin", "/exit", "/exit!", "/quit!"
+                "/events", "/tasks", "/attachments", "/transcript", "/tips", "/skin", "/exit",
+                "/exit!", "/quit!"
             };
 
     private final CliRuntime cliRuntime;
@@ -34,6 +35,7 @@ public class TuiShell {
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
     private final TerminalHistoryViewer historyViewer;
+    private final LocalTerminalTranscript transcript = new LocalTerminalTranscript();
     private TerminalSkin skin = TerminalSkin.fromEnvironment();
     private ConsoleEventSink.EventSnapshot lastEventSnapshot;
     private String lastReply;
@@ -183,6 +185,7 @@ public class TuiShell {
                 || "/copy".equalsIgnoreCase(value)
                 || "/events".equalsIgnoreCase(value)
                 || "/tasks".equalsIgnoreCase(value)
+                || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
                 || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ")
                 || TerminalTips.isTipsCommand(value)) {
@@ -250,6 +253,11 @@ public class TuiShell {
             writer.flush();
             return 0;
         }
+        if (transcript.isTranscriptCommand(trimmed)) {
+            writer.println(transcript.render(trimmed));
+            writer.flush();
+            return 0;
+        }
         if (isAttachmentPreviewCommand(trimmed)) {
             writer.println(renderAttachmentPreview(trimmed));
             writer.flush();
@@ -260,6 +268,7 @@ public class TuiShell {
         }
         ConsoleEventSink sink = new ConsoleEventSink(writer, true);
         CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);
+        transcript.user(resolved.getText());
         if (!resolved.getAttachments().isEmpty()) {
             writer.println(skin.dim("已附加本地文件：" + resolved.getAttachments().size()));
             writer.flush();
@@ -272,6 +281,7 @@ public class TuiShell {
         }
         if (StrUtil.isNotBlank(finalText)) {
             lastReply = finalText;
+            transcript.assistant(finalText);
         }
         lastEventSnapshot = sink.eventSnapshot();
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
