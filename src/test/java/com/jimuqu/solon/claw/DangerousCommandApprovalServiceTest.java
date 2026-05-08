@@ -3556,6 +3556,77 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldInspectNestedGatewayCommandArguments() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> nestedTerminalPayload = new LinkedHashMap<String, Object>();
+        nestedTerminalPayload.put("command", "git reset --hard");
+        Map<String, Object> nestedTerminalArgs = new LinkedHashMap<String, Object>();
+        nestedTerminalArgs.put("payload", nestedTerminalPayload);
+        Map<String, Object> nestedTerminalCall = new LinkedHashMap<String, Object>();
+        nestedTerminalCall.put("tool_name", "terminal");
+        nestedTerminalCall.put("tool_args", nestedTerminalArgs);
+        TestTrace nestedTerminalTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(nestedTerminalTrace, "call_tool", nestedTerminalCall);
+
+        DangerousCommandApprovalService.PendingApproval terminalPending =
+                service.getPendingApproval(nestedTerminalTrace.session);
+        assertThat(terminalPending).isNotNull();
+        assertThat(terminalPending.getToolName()).isEqualTo("terminal");
+        assertThat(terminalPending.getPatternKey()).isEqualTo("git_reset_hard");
+
+        Map<String, Object> nestedShellInput = new LinkedHashMap<String, Object>();
+        nestedShellInput.put("code", "docker system prune -af");
+        Map<String, Object> nestedShellArgs = new LinkedHashMap<String, Object>();
+        nestedShellArgs.put("input", nestedShellInput);
+        Map<String, Object> nestedShellCall = new LinkedHashMap<String, Object>();
+        nestedShellCall.put("tool_name", "run_shell");
+        nestedShellCall.put("tool_args", nestedShellArgs);
+        TestTrace nestedShellTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(nestedShellTrace, "call_tool", nestedShellCall);
+
+        DangerousCommandApprovalService.PendingApproval shellPending =
+                service.getPendingApproval(nestedShellTrace.session);
+        assertThat(shellPending).isNotNull();
+        assertThat(shellPending.getToolName()).isEqualTo("execute_shell");
+        assertThat(shellPending.getPatternKey()).isEqualTo("docker_destructive_prune");
+
+        Map<String, Object> commandArrayArgs = new LinkedHashMap<String, Object>();
+        commandArrayArgs.put("commands", Arrays.asList("echo ready", "terraform destroy -auto-approve"));
+        Map<String, Object> commandArrayCall = new LinkedHashMap<String, Object>();
+        commandArrayCall.put("tool_name", "exec_command");
+        commandArrayCall.put("tool_args", commandArrayArgs);
+        TestTrace commandArrayTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(commandArrayTrace, "call_tool", commandArrayCall);
+
+        DangerousCommandApprovalService.PendingApproval commandArrayPending =
+                service.getPendingApproval(commandArrayTrace.session);
+        assertThat(commandArrayPending).isNotNull();
+        assertThat(commandArrayPending.getToolName()).isEqualTo("execute_shell");
+        assertThat(commandArrayPending.getPatternKey()).isEqualTo("terraform_destroy");
+
+        Map<String, Object> safeNestedArgs = new LinkedHashMap<String, Object>();
+        safeNestedArgs.put("note", "git reset --hard appears in docs, not as a command key");
+        Map<String, Object> safeNestedCall = new LinkedHashMap<String, Object>();
+        safeNestedCall.put("tool_name", "terminal");
+        safeNestedCall.put("tool_args", safeNestedArgs);
+        TestTrace safeTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(safeTrace, "call_tool", safeNestedCall);
+
+        assertThat(service.getPendingApproval(safeTrace.session)).isNull();
+        assertThat(safeTrace.getFinalAnswer()).isNull();
+    }
+
+    @Test
     void shouldBlockMalformedGatewayToolArgsForSecurityTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =

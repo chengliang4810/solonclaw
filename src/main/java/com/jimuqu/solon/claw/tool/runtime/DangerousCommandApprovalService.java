@@ -90,6 +90,17 @@ public class DangerousCommandApprovalService {
     private static final Pattern PYTHON_SHELL_EXEC_CALL =
             pattern(
                     "\\b(?:os\\.system|subprocess\\.(?:run|Popen|call|check_call|check_output))\\s*\\(");
+    private static final Set<String> COMMAND_ARGUMENT_KEYS =
+            Collections.unmodifiableSet(
+                    new LinkedHashSet<String>(
+                            Arrays.asList(
+                                    "code",
+                                    "command",
+                                    "commands",
+                                    "cmd",
+                                    "script",
+                                    "shell",
+                                    "shell_command")));
     private static final List<Pattern> LONG_LIVED_FOREGROUND_PATTERNS =
             Collections.unmodifiableList(
                     Arrays.asList(
@@ -1220,33 +1231,17 @@ public class DangerousCommandApprovalService {
     }
 
     private String codeArg(Map<String, Object> args) {
-        if (args == null) {
-            return null;
-        }
-        Object value = args.get("code");
-        if (value == null) {
-            value = args.get("command");
-        }
-        if (value == null) {
-            value = args.get("cmd");
-        }
-        return value == null ? null : String.valueOf(value);
+        return commandLikeArg(args);
     }
 
     private String evaluateTerminalTool(ReActTrace trace, Map<String, Object> args) {
-        String command =
-                args == null || args.get("command") == null
-                        ? null
-                        : String.valueOf(args.get("command"));
+        String command = commandLikeArg(args);
         return evaluateCommand(
                 trace, ToolNameConstants.TERMINAL, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
     private String evaluateTerminalAlias(ReActTrace trace, String actualToolName, Map<String, Object> args) {
-        String command =
-                args == null || args.get("command") == null
-                        ? null
-                        : String.valueOf(args.get("command"));
+        String command = commandLikeArg(args);
         return evaluateCommand(trace, actualToolName, ToolNameConstants.EXECUTE_SHELL, command);
     }
 
@@ -1263,10 +1258,121 @@ public class DangerousCommandApprovalService {
         if (!"start".equals(action)) {
             return null;
         }
-        String command =
-                args.get("command") == null ? null : String.valueOf(args.get("command"));
+        String command = commandLikeArg(args);
         return evaluateCommand(
                 trace, ToolNameConstants.PROCESS, ToolNameConstants.EXECUTE_SHELL, command);
+    }
+
+    private String commandLikeArg(Map<String, Object> args) {
+        return commandLikeArg(args, 0);
+    }
+
+    private String commandLikeArg(Object raw, int depth) {
+        if (raw == null || depth > 6) {
+            return null;
+        }
+        if (raw instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) raw;
+            for (String key : COMMAND_ARGUMENT_KEYS) {
+                if (map.containsKey(key)) {
+                    String value = commandValueToString(map.get(key), depth + 1);
+                    if (StrUtil.isNotBlank(value)) {
+                        return value;
+                    }
+                }
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() == null) {
+                    continue;
+                }
+                String key = String.valueOf(entry.getKey()).trim().toLowerCase(Locale.ROOT);
+                if (COMMAND_ARGUMENT_KEYS.contains(key)) {
+                    String value = commandValueToString(entry.getValue(), depth + 1);
+                    if (StrUtil.isNotBlank(value)) {
+                        return value;
+                    }
+                }
+            }
+            for (Object value : map.values()) {
+                String nested = commandLikeArg(value, depth + 1);
+                if (StrUtil.isNotBlank(nested)) {
+                    return nested;
+                }
+            }
+            return null;
+        }
+        if (raw instanceof Iterable) {
+            for (Object value : (Iterable<?>) raw) {
+                String nested = commandLikeArg(value, depth + 1);
+                if (StrUtil.isNotBlank(nested)) {
+                    return nested;
+                }
+            }
+            return null;
+        }
+        if (raw.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                String nested = commandLikeArg(java.lang.reflect.Array.get(raw, i), depth + 1);
+                if (StrUtil.isNotBlank(nested)) {
+                    return nested;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String commandValueToString(Object raw, int depth) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof CharSequence) {
+            return String.valueOf(raw);
+        }
+        if (raw instanceof Iterable) {
+            StringBuilder buffer = new StringBuilder();
+            for (Object value : (Iterable<?>) raw) {
+                if (value == null) {
+                    continue;
+                }
+                if (value instanceof CharSequence
+                        || value instanceof Number
+                        || value instanceof Boolean) {
+                    if (buffer.length() > 0) {
+                        buffer.append('\n');
+                    }
+                    buffer.append(String.valueOf(value));
+                    continue;
+                }
+                String nested = commandLikeArg(value, depth + 1);
+                if (StrUtil.isNotBlank(nested)) {
+                    if (buffer.length() > 0) {
+                        buffer.append('\n');
+                    }
+                    buffer.append(nested);
+                }
+            }
+            return buffer.length() == 0 ? null : buffer.toString();
+        }
+        if (raw.getClass().isArray()) {
+            StringBuilder buffer = new StringBuilder();
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                Object value = java.lang.reflect.Array.get(raw, i);
+                if (value == null) {
+                    continue;
+                }
+                if (buffer.length() > 0) {
+                    buffer.append('\n');
+                }
+                buffer.append(String.valueOf(value));
+            }
+            return buffer.length() == 0 ? null : buffer.toString();
+        }
+        if (raw instanceof Number || raw instanceof Boolean) {
+            return String.valueOf(raw);
+        }
+        return commandLikeArg(raw, depth + 1);
     }
 
     private String evaluateGatewayCallTool(ReActTrace trace, Map<String, Object> args) {
