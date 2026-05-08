@@ -113,8 +113,14 @@ jobs:
           PREVIOUS_TAG="$(git describe --tags --match 'v*' --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)"
           if [ -n "$PREVIOUS_TAG" ]; then
             COMMITS="$(git log --pretty=format:'%s' "${PREVIOUS_TAG}..${GITHUB_SHA}")"
+            COMMIT_RANGE="${PREVIOUS_TAG}..${GITHUB_SHA::7}"
           else
             COMMITS="$(git log --pretty=format:'%s' -n 30 "${GITHUB_SHA}")"
+            COMMIT_RANGE="latest 30 commits ending at ${GITHUB_SHA::7}"
+          fi
+          if [ -z "$COMMITS" ]; then
+            COMMITS="$(git log --pretty=format:'%s' -n 1 "${GITHUB_SHA}")"
+            COMMIT_RANGE="${GITHUB_SHA::7}"
           fi
 
           FEATURES="$(printf '%s\n' "$COMMITS" | grep -Ei '^(feat|feature)(\(.+\))?:' || true)"
@@ -134,8 +140,11 @@ jobs:
           cat > dist/release-notes.md <<EOF
           ## solon-claw ${{ steps.release.outputs.tag }}
 
-          本次发布包含可直接通过 \`java -jar\` 运行的完整 shaded jar。
-          This release includes a complete shaded jar that can run directly with \`java -jar\`.
+          本次发布说明按提交类型整理，并保留中英双语摘要；功能、缺陷修复和其他变更优先来自本次发布范围内的 commit subject。
+          These release notes are grouped by commit type and keep bilingual summaries; features, fixes, and other changes are derived from commit subjects in this release range.
+
+          提交范围：\`${COMMIT_RANGE}\`
+          Commit range: \`${COMMIT_RANGE}\`
 
           ### 功能 / Features
 
