@@ -179,6 +179,31 @@ public class MessagingToolsAttachmentTest {
     }
 
     @Test
+    void shouldRedactSecretsFromMessagingToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        String result =
+                tools.sendMessage(
+                        "unknown-ghp_1234567890abcdef",
+                        "chat-1",
+                        "测试",
+                        Collections.<String>emptyList(),
+                        null);
+
+        Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
+        assertThat(payload.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(payload.get("error")))
+                .contains("unknown-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    @Test
     void shouldResolveGeneratedPdfFromRuntimeCachePdfDir() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MessagingTools tools =

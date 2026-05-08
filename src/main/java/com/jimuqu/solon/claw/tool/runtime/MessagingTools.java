@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -113,7 +114,7 @@ public class MessagingTools {
     }
 
     private String error(String message) {
-        return ToolResultEnvelope.error(message).toJson();
+        return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
     }
 
     private List<MessageAttachment> resolveAttachments(
