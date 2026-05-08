@@ -522,7 +522,12 @@ public class ProcessRegistry {
         }
         String home = StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
         return SolonClawShellSkill.resolveShellInitFiles(
-                configured, autoSource, isWindows(), home, System.getenv());
+                configured,
+                autoSource,
+                isWindows(),
+                home,
+                System.getenv(),
+                appConfig == null ? null : new SecurityPolicyService(appConfig));
     }
 
     static String rewriteCompoundBackground(String command) {
