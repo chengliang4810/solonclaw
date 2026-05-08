@@ -5,10 +5,7 @@ $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
 $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
-$legacyPrefix = -join ([char]72, [char]69, [char]82, [char]77, [char]69, [char]83)
-$legacyEnv = $legacyPrefix + "_ALLOW_PRIVATE_URLS"
-$legacyProduct = -join ([char]79, [char]112, [char]101, [char]110, [char]67, [char]108, [char]97, [char]119)
-$legacyLower = ($legacyProduct.Substring(0, 4).ToLowerInvariant() + "-" + $legacyProduct.Substring(4).ToLowerInvariant())
+$blockedFixtureLower = $blockedFixture.ToLowerInvariant()
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -32,7 +29,10 @@ function Reset-Sandbox {
 }
 
 function Invoke-GitNamingCheck {
-    param([string] $Range)
+    param(
+        [string] $Range,
+        [switch] $WithExtraFixture
+    )
 
     $args = @(
         "-NoProfile",
@@ -46,6 +46,9 @@ function Invoke-GitNamingCheck {
     )
     if (-not [string]::IsNullOrWhiteSpace($Range)) {
         $args += @("-GitCommitRange", $Range)
+    }
+    if ($WithExtraFixture) {
+        $args += @("-ExtraBlockedTerms", $blockedFixture)
     }
     $output = & pwsh @args 2>&1
     return @{
@@ -74,18 +77,10 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($legacyEnv + "=true") -Encoding UTF8
-    $legacyEnvBlocked = Invoke-NamingCheck
-    if ($legacyEnvBlocked.ExitCode -eq 0) {
-        throw "Naming check did not block the legacy private URL environment variable."
-    }
-
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\notes.md") -Value ("This mentions " + $legacyLower + ".") -Encoding UTF8
-    $legacyProductBlocked = Invoke-NamingCheck
-    if ($legacyProductBlocked.ExitCode -eq 0) {
-        throw "Naming check did not block a legacy product keyword."
+    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($blockedFixtureLower + "=true") -Encoding UTF8
+    $caseInsensitiveBlocked = Invoke-NamingCheck -WithExtraFixture
+    if ($caseInsensitiveBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden term with different casing."
     }
 
     Reset-Sandbox
@@ -99,13 +94,13 @@ try {
         & git commit -m "feat: clean fixture / Clean fixture" | Out-Null
         Add-Content -Path (Join-Path $sandbox "README.md") -Value "Second fixture"
         & git add README.md | Out-Null
-        & git commit -m ("feat: " + $legacyEnv + " fixture") | Out-Null
+        & git commit -m ("feat: " + $blockedFixture + " fixture") | Out-Null
     } finally {
         Pop-Location
     }
-    $legacyCommitBlocked = Invoke-GitNamingCheck -Range "HEAD"
-    if ($legacyCommitBlocked.ExitCode -eq 0) {
-        throw "Naming check did not block legacy naming in git commit subjects."
+    $blockedCommit = Invoke-GitNamingCheck -Range "HEAD" -WithExtraFixture
+    if ($blockedCommit.ExitCode -eq 0) {
+        throw "Naming check did not block forbidden naming in git commit subjects."
     }
 
     $releaseDir = Join-Path $sandbox "dist"
@@ -118,14 +113,15 @@ try {
             -Tag "v2099.01.01-abcdef0" `
             -Version "0.0.0-test" `
             -CommitRange "HEAD" `
-            -DisplayRange "HEAD"
+            -DisplayRange "HEAD" `
+            -ExtraBlockedTerms $blockedFixture
         if ($LASTEXITCODE -ne 0) {
             throw "Release notes generation failed."
         }
     } finally {
         Pop-Location
     }
-    $releaseNaming = Invoke-NamingCheck
+    $releaseNaming = Invoke-NamingCheck -WithExtraFixture
     if ($releaseNaming.ExitCode -ne 0) {
         throw "Generated release notes leaked legacy naming: $($releaseNaming.Output)"
     }

@@ -8,7 +8,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $CommitRange,
     [Parameter(Mandatory = $true)]
-    [string] $DisplayRange
+    [string] $DisplayRange,
+    [string[]] $ExtraBlockedTerms = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +53,16 @@ function Convert-LegacyReleaseText {
             $result,
             ("\b" + [Regex]::Escape($legacyWord) + "(_[A-Z0-9_]+)?\b"),
             "SolonClaw",
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    }
+    foreach ($blockedTerm in $ExtraBlockedTerms) {
+        if ([string]::IsNullOrWhiteSpace($blockedTerm)) {
+            continue
+        }
+        $result = [Regex]::Replace(
+            $result,
+            [Regex]::Escape($blockedTerm),
+            "JIMUQU_BLOCKED_TERM",
             [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     }
     return $result
