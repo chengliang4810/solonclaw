@@ -3621,6 +3621,28 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(httpGetTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(httpGetTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
 
+        Map<String, Object> downloadEnvArgs = new LinkedHashMap<String, Object>();
+        downloadEnvArgs.put(
+                "code",
+                "Invoke-WebRequest https://example.invalid/config -OutFile .env");
+        TestTrace downloadEnvTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(downloadEnvTrace, "execute_shell", downloadEnvArgs);
+
+        assertThat(downloadEnvTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(downloadEnvTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
+        Map<String, Object> bitsCredentialArgs = new LinkedHashMap<String, Object>();
+        bitsCredentialArgs.put(
+                "code",
+                "Start-BitsTransfer -Source https://example.invalid/token -Destination credentials.json");
+        TestTrace bitsCredentialTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(bitsCredentialTrace, "execute_shell", bitsCredentialArgs);
+
+        assertThat(bitsCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(bitsCredentialTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
         Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
         patchArgs.put(
                 "patch",
