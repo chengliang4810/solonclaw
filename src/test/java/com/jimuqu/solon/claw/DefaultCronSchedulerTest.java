@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
+import com.jimuqu.solon.claw.web.DashboardCronService;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -179,7 +180,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldInferCronJobNameLikeHermesWhenNameIsMissing() throws Exception {
+    void shouldInferCronJobNameLikeJimuquWhenNameIsMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -394,7 +395,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldExposeHermesScheduleKinds() throws Exception {
+    void shouldExposeJimuquScheduleKinds() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -450,7 +451,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldSupportHermesDurationAliases() throws Exception {
+    void shouldSupportJimuquDurationAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -997,7 +998,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldAllowDangerousCronScriptWhenHermesCronApprovalModeApproves() throws Exception {
+    void shouldAllowDangerousCronScriptWhenJimuquCronApprovalModeApproves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setCronMode("approve");
         env.send("admin-dm", "admin-user", "hello");
@@ -1039,7 +1040,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldInjectAgentCronScriptFailureIntoPromptLikeHermes() throws Exception {
+    void shouldInjectAgentCronScriptFailureIntoPromptLikeJimuqu() throws Exception {
         RecordingUserMessageOrchestrator orchestrator = new RecordingUserMessageOrchestrator();
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
@@ -1085,7 +1086,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldPersistHermesCronFieldsAndRejectUnsafePrompt() throws Exception {
+    void shouldPersistJimuquCronFieldsAndRejectUnsafePrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getScheduler().setWrapResponse(false);
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -1199,7 +1200,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldMatchHermesCronPromptThreatScanning() throws Exception {
+    void shouldMatchJimuquCronPromptThreatScanning() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
@@ -1363,7 +1364,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldMatchHermesCronjobToolIncludeDisabledAndWrapResponse() throws Exception {
+    void shouldMatchJimuquCronjobToolIncludeDisabledAndWrapResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         CronjobTools tools = new CronjobTools(service, "MEMORY:tool-room:user");
@@ -1878,7 +1879,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldExposeHermesCronjobSchemaGuidance() throws Exception {
+    void shouldExposeJimuquCronjobSchemaGuidance() throws Exception {
         Method method = cronjobToolMethod();
         ToolMapping mapping = method.getAnnotation(ToolMapping.class);
 
@@ -2205,7 +2206,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldRecoverRecurringNextRunFromLastRunAtLikeHermes() throws Exception {
+    void shouldRecoverRecurringNextRunFromLastRunAtLikeJimuqu() throws Exception {
         RecordingToolLlmGateway gateway = new RecordingToolLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
         long now = System.currentTimeMillis();
@@ -2634,7 +2635,7 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldNormalizeCronWorkdirLikeHermes() throws Exception {
+    void shouldNormalizeCronWorkdirLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         File realDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/workdir-normalized");
@@ -2715,6 +2716,30 @@ public class DefaultCronSchedulerTest {
                 service.rewriteSkillRefs(null, java.util.Collections.singletonList("missing"));
         assertThat(noop.get("jobs_updated")).isEqualTo(Integer.valueOf(0));
         assertThat(noop.get("jobs_scanned")).isEqualTo(Integer.valueOf(3));
+    }
+
+    @Test
+    void shouldFallbackToTriggerWhenDashboardCronSchedulerIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        DashboardCronService dashboardCronService = new DashboardCronService(service, null);
+        CronJobRecord dashboardJob =
+                service.create("MEMORY:cron:user", cronBody("dashboard-trigger", ""));
+        CronJobRecord apiJob = service.create("MEMORY:cron:user", cronBody("api-run", ""));
+
+        Map<String, Object> dashboardView = dashboardCronService.trigger(dashboardJob.getJobId());
+        Map<String, Object> apiView = dashboardCronService.apiRun(apiJob.getJobId());
+
+        assertThat(dashboardView.get("id")).isEqualTo(dashboardJob.getJobId());
+        assertThat(apiView.get("id")).isEqualTo(apiJob.getJobId());
+        assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getStatus())
+                .isEqualTo("ACTIVE");
+        assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getStatus())
+                .isEqualTo("ACTIVE");
+        assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getNextRunAt())
+                .isLessThanOrEqualTo(System.currentTimeMillis());
+        assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getNextRunAt())
+                .isLessThanOrEqualTo(System.currentTimeMillis());
     }
 
     @Test

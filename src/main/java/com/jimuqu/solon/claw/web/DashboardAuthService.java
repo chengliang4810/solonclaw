@@ -36,7 +36,7 @@ public class DashboardAuthService {
         return isPublicApiPath(path)
                 || ("GET".equalsIgnoreCase(method)
                         && path != null
-                        && path.startsWith("/api/hermes/mcp/")
+                        && path.startsWith("/api/jimuqu/mcp/")
                         && path.endsWith("/oauth/callback"));
     }
 

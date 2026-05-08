@@ -76,7 +76,7 @@ public class KanbanServiceTest {
     }
 
     @Test
-    void shouldSupportHermesCreateAndListCommandOptions() throws Exception {
+    void shouldSupportJimuquCreateAndListCommandOptions() throws Exception {
         KanbanService service = service();
 
         String parentOutput =
@@ -122,7 +122,7 @@ public class KanbanServiceTest {
     }
 
     @Test
-    void shouldSupportHermesShowJsonAndUnassignCommands() throws Exception {
+    void shouldSupportJimuquShowJsonAndUnassignCommands() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "待分配任务", "alice", "tester");
         service.comment(taskId, "tester", "补充上下文");
@@ -337,7 +337,7 @@ public class KanbanServiceTest {
     }
 
     @Test
-    void shouldSupportHermesStyleBulkLifecycleCommands() throws Exception {
+    void shouldSupportJimuquStyleBulkLifecycleCommands() throws Exception {
         KanbanService service = service();
         String firstId = createTask(service, "批量任务一", "alice", "alice");
         String secondId = createTask(service, "批量任务二", "alice", "alice");
@@ -643,7 +643,7 @@ public class KanbanServiceTest {
     }
 
     @Test
-    void shouldExposeHermesStyleStatsWatchNotifyLogAndGc() throws Exception {
+    void shouldExposeJimuquStyleStatsWatchNotifyLogAndGc() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         KanbanService service =
                 new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
@@ -724,7 +724,7 @@ public class KanbanServiceTest {
     }
 
     @Test
-    void shouldSupportHermesStyleKanbanRecoveryAndWorkerFlags() throws Exception {
+    void shouldSupportJimuquStyleKanbanRecoveryAndWorkerFlags() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "运行参数任务", "alice", "planner");
         service.status(taskId, "ready", null);

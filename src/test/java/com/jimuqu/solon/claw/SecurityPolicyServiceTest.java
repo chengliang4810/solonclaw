@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class SecurityPolicyServiceTest {
@@ -77,10 +80,98 @@ public class SecurityPolicyServiceTest {
         assertThat(policy.isAlwaysBlockedUrl("http://127.0.0.1:8080/")).isFalse();
     }
 
+    @Test
+    void shouldAllowPrivateUrlsFromJimuquEnvironmentOverride() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsEnvSecurityPolicyService(
+                        config, "192.168.1.1", env("JIMUQU_ALLOW_PRIVATE_URLS", "true"));
+
+        SecurityPolicyService.UrlVerdict privateUrl = policy.checkUrl("http://router.example/");
+        SecurityPolicyService.UrlVerdict metadata = policy.checkUrl("http://169.254.169.254/");
+
+        assertThat(privateUrl.isAllowed()).isTrue();
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldSupportJimuquAllowPrivateUrlEnvironmentCompatibility() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsEnvSecurityPolicyService(
+                        config, "10.0.0.5", env("JIMUQU_ALLOW_PRIVATE_URLS", "on"));
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkUrl("https://internal.example/");
+
+        assertThat(verdict.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldLetJimuquEnvironmentOverrideWinOverJimuquCompatibilityValue() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        Map<String, String> environment = env("JIMUQU_ALLOW_PRIVATE_URLS", "true");
+        environment.put("JIMUQU_ALLOW_PRIVATE_URLS", "false");
+        SecurityPolicyService policy =
+                new FixedDnsEnvSecurityPolicyService(config, "172.16.0.5", environment);
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkUrl("https://private.example/");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
+    void shouldNotLetEnvironmentDisableExplicitPrivateUrlAllowance() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsEnvSecurityPolicyService(
+                        config, "127.0.0.1", env("JIMUQU_ALLOW_PRIVATE_URLS", "false"));
+
+        SecurityPolicyService.UrlVerdict defaultVerdict = policy.checkUrl("http://localhost:8080/");
+        SecurityPolicyService.UrlVerdict explicitVerdict =
+                policy.checkUrlAllowingPrivate("http://localhost:8080/");
+
+        assertThat(defaultVerdict.isAllowed()).isFalse();
+        assertThat(explicitVerdict.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("https://WWW.Blocked.Example./docs", "*.wild.example"));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "8.8.8.8");
+
+        SecurityPolicyService.UrlVerdict mixedCase =
+                policy.checkUrl("https://api.BLOCKED.example./v1");
+        SecurityPolicyService.UrlVerdict schemeless =
+                policy.checkUrl("www.blocked.example/docs");
+        SecurityPolicyService.UrlVerdict wildcard =
+                policy.checkUrl("https://child.wild.example/path");
+        SecurityPolicyService.UrlVerdict bareWildcard =
+                policy.checkUrl("https://wild.example/path");
+
+        assertThat(mixedCase.isAllowed()).isFalse();
+        assertThat(mixedCase.getMessage()).contains("blocked.example");
+        assertThat(schemeless.isAllowed()).isFalse();
+        assertThat(schemeless.getMessage()).contains("blocked.example");
+        assertThat(wildcard.isAllowed()).isFalse();
+        assertThat(wildcard.getMessage()).contains("wild.example");
+        assertThat(bareWildcard.isAllowed()).isTrue();
+    }
+
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
         private final String ip;
 
-        private FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
+        protected FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
             super(appConfig);
             this.ip = ip;
         }
@@ -88,6 +179,21 @@ public class SecurityPolicyServiceTest {
         @Override
         protected InetAddress[] resolveHost(String host) throws Exception {
             return new InetAddress[] {InetAddress.getByName(ip)};
+        }
+    }
+
+    private static class FixedDnsEnvSecurityPolicyService extends FixedDnsSecurityPolicyService {
+        private final Map<String, String> environment;
+
+        private FixedDnsEnvSecurityPolicyService(
+                AppConfig appConfig, String ip, Map<String, String> environment) {
+            super(appConfig, ip);
+            this.environment = environment;
+        }
+
+        @Override
+        protected String readEnvironment(String name) {
+            return environment.get(name);
         }
     }
 
@@ -100,5 +206,11 @@ public class SecurityPolicyServiceTest {
         protected InetAddress[] resolveHost(String host) throws Exception {
             throw new java.net.UnknownHostException(host);
         }
+    }
+
+    private static Map<String, String> env(String key, String value) {
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put(key, value);
+        return values;
     }
 }

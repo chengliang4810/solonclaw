@@ -23,7 +23,7 @@ public class TerminalInputSanitizerTest {
     }
 
     @Test
-    void shouldStripDsrResponsesLikeHermesCli() {
+    void shouldStripDsrResponsesLikeJimuquCli() {
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("\u001B[53;1R"))
                 .isEqualTo("");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("^[[53;1R"))
@@ -43,7 +43,7 @@ public class TerminalInputSanitizerTest {
     }
 
     @Test
-    void shouldStripSgrMouseReportsLikeHermesCli() {
+    void shouldStripSgrMouseReportsLikeJimuquCli() {
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("abc\u001B[<65;1;49Mdef"))
                 .isEqualTo("abcdef");
         assertThat(TerminalInputSanitizer.stripLeakedTerminalResponses("abc^[[<65;1;49Mdef"))

@@ -70,7 +70,7 @@ public class DashboardProviderService {
         return result;
     }
 
-    public Map<String, Object> hermesModels() {
+    public Map<String, Object> JimuquModels() {
         Map<String, Object> result = listProviders();
         List<Map<String, Object>> models = new ArrayList<Map<String, Object>>();
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :

@@ -73,13 +73,21 @@ public class DashboardCronService {
     }
 
     public Map<String, Object> trigger(String id) throws Exception {
-        cronScheduler.runNow(id);
+        runOrTrigger(id);
         return get(id);
     }
 
     public Map<String, Object> apiRun(String id) throws Exception {
-        cronScheduler.runNow(id);
+        runOrTrigger(id);
         return get(id);
+    }
+
+    private void runOrTrigger(String id) throws Exception {
+        if (cronScheduler == null) {
+            cronJobService.trigger(id);
+            return;
+        }
+        cronScheduler.runNow(id);
     }
 
     public Map<String, Object> delete(String id) throws Exception {

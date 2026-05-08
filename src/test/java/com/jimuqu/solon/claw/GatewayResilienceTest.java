@@ -174,6 +174,42 @@ public class GatewayResilienceTest {
         first.join(5000L);
     }
 
+    @Test
+    void shouldLetHeartbeatBypassActiveRunBusyPolicy() throws Exception {
+        BlockingFirstLlmGateway llm = new BlockingFirstLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(llm);
+        bootstrapAdmin(env);
+        String sourceKey = env.message("room", "user", "").sourceKey();
+        env.appConfig.getTask().setBusyPolicy("interrupt");
+        Thread first = startAsync(env, "first");
+        assertThat(llm.awaitFirst()).isTrue();
+        SessionRecord session = env.sessionRepository.getBoundSession(sourceKey);
+        String runId = String.valueOf(env.agentRunControlService.activeRunSummary(sourceKey).get("run_id"));
+        long beforeHeartbeat =
+                env.agentRunRepository.findRun(runId).getHeartbeatAt();
+
+        Thread.sleep(5L);
+        GatewayMessage heartbeat = env.message("room", "user", "heartbeat");
+        heartbeat.setHeartbeat(true);
+        GatewayReply reply = env.gatewayService.handle(heartbeat);
+
+        assertThat(reply.getContent()).isEqualTo("HEARTBEAT_OK");
+        assertThat(reply.getRuntimeMetadata()).containsEntry("busy_status", "heartbeat");
+        assertThat(env.agentRunControlService.isRunning(sourceKey)).isTrue();
+        assertThat(env.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId()))
+                .isNull();
+        assertThat(env.agentRunRepository.findLatestPendingCommand(runId, "interrupt"))
+                .isNull();
+        assertThat(env.agentRunRepository.findRun(runId).getHeartbeatAt())
+                .isGreaterThanOrEqualTo(beforeHeartbeat);
+        assertThat(env.agentRunRepository.listEvents(runId))
+                .anySatisfy(
+                        event ->
+                                assertThat(event.getEventType()).isEqualTo("run.heartbeat"));
+        llm.releaseFirst();
+        first.join(5000L);
+    }
+
     private CommandService unsupportedCommandService() {
         return new CommandService() {
             @Override

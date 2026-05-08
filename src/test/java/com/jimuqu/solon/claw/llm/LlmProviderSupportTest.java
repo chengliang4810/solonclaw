@@ -49,7 +49,7 @@ public class LlmProviderSupportTest {
     }
 
     @Test
-    void shouldExtractBaseUrlHostnameLikeHermes() {
+    void shouldExtractBaseUrlHostnameLikeJimuqu() {
         assertThat(LlmProviderSupport.baseUrlHostname(null)).isEqualTo("");
         assertThat(LlmProviderSupport.baseUrlHostname("")).isEqualTo("");
         assertThat(LlmProviderSupport.baseUrlHostname("api.openai.com")).isEqualTo("api.openai.com");
@@ -65,7 +65,7 @@ public class LlmProviderSupportTest {
     }
 
     @Test
-    void shouldMatchBaseUrlHostsWithoutSubstringFalsePositivesLikeHermes() {
+    void shouldMatchBaseUrlHostsWithoutSubstringFalsePositivesLikeJimuqu() {
         assertThat(LlmProviderSupport.baseUrlHostMatches("https://openrouter.ai/api/v1", "openrouter.ai"))
                 .isTrue();
         assertThat(LlmProviderSupport.baseUrlHostMatches("https://api.moonshot.ai/v1", "moonshot.ai"))
@@ -86,7 +86,7 @@ public class LlmProviderSupportTest {
     }
 
     @Test
-    void shouldRejectOllamaHostLookalikesLikeHermesSecurityAdvisory() {
+    void shouldRejectOllamaHostLookalikesLikeJimuquSecurityAdvisory() {
         assertThat(LlmProviderSupport.baseUrlHostMatches("http://127.0.0.1:9000/ollama.com/v1", "ollama.com"))
                 .isFalse();
         assertThat(LlmProviderSupport.baseUrlHostMatches("http://ollama.com.attacker.test:9000/v1", "ollama.com"))

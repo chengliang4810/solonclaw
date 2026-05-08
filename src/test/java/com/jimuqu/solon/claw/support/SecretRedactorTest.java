@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 class SecretRedactorTest {
     @Test
-    void shouldKeepLowercaseCodeAssignmentsLikeHermes() {
+    void shouldKeepLowercaseCodeAssignmentsLikeJimuqu() {
         assertThat(SecretRedactor.redact("before_tokens = response.usage.prompt_tokens"))
                 .isEqualTo("before_tokens = response.usage.prompt_tokens");
         assertThat(SecretRedactor.redact("api_key = config.get('api_key')"))
@@ -18,7 +18,7 @@ class SecretRedactorTest {
     }
 
     @Test
-    void shouldRedactShellEnvJsonAndAuthSecretsLikeHermes() {
+    void shouldRedactShellEnvJsonAndAuthSecretsLikeJimuqu() {
         String result =
                 SecretRedactor.redact(
                         "export OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012\n"
@@ -40,7 +40,7 @@ class SecretRedactorTest {
     }
 
     @Test
-    void shouldRedactUrlsPrivateKeysAndDatabasePasswordsLikeHermes() {
+    void shouldRedactUrlsPrivateKeysAndDatabasePasswordsLikeJimuqu() {
         String result =
                 SecretRedactor.redact(
                         "https://user:supersecretpw@host.example.com/path?code=oauth-code&state=ok\n"

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 class TerminalPathSupportTest {
     @Test
-    void shouldConvertGitBashCwdToNativeWindowsPathForProcessBuilderLikeHermes() {
+    void shouldConvertGitBashCwdToNativeWindowsPathForProcessBuilderLikeJimuqu() {
         assertThat(TerminalPathSupport.toProcessCwd("/c/Users/alice/project", true))
                 .isEqualTo("C:\\Users\\alice\\project");
         assertThat(TerminalPathSupport.toProcessCwd("/d", true)).isEqualTo("D:\\");

@@ -66,7 +66,7 @@ import java.util.Map;
 import java.util.Set;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
-/** 默认 slash 命令实现，统一承接 Hermes 风格的会话控制命令。 */
+/** 默认 slash 命令实现，统一承接 Jimuqu 风格的会话控制命令。 */
 public class DefaultCommandService implements CommandService {
     /** 会话仓储。 */
     private final SessionRepository sessionRepository;
@@ -3381,9 +3381,9 @@ public class DefaultCommandService implements CommandService {
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
                                         + " [list|create|show|move|assign|comment|boards]",
-                                "管理 Hermes 风格协作看板"),
+                                "管理 Jimuqu 风格协作看板"),
                         helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
-                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出 Hermes-style trajectory JSON"),
+                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_COMPACT

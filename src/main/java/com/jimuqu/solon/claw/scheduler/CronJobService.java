@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
-/** Hermes 风格 Cron 任务管理服务。 */
+/** Jimuqu 风格 Cron 任务管理服务。 */
 public class CronJobService {
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_PAUSED = "PAUSED";

@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Shared Hermes-style file read/write state for stale-write warnings. */
+/** Shared file read/write state for stale-write warnings. */
 public class SolonClawFileStateTracker {
     private static final int READ_TIMESTAMPS_CAP = 1000;
 

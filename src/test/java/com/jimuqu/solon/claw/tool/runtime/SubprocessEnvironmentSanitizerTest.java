@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 public class SubprocessEnvironmentSanitizerTest {
     @Test
-    void shouldStripProviderToolAndGatewaySecretsFromSubprocessEnvLikeHermes() {
+    void shouldStripProviderToolAndGatewaySecretsFromSubprocessEnvLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
         env.put("HOME", "/home/user");
@@ -38,7 +38,7 @@ public class SubprocessEnvironmentSanitizerTest {
     void shouldAllowExplicitForcePrefixForIntentionalSubprocessSecrets() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("_JIMUQU_FORCE_OPENAI_API_KEY", "sk-explicit");
-        env.put("_HERMES_FORCE_CUSTOM_TOKEN", "token-explicit");
+        env.put("_JIMUQU_FORCE_CUSTOM_TOKEN", "token-explicit");
 
         SubprocessEnvironmentSanitizer.sanitize(env);
 
@@ -46,7 +46,7 @@ public class SubprocessEnvironmentSanitizerTest {
                 .containsEntry("OPENAI_API_KEY", "sk-explicit")
                 .containsEntry("CUSTOM_TOKEN", "token-explicit");
         assertThat(env)
-                .doesNotContainKeys("_JIMUQU_FORCE_OPENAI_API_KEY", "_HERMES_FORCE_CUSTOM_TOKEN");
+                .doesNotContainKeys("_JIMUQU_FORCE_OPENAI_API_KEY", "_JIMUQU_FORCE_CUSTOM_TOKEN");
     }
 
     @Test
@@ -67,7 +67,7 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldStripToolBackendSecretsAndGatewayRuntimeVarsLikeHermes() {
+    void shouldStripToolBackendSecretsAndGatewayRuntimeVarsLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
         env.put("OPENAI_API_BASE", "https://legacy.example/v1");
@@ -179,7 +179,7 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldKeepHermesBlocklistAboveConfiguredPassthroughForToolBackendVars() {
+    void shouldKeepJimuquBlocklistAboveConfiguredPassthroughForToolBackendVars() {
         AppConfig config = new AppConfig();
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         config.getTerminal().getEnvPassthrough().add("FIRECRAWL_API_KEY");
@@ -289,7 +289,7 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeHermes() {
+    void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeJimuqu() {
         String result =
                 SubprocessEnvironmentSanitizer.pathWithSaneFallback(
                         "/some/custom/bin", false);
@@ -302,7 +302,7 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
-    void shouldKeepExistingPosixPathWhenUsrBinIsPresentLikeHermes() {
+    void shouldKeepExistingPosixPathWhenUsrBinIsPresentLikeJimuqu() {
         String path = "/custom/bin:/usr/bin:/bin";
 
         String result = SubprocessEnvironmentSanitizer.pathWithSaneFallback(path, false);

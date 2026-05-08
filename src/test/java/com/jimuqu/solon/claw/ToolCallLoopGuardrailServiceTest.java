@@ -201,7 +201,7 @@ public class ToolCallLoopGuardrailServiceTest {
     }
 
     @Test
-    void shouldClassifyExternalBrowserToolNamesLikeHermesGuardrail() {
+    void shouldClassifyExternalBrowserToolNamesLikeJimuquGuardrail() {
         AppConfig config = new AppConfig();
         config.getReact().setToolLoopNoProgressWarnAfter(2);
         ReActInterceptor interceptor = new ToolCallLoopGuardrailService(config).buildInterceptor();
@@ -253,7 +253,7 @@ public class ToolCallLoopGuardrailServiceTest {
     }
 
     @Test
-    void shouldLoadHermesToolLoopGuardrailConfigKeys() {
+    void shouldLoadJimuquToolLoopGuardrailConfigKeys() {
         File runtimeHome = FileUtil.file(tempDir, "runtime");
         FileUtil.mkdir(runtimeHome);
         FileUtil.writeUtf8String(

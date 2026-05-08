@@ -298,7 +298,7 @@ public class AcpStdioServerTest {
     }
 
     @Test
-    void shouldHandleHermesLifecycleCompatibilityMethods() throws Exception {
+    void shouldHandleJimuquLifecycleCompatibilityMethods() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =
                 new AcpStdioServer(
@@ -387,7 +387,7 @@ public class AcpStdioServerTest {
     }
 
     @Test
-    void shouldAcceptHermesEditorSessionModelModeAndConfigMethods() throws Exception {
+    void shouldAcceptJimuquEditorSessionModelModeAndConfigMethods() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AppConfig.ProviderConfig fallbackProvider = new AppConfig.ProviderConfig();
         fallbackProvider.setName("BackupProvider");
@@ -486,7 +486,7 @@ public class AcpStdioServerTest {
     }
 
     @Test
-    void shouldReturnHermesStylePromptUpdatesAndUsage() throws Exception {
+    void shouldReturnJimuquStylePromptUpdatesAndUsage() throws Exception {
         TestEnvironment env = TestEnvironment.withLlm(new ToolEventGateway());
         AcpStdioServer server =
                 new AcpStdioServer(

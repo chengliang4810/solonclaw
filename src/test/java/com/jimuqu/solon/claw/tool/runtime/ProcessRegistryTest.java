@@ -24,7 +24,7 @@ public class ProcessRegistryTest {
     }
 
     @Test
-    void shouldRewriteCompoundBackgroundTailLikeHermes() {
+    void shouldRewriteCompoundBackgroundTailLikeJimuqu() {
         assertThat(
                         ProcessRegistry.rewriteCompoundBackground(
                                 "echo ready && python -m http.server 8000 &"))
@@ -58,7 +58,7 @@ public class ProcessRegistryTest {
     }
 
     @Test
-    void shouldPrependShellInitFilesForPosixBackgroundCommandsLikeHermes() {
+    void shouldPrependShellInitFilesForPosixBackgroundCommandsLikeJimuqu() {
         List<String> command =
                 ProcessRegistry.shellCommand(
                         "npm run dev",

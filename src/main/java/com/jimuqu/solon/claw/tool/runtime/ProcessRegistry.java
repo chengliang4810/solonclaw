@@ -23,7 +23,7 @@ import java.util.TimeZone;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
-/** Hermes 风格的受管后台进程注册表。 */
+/** Jimuqu 风格的受管后台进程注册表。 */
 public class ProcessRegistry {
     private static final int MAX_OUTPUT_CHARS = 200000;
     private static final long WATCH_MIN_INTERVAL_MILLIS = 15000L;

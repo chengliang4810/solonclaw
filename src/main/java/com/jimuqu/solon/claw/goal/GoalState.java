@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.noear.snack4.ONode;
 
-/** Hermes-style persistent standing goal state for one session. */
+/** Persistent standing goal state for one Jimuqu session. */
 @Getter
 @Setter
 @NoArgsConstructor

@@ -12,7 +12,7 @@ import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
 
-/** Hermes session/run search endpoint. */
+/** Jimuqu session/run search endpoint. */
 @Controller
 public class DashboardSearchController {
     private final SessionSearchService sessionSearchService;
@@ -21,7 +21,7 @@ public class DashboardSearchController {
         this.sessionSearchService = sessionSearchService;
     }
 
-    @Mapping(value = "/api/hermes/search", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/search", method = MethodType.GET)
     public Map<String, Object> search(Context context) throws Exception {
         SessionSearchQuery query = new SessionSearchQuery();
         query.setSourceKey(first(context.param("sourceKey"), context.param("source")));

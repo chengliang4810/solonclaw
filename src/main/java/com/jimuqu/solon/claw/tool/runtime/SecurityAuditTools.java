@@ -11,7 +11,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes-style read-only security audit tool. */
+/** Jimuqu read-only security audit tool. */
 public class SecurityAuditTools {
     private final SecurityPolicyService securityPolicyService;
     private final DangerousCommandApprovalService approvalService;

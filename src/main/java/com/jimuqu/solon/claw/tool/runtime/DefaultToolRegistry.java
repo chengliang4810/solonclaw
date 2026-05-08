@@ -556,8 +556,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     private boolean isKanbanToolContext(String sourceKey, AgentRuntimeScope agentScope) {
-        if (StrUtil.isNotBlank(System.getenv("JIMUQU_KANBAN_TASK"))
-                || StrUtil.isNotBlank(System.getenv("HERMES_KANBAN_TASK"))) {
+        if (StrUtil.isNotBlank(System.getenv("JIMUQU_KANBAN_TASK"))) {
             return true;
         }
         if (StrUtil.startWithIgnoreCase(StrUtil.nullToEmpty(sourceKey), "MEMORY:kanban-")) {

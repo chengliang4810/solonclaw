@@ -65,7 +65,7 @@ public class RuntimeConfigResolver {
         return getInstance().getRaw(key);
     }
 
-    /** Hermes cfg_get 对齐入口：按嵌套路径读取 runtime/config.yml 的原始值。 */
+    /** Jimuqu cfg_get 对齐入口：按嵌套路径读取 runtime/config.yml 的原始值。 */
     public static Object cfgGet(String path, Object defaultValue) {
         return getInstance().getByPath(path, defaultValue);
     }
@@ -506,6 +506,9 @@ public class RuntimeConfigResolver {
                 "solonclaw.approvals.mode",
                 "solonclaw.approvals.cronMode",
                 "solonclaw.approvals.cron_mode",
+                "solonclaw.approvals.subagentAutoApprove",
+                "solonclaw.approvals.subagent_auto_approve",
+                "delegation.subagent_auto_approve",
                 "solonclaw.approvals.timeoutSeconds",
                 "solonclaw.approvals.timeout",
                 "solonclaw.approvals.gatewayTimeoutSeconds",

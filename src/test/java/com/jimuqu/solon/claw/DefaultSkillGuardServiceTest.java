@@ -18,7 +18,7 @@ public class DefaultSkillGuardServiceTest {
     private final DefaultSkillGuardService service = new DefaultSkillGuardService();
 
     @Test
-    void shouldAllowBuiltinDangerousByPolicyLikeHermes() {
+    void shouldAllowBuiltinDangerousByPolicyLikeJimuqu() {
         InstallDecision decision = service.shouldAllowInstall(scan("builtin", "dangerous"), false);
 
         assertThat(decision.isAllowed()).isTrue();
@@ -26,7 +26,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldBlockDangerousTrustedAndCommunityWithoutForceLikeHermes() {
+    void shouldBlockDangerousTrustedAndCommunityWithoutForceLikeJimuqu() {
         InstallDecision trusted = service.shouldAllowInstall(scan("trusted", "dangerous"), false);
         InstallDecision community = service.shouldAllowInstall(scan("community", "dangerous"), false);
 
@@ -37,7 +37,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldLetForceOverrideDangerousTrustedAndCommunityLikeHermes() {
+    void shouldLetForceOverrideDangerousTrustedAndCommunityLikeJimuqu() {
         InstallDecision trusted = service.shouldAllowInstall(scan("trusted", "dangerous"), true);
         InstallDecision community = service.shouldAllowInstall(scan("community", "dangerous"), true);
 
@@ -48,7 +48,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldKeepCommunityCautionConfirmationUnlessForcedLikeHermes() {
+    void shouldKeepCommunityCautionConfirmationUnlessForcedLikeJimuqu() {
         InstallDecision unforced = service.shouldAllowInstall(scan("community", "caution"), false);
         InstallDecision forced = service.shouldAllowInstall(scan("community", "caution"), true);
 
@@ -58,7 +58,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldAllowSafeCommunitySkillsLikeHermes() {
+    void shouldAllowSafeCommunitySkillsLikeJimuqu() {
         InstallDecision decision = service.shouldAllowInstall(scan("community", "safe"), false);
 
         assertThat(decision.isAllowed()).isTrue();

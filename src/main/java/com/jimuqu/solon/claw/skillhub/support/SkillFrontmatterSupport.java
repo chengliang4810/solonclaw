@@ -89,7 +89,7 @@ public final class SkillFrontmatterSupport {
         if (!(metadata instanceof Map)) {
             return Collections.emptyMap();
         }
-        Object compatibility = ((Map<?, ?>) metadata).get("hermes");
+        Object compatibility = ((Map<?, ?>) metadata).get("Jimuqu");
         if (!(compatibility instanceof Map)) {
             return Collections.emptyMap();
         }

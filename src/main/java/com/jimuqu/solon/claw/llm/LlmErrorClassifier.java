@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import lombok.Getter;
 
-/** Hermes 对齐的模型错误分类器。 */
+/** Jimuqu 对齐的模型错误分类器。 */
 public final class LlmErrorClassifier {
     private static final List<String> BILLING_PATTERNS =
             Arrays.asList(

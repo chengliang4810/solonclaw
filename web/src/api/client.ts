@@ -8,10 +8,10 @@ declare global {
 }
 
 const DEFAULT_BASE_URL = ''
-const TOKEN_KEY = 'hermes_api_key'
+const TOKEN_KEY = 'jimuqu_api_key'
 
 function getBaseUrl(): string {
-  return localStorage.getItem('hermes_server_url') || DEFAULT_BASE_URL
+  return localStorage.getItem('jimuqu_server_url') || DEFAULT_BASE_URL
 }
 
 function getInjectedToken(): string {
@@ -23,7 +23,7 @@ export function getApiKey(): string {
 }
 
 export function setServerUrl(url: string) {
-  localStorage.setItem('hermes_server_url', url)
+  localStorage.setItem('jimuqu_server_url', url)
 }
 
 export function setApiKey(key: string) {

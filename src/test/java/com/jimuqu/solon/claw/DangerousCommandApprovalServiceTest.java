@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -40,7 +41,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectHermesStyleDangerousCommandVariants() throws Exception {
+    void shouldDetectJimuquStyleDangerousCommandVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult recursiveLong =
@@ -92,7 +93,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectHermesApprovalSqlAndShellGuardVariants() throws Exception {
+    void shouldDetectJimuquApprovalSqlAndShellGuardVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult bashLcNewline =
@@ -125,7 +126,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectHermesApprovalProcessAndGitGuardVariants() throws Exception {
+    void shouldDetectJimuquApprovalProcessAndGitGuardVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult spacedForkBomb =
@@ -135,7 +136,7 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect("execute_shell", "echo hello:world");
         DangerousCommandApprovalService.DetectionResult systemctlRestart =
                 env.dangerousCommandApprovalService.detect(
-                        "execute_shell", "systemctl --user restart hermes-gateway");
+                        "execute_shell", "systemctl --user restart Jimuqu-gateway");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -165,7 +166,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldNotFlagSafeRmFilenamesLikeHermesApproval() throws Exception {
+    void shouldNotFlagSafeRmFilenamesLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         List<String> commands =
@@ -236,7 +237,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectSensitiveWriteTargetsLikeHermesApproval() throws Exception {
+    void shouldDetectSensitiveWriteTargetsLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult sshWrite =
@@ -399,7 +400,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectChmodExecuteCombosLikeHermesApproval() throws Exception {
+    void shouldDetectChmodExecuteCombosLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult relativeExecute =
@@ -439,7 +440,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectProcessSubstitutionRemoteScriptsLikeHermesApproval() throws Exception {
+    void shouldDetectProcessSubstitutionRemoteScriptsLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         List<String> commands =
@@ -466,7 +467,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectScriptHeredocExecutionLikeHermesApproval() throws Exception {
+    void shouldDetectScriptHeredocExecutionLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         List<String> commands =
@@ -489,7 +490,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldDetectGitCleanLongForceLikeHermesApproval() throws Exception {
+    void shouldDetectGitCleanLongForceLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult shortForce =
@@ -561,16 +562,18 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldExposeHermesApprovalModeConfig() throws Exception {
+    void shouldExposeJimuquApprovalModeConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.appConfig.getApprovals().setMode("off");
         env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getApprovals().setSubagentAutoApprove(true);
         env.appConfig.getApprovals().setTimeoutSeconds(45);
         env.appConfig.getApprovals().setGatewayTimeoutSeconds(120);
 
         assertThat(env.dangerousCommandApprovalService.approvalMode()).isEqualTo("off");
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+        assertThat(env.dangerousCommandApprovalService.isSubagentAutoApproveEnabled()).isTrue();
         assertThat(env.dangerousCommandApprovalService.approvalTimeoutSeconds()).isEqualTo(45);
         assertThat(env.dangerousCommandApprovalService.approvalGatewayTimeoutSeconds()).isEqualTo(120);
         assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot"))
@@ -580,7 +583,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldNormalizeHermesCronApprovalModeAliases() throws Exception {
+    void shouldNormalizeJimuquCronApprovalModeAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.appConfig.getApprovals().setCronMode("allow");
@@ -600,6 +603,65 @@ public class DangerousCommandApprovalServiceTest {
 
         env.appConfig.getApprovals().setCronMode("false");
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+    }
+
+    @Test
+    void shouldAutoDenySubagentDangerousCommandByDefaultLikeJimuqu() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service = env.dangerousCommandApprovalService;
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+        TestTrace trace = new TestTrace();
+        AgentRunContext previous = AgentRunContext.current();
+        AgentRunContext subagent =
+                new AgentRunContext(
+                        env.agentRunRepository,
+                        "run-child",
+                        "session-child",
+                        "MEMORY:room:user:delegate:child");
+        subagent.setRunKind("subagent");
+        AgentRunContext.setCurrent(subagent);
+        try {
+            service.buildInterceptor().onAction(trace, "execute_shell", args);
+        } finally {
+            AgentRunContext.setCurrent(previous);
+        }
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("子 Agent 默认拒绝").contains("recursive delete");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
+    void shouldAutoApproveSubagentDangerousCommandOnlyWhenConfigured() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setSubagentAutoApprove(true);
+        DangerousCommandApprovalService service = env.dangerousCommandApprovalService;
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+        TestTrace trace = new TestTrace();
+        AgentRunContext previous = AgentRunContext.current();
+        AgentRunContext subagent =
+                new AgentRunContext(
+                        env.agentRunRepository,
+                        "run-child",
+                        "session-child",
+                        "MEMORY:room:user:delegate:child");
+        subagent.setRunKind("subagent");
+        AgentRunContext.setCurrent(subagent);
+        try {
+            service.buildInterceptor().onAction(trace, "execute_shell", args);
+        } finally {
+            AgentRunContext.setCurrent(previous);
+        }
+
+        assertThat(trace.getRoute()).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "execute_shell", "rm -rf runtime/cache"))
+                .isTrue();
     }
 
     @Test
@@ -694,7 +756,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldMatchHermesHardlineBlocklistExamples() throws Exception {
+    void shouldMatchJimuquHardlineBlocklistExamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String[] blocked =
                 new String[] {
@@ -774,7 +836,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldAllowHermesHardlineNegativeExamples() throws Exception {
+    void shouldAllowJimuquHardlineNegativeExamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String[] allowed =
                 new String[] {
@@ -799,10 +861,13 @@ public class DangerousCommandApprovalServiceTest {
                     "grep 'shutdown' logs.txt",
                     "echo reboot",
                     "echo Restart-Computer",
+                    "echo 'rm -rf /etc'",
+                    "grep 'rm -rf /usr' notes.txt",
                     "echo '# init 0 in comment'",
                     "cat rebooting.log",
                     "echo 'halt and catch fire'",
                     "python3 -c 'print(\"shutdown\")'",
+                    "python3 -c 'print(\"rm -rf /var\")'",
                     "find . -name '*reboot*'",
                     "mkfs_helper --version",
                     "systemctl status nginx",
@@ -988,7 +1053,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsLikeHermes() throws Exception {
+    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -1049,7 +1114,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldFailClosedForEmptyUrlsLikeHermes() throws Exception {
+    void shouldFailClosedForEmptyUrlsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -1111,7 +1176,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
+    void shouldBlockJimuquStylePrivateReservedAndSharedUrlsByDefault() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -1140,7 +1205,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockSchemelessPrivateUrlsInToolArgsAndCommandsLikeHermes()
+    void shouldBlockSchemelessPrivateUrlsInToolArgsAndCommandsLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -1161,7 +1226,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockBareSecurityRelevantHostsInsideShellCommandsLikeHermes()
+    void shouldBlockBareSecurityRelevantHostsInsideShellCommandsLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
@@ -1224,7 +1289,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldMatchHermesAllowPrivateUrlToggleForNonMetadataInternalRanges()
+    void shouldMatchJimuquAllowPrivateUrlToggleForNonMetadataInternalRanges()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -1247,7 +1312,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldStillBlockMetadataRangesWhenPrivateUrlsAreAllowedLikeHermes()
+    void shouldStillBlockMetadataRangesWhenPrivateUrlsAreAllowedLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -1271,7 +1336,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldAllowNonCgnatHundredDotPublicRangeLikeHermes() throws Exception {
+    void shouldAllowNonCgnatHundredDotPublicRangeLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService =
                 new FixedDnsSecurityPolicyService(env.appConfig, "100.0.0.1");
@@ -1303,7 +1368,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeHermesUrlSafety()
+    void shouldOnlyTrustQqMultimediaPrivateProxyRangeLikeJimuquUrlSafety()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService benchmark =
@@ -1403,7 +1468,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldFailOpenWhenWebsiteBlocklistDomainsAreMissingLikeHermes() throws Exception {
+    void shouldFailOpenWhenWebsiteBlocklistDomainsAreMissingLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
         env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(null);
@@ -1440,7 +1505,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldMergeWebsiteBlocklistConfigAndSharedFilesLikeHermes() throws Exception {
+    void shouldMergeWebsiteBlocklistConfigAndSharedFilesLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File shared = new File(env.appConfig.getRuntime().getHome(), "community-blocklist.txt");
         FileUtil.writeUtf8String("# comment\nexample.org\nsub.bad.net\n", shared);
@@ -1476,7 +1541,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldSkipMissingSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
+    void shouldSkipMissingSharedWebsiteBlocklistFilesLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
         env.appConfig
@@ -1493,7 +1558,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldApplyAbsoluteSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
+    void shouldApplyAbsoluteSharedWebsiteBlocklistFilesLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File outside =
@@ -1516,7 +1581,27 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldExpandHomeInSharedWebsiteBlocklistFilesLikeHermes() throws Exception {
+    void shouldIgnoreCredentialFilesAsSharedWebsiteBlocklistSources() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File envFile = new File(env.appConfig.getRuntime().getHome(), ".env").getCanonicalFile();
+        FileUtil.writeUtf8String("credential-shared.example\n", envFile);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList(".env"));
+        SecurityPolicyService securityPolicyService =
+                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrl("https://credential-shared.example/docs");
+
+        assertThat(verdict.isAllowed()).isTrue();
+        assertThat(verdict.getMessage()).doesNotContain("website policy");
+    }
+
+    @Test
+    void shouldExpandHomeInSharedWebsiteBlocklistFilesLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String oldHome = System.getProperty("user.home");
         File fakeHome = new File(env.appConfig.getRuntime().getHome(), "fake-home").getCanonicalFile();
@@ -1571,7 +1656,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldIgnoreSharedWebsiteBlocklistSymlinkEscapingRuntimeHomeLikeHermes()
+    void shouldIgnoreSharedWebsiteBlocklistSymlinkEscapingRuntimeHomeLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
@@ -1623,12 +1708,12 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesCliCredentialFilePathsForFileTools() throws Exception {
+    void shouldBlockJimuquCliCredentialFilePathsForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
         assertFileReadDenied(securityPolicyService, "~/.claude/.credentials.json");
-        assertFileReadDenied(securityPolicyService, "~/.hermes/.anthropic_oauth.json");
+        assertFileReadDenied(securityPolicyService, "~/.Jimuqu/.anthropic_oauth.json");
         assertFileReadDenied(securityPolicyService, "~/.codex/auth.json");
         assertFileReadDenied(securityPolicyService, "~/.qwen/oauth_creds.json");
         assertFileReadDenied(securityPolicyService, "~/.git-credentials");
@@ -1691,7 +1776,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesDevicePathsThatCanHangFileReads() throws Exception {
+    void shouldBlockJimuquDevicePathsThatCanHangFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
         Map<String, Object> zeroArgs = new LinkedHashMap<String, Object>();
@@ -1717,7 +1802,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockFilePathsContainingControlCharactersLikeHermesPathSecurity()
+    void shouldBlockFilePathsContainingControlCharactersLikeJimuquPathSecurity()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -1743,7 +1828,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockSkillsHubInternalCacheReadsLikeHermes() throws Exception {
+    void shouldBlockSkillsHubInternalCacheReadsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
         Map<String, Object> relativeHub = new LinkedHashMap<String, Object>();
@@ -1781,7 +1866,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesWriteDeniedSystemPathsForFileTools() throws Exception {
+    void shouldBlockJimuquWriteDeniedSystemPathsForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -1818,7 +1903,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesWriteDeniedHomeFilesForFileTools() throws Exception {
+    void shouldBlockJimuquWriteDeniedHomeFilesForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -1856,7 +1941,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockWritesOutsideConfiguredHermesSafeRoot() throws Exception {
+    void shouldBlockWritesOutsideConfiguredJimuquSafeRoot() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -1886,7 +1971,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldExpandHomeSafeRootLikeHermes() throws Exception {
+    void shouldExpandHomeSafeRootLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String oldHome = System.getProperty("user.home");
         File fakeHome = new File(env.appConfig.getRuntime().getHome(), "fake-home").getCanonicalFile();
@@ -1928,7 +2013,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockSafeRootSymlinkEscapeLikeHermes() throws Exception {
+    void shouldBlockSafeRootSymlinkEscapeLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File safeRoot = new File(runtimeHome, "safe-root");
@@ -2017,7 +2102,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldInspectHermesPatchPathsForCredentialFiles() throws Exception {
+    void shouldInspectJimuquPatchPathsForCredentialFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -2053,7 +2138,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesCliCredentialPathsInsideShellCommands() throws Exception {
+    void shouldBlockJimuquCliCredentialPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -2215,7 +2300,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesWriteDeniedPathsInsideShellCommands() throws Exception {
+    void shouldBlockJimuquWriteDeniedPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
@@ -2376,7 +2461,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldExpirePendingApprovalLikeHermesGatewayTimeout() throws Exception {
+    void shouldExpirePendingApprovalLikeJimuquGatewayTimeout() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setGatewayTimeoutSeconds(1);
         DangerousCommandApprovalService service =
@@ -2450,7 +2535,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldKeepMultiplePendingApprovalsLikeHermesGatewayQueue() throws Exception {
+    void shouldKeepMultiplePendingApprovalsLikeJimuquGatewayQueue() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TestTrace trace = new TestTrace();
 
@@ -2492,7 +2577,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldKeepFindDeleteAndFindExecApprovalsSeparateLikeHermes() throws Exception {
+    void shouldKeepFindDeleteAndFindExecApprovalsSeparateLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TestTrace trace = new TestTrace();
 
@@ -2529,7 +2614,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldAcceptHermesDescriptionApprovalAliasesForImportedAllowlists() throws Exception {
+    void shouldAcceptJimuquDescriptionApprovalAliasesForImportedAllowlists() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TestTrace trace = new TestTrace();
 
@@ -2580,7 +2665,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldNotifyApprovalObserversForRequestAndResponseLikeHermesHooks() throws Exception {
+    void shouldNotifyApprovalObserversForRequestAndResponseLikeJimuquHooks() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
@@ -2812,7 +2897,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldHardBlockExecuteCodeShellHardlineTextLikeHermes() throws Exception {
+    void shouldHardBlockExecuteCodeShellHardlineTextLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
@@ -2831,7 +2916,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldHardBlockExecuteCodeSubprocessArgvHardlineLikeHermes() throws Exception {
+    void shouldHardBlockExecuteCodeSubprocessArgvHardlineLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
@@ -3227,7 +3312,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldPromptForTirithWarningEvenWhenFindingsAreEmptyLikeHermes() throws Exception {
+    void shouldPromptForTirithWarningEvenWhenFindingsAreEmptyLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FakeTirithSecurityService tirith =
                 new FakeTirithSecurityService(
@@ -3381,7 +3466,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockDangerousCommandWhenSmartApprovalDeniesLikeHermes() throws Exception {
+    void shouldBlockDangerousCommandWhenSmartApprovalDeniesLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("smart");
         DangerousCommandApprovalService service =
@@ -3414,7 +3499,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBypassNonHardlineDangerousCommandWhenHermesYoloModeIsEnabled()
+    void shouldBypassNonHardlineDangerousCommandWhenJimuquYoloModeIsEnabled()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CountingTirithSecurityService tirith =
@@ -3461,7 +3546,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldKeepHardlineBlockedWhenHermesYoloModeIsEnabled() throws Exception {
+    void shouldKeepHardlineBlockedWhenJimuquYoloModeIsEnabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
                 new YoloDangerousCommandApprovalService(
@@ -3578,7 +3663,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldSkipTirithScanWhenApprovalModeIsOffLikeHermes() throws Exception {
+    void shouldSkipTirithScanWhenApprovalModeIsOffLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("off");
         CountingTirithSecurityService tirith =
@@ -3650,7 +3735,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldBlockHermesHardlineCommandSamples() throws Exception {
+    void shouldBlockJimuquHardlineCommandSamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String[] commands =
                 new String[] {
@@ -3666,6 +3751,12 @@ public class DangerousCommandApprovalServiceTest {
                     "rm --recursive --force /",
                     "rm -fr /",
                     "sudo rm -rf /",
+                    "sudo -E rm -rf /etc",
+                    "env FOO=1 rm -rf /usr",
+                    "exec rm -rf /var",
+                    "nohup rm -rf /boot",
+                    "setsid rm -rf /bin",
+                    "time rm -rf /sbin",
                     "rm -rf ~",
                     "rm -rf ~/",
                     "rm -rf ~/*",
@@ -3720,7 +3811,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldAllowHermesHardlineNegativeSamples() throws Exception {
+    void shouldAllowJimuquHardlineNegativeSamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String[] commands =
                 new String[] {
@@ -3916,7 +4007,7 @@ public class DangerousCommandApprovalServiceTest {
         }
 
         @Override
-        protected String hermesYoloModeEnv() {
+        protected String jimuquYoloModeEnv() {
             return yoloMode;
         }
     }

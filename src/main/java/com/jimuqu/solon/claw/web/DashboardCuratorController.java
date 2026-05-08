@@ -17,28 +17,28 @@ public class DashboardCuratorController {
         this.curatorService = curatorService;
     }
 
-    @Mapping(value = "/api/hermes/curator", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/curator", method = MethodType.GET)
     public Map<String, Object> list(Context context) throws Exception {
         return DashboardResponse.ok(curatorService.list(context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/hermes/curator/run", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/curator/run", method = MethodType.POST)
     public Map<String, Object> run(Context context) throws Exception {
         return DashboardResponse.ok(
                 curatorService.run(Boolean.parseBoolean(context.param("force"))));
     }
 
-    @Mapping(value = "/api/hermes/curator/{reportId}", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/curator/{reportId}", method = MethodType.GET)
     public Map<String, Object> detail(String reportId) throws Exception {
         return DashboardResponse.ok(curatorService.detail(reportId));
     }
 
-    @Mapping(value = "/api/hermes/curator/improvements", method = MethodType.GET)
+    @Mapping(value = "/api/jimuqu/curator/improvements", method = MethodType.GET)
     public Map<String, Object> improvements(Context context) throws Exception {
         return DashboardResponse.ok(curatorService.improvements(context.paramAsInt("limit", 20)));
     }
 
-    @Mapping(value = "/api/hermes/curator/apply", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/curator/apply", method = MethodType.POST)
     public Map<String, Object> apply(Context context) throws Exception {
         Map<String, Object> body =
                 ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class);
@@ -46,7 +46,7 @@ public class DashboardCuratorController {
                 curatorService.apply(read(body, "skill"), read(body, "suggestion")));
     }
 
-    @Mapping(value = "/api/hermes/curator/ignore", method = MethodType.POST)
+    @Mapping(value = "/api/jimuqu/curator/ignore", method = MethodType.POST)
     public Map<String, Object> ignore(Context context) throws Exception {
         Map<String, Object> body =
                 ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class);

@@ -77,7 +77,7 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
-    void shouldUseDevNullDiffForDeletedFilesLikeHermes() throws Exception {
+    void shouldUseDevNullDiffForDeletedFilesLikeJimuqu() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("old.txt");
         Files.write(file, "obsolete\n".getBytes(StandardCharsets.UTF_8));

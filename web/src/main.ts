@@ -6,7 +6,7 @@ import App from './App.vue'
 import './styles/global.scss'
 
 // Apply dark class before mount to prevent FOUC
-const savedTheme = localStorage.getItem('hermes_theme') || 'system'
+const savedTheme = localStorage.getItem('jimuqu_theme') || 'system'
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
 if (savedTheme === 'dark' || (savedTheme === 'system' && prefersDark)) {
   document.documentElement.classList.add('dark')

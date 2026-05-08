@@ -1,6 +1,6 @@
 package com.jimuqu.solon.claw.kanban;
 
-/** Durable Hermes-style Kanban board metadata. */
+/** Durable Jimuqu Kanban board metadata. */
 public class KanbanBoardRecord {
     private String boardId;
     private String slug;

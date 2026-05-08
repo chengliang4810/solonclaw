@@ -5,7 +5,7 @@ import cn.hutool.core.util.StrUtil;
 /**
  * Fail-open local judge used until an auxiliary Solon AI judge is configured.
  *
- * <p>Hermes keeps progress moving when the judge is unavailable. This heuristic mirrors that
+ * <p>Jimuqu keeps progress moving when the judge is unavailable. This heuristic mirrors that
  * invariant: only explicit completion/blocking language marks the goal done; otherwise continue.
  */
 public class HeuristicGoalJudge implements GoalJudge {

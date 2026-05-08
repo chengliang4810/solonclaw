@@ -120,6 +120,7 @@ public class DashboardChatService {
         if (StrUtil.isBlank(request.sessionId)) {
             request.sessionId = IdSupport.newId();
         }
+        request.resolvedAttachments = resolveAttachments(request.attachments);
 
         final String runId = IdSupport.newId();
         final ChatRunState state = new ChatRunState(runId, request.sessionId);
@@ -285,20 +286,33 @@ public class DashboardChatService {
         message.setUserName("dashboard");
         message.setSourceKeyOverride(sourceKey(sessionId));
         if (request.attachments != null && !request.attachments.isEmpty()) {
-            List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
-            for (AttachmentInput item : request.attachments) {
-                MessageAttachment attachment =
-                        attachmentCacheService.fromMediaCacheFile(
-                                PlatformType.MEMORY,
-                                new java.io.File(item.localPath),
-                                item.kind,
-                                false,
-                                null);
-                attachments.add(attachment);
-            }
-            message.setAttachments(attachments);
+            message.setAttachments(
+                    request.resolvedAttachments == null
+                            ? resolveAttachments(request.attachments)
+                            : request.resolvedAttachments);
         }
         return message;
+    }
+
+    private List<MessageAttachment> resolveAttachments(List<AttachmentInput> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
+        for (AttachmentInput item : inputs) {
+            if (item == null) {
+                continue;
+            }
+            MessageAttachment attachment =
+                    attachmentCacheService.fromMediaCacheFile(
+                            PlatformType.MEMORY,
+                            new java.io.File(item.localPath),
+                            item.kind,
+                            false,
+                            null);
+            attachments.add(attachment);
+        }
+        return attachments;
     }
 
     private String historyToNdjson(List<HistoryItem> history) throws IOException {
@@ -579,6 +593,7 @@ public class DashboardChatService {
         private String model;
         private List<HistoryItem> conversationHistory;
         private List<AttachmentInput> attachments;
+        private List<MessageAttachment> resolvedAttachments;
 
         private static ChatRunRequest from(ONode body) {
             ChatRunRequest request = new ChatRunRequest();

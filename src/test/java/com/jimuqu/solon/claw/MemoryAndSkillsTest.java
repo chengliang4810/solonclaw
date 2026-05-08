@@ -50,7 +50,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldListViewAndPromptConfiguredExternalSkillsLikeHermes() throws Exception {
+    void shouldListViewAndPromptConfiguredExternalSkillsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File externalDir =
                 FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "shared-skills");
@@ -74,7 +74,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldRegisterSkillDeclaredEnvironmentPassthroughOnSkillViewLikeHermes()
+    void shouldRegisterSkillDeclaredEnvironmentPassthroughOnSkillViewLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill(
@@ -442,7 +442,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldRejectCredentialFilesContainingControlCharactersLikeHermesPathSecurity()
+    void shouldRejectCredentialFilesContainingControlCharactersLikeJimuquPathSecurity()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTerminal().getCredentialFiles().add("credentials/\u001Bhidden.json");
@@ -528,7 +528,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldRejectCredentialSymlinkEscapingRuntimeHomeLikeHermes() throws Exception {
+    void shouldRejectCredentialSymlinkEscapingRuntimeHomeLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File credentialsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials");
         FileUtil.mkdir(credentialsDir);
@@ -565,7 +565,7 @@ public class MemoryAndSkillsTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void shouldRejectSkillDeclaredCredentialSymlinkEscapingRuntimeHomeLikeHermes()
+    void shouldRejectSkillDeclaredCredentialSymlinkEscapingRuntimeHomeLikeJimuqu()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File credentialsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials");
@@ -618,7 +618,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldPlanHermesStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
+    void shouldPlanJimuquStyleSandboxMountsForCredentialsSkillsAndCache() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
         FileUtil.writeUtf8String(
@@ -652,7 +652,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldMountExternalSkillsDirsLikeHermesCredentialFiles() throws Exception {
+    void shouldMountExternalSkillsDirsLikeJimuquCredentialFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("local-skill", null, skill("local-skill", "local"));
         File externalDir =
@@ -678,7 +678,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldIterateExternalSkillsFilesSkippingSymlinksLikeHermes() throws Exception {
+    void shouldIterateExternalSkillsFilesSkippingSymlinksLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File externalDir =
                 FileUtil.file(env.appConfig.getRuntime().getHome(), "external", "iter-skills");
@@ -716,7 +716,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldResolveLegacyCacheDirectoriesLikeHermesCredentialFiles() throws Exception {
+    void shouldResolveLegacyCacheDirectoriesLikeJimuquCredentialFiles() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File documentCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "document_cache");
         File imageCache = FileUtil.file(env.appConfig.getRuntime().getHome(), "image_cache");
@@ -736,7 +736,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldSkipSymlinkedCacheDirectoryMountsLikeHermes() throws Exception {
+    void shouldSkipSymlinkedCacheDirectoryMountsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File externalCache =
                 FileUtil.file(
@@ -765,7 +765,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldIterateSkillsAndCacheFilesSkippingSymlinksLikeHermes() throws Exception {
+    void shouldIterateSkillsAndCacheFilesSkippingSymlinksLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("iter-skill", "ops", skill("iter-skill", "iter"));
         File skillDir = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "ops", "iter-skill");
@@ -814,7 +814,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldCreateSymlinkSafeSkillsMountLikeHermes() throws Exception {
+    void shouldCreateSymlinkSafeSkillsMountLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("safe-skill", null, skill("safe-skill", "safe"));
         File skillDir =
@@ -950,7 +950,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldBlockUnsafeMemoryToolContentLikeHermes() throws Exception {
+    void shouldBlockUnsafeMemoryToolContentLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MemoryTools tools = new MemoryTools(env.memoryService);
 

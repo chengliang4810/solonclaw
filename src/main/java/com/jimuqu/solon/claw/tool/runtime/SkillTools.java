@@ -23,7 +23,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes 风格 skills 工具集合。 */
+/** Jimuqu 风格 skills 工具集合。 */
 public class SkillTools {
     /** 本地技能目录服务。 */
     private final LocalSkillService localSkillService;

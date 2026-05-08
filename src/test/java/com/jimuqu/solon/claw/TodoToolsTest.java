@@ -58,7 +58,7 @@ public class TodoToolsTest {
     }
 
     @Test
-    void shouldNormalizeLikeHermes() throws Exception {
+    void shouldNormalizeLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TodoTools tools = new TodoTools(env.appConfig, "MEMORY:room:user");
 

@@ -11,7 +11,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** Hermes-style Kanban worker tools. */
+/** Jimuqu Kanban worker tools. */
 @RequiredArgsConstructor
 public class KanbanTools {
     private final KanbanService kanbanService;
@@ -19,7 +19,7 @@ public class KanbanTools {
     @ToolMapping(
             name = "kanban_show",
             description =
-                    "Read a Kanban task's full state including parents, children, comments, runs, events, and worker_context. If task_id is omitted, uses JIMUQU_KANBAN_TASK or HERMES_KANBAN_TASK.")
+                    "Read a Kanban task's full state including parents, children, comments, runs, events, and worker_context. If task_id is omitted, uses JIMUQU_KANBAN_TASK.")
     public String kanbanShow(
             @Param(name = "task_id", description = "Task id. Optional when the worker task env is set.", required = false)
                     String taskId) {
@@ -256,9 +256,6 @@ public class KanbanTools {
             return taskId.trim();
         }
         String env = System.getenv("JIMUQU_KANBAN_TASK");
-        if (StrUtil.isBlank(env)) {
-            env = System.getenv("HERMES_KANBAN_TASK");
-        }
         return StrUtil.blankToDefault(env, null);
     }
 
@@ -267,9 +264,6 @@ public class KanbanTools {
             return error("task_id is required or set JIMUQU_KANBAN_TASK");
         }
         String scoped = System.getenv("JIMUQU_KANBAN_TASK");
-        if (StrUtil.isBlank(scoped)) {
-            scoped = System.getenv("HERMES_KANBAN_TASK");
-        }
         if (StrUtil.isNotBlank(scoped) && !StrUtil.equals(scoped, taskId)) {
             return error(
                     "worker is scoped to task "
@@ -284,13 +278,7 @@ public class KanbanTools {
     private String defaultWorkerName() {
         String name = System.getenv("JIMUQU_PROFILE");
         if (StrUtil.isBlank(name)) {
-            name = System.getenv("HERMES_PROFILE");
-        }
-        if (StrUtil.isBlank(name)) {
             name = System.getenv("JIMUQU_KANBAN_WORKER");
-        }
-        if (StrUtil.isBlank(name)) {
-            name = System.getenv("HERMES_KANBAN_WORKER");
         }
         return StrUtil.blankToDefault(name, "worker");
     }

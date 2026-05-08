@@ -2208,9 +2208,6 @@ public class KanbanService {
 
     private String defaultClaimer() {
         String env = System.getenv("JIMUQU_KANBAN_WORKER");
-        if (StrUtil.isBlank(env)) {
-            env = System.getenv("HERMES_KANBAN_WORKER");
-        }
         return StrUtil.blankToDefault(env, "local");
     }
 

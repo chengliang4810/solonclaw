@@ -50,7 +50,7 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** OpenClaw 风格的外层 Agent run 状态机。 */
+/** SolonClaw 风格的外层 Agent run 状态机。 */
 @RequiredArgsConstructor
 public class AgentRunSupervisor implements AgentRunControlService {
     private static final Logger log = LoggerFactory.getLogger(AgentRunSupervisor.class);
@@ -172,6 +172,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
         AgentRunRecord runningRecord = agentRunRepository.findRun(handle.runId);
         if (runningRecord != null && runningRecord.isBackgrounded()) {
             return RunBusyDecision.runNow(policy);
+        }
+        if (message != null && message.isHeartbeat()) {
+            if (runningRecord != null) {
+                heartbeat(runningRecord);
+                agentRunRepository.saveRun(runningRecord);
+                appendRunEvent(
+                        runningRecord,
+                        "run.heartbeat",
+                        "收到 heartbeat，当前 run 保持活跃，不按 busy 策略打断或排队",
+                        null);
+            }
+            RunBusyDecision decision = new RunBusyDecision();
+            decision.setPolicy(policy);
+            decision.setStatus("heartbeat");
+            decision.setRunId(handle.runId);
+            decision.setMessage("HEARTBEAT_OK");
+            return decision;
         }
         if ("interrupt".equals(policy)) {
             AgentRunRecord active = runningRecord;
@@ -496,6 +513,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         runRecord.getRunId(),
                         session.getSessionId(),
                         session.getSourceKey());
+        runContext.setRunKind(runRecord.getRunKind());
+        runContext.setParentRunId(runRecord.getParentRunId());
         runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
         RunHandle runHandle =

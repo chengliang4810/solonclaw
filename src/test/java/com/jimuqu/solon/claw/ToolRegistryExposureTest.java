@@ -196,7 +196,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldManageHermesStyleBackgroundProcesses() throws Exception {
+    void shouldManageJimuquStyleBackgroundProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =
                 new ProcessTools(
@@ -328,7 +328,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldAttachHermesExitCodeMeaningToManagedProcessResults() throws Exception {
+    void shouldAttachJimuquExitCodeMeaningToManagedProcessResults() throws Exception {
         assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =
@@ -602,7 +602,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldReturnHermesKillStatusesForManagedProcesses() throws Exception {
+    void shouldReturnJimuquKillStatusesForManagedProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =
                 new ProcessTools(
@@ -1315,7 +1315,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldExposeHermesStyleExecuteCodeResultEnvelope() throws Exception {
+    void shouldExposeJimuquStyleExecuteCodeResultEnvelope() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTask().setToolOutputInlineLimit(200);
@@ -1396,7 +1396,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldReturnHermesStyleExecuteCodeErrorsWithStderr() throws Exception {
+    void shouldReturnJimuquStyleExecuteCodeErrorsWithStderr() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
@@ -1422,7 +1422,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldAllowExecuteCodeToCallHermesFileAndTerminalToolsThroughRpc() throws Exception {
+    void shouldAllowExecuteCodeToCallJimuquFileAndTerminalToolsThroughRpc() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
@@ -1861,7 +1861,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldApplyHermesToolOutputLimitsToFileReads() throws Exception {
+    void shouldApplyJimuquToolOutputLimitsToFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
@@ -1900,7 +1900,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldDeduplicateUnchangedRepeatedFileReadsLikeHermes() throws Exception {
+    void shouldDeduplicateUnchangedRepeatedFileReadsLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
@@ -1962,7 +1962,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldWarnButNotBlockWhenWritingStaleReadFileLikeHermes() throws Exception {
+    void shouldWarnButNotBlockWhenWritingStaleReadFileLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path file = workspace.resolve("stale-write.txt");
@@ -1988,7 +1988,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldWarnWhenPatchingStaleReadFileLikeHermes() throws Exception {
+    void shouldWarnWhenPatchingStaleReadFileLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Path file = workspace.resolve("stale-patch.txt");
@@ -2030,7 +2030,7 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
-    void shouldRefuseWritingInternalReadDedupStatusTextLikeHermes() throws Exception {
+    void shouldRefuseWritingInternalReadDedupStatusTextLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(

@@ -19,7 +19,7 @@ import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.skills.file.FileReadWriteSkill;
 
-/** Solon AI file skill wrapped with Hermes-style path and credential guardrails. */
+/** Solon AI file skill wrapped with Jimuqu path and credential guardrails. */
 public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private static final int DEFAULT_READ_OFFSET = 1;
     private static final int DEFAULT_READ_LIMIT = 500;

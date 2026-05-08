@@ -16,7 +16,7 @@ import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
-/** 对齐 Hermes 请求前消息序列修复，避免孤儿 tool 消息触发空响应循环。 */
+/** 对齐 Jimuqu 请求前消息序列修复，避免孤儿 tool 消息触发空响应循环。 */
 public class MessageSequenceRepairTest {
     @Test
     void shouldDropStrayToolWithUnknownToolCallId() {

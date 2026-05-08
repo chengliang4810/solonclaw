@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -55,7 +56,7 @@ public class DangerousCommandApprovalService {
             "(?:~|\\$home|\\$\\{home\\}|\\$env:home|\\$env:userprofile|%userprofile%|%homepath%)";
     private static final String AGENT_HOME_PATH_PREFIX =
             "(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%|"
-                    + "\\$hermes_home|\\$\\{hermes_home\\}|\\$env:hermes_home|%hermes_home%)";
+                    + "\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%)";
     private static final String SENSITIVE_WRITE_TARGET =
             "(?:/etc/|/dev/sd|"
                     + HOME_PATH_PREFIX
@@ -71,7 +72,7 @@ public class DangerousCommandApprovalService {
                     + "\\.(?:netrc|pgpass|npmrc|pypirc)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:jimuqu-agent|hermes)"
+                    + "\\.(?:jimuqu-agent|Jimuqu)"
                     + PATH_SEPARATOR
                     + "\\.env\\b|"
                     + AGENT_HOME_PATH_PREFIX
@@ -80,6 +81,8 @@ public class DangerousCommandApprovalService {
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
             "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
+    private static final String HARDLINE_COMMAND_POSITION =
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:sudo\\s+(?:-[^\\s]+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
@@ -242,12 +245,12 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "gateway_stop_restart",
                                     "stop/restart gateway (kills running agents)",
-                                    pattern("\\b(?:hermes|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
+                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+gateway\\s+(stop|restart)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "app_update_restart",
                                     "agent update (restarts gateway, kills running agents)",
-                                    pattern("\\b(?:hermes|jimuqu-agent|solon-claw)\\s+update\\b"),
+                                    pattern("\\b(?:Jimuqu|jimuqu-agent|solon-claw)\\s+update\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gateway_run_detached",
@@ -258,7 +261,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "kill_agent_process",
                                     "kill agent/gateway process (self-termination)",
-                                    pattern("\\b(pkill|killall)\\b.*\\b(hermes|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
+                                    pattern("\\b(pkill|killall)\\b.*\\b(Jimuqu|jimuqu-agent|solon-claw|gateway|cli\\.py)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
@@ -431,19 +434,23 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "hardline_delete_root",
                                     "recursive delete of root filesystem",
-                                    pattern("\\brm\\s+(-[^\\s]*\\s+)*(/|/\\*|/ \\*)(\\s|$)"),
+                                    pattern(
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "rm\\s+(-[^\\s]*\\s+)*(/|/\\*|/ \\*)(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_delete_system_dir",
                                     "recursive delete of system directory",
                                     pattern(
-                                            "\\brm\\s+(-[^\\s]*\\s+)*(/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*)(\\s|$)"),
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "rm\\s+(-[^\\s]*\\s+)*(/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*)(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_delete_home",
                                     "recursive delete of home directory",
                                     pattern(
-                                            "\\brm\\s+(-[^\\s]*\\s+)*(~|\\$HOME|\\$\\{HOME\\}|\\$env:HOME|\\$env:USERPROFILE|%USERPROFILE%|%HOMEPATH%)(/?|/\\*)?(\\s|$)"),
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "rm\\s+(-[^\\s]*\\s+)*(~|\\$HOME|\\$\\{HOME\\}|\\$env:HOME|\\$env:USERPROFILE|%USERPROFILE%|%HOMEPATH%)(/?|/\\*)?(\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_mkfs",
@@ -465,7 +472,8 @@ public class DangerousCommandApprovalService {
                                     "hardline_shutdown",
                                     "system shutdown/reboot",
                                     pattern(
-                                            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:sudo\\s+(?:-[^\\s]+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*(shutdown(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "(shutdown(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_kill_all",
@@ -1375,6 +1383,18 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
+        if (isSubagentRun()) {
+            if (isSubagentAutoApproveEnabled()) {
+                markCurrentThreadApproval(approvalToolName, code);
+                persistTraceSnapshot(trace);
+                return null;
+            }
+            trace.setFinalAnswer(buildSubagentDeniedMessage(detection));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         Map<String, Object> pendingMap = createPendingMap(approvalToolName, detection, code);
         storePendingMap(trace.getSession(), pendingMap);
         persistTraceSnapshot(trace);
@@ -1709,12 +1729,18 @@ public class DangerousCommandApprovalService {
         return "on";
     }
 
-    protected String hermesYoloModeEnv() {
-        return System.getenv("HERMES_YOLO_MODE");
+    public boolean isSubagentAutoApproveEnabled() {
+        return appConfig != null
+                && appConfig.getApprovals() != null
+                && appConfig.getApprovals().isSubagentAutoApprove();
+    }
+
+    protected String jimuquYoloModeEnv() {
+        return System.getenv("JIMUQU_YOLO_MODE");
     }
 
     private boolean isCompatibilityYoloModeEnabled() {
-        String value = StrUtil.nullToEmpty(hermesYoloModeEnv()).trim();
+        String value = StrUtil.nullToEmpty(jimuquYoloModeEnv()).trim();
         return "true".equalsIgnoreCase(value)
                 || "1".equals(value)
                 || "yes".equalsIgnoreCase(value)
@@ -1795,6 +1821,23 @@ public class DangerousCommandApprovalService {
                         || "yes".equals(mode)
                 ? "approve"
                 : "deny";
+    }
+
+    private boolean isSubagentRun() {
+        AgentRunContext current = AgentRunContext.current();
+        return current != null
+                && "subagent".equalsIgnoreCase(StrUtil.nullToEmpty(current.getRunKind()));
+    }
+
+    private String buildSubagentDeniedMessage(DetectionResult detection) {
+        String description =
+                detection == null
+                        ? "dangerous command"
+                        : StrUtil.blankToDefault(
+                                detection.getDescription(), detection.getPatternKey());
+        return "BLOCKED: 子 Agent 默认拒绝可审批危险命令："
+                + description
+                + "。如确实需要在可信批处理里允许，请设置 approvals.subagentAutoApprove=true。";
     }
 
     public int approvalTimeoutSeconds() {
