@@ -145,6 +145,41 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckSchemelessUrlValuesFromEndpointLikeArgumentKeys() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("base_url", "internal.example/v1");
+        args.put("apiEndpoint", "public.example/v1");
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkToolArgs("remote_fetch", args);
+
+        assertThat(policy.extractUrlishValues(args)).contains("http://internal.example/v1");
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
+    void shouldCheckEndpointLikeArgumentKeysInsideNestedContainers() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "127.0.0.1");
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put("api_url", "localhost:8080/admin");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("config", nested);
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkToolArgs("mcp_proxy", args);
+
+        assertThat(policy.extractUrlishValues(args)).contains("http://localhost:8080/admin");
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);

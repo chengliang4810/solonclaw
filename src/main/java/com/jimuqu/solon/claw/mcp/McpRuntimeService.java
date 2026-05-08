@@ -1623,7 +1623,7 @@ public class McpRuntimeService implements Closeable {
                 return;
             }
             List<String> urls = new ArrayList<String>();
-            collectUrlish(args, urls);
+            urls.addAll(securityPolicyService.extractUrlishValues(args));
             for (String url : urls) {
                 SecurityPolicyService.UrlVerdict verdict =
                         securityPolicyService.checkUrl(cleanToken(url));
@@ -1662,31 +1662,6 @@ public class McpRuntimeService implements Closeable {
                                     + "\n路径："
                                     + SecretRedactor.redact(verdict.getPath(), 400));
                 }
-            }
-        }
-
-        @SuppressWarnings("unchecked")
-        private void collectUrlish(Object raw, List<String> urls) {
-            if (raw == null) {
-                return;
-            }
-            if (raw instanceof Map) {
-                for (Object value : ((Map<?, ?>) raw).values()) {
-                    collectUrlish(value, urls);
-                }
-                return;
-            }
-            if (raw instanceof Iterable) {
-                for (Object value : (Iterable<?>) raw) {
-                    collectUrlish(value, urls);
-                }
-                return;
-            }
-            String text = String.valueOf(raw);
-            java.util.regex.Matcher matcher =
-                    java.util.regex.Pattern.compile("https?://[^\\s)>'\"]+").matcher(text);
-            while (matcher.find()) {
-                urls.add(matcher.group());
             }
         }
 

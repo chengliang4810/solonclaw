@@ -502,7 +502,7 @@ public class SecurityPolicyService {
         return FileVerdict.block(workdir, "workdir contains disallowed characters");
     }
 
-    private List<String> extractUrls(String toolName, java.util.Map<String, Object> args) {
+    public List<String> extractUrlishValues(Object args) {
         List<String> urls = new ArrayList<String>();
         if (args == null) {
             return urls;
@@ -511,14 +511,24 @@ public class SecurityPolicyService {
         return urls;
     }
 
+    private List<String> extractUrls(String toolName, java.util.Map<String, Object> args) {
+        return extractUrlishValues(args);
+    }
+
     @SuppressWarnings("unchecked")
     private void collectUrls(Object raw, List<String> urls) {
         if (raw == null) {
             return;
         }
         if (raw instanceof Map) {
-            for (Object value : ((Map<?, ?>) raw).values()) {
-                collectUrls(value, urls);
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                Object value = entry.getValue();
+                if (looksLikeUrlKey(key)) {
+                    addUrlValue(value, urls);
+                } else {
+                    collectUrls(value, urls);
+                }
             }
             return;
         }
@@ -536,6 +546,57 @@ public class SecurityPolicyService {
             return;
         }
         extractUrlishFromText(raw, urls);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addUrlValue(Object raw, List<String> urls) {
+        if (raw == null) {
+            return;
+        }
+        if (raw instanceof Map) {
+            collectUrls(raw, urls);
+            return;
+        }
+        if (raw instanceof Collection) {
+            for (Object value : (Collection<Object>) raw) {
+                addUrlValue(value, urls);
+            }
+            return;
+        }
+        if (raw.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                addUrlValue(java.lang.reflect.Array.get(raw, i), urls);
+            }
+            return;
+        }
+        String value = cleanUrlToken(String.valueOf(raw));
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        urls.add(value.contains("://") ? value : "http://" + value);
+    }
+
+    private boolean looksLikeUrlKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
+        return "url".equals(normalized)
+                || "uri".equals(normalized)
+                || "href".equals(normalized)
+                || "link".equals(normalized)
+                || "endpoint".equals(normalized)
+                || "base_url".equals(normalized)
+                || "baseurl".equals(normalized)
+                || "api_url".equals(normalized)
+                || "apiurl".equals(normalized)
+                || "callback_url".equals(normalized)
+                || "redirect_url".equals(normalized)
+                || "webhook_url".equals(normalized)
+                || normalized.endsWith("_url")
+                || normalized.endsWith("url")
+                || normalized.endsWith("_uri")
+                || normalized.endsWith("uri")
+                || normalized.endsWith("_endpoint")
+                || normalized.endsWith("endpoint");
     }
 
     private void extractUrlishFromText(Object raw, List<String> urls) {
