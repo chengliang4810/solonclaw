@@ -853,7 +853,7 @@ public class AcpStdioServer {
         addCommand(commands, "version", "查看版本信息");
         addCommand(commands, "goal", "设置跨轮长目标并自动继续");
         addCommand(commands, "recap", "显示恢复会话用的紧凑历史摘要");
-        addCommand(commands, "trajectory", "导出 reference-style trajectory JSON");
+        addCommand(commands, "trajectory", "导出会话 trajectory JSON");
         return commands;
     }
 

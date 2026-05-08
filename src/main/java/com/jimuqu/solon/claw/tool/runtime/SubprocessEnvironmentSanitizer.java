@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** reference-style subprocess environment filtering for local tools. */
+/** Subprocess environment filtering for local tools. */
 public final class SubprocessEnvironmentSanitizer {
     public static final String FORCE_PREFIX = "_JIMUQU_FORCE_";
 

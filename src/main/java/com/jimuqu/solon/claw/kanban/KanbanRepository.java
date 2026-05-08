@@ -3,7 +3,7 @@ package com.jimuqu.solon.claw.kanban;
 import java.util.List;
 import java.util.Map;
 
-/** Repository for the shared reference-style Kanban board. */
+/** Repository for the shared Jimuqu Kanban board. */
 public interface KanbanRepository {
     List<KanbanBoardRecord> listBoards() throws Exception;
 

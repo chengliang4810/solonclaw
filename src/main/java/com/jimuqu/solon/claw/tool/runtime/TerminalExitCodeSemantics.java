@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** reference-style notes for commands whose non-zero exit codes are informational. */
+/** Notes for commands whose non-zero exit codes are informational. */
 final class TerminalExitCodeSemantics {
     private static final Map<String, Map<Integer, String>> SEMANTICS =
             new LinkedHashMap<String, Map<Integer, String>>();

@@ -13,7 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** reference-style validation for skill-declared credential files. */
+/** Validation for skill-declared credential files. */
 public class SkillCredentialFileService {
     private static final String DEFAULT_CONTAINER_BASE = "/root/.jimuqu-agent";
     private static final List<CacheMountDirectory> CACHE_MOUNT_DIRS =

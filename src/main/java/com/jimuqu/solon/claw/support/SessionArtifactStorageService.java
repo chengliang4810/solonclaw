@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import org.noear.snack4.ONode;
 
-/** reference-style session artifact persistence under runtime/artifacts. */
+/** Jimuqu session artifact persistence under runtime/artifacts. */
 public class SessionArtifactStorageService {
     private static final String TRAJECTORY_SUCCESS_FILE = "trajectory_samples.jsonl";
     private static final String TRAJECTORY_FAILED_FILE = "failed_trajectories.jsonl";

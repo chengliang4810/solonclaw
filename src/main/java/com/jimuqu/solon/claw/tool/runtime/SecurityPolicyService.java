@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** reference-style URL and website access guardrails. */
+/** Jimuqu URL and website access guardrails. */
 public class SecurityPolicyService {
     private static final String[] ALWAYS_BLOCKED_HOSTS =
             new String[] {"metadata.google.internal", "metadata.goog"};

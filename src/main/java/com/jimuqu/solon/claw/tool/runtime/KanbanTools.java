@@ -11,7 +11,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** reference-style Kanban worker tools. */
+/** Jimuqu Kanban worker tools. */
 @RequiredArgsConstructor
 public class KanbanTools {
     private final KanbanService kanbanService;

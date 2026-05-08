@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.Set;
 import org.noear.snack4.ONode;
 
-/** reference-style large tool result persistence. */
+/** Jimuqu large tool result persistence. */
 public class ToolResultStorageService {
     private static final String TOOL_RESULTS_DIR = "tool-results";
     private static final String PERSISTED_OUTPUT_TAG = "<persisted-output>";

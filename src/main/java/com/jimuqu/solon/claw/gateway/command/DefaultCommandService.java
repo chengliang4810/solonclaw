@@ -3383,7 +3383,7 @@ public class DefaultCommandService implements CommandService {
                                         + " [list|create|show|move|assign|comment|boards]",
                                 "管理 Jimuqu 风格协作看板"),
                         helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
-                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出 reference-style trajectory JSON"),
+                        helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_COMPACT

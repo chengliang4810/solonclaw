@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 
-/** reference-style /goal manager backed by the session record. */
+/** Jimuqu /goal manager backed by the session record. */
 public class GoalService {
     public static final String CONTINUATION_PROMPT_TEMPLATE =
             "[Continuing toward your standing goal]\n"

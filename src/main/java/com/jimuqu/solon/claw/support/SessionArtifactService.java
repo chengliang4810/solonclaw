@@ -15,7 +15,7 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
-/** 生成 reference-style 会话 recap 与 trajectory 派生产物。 */
+/** 生成 Jimuqu 会话 recap 与 trajectory 派生产物。 */
 public class SessionArtifactService {
     private static final int DEFAULT_RECAP_EXCHANGES = 10;
     private static final int MAX_USER_LEN = 300;
