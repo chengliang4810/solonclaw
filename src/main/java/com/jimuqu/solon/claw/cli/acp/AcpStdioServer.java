@@ -931,6 +931,7 @@ public class AcpStdioServer {
         addCommand(commands, "reset", "重置当前会话");
         addCommand(commands, "skills", "管理本地技能与 Skills Hub");
         addCommand(commands, "reload-mcp", "重新加载 MCP 工具");
+        addCommand(commands, "acp", "查看 ACP 本地适配器能力快照");
         addCommand(commands, "busy", "查看或切换运行中输入策略");
         addCommand(commands, "steer", "向运行中任务注入修正或引导");
         addCommand(commands, "queue", "将提示排到当前任务之后执行");
@@ -958,6 +959,8 @@ public class AcpStdioServer {
             item.put("input", unstructuredInput("可选关注主题"));
         } else if ("goal".equals(name)) {
             item.put("input", unstructuredInput("长目标描述"));
+        } else if ("acp".equals(name)) {
+            item.put("input", unstructuredInput("status"));
         }
         commands.add(item);
     }

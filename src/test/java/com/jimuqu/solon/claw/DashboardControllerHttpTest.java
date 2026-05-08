@@ -399,7 +399,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"methods\":[\"initialize\",\"authenticate\",\"session/new\"")
                 .contains("\"permissions/respond\"")
                 .contains("\"mcp_servers\":true")
-                .contains("\"commands\":[");
+                .contains("\"commands\":[")
+                .contains("\"name\":\"acp\"");
 
         HttpResult createMcp =
                 request(
