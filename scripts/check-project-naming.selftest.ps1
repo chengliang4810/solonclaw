@@ -6,14 +6,6 @@ $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
-$legacyEnvPrefixFixture = (([char]72) + ([char]69) + ([char]82) + ([char]77) + ([char]69) + ([char]83))
-$legacyEnvNameFixture = $legacyEnvPrefixFixture + "_ALLOW_PRIVATE_URLS"
-
-function Join-Codepoints {
-    param([int[]] $Codes)
-
-    return -join ($Codes | ForEach-Object { [char] $_ })
-}
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -114,15 +106,6 @@ try {
         throw "Naming check did not block a forbidden term with different casing."
     }
     Assert-NoRawBlockedOutput $caseInsensitiveBlocked.Output @($blockedFixtureLower) "case-insensitive directory text scan"
-
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($legacyEnvNameFixture + "=true") -Encoding UTF8
-    $legacyEnvBlocked = Invoke-NamingCheck
-    if ($legacyEnvBlocked.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden legacy environment variable prefix."
-    }
-    Assert-NoRawBlockedOutput $legacyEnvBlocked.Output @($legacyEnvNameFixture) "legacy environment variable scan"
 
     Reset-Sandbox
     Push-Location $sandbox

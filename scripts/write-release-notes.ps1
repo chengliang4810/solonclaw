@@ -14,34 +14,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Join-Chars {
-    param([int[]] $Codes)
-
-    return -join ($Codes | ForEach-Object { [char] $_ })
-}
-
 function Get-BlockedReleaseRegex {
-    $legacyOne = Join-Chars @(72, 101, 114, 109, 101, 115)
-    $legacyTwo = Join-Chars @(79, 112, 101, 110, 67, 108, 97, 119)
-    $legacyTwoWords = @(
-        $legacyTwo,
-        ($legacyTwo.Substring(0, 4) + "_" + $legacyTwo.Substring(4)),
-        ($legacyTwo.Substring(0, 4) + "-" + $legacyTwo.Substring(4)),
-        ($legacyTwo.Substring(0, 4) + " " + $legacyTwo.Substring(4))
+    $patterns = @(
+        "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
+        "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?"
     )
-    $terms = @(
-        $legacyOne,
-        ($legacyOne + "_")
-    )
-    $terms += $legacyTwoWords
     foreach ($blockedTerm in $ExtraBlockedTerms) {
         if (-not [string]::IsNullOrWhiteSpace($blockedTerm)) {
-            $terms += $blockedTerm
+            $patterns += [Regex]::Escape($blockedTerm)
         }
     }
 
     return [Regex]::new(
-        (($terms | ForEach-Object { [Regex]::Escape($_) }) -join "|"),
+        ($patterns -join "|"),
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 }
 

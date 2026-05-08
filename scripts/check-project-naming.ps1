@@ -12,26 +12,35 @@ $ErrorActionPreference = "Stop"
 $scanRoot = Resolve-Path $RootPath
 Push-Location $scanRoot
 try {
-    $h = (([char]72) + ([char]101) + ([char]114) + ([char]109) + ([char]101) + ([char]115))
-    $oc = (([char]79) + ([char]112) + ([char]101) + ([char]110) + ([char]67) + ([char]108) + ([char]97) + ([char]119))
-    $terms = @(
-        $h,
-        ($h + "_"),
-        $oc,
-        ($oc + "_"),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "_" + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "_" + ([char]67) + ([char]108) + ([char]97) + ([char]119) + "_"),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "-" + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "-" + ([char]67) + ([char]108) + ([char]97) + ([char]119) + "-"),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + " " + ([char]67) + ([char]108) + ([char]97) + ([char]119))
-    )
-    foreach ($term in $ExtraBlockedTerms) {
-        if (-not [string]::IsNullOrWhiteSpace($term)) {
-            $terms += $term
+    function Get-BlockedPatterns {
+        $patterns = @(
+            "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
+            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?"
+        )
+        foreach ($term in $ExtraBlockedTerms) {
+            if (-not [string]::IsNullOrWhiteSpace($term)) {
+                $patterns += [Regex]::Escape($term)
+            }
         }
+        return $patterns
     }
+
+    function Get-GitGrepBlockedPatterns {
+        $patterns = @(
+            "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
+            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww][_ -]?"
+        )
+        foreach ($term in $ExtraBlockedTerms) {
+            if (-not [string]::IsNullOrWhiteSpace($term)) {
+                $patterns += [Regex]::Escape($term)
+            }
+        }
+        return $patterns
+    }
+
+    $blockedPatterns = Get-BlockedPatterns
     $regex = [Regex]::new(
-        (($terms | ForEach-Object { [Regex]::Escape($_) }) -join "|"),
+        ($blockedPatterns -join "|"),
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 
     $ignoredDirs = @(
@@ -239,9 +248,9 @@ try {
         $objectMatches = New-Object System.Collections.Generic.List[string]
         $objectMatchCount = 0
         $objectMatchLimit = 200
-        $grepArgs = @("grep", "-I", "-n", "-i")
-        foreach ($term in $terms) {
-            $grepArgs += @("-e", $term)
+        $grepArgs = @("grep", "-I", "-n", "-i", "-E")
+        foreach ($pattern in (Get-GitGrepBlockedPatterns)) {
+            $grepArgs += @("-e", $pattern)
         }
         foreach ($commit in $commits) {
             if ([string]::IsNullOrWhiteSpace($commit)) {
