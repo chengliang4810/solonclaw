@@ -603,6 +603,9 @@ export default {
     closeSession: '关闭此会话？',
     sessionExited: '已退出',
     processExited: '进程已退出，代码 {code}',
+    clipboardCopied: '终端内容已复制到剪贴板',
+    clipboardUnavailable: '浏览器拒绝访问剪贴板',
+    clipboardTooLarge: '终端剪贴板内容过大，已拒绝复制',
   },
 
   // 用量统计

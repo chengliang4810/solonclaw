@@ -5,6 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { getApiKey, getBaseUrlValue } from "@/api/client";
+import { copyToClipboard } from "@/utils/clipboard";
 import { NButton, NPopconfirm, NTooltip, NSelect, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import type { ITheme } from "@xterm/xterm";
@@ -215,6 +216,7 @@ const TERMINAL_THEMES: Record<string, { label: string; theme: ITheme }> = {
 };
 
 const STORAGE_KEY_THEME = "jimuqu_terminal_theme";
+const OSC52_MAX_CHARS = 100000;
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -383,6 +385,7 @@ function getOrCreateTerm(id: string): { term: Terminal; fitAddon: FitAddon } {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(new WebLinksAddon());
+    registerOsc52Clipboard(term);
     term.onData((data) => {
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(data);
@@ -392,6 +395,42 @@ function getOrCreateTerm(id: string): { term: Terminal; fitAddon: FitAddon } {
     termMap.set(id, entry);
   }
   return entry;
+}
+
+function registerOsc52Clipboard(term: Terminal) {
+  term.parser.registerOscHandler(52, async (data) => {
+    const text = decodeOsc52Payload(data);
+    if (text == null) return false;
+    if (text.length > OSC52_MAX_CHARS) {
+      message.warning(t("terminal.clipboardTooLarge"));
+      return true;
+    }
+    const copied = await copyToClipboard(text);
+    if (copied) {
+      message.success(t("terminal.clipboardCopied"));
+    } else {
+      message.warning(t("terminal.clipboardUnavailable"));
+    }
+    return true;
+  });
+}
+
+function decodeOsc52Payload(data: string): string | null {
+  const raw = String(data || "");
+  const separator = raw.indexOf(";");
+  if (separator < 0) return null;
+  const encoded = raw.slice(separator + 1).trim();
+  if (!encoded || encoded === "?") return null;
+  try {
+    const binary = atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
 }
 
 function switchSession(id: string) {
