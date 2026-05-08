@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
@@ -169,6 +171,51 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(localItem.get("permanent_disabled_reason"))).isEmpty();
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRedactApprovalHistoryOutput() throws Exception {
+        AppConfig config = new AppConfig();
+        ApprovalAuditEvent event = new ApprovalAuditEvent();
+        event.setEventId("audit-1");
+        event.setSessionId("session-audit");
+        event.setEventType("response");
+        event.setChoice("once");
+        event.setApprover("operator token=ghp_approversecret123");
+        event.setToolName("execute_shell");
+        event.setApprovalId("approval-1");
+        event.setApprovalKey("execute_shell:recursive_delete:hash");
+        event.setCommandHash("hash");
+        event.setCommandPreview("printf api_key=sk-history-secret");
+        event.setDescription("history password=history-secret");
+        event.setPatternKeysJson("[\"recursive_delete\"]");
+        event.setCreatedAt(1700000000002L);
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        new FixedApprovalAuditRepository(Collections.singletonList(event)),
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.approvalHistory(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        Map<String, Object> item = items.get(0);
+
+        String json = ONode.serialize(item);
+        assertThat(json).doesNotContain("ghp_approversecret123");
+        assertThat(json).doesNotContain("sk-history-secret");
+        assertThat(json).doesNotContain("history-secret");
+        assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
+    }
+
     private static Map<String, Object> findApprovalItem(
             List<Map<String, Object>> items, String sessionId) {
         for (Map<String, Object> item : items) {
@@ -288,6 +335,25 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public void setLastLearningAt(String sessionId, long lastLearningAt) {}
+    }
+
+    private static class FixedApprovalAuditRepository implements ApprovalAuditRepository {
+        private final List<ApprovalAuditEvent> events;
+
+        private FixedApprovalAuditRepository(List<ApprovalAuditEvent> events) {
+            this.events =
+                    events == null
+                            ? Collections.<ApprovalAuditEvent>emptyList()
+                            : new ArrayList<ApprovalAuditEvent>(events);
+        }
+
+        @Override
+        public void append(ApprovalAuditEvent event) {}
+
+        @Override
+        public List<ApprovalAuditEvent> listRecent(int limit) {
+            return events;
+        }
     }
 
     private static class FixedToolRegistry implements ToolRegistry {

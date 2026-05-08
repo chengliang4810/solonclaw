@@ -542,12 +542,12 @@ public class DashboardDiagnosticsService {
         item.put("session_id", event.getSessionId());
         item.put("event_type", event.getEventType());
         item.put("choice", event.getChoice());
-        item.put("approver", event.getApprover());
+        item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
         item.put("tool_name", event.getToolName());
         item.put("approval_id", event.getApprovalId());
         item.put("approval_key", event.getApprovalKey());
         item.put("command_hash", event.getCommandHash());
-        item.put("command_preview", event.getCommandPreview());
+        item.put("command_preview", SecretRedactor.redact(event.getCommandPreview(), 800));
         item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
         item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
         item.put("created_at", Long.valueOf(event.getCreatedAt()));
