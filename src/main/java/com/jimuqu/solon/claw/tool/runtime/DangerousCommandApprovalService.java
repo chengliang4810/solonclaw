@@ -344,6 +344,14 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "remote_content_pipe_interpreter",
+                                    "pipe remote content to script interpreter",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b.*\\|\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|env\\s+(?:\\w+=\\S*\\s+)*)?(?:bash|sh|zsh|ksh|fish|pwsh|powershell(?:\\.exe)?|python[23]?|perl|ruby|node)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "docker_destructive_prune",
                                     "Docker destructive prune",
                                     pattern(
