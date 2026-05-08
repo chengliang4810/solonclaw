@@ -348,6 +348,15 @@ public class SecurityPolicyService {
         if (isAlwaysBlockedIp(host)) {
             return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host);
         }
+        InetAddress literalAddress = parseAddressLiteral(host);
+        if (literalAddress != null && isAlwaysBlockedAddress(literalAddress)) {
+            return UrlVerdict.block(
+                    raw,
+                    "阻断云元数据/链路本地地址："
+                            + host
+                            + " -> "
+                            + literalAddress.getHostAddress());
+        }
         int[] hostIpv4 = parseObfuscatedIpv4(host);
         if (hostIpv4 != null
                 && isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
@@ -355,6 +364,18 @@ public class SecurityPolicyService {
                     raw, "阻断云元数据/链路本地地址：" + host + " -> " + formatIpv4(hostIpv4));
         }
         return UrlVerdict.allow();
+    }
+
+    private InetAddress parseAddressLiteral(String host) {
+        String value = StrUtil.nullToEmpty(host).trim();
+        if (value.indexOf(':') < 0) {
+            return null;
+        }
+        try {
+            return InetAddress.getByName(value);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
@@ -816,11 +837,24 @@ public class SecurityPolicyService {
                 || value.endsWith(".")
                 || value.endsWith(";")
                 || value.endsWith(":")
-                || value.endsWith("]")
+                || (value.endsWith("]") && !isBracketedIpv6Literal(value))
                 || value.endsWith("}")) {
             value = value.substring(0, value.length() - 1).trim();
         }
         return value;
+    }
+
+    private boolean isBracketedIpv6Literal(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (!text.startsWith("[") || !text.endsWith("]")) {
+            return false;
+        }
+        int closing = text.indexOf(']');
+        if (closing != text.length() - 1) {
+            return false;
+        }
+        String host = text.substring(1, closing);
+        return host.indexOf(':') >= 0;
     }
 
     private List<String> extractPaths(String toolName, Map<String, Object> args) {

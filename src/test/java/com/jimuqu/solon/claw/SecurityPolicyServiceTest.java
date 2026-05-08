@@ -198,6 +198,21 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockBareIpv6MetadataCommandTargets() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.UrlVerdict mapped =
+                policy.checkCommandAlwaysBlockedUrls("curl [::ffff:169.254.169.254]");
+        SecurityPolicyService.UrlVerdict expanded =
+                policy.checkCommandAlwaysBlockedUrls("curl [0:0:0:0:0:ffff:a9fe:a9fe]");
+
+        assertThat(mapped.isAllowed()).isFalse();
+        assertThat(mapped.getMessage()).contains("元数据");
+        assertThat(expanded.isAllowed()).isFalse();
+        assertThat(expanded.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
