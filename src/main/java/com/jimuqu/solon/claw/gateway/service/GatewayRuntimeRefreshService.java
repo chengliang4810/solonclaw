@@ -57,12 +57,15 @@ public class GatewayRuntimeRefreshService {
 
         AppConfig latest;
         try {
+            Props props =
+                    Solon.cfg() == null
+                            ? new Props()
+                            : new Props(Solon.cfg());
+            props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
             if (Solon.cfg() == null) {
-                Props props = new Props();
-                props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
                 latest = AppConfig.load(props);
             } else {
-                latest = AppConfig.load(Solon.cfg());
+                latest = AppConfig.load(props);
             }
         } catch (Throwable e) {
             log.debug("Skip runtime refresh because config reload failed", e);
@@ -521,9 +524,9 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react.toolLoopHardStopEnabled",
                     "tool_loop_guardrails.warnings_enabled",
                     "tool_loop_guardrails.hard_stop_enabled",
-                    "solonclaw.security.allow_private_urls",
+                    "jimuqu.security.allow_private_urls",
                     "security.allow_private_urls",
-                    "solonclaw.browser.allow_private_urls",
+                    "jimuqu.browser.allow_private_urls",
                     "browser.allow_private_urls",
                     "solonclaw.security.tirithEnabled",
                     "solonclaw.security.tirithFailOpen",

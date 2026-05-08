@@ -65,7 +65,6 @@ public class CoreConfigOverrideLoadTest {
                         + "    searchBackend: brave-free\n"
                         + "    braveSearchApiKey: brv-test-key\n"
                         + "  security:\n"
-                        + "    allowPrivateUrls: true\n"
                         + "    websiteBlocklist:\n"
                         + "      enabled: true\n"
                         + "      domains:\n"
@@ -104,7 +103,10 @@ public class CoreConfigOverrideLoadTest {
                         + "      cdnBaseUrl: https://cdn.example\n"
                         + "      longPollUrl: https://poll.example/ilink/bot/getupdates\n"
                         + "      splitMultilineMessages: true\n"
-                        + "      sendChunkRetries: 9\n",
+                        + "      sendChunkRetries: 9\n"
+                        + "jimuqu:\n"
+                        + "  security:\n"
+                        + "    allowPrivateUrls: true\n",
                 configFile);
 
         Props props = new Props();
@@ -471,6 +473,42 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
+    }
+
+    @Test
+    void shouldLoadScopedJimuquAllowPrivateUrlsAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-private-url-policy").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "jimuqu:\n"
+                        + "  security:\n"
+                        + "    allow_private_urls: true\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
+    }
+
+    @Test
+    void shouldIgnoreLegacyScopedAllowPrivateUrlsAlias() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-private-url-policy").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  security:\n"
+                        + "    allow_private_urls: true\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
     }
 
     @Test

@@ -89,7 +89,6 @@ solonclaw.terminal.foregroundMaxRetries: 3
 solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2
 
 # 安全策略
-solonclaw.security.allowPrivateUrls: false
 solonclaw.security.websiteBlocklist.enabled: false
 solonclaw.security.websiteBlocklist.domains:
 solonclaw.security.websiteBlocklist.sharedFiles:

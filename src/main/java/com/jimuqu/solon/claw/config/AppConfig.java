@@ -2434,11 +2434,11 @@ public class AppConfig {
         return readBoolean(
                 props,
                 overrides,
-                "solonclaw.security.allowPrivateUrls",
+                "jimuqu.security.allowPrivateUrls",
                 readBoolean(
                         props,
                         overrides,
-                        "solonclaw.security.allow_private_urls",
+                        "jimuqu.security.allow_private_urls",
                         readBoolean(
                                 props,
                                 overrides,
@@ -2446,7 +2446,7 @@ public class AppConfig {
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.browser.allow_private_urls",
+                                        "jimuqu.browser.allow_private_urls",
                                         readBoolean(
                                                 props,
                                                 overrides,

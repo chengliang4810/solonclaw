@@ -111,7 +111,8 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(env.appConfig.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("allow_private_urls: true");
+                .contains("allow_private_urls: true")
+                .doesNotContain("solonclaw:\n  security:\n    allow_private_urls:");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
