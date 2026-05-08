@@ -73,6 +73,20 @@ function Invoke-GitNamingCheck {
     }
 }
 
+function Assert-NoRawBlockedOutput {
+    param(
+        [string] $Output,
+        [string[]] $BlockedValues,
+        [string] $Scenario
+    )
+
+    foreach ($blockedValue in $BlockedValues) {
+        if (-not [string]::IsNullOrWhiteSpace($blockedValue) -and $Output.Contains($blockedValue)) {
+            throw ("Naming guard leaked a raw blocked term in output for scenario: {0}" -f $Scenario)
+        }
+    }
+}
+
 Push-Location $repoRoot
 try {
     Reset-Sandbox
@@ -82,6 +96,7 @@ try {
     if ($blocked.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
+    Assert-NoRawBlockedOutput $blocked.Output @($blockedFixture) "directory text scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
@@ -98,6 +113,7 @@ try {
     if ($caseInsensitiveBlocked.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden term with different casing."
     }
+    Assert-NoRawBlockedOutput $caseInsensitiveBlocked.Output @($blockedFixtureLower) "case-insensitive directory text scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
@@ -106,6 +122,7 @@ try {
     if ($legacyEnvBlocked.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden legacy environment variable prefix."
     }
+    Assert-NoRawBlockedOutput $legacyEnvBlocked.Output @($legacyEnvNameFixture) "legacy environment variable scan"
 
     Reset-Sandbox
     Push-Location $sandbox
@@ -126,6 +143,7 @@ try {
     if ($blockedCommit.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in git commit subjects."
     }
+    Assert-NoRawBlockedOutput $blockedCommit.Output @($blockedFixture) "git commit subject scan"
 
     Push-Location $sandbox
     try {
@@ -142,6 +160,7 @@ try {
     if ($blockedObjectText.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in git object text inside a release range."
     }
+    Assert-NoRawBlockedOutput $blockedObjectText.Output @($blockedFixture) "git object text scan"
 
     Push-Location $sandbox
     try {
@@ -164,22 +183,24 @@ try {
     if ($allRefsBlocked.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in all reachable git refs."
     }
+    Assert-NoRawBlockedOutput $allRefsBlocked.Output @($blockedFixture) "all refs git object text scan"
 
     $releaseDir = Join-Path $sandbox "dist"
     New-Item -ItemType Directory -Path $releaseDir | Out-Null
     $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
     Push-Location $sandbox
     try {
-        & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+        $releaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
             -Tag "v2099.01.01-abcdef0" `
             -Version "0.0.0-test" `
             -CommitRange "HEAD" `
             -DisplayRange "HEAD" `
-            -ExtraBlockedTerms $blockedFixture 2>$null
+            -ExtraBlockedTerms $blockedFixture 2>&1
         if ($LASTEXITCODE -eq 0) {
             throw "Release notes generation should fail on blocked legacy naming."
         }
+        Assert-NoRawBlockedOutput ($releaseOutput | Out-String) @($blockedFixture) "release notes generation"
     } finally {
         Pop-Location
     }
