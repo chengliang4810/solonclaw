@@ -84,4 +84,23 @@ public class TerminalClipboardSupportTest {
                 .contains("attempt.done attempt=1 status=success ok")
                 .contains("run.done session=session");
     }
+
+    @Test
+    void shouldExposeSidecarEventSnapshotForTuiEventsCommand() {
+        ConsoleEventSink sink = new ConsoleEventSink(new PrintWriter(new StringWriter()), true);
+
+        sink.onRunStarted("session");
+        sink.onToolStarted("terminal", Collections.<String, Object>emptyMap());
+        sink.onToolCompleted("terminal", "ok", 12L);
+        sink.onRunCompleted("session", "done", null);
+
+        ConsoleEventSink.EventSnapshot snapshot = sink.eventSnapshot();
+        assertThat(snapshot.getEventCount()).isEqualTo(4);
+        assertThat(snapshot.getToolCount()).isEqualTo(1);
+        assertThat(snapshot.getFailureCount()).isEqualTo(0);
+        assertThat(snapshot.getRecentEvents())
+                .contains("tool.start terminal")
+                .contains("tool.done terminal 12ms")
+                .contains("run.done session=session");
+    }
 }

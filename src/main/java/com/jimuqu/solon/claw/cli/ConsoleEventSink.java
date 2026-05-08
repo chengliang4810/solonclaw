@@ -5,7 +5,10 @@ import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import java.io.PrintWriter;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 
 /** Console renderer for streaming model and tool events. */
@@ -203,6 +206,14 @@ public class ConsoleEventSink implements ConversationEventSink {
         return assistant.toString();
     }
 
+    public EventSnapshot eventSnapshot() {
+        return new EventSnapshot(
+                eventCount,
+                toolCount,
+                failureCount,
+                new ArrayList<String>(recentEvents));
+    }
+
     String footer(LlmResult result) {
         if (result == null) {
             return "";
@@ -300,5 +311,40 @@ public class ConsoleEventSink implements ConversationEventSink {
             return text;
         }
         return text.substring(0, maxLength) + "...";
+    }
+
+    public static final class EventSnapshot {
+        private final int eventCount;
+        private final int toolCount;
+        private final int failureCount;
+        private final List<String> recentEvents;
+
+        private EventSnapshot(
+                int eventCount, int toolCount, int failureCount, List<String> recentEvents) {
+            this.eventCount = eventCount;
+            this.toolCount = toolCount;
+            this.failureCount = failureCount;
+            this.recentEvents =
+                    Collections.unmodifiableList(
+                            recentEvents == null
+                                    ? new ArrayList<String>()
+                                    : new ArrayList<String>(recentEvents));
+        }
+
+        public int getEventCount() {
+            return eventCount;
+        }
+
+        public int getToolCount() {
+            return toolCount;
+        }
+
+        public int getFailureCount() {
+            return failureCount;
+        }
+
+        public List<String> getRecentEvents() {
+            return recentEvents;
+        }
     }
 }

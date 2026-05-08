@@ -23,6 +23,7 @@ public class ShellCompletionGenerator {
                             "/sessions",
                             "/session",
                             "/history",
+                            "/events",
                             "/skin",
                             "/copy",
                             "/exit",

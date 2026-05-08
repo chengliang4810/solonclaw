@@ -3,9 +3,12 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliMode;
+import com.jimuqu.solon.claw.cli.ConsoleEventSink;
 import com.jimuqu.solon.claw.cli.TuiShell;
 import com.jimuqu.solon.claw.config.AppConfig;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 public class TuiShellHeaderTest {
@@ -44,9 +47,52 @@ public class TuiShellHeaderTest {
                 .contains("reasoning=-");
     }
 
+    @Test
+    void shouldRenderLastTerminalEvents() throws Exception {
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
+        Field field = TuiShell.class.getDeclaredField("lastEventSnapshot");
+        field.setAccessible(true);
+        field.set(
+                shell,
+                eventSnapshot(
+                        5,
+                        1,
+                        0,
+                        Arrays.asList("tool.start terminal", "run.done session=tui")));
+
+        String text = renderEvents(shell);
+
+        assertThat(text)
+                .contains("最近一次运行事件：total=5 tools=1 failures=0")
+                .contains("1. tool.start terminal")
+                .contains("2. run.done session=tui");
+    }
+
+    @Test
+    void shouldRenderEmptyTerminalEvents() throws Exception {
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
+
+        assertThat(renderEvents(shell)).isEqualTo("暂无终端事件。");
+    }
+
     private String statusLine(TuiShell shell, String sessionId) throws Exception {
         Method method = TuiShell.class.getDeclaredMethod("statusLine", String.class);
         method.setAccessible(true);
         return (String) method.invoke(shell, sessionId);
+    }
+
+    private String renderEvents(TuiShell shell) throws Exception {
+        Method method = TuiShell.class.getDeclaredMethod("renderEvents");
+        method.setAccessible(true);
+        return (String) method.invoke(shell);
+    }
+
+    private Object eventSnapshot(int total, int tools, int failures, java.util.List<String> events)
+            throws Exception {
+        java.lang.reflect.Constructor<ConsoleEventSink.EventSnapshot> constructor =
+                ConsoleEventSink.EventSnapshot.class.getDeclaredConstructor(
+                        int.class, int.class, int.class, java.util.List.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(total, tools, failures, events);
     }
 }

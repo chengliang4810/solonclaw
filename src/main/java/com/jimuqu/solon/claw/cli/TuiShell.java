@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.Callable;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -22,7 +23,7 @@ public class TuiShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/copy",
-                "/models", "/sessions", "/session", "/history", "/skin", "/exit"
+                "/models", "/sessions", "/session", "/history", "/events", "/skin", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -33,6 +34,7 @@ public class TuiShell {
     private final TerminalSessionBrowser sessionBrowser;
     private final TerminalHistoryViewer historyViewer;
     private TerminalSkin skin = TerminalSkin.fromEnvironment();
+    private ConsoleEventSink.EventSnapshot lastEventSnapshot;
     private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
@@ -169,7 +171,9 @@ public class TuiShell {
 
     private boolean shouldHandleInline(String input) {
         String value = StrUtil.nullToEmpty(input).trim();
-        if (LocalTerminalHelp.isHelp(value) || "/copy".equalsIgnoreCase(value)) {
+        if (LocalTerminalHelp.isHelp(value)
+                || "/copy".equalsIgnoreCase(value)
+                || "/events".equalsIgnoreCase(value)) {
             return true;
         }
         return value.startsWith("/")
@@ -218,6 +222,11 @@ public class TuiShell {
             writer.flush();
             return 0;
         }
+        if ("/events".equalsIgnoreCase(trimmed)) {
+            writer.println(renderEvents());
+            writer.flush();
+            return 0;
+        }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
         }
@@ -236,12 +245,35 @@ public class TuiShell {
         if (StrUtil.isNotBlank(finalText)) {
             lastReply = finalText;
         }
+        lastEventSnapshot = sink.eventSnapshot();
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
             writer.println(skin.bold(skin.accent("系统")));
             writer.println(reply.getContent());
             writer.flush();
         }
         return reply != null && reply.isError() ? 1 : 0;
+    }
+
+    private String renderEvents() {
+        if (lastEventSnapshot == null || lastEventSnapshot.getEventCount() <= 0) {
+            return "暂无终端事件。";
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("最近一次运行事件：total=")
+                .append(lastEventSnapshot.getEventCount())
+                .append(" tools=")
+                .append(lastEventSnapshot.getToolCount())
+                .append(" failures=")
+                .append(lastEventSnapshot.getFailureCount());
+        List<String> events = lastEventSnapshot.getRecentEvents();
+        if (!events.isEmpty()) {
+            int index = 1;
+            for (String event : events) {
+                buffer.append('\n').append(index).append(". ").append(event);
+                index++;
+            }
+        }
+        return buffer.toString();
     }
 
     private int copyLastReply(PrintWriter writer) {
@@ -269,7 +301,7 @@ public class TuiShell {
         writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
                 skin.dim(
-                        "tips: /help 命令  /sessions 浏览会话  /history 预览历史  /skin 皮肤  /copy 复制上一条回复  /exit 退出"));
+                        "tips: /help 命令  /sessions 浏览会话  /history 预览历史  /events 事件  /skin 皮肤  /copy 复制上一条回复  /exit 退出"));
         writer.println(skin.dim(skin.border()));
         writer.flush();
     }

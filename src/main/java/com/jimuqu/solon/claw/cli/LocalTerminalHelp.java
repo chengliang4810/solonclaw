@@ -15,6 +15,7 @@ public final class LocalTerminalHelp {
                 + "/models 或 /model pick - 列出可选模型；/model pick <编号> 切换\n"
                 + "/sessions [关键词] - 浏览或搜索最近会话；/session pick <编号> 恢复\n"
                 + "/history [条数] - 预览当前终端会话的最近历史\n"
+                + "/events - 查看最近一次运行的终端事件\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
                 + "/exit 或 /quit - 退出当前终端会话\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
