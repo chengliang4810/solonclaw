@@ -271,6 +271,27 @@ public class DashboardControllerHttpTest {
                 .contains("\"suggested_action\":\"change_command\"")
                 .contains("\"hardline\"");
 
+        HttpResult policyAudit =
+                request(
+                        "POST",
+                        "/api/diagnostics/security-audit",
+                        "{\"action\":\"policy\"}",
+                        token);
+        assertThat(policyAudit.status).isEqualTo(200);
+        assertThat(policyAudit.body)
+                .contains("\"action\":\"policy\"")
+                .contains("\"coverage\"")
+                .contains("\"activeSurfaces\"")
+                .contains("\"dangerousCommandApproval\":true")
+                .contains("\"hardlineCommandBlocks\":true")
+                .contains("\"urlSafety\":true")
+                .contains("\"credentialFilePolicy\":true")
+                .contains("\"mcpUrlSafety\":true")
+                .contains("mcpOauthUrlSafety")
+                .doesNotContain("\"sudo_password\"")
+                .doesNotContain("\"credential_files\"")
+                .doesNotContain("\"env_passthrough\"");
+
         HttpResult urlAudit =
                 request(
                         "POST",
