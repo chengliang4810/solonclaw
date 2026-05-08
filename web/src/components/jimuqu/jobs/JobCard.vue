@@ -305,6 +305,16 @@ async function handleDelete() {
             <code>{{ modelDetail }}</code>
           </div>
         </section>
+        <section
+          v-if="activeJob.last_output || activeJob.last_error || activeJob.last_delivery_error"
+          class="detail-section"
+        >
+          <h4>{{ t('jobs.detail.lastResult') }}</h4>
+          <div v-if="activeJob.last_error || activeJob.last_delivery_error" class="error-line detail-error">
+            {{ activeJob.last_error || activeJob.last_delivery_error }}
+          </div>
+          <pre v-if="activeJob.last_output" class="run-output full-output">{{ activeJob.last_output }}</pre>
+        </section>
         <NSpin :show="runsLoading">
           <div v-if="runs.length === 0" class="empty-runs">{{ t('jobs.noHistory') }}</div>
           <div v-else class="run-list">
@@ -589,5 +599,13 @@ async function handleDelete() {
   overflow-wrap: anywhere;
   max-height: 240px;
   overflow: auto;
+}
+
+.detail-error {
+  margin-bottom: 8px;
+}
+
+.full-output {
+  max-height: 360px;
 }
 </style>

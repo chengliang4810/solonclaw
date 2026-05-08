@@ -281,6 +281,7 @@ export default {
       contextFrom: '上游任务',
       enabledToolsets: '工具集',
       model: '模型固定',
+      lastResult: '上次结果',
       yes: '是',
       no: '否',
     },

@@ -278,6 +278,7 @@ export default {
       contextFrom: 'Upstream Jobs',
       enabledToolsets: 'Toolsets',
       model: 'Model Pin',
+      lastResult: 'Last Result',
       yes: 'Yes',
       no: 'No',
     },
