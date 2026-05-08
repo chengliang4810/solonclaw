@@ -297,8 +297,16 @@ export async function deleteSession(id: string): Promise<boolean> {
   }
 }
 
-export async function renameSession(_id: string, _title: string): Promise<boolean> {
-  return false
+export async function renameSession(id: string, title: string): Promise<boolean> {
+  try {
+    await request<DashboardSessionSummary>(`/api/sessions/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title }),
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function fetchSessionUsage(ids: string[]): Promise<Record<string, { input_tokens: number; output_tokens: number }>> {

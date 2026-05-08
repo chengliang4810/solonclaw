@@ -220,6 +220,27 @@ public class DashboardControllerHttpTest {
                 .contains("\"goal_state\"")
                 .contains("完成 dashboard 会话目标展示");
 
+        HttpResult renameSession =
+                request(
+                        "PUT",
+                        "/api/sessions/dashboard-chat",
+                        "{\"title\":\"Dashboard renamed session\"}",
+                        token);
+        assertThat(renameSession.status).isEqualTo(200);
+        assertThat(renameSession.body).contains("\"title\":\"Dashboard renamed session\"");
+
+        HttpResult renamedSessions =
+                request("GET", "/api/sessions?limit=20&offset=0", null, token);
+        assertThat(renamedSessions.status).isEqualTo(200);
+        assertThat(renamedSessions.body).contains("\"title\":\"Dashboard renamed session\"");
+
+        HttpResult renamedMessages =
+                request("GET", "/api/sessions/dashboard-chat/messages", null, token);
+        assertThat(renamedMessages.status).isEqualTo(200);
+        assertThat(renamedMessages.body)
+                .contains("\"goal_state\"")
+                .contains("完成 dashboard 会话目标展示");
+
         HttpResult runs = request("GET", "/api/sessions/dashboard-chat/runs", null, token);
         assertThat(runs.status).isEqualTo(200);
         assertThat(runs.body).contains("\"runs\"");
