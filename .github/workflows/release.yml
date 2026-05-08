@@ -78,10 +78,14 @@ jobs:
         id: release_range
         shell: bash
         run: |
+          CLEAN_NAMING_BASE="c3abefe8855d8bc0c43a393d63e3d53b515d5239"
           PREVIOUS_TAG="$(git describe --tags --match 'v*' --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)"
           if [ -n "$PREVIOUS_TAG" ]; then
             GIT_RANGE="${PREVIOUS_TAG}..${GITHUB_SHA}"
             DISPLAY_RANGE="${PREVIOUS_TAG}..${GITHUB_SHA::7}"
+          elif git merge-base --is-ancestor "$CLEAN_NAMING_BASE" "$GITHUB_SHA"; then
+            GIT_RANGE="${CLEAN_NAMING_BASE}..${GITHUB_SHA}"
+            DISPLAY_RANGE="clean naming baseline..${GITHUB_SHA::7}"
           else
             OLDEST_COMMIT="$(git rev-list --max-count=30 "${GITHUB_SHA}" | tail -n 1)"
             if git rev-parse -q --verify "${OLDEST_COMMIT}^" >/dev/null; then
