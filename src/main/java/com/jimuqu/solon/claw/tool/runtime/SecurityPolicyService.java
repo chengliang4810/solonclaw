@@ -229,6 +229,9 @@ public class SecurityPolicyService {
         }
 
         if (!raw.contains("://")) {
+            if (hasSchemelessUserInfo(raw)) {
+                return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
+            }
             String schemelessHost = extractSchemelessHost(raw);
             if (StrUtil.isBlank(schemelessHost)) {
                 return UrlVerdict.allow();
@@ -626,6 +629,7 @@ public class SecurityPolicyService {
         }
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
+        extractSchemelessUserInfoUrlish(text, urls);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             urls.add(matcher.group());
@@ -752,6 +756,21 @@ public class SecurityPolicyService {
             }
         }
         return tokens;
+    }
+
+    private void extractSchemelessUserInfoUrlish(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (String token : tokens) {
+            String value = cleanUrlToken(token);
+            if (value.length() == 0 || value.contains("://") || !hasSchemelessUserInfo(value)) {
+                continue;
+            }
+            String host = extractSchemelessHost(value);
+            if (StrUtil.isBlank(host)) {
+                continue;
+            }
+            urls.add(value);
+        }
     }
 
     private void extractBareSecurityRelevantHosts(String text, List<String> urls) {
@@ -1810,6 +1829,30 @@ public class SecurityPolicyService {
             authority = StrUtil.nullToEmpty(uri.getAuthority());
         }
         return authority.indexOf('@') >= 0;
+    }
+
+    private boolean hasSchemelessUserInfo(String raw) {
+        String value = normalizeUrlText(raw);
+        if (value.length() == 0 || value.contains("://")) {
+            return false;
+        }
+        int slash = value.indexOf('/');
+        String authority = slash >= 0 ? value.substring(0, slash) : value;
+        int question = authority.indexOf('?');
+        if (question >= 0) {
+            authority = authority.substring(0, question);
+        }
+        int hash = authority.indexOf('#');
+        if (hash >= 0) {
+            authority = authority.substring(0, hash);
+        }
+        int at = authority.lastIndexOf('@');
+        if (at <= 0 || at + 1 >= authority.length()) {
+            return false;
+        }
+        String userInfo = authority.substring(0, at);
+        String host = authority.substring(at + 1);
+        return userInfo.length() > 0 && extractSchemelessHost(host).length() > 0;
     }
 
     private String extractUriHost(URI uri) {

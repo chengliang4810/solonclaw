@@ -213,6 +213,25 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockSchemelessUserInfoUrlsInCommandsAndArguments() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict direct =
+                policy.checkUrl("alice:secret@example.com/path");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandUrls("curl alice:secret@example.com/path");
+        SecurityPolicyService.UrlVerdict safe =
+                policy.checkCommandUrls("curl example.com/path");
+
+        assertThat(direct.isAllowed()).isFalse();
+        assertThat(direct.getMessage()).contains("userinfo");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("userinfo");
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
