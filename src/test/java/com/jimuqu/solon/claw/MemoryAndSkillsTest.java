@@ -408,9 +408,10 @@ public class MemoryAndSkillsTest {
         assertThat(mounts.toString()).contains("credentials/token.json");
         assertThat(mounts.toString()).contains("/root/.jimuqu-agent/credentials/token.json");
         assertThat(missing).contains("missing.json");
-        assertThat(rejected.toString()).contains("../../.ssh/id_rsa");
+        assertThat(rejected.toString()).contains("[REDACTED_PATH]");
+        assertThat(rejected.toString()).doesNotContain("../../.ssh/id_rsa");
         assertThat(rejected.toString()).contains("path traversal");
-        assertThat(rejected.toString()).contains("/tmp/absolute-token.json");
+        assertThat(rejected.toString()).doesNotContain("/tmp/absolute-token.json");
         assertThat(rejected.toString()).contains("absolute path");
     }
 
@@ -617,8 +618,9 @@ public class MemoryAndSkillsTest {
         assertThat(missing).isEmpty();
         assertThat(rejected).hasSize(1);
         assertThat(rejected.toString())
-                .contains("credentials/skill-evil-link.json")
-                .contains("escapes runtime home");
+                .contains("[REDACTED_PATH]")
+                .contains("escapes runtime home")
+                .doesNotContain("credentials/skill-evil-link.json");
     }
 
     @Test
