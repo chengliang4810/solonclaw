@@ -6,6 +6,9 @@ import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +25,7 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "Manage scheduled cron jobs. Use action='list' to inspect jobs before remove; never guess job IDs. action can be create/add, list, update/edit, pause, resume, remove/delete/rm, run/run_now/trigger, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
+                    "Manage scheduled cron jobs. Use action='list' or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, inspect/show/detail, next/upcoming, update/edit, pause, resume, remove/delete/rm, run/run_now/trigger, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
     public String cronjob(
             @Param(
                             name = "action",
@@ -80,6 +83,12 @@ public class CronjobTools {
         if ("run_now".equals(normalized) || "trigger".equals(normalized)) {
             normalized = "run";
         }
+        if ("show".equals(normalized) || "detail".equals(normalized)) {
+            normalized = "inspect";
+        }
+        if ("upcoming".equals(normalized)) {
+            normalized = "next";
+        }
 
         if ("list".equals(normalized)) {
             List<CronJobRecord> jobs =
@@ -88,6 +97,18 @@ public class CronjobTools {
                     .data("jobs", views(jobs))
                     .data("count", Integer.valueOf(jobs.size()))
                     .preview(preview(jobs))
+                    .toJson();
+        }
+
+        if ("next".equals(normalized)) {
+            List<CronJobRecord> jobs =
+                    cronJobService.listBySource(sourceKey, includeDisabled == null || includeDisabled.booleanValue());
+            List<CronJobRecord> upcoming = upcoming(jobs, limit == null ? 5 : limit.intValue());
+            return ToolResultEnvelope.ok("Listed upcoming cron jobs")
+                    .data("jobs", views(upcoming))
+                    .data("count", Integer.valueOf(upcoming.size()))
+                    .data("limit", Integer.valueOf(safeLimit(limit == null ? 5 : limit.intValue())))
+                    .preview(preview(upcoming))
                     .toJson();
         }
 
@@ -131,6 +152,17 @@ public class CronjobTools {
 
         if (jobId == null || jobId.trim().length() == 0) {
             return ToolResultEnvelope.error("job_id is required for action: " + safeText(normalized)).toJson();
+        }
+
+        if ("inspect".equals(normalized)) {
+            CronJobRecord job = cronJobService.require(jobId);
+            Map<String, Object> view = formattedView(job);
+            return ToolResultEnvelope.ok("Cron job details: " + job.getJobId())
+                    .data("job_id", job.getJobId())
+                    .data("job", view)
+                    .data("message", "Cron job '" + job.getName() + "' details.")
+                    .preview(job.getJobId() + " " + job.getName() + " " + job.getStatus())
+                    .toJson();
         }
 
         if ("history".equals(normalized)) {
@@ -412,7 +444,7 @@ public class CronjobTools {
     }
 
     private List<Map<String, Object>> views(List<CronJobRecord> jobs) {
-        List<Map<String, Object>> result = new java.util.ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRecord job : jobs) {
             result.add(formattedView(job));
         }
@@ -420,11 +452,53 @@ public class CronjobTools {
     }
 
     private List<Map<String, Object>> runViews(List<CronJobRunRecord> runs) {
-        List<Map<String, Object>> result = new java.util.ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (CronJobRunRecord run : runs) {
             result.add(cronJobService.runToView(run));
         }
         return result;
+    }
+
+    private List<CronJobRecord> upcoming(List<CronJobRecord> jobs, int limit) {
+        List<CronJobRecord> result = new ArrayList<CronJobRecord>();
+        for (CronJobRecord job : jobs) {
+            if (job == null || job.getNextRunAt() <= 0L) {
+                continue;
+            }
+            if ("PAUSED".equalsIgnoreCase(job.getStatus()) || "COMPLETED".equalsIgnoreCase(job.getStatus())) {
+                continue;
+            }
+            result.add(job);
+        }
+        Collections.sort(
+                result,
+                new Comparator<CronJobRecord>() {
+                    @Override
+                    public int compare(CronJobRecord left, CronJobRecord right) {
+                        long delta = left.getNextRunAt() - right.getNextRunAt();
+                        if (delta < 0L) {
+                            return -1;
+                        }
+                        if (delta > 0L) {
+                            return 1;
+                        }
+                        String leftId = left.getJobId() == null ? "" : left.getJobId();
+                        String rightId = right.getJobId() == null ? "" : right.getJobId();
+                        return leftId.compareTo(rightId);
+                    }
+                });
+        int safeLimit = safeLimit(limit);
+        if (result.size() <= safeLimit) {
+            return result;
+        }
+        return new ArrayList<CronJobRecord>(result.subList(0, safeLimit));
+    }
+
+    private int safeLimit(int limit) {
+        if (limit <= 0) {
+            return 5;
+        }
+        return Math.min(limit, 50);
     }
 
     private Map<String, Object> formattedView(CronJobRecord job) {

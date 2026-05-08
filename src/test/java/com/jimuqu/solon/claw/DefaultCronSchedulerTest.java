@@ -1665,6 +1665,84 @@ public class DefaultCronSchedulerTest {
         List<?> pausedJobs = (List<?>) pausedTool.get("jobs");
         assertThat(((Map<?, ?>) pausedJobs.get(0)).get("paused_reason")).isEqualTo("waiting for upstream fix");
 
+        Map<?, ?> inspected =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "inspect",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(inspected.get("job_id")).isEqualTo(jobId);
+        assertThat(((Map<?, ?>) inspected.get("job")).get("paused_reason"))
+                .isEqualTo("waiting for upstream fix");
+        Map<?, ?> showAlias =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "show",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> detailAlias =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "detail",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(showAlias.get("summary").toString()).contains("Cron job details");
+        assertThat(detailAlias.get("summary").toString()).contains("Cron job details");
+
         Map<?, ?> defaultList =
                 (Map<?, ?>)
                         ONode.ofJson(
@@ -1922,6 +2000,160 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExposeUpcomingCronJobsThroughCronjobTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-next-room:user");
+
+        Map<?, ?> laterPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "later-tool-job",
+                                                "30m",
+                                                "later prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> soonPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "soon-tool-job",
+                                                "30m",
+                                                "soon prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                Integer.valueOf(2),
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> pausedPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "paused-tool-job",
+                                                "30m",
+                                                "paused prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        CronJobRecord later = env.cronJobRepository.findById(String.valueOf(laterPayload.get("job_id")));
+        CronJobRecord soon = env.cronJobRepository.findById(String.valueOf(soonPayload.get("job_id")));
+        CronJobRecord paused = env.cronJobRepository.findById(String.valueOf(pausedPayload.get("job_id")));
+        long now = System.currentTimeMillis();
+        later.setNextRunAt(now + 120000L);
+        soon.setNextRunAt(now + 60000L);
+        paused.setNextRunAt(now + 30000L);
+        paused.setStatus("PAUSED");
+        env.cronJobRepository.update(later);
+        env.cronJobRepository.update(soon);
+        env.cronJobRepository.update(paused);
+
+        Map<?, ?> next =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "next",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Integer.valueOf(1)))
+                                .toData();
+
+        assertThat(next.get("summary")).isEqualTo("Listed upcoming cron jobs");
+        assertThat(next.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(next.get("limit")).isEqualTo(Integer.valueOf(1));
+        List<?> nextJobs = (List<?>) next.get("jobs");
+        assertThat(((Map<?, ?>) nextJobs.get(0)).get("job_id")).isEqualTo(soon.getJobId());
+        assertThat(next.get("preview").toString()).contains("soon-tool-job").doesNotContain("paused-tool-job");
+
+        Map<?, ?> upcomingAlias =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "upcoming",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Integer.valueOf(5)))
+                                .toData();
+        List<?> allUpcoming = (List<?>) upcomingAlias.get("jobs");
+        assertThat(allUpcoming).hasSize(2);
+        assertThat(((Map<?, ?>) allUpcoming.get(0)).get("job_id")).isEqualTo(soon.getJobId());
+        assertThat(((Map<?, ?>) allUpcoming.get(1)).get("job_id")).isEqualTo(later.getJobId());
+    }
+
+    @Test
     void shouldRedactSecretsFromCronjobToolErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -2034,6 +2266,8 @@ public class DefaultCronSchedulerTest {
 
         assertThat(mapping.description())
                 .contains("create/add")
+                .contains("inspect/show/detail")
+                .contains("next/upcoming")
                 .contains("update/edit")
                 .contains("remove/delete/rm")
                 .contains("run/run_now/trigger")
