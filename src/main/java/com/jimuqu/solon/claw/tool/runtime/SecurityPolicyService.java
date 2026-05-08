@@ -758,13 +758,14 @@ public class SecurityPolicyService {
     }
 
     private boolean shouldCheckBareHost(String host) {
-        if (Pattern.compile("^\\d+$").matcher(StrUtil.nullToEmpty(host)).matches()) {
-            return false;
-        }
         for (String blocked : ALWAYS_BLOCKED_HOSTS) {
             if (blocked.equals(host)) {
                 return true;
             }
+        }
+        int[] obfuscatedIpv4 = parseObfuscatedIpv4(host);
+        if (obfuscatedIpv4 != null) {
+            return isBlockedOrAlwaysBlockedIpv4(obfuscatedIpv4);
         }
         if (isLocalOrAddressLiteral(host)) {
             return true;

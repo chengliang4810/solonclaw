@@ -180,6 +180,24 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockBarePackedIpv4MetadataCommandTargets() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.UrlVerdict decimal =
+                policy.checkCommandAlwaysBlockedUrls("curl 2852039166");
+        SecurityPolicyService.UrlVerdict hex =
+                policy.checkCommandAlwaysBlockedUrls("curl 0xa9fea9fe");
+        SecurityPolicyService.UrlVerdict safeNumber =
+                policy.checkCommandAlwaysBlockedUrls("printf 12345");
+
+        assertThat(decimal.isAllowed()).isFalse();
+        assertThat(decimal.getMessage()).contains("元数据");
+        assertThat(hex.isAllowed()).isFalse();
+        assertThat(hex.getMessage()).contains("元数据");
+        assertThat(safeNumber.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
