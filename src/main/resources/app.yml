@@ -98,10 +98,10 @@ solonclaw.security.tirithTimeoutSeconds: 5
 solonclaw.security.tirithFailOpen: true
 
 # 审批/确认策略
-solonclaw.approvals.mode: on
-solonclaw.approvals.cronMode: deny
-solonclaw.approvals.subagentAutoApprove: false
-solonclaw.approvals.mcpReloadConfirm: true
+jimuqu.approvals.mode: on
+jimuqu.approvals.cronMode: deny
+jimuqu.approvals.subagentAutoApprove: false
+jimuqu.approvals.mcpReloadConfirm: true
 
 # 预定义人格
 solonclaw.agent.personalities.helpful.description: 友好、通用的默认助手

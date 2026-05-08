@@ -1423,7 +1423,7 @@ public class AppConfig {
                                         readString(
                                                 props,
                                                 overrides,
-                                                "solonclaw.approvals.mode",
+                                                "jimuqu.approvals.mode",
                                                 readString(
                                                         props,
                                                         overrides,
@@ -1435,33 +1435,41 @@ public class AppConfig {
                                 readString(
                                         props,
                                         overrides,
-                                        "solonclaw.approvals.cronMode",
+                                        "jimuqu.approvals.cronMode",
                                         readString(
                                                 props,
                                                 overrides,
-                                                "solonclaw.approvals.cron_mode",
+                                                "jimuqu.approvals.cron_mode",
                                                 readString(
                                                         props,
                                                         overrides,
-                                                        "approvals.cron_mode",
+                                                        "approvals.cronMode",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "approvals.cron_mode",
                                                                 config.getScheduler()
-                                                                        .getCronApprovalMode())))));
+                                                                        .getCronApprovalMode()))))));
         config.getApprovals()
                 .setSubagentAutoApprove(
                         resolveBoolean(
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.approvals.subagentAutoApprove",
+                                        "jimuqu.approvals.subagentAutoApprove",
                                         readBoolean(
                                                 props,
                                                 overrides,
-                                                "solonclaw.approvals.subagent_auto_approve",
+                                                "jimuqu.approvals.subagent_auto_approve",
                                                 readBoolean(
                                                         props,
                                                         overrides,
-                                                        "delegation.subagent_auto_approve",
-                                                        false)))));
+                                                        "approvals.subagentAutoApprove",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "delegation.subagent_auto_approve",
+                                                                false))))));
         config.getApprovals()
                 .setTimeoutSeconds(
                         positiveInt(
@@ -1469,16 +1477,20 @@ public class AppConfig {
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "solonclaw.approvals.timeoutSeconds",
+                                                "jimuqu.approvals.timeoutSeconds",
                                                 readInt(
                                                         props,
                                                         overrides,
-                                                        "solonclaw.approvals.timeout",
+                                                        "jimuqu.approvals.timeout",
                                                         readInt(
                                                                 props,
                                                                 overrides,
-                                                                "approvals.timeout",
-                                                                60)))),
+                                                                "approvals.timeoutSeconds",
+                                                                readInt(
+                                                                        props,
+                                                                        overrides,
+                                                                        "approvals.timeout",
+                                                                        60))))),
                                 60));
         config.getApprovals()
                 .setGatewayTimeoutSeconds(
@@ -1487,16 +1499,20 @@ public class AppConfig {
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "solonclaw.approvals.gatewayTimeoutSeconds",
+                                                "jimuqu.approvals.gatewayTimeoutSeconds",
                                                 readInt(
                                                         props,
                                                         overrides,
-                                                        "solonclaw.approvals.gateway_timeout",
+                                                        "jimuqu.approvals.gateway_timeout",
                                                         readInt(
                                                                 props,
                                                                 overrides,
-                                                                "approvals.gateway_timeout",
-                                                                300)))),
+                                                                "approvals.gatewayTimeoutSeconds",
+                                                                readInt(
+                                                                        props,
+                                                                        overrides,
+                                                                        "approvals.gateway_timeout",
+                                                                        300))))),
                                 300));
         config.getApprovals()
                 .setMcpReloadConfirm(
@@ -1504,12 +1520,20 @@ public class AppConfig {
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.approvals.mcpReloadConfirm",
+                                        "jimuqu.approvals.mcpReloadConfirm",
                                         readBoolean(
                                                 props,
                                                 overrides,
-                                                "solonclaw.approvals.mcp_reload_confirm",
-                                                true))));
+                                                "jimuqu.approvals.mcp_reload_confirm",
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "approvals.mcpReloadConfirm",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "approvals.mcp_reload_confirm",
+                                                                true))))));
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(

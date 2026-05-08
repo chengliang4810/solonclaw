@@ -1559,7 +1559,7 @@ public class DefaultCronScheduler {
                             + job.getScript()
                             + " matched dangerous command pattern ("
                             + dangerous.getDescription()
-                            + ") but cron runs without a user present to approve it. Set solonclaw.approvals.cronMode=approve to allow this.");
+                            + ") but cron runs without a user present to approve it. Set approvals.cronMode=approve to allow this.");
         }
     }
 

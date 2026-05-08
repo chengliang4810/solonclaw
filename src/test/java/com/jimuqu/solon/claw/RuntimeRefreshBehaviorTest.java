@@ -118,6 +118,24 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldWriteApprovalsRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("approvals.mcpReloadConfirm", "false");
+
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
+        assertThat(config)
+                .contains("approvals:")
+                .contains("mcpReloadConfirm: false")
+                .doesNotContain("solonclaw:\n  approvals:");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
     void shouldRejectUnsafeCredentialFilePathsFromDashboardWrites() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardConfigService configService =

@@ -410,6 +410,7 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "providers",
                     "model",
+                    "approvals",
                     "solonclaw",
                     "solonclaw.llm",
                     "solonclaw.scheduler",
@@ -429,7 +430,6 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.trace",
                     "solonclaw.task",
                     "solonclaw.security",
-                    "solonclaw.approvals",
                     "solonclaw.mcp",
                     "solonclaw.channels",
                     "solonclaw.channels.feishu",
@@ -530,8 +530,10 @@ public class GatewayRuntimeRefreshService {
                     "browser.allow_private_urls",
                     "solonclaw.security.tirithEnabled",
                     "solonclaw.security.tirithFailOpen",
-                    "solonclaw.approvals.mcpReloadConfirm",
-                    "solonclaw.approvals.mcp_reload_confirm",
+                    "jimuqu.approvals.mcpReloadConfirm",
+                    "jimuqu.approvals.mcp_reload_confirm",
+                    "approvals.mcpReloadConfirm",
+                    "approvals.mcp_reload_confirm",
                     "solonclaw.security.website_blocklist.enabled",
                     "security.website_blocklist.enabled",
                     "solonclaw.mcp.enabled");

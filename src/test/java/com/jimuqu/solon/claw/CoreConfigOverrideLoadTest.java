@@ -71,12 +71,6 @@ public class CoreConfigOverrideLoadTest {
                         + "        - blocked.example\n"
                         + "      sharedFiles:\n"
                         + "        - shared-blocklist.txt\n"
-                        + "  approvals:\n"
-                        + "    mode: off\n"
-                        + "    cronMode: approve\n"
-                        + "    timeoutSeconds: 45\n"
-                        + "    gatewayTimeoutSeconds: 120\n"
-                        + "    mcpReloadConfirm: false\n"
                         + "  compression:\n"
                         + "    enabled: false\n"
                         + "    thresholdPercent: 0.75\n"
@@ -105,6 +99,12 @@ public class CoreConfigOverrideLoadTest {
                         + "      splitMultilineMessages: true\n"
                         + "      sendChunkRetries: 9\n"
                         + "jimuqu:\n"
+                        + "  approvals:\n"
+                        + "    mode: off\n"
+                        + "    cronMode: approve\n"
+                        + "    timeoutSeconds: 45\n"
+                        + "    gatewayTimeoutSeconds: 120\n"
+                        + "    mcpReloadConfirm: false\n"
                         + "  security:\n"
                         + "    allowPrivateUrls: true\n",
                 configFile);
@@ -358,6 +358,62 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getApprovals().getMode()).isEqualTo("off");
+    }
+
+    @Test
+    void shouldLoadScopedJimuquApprovalsAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-approvals").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "jimuqu:\n"
+                        + "  approvals:\n"
+                        + "    mode: off\n"
+                        + "    cron_mode: approve\n"
+                        + "    subagent_auto_approve: true\n"
+                        + "    timeout: 45\n"
+                        + "    gateway_timeout: 120\n"
+                        + "    mcp_reload_confirm: false\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getApprovals().getMode()).isEqualTo("off");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("approve");
+        assertThat(config.getApprovals().isSubagentAutoApprove()).isTrue();
+        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(45);
+        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(120);
+        assertThat(config.getApprovals().isMcpReloadConfirm()).isFalse();
+    }
+
+    @Test
+    void shouldIgnoreLegacyScopedApprovalsAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-approvals").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  approvals:\n"
+                        + "    mode: off\n"
+                        + "    cron_mode: approve\n"
+                        + "    subagent_auto_approve: true\n"
+                        + "    timeout: 45\n"
+                        + "    gateway_timeout: 120\n"
+                        + "    mcp_reload_confirm: false\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getApprovals().getMode()).isEqualTo("on");
+        assertThat(config.getApprovals().getCronMode()).isEqualTo("deny");
+        assertThat(config.getApprovals().isSubagentAutoApprove()).isFalse();
+        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
+        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
+        assertThat(config.getApprovals().isMcpReloadConfirm()).isTrue();
     }
 
     @Test

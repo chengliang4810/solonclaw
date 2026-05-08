@@ -23,7 +23,7 @@ import org.yaml.snakeyaml.Yaml;
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
     private static final List<String> PASSTHROUGH_PREFIXES =
-            Arrays.asList("channels.wecom.groups.", "security.website_blocklist.");
+            Arrays.asList("approvals.", "channels.wecom.groups.", "security.website_blocklist.");
     private static final List<String> PASSTHROUGH_KEYS =
             Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");
     private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
