@@ -2374,6 +2374,14 @@ public class DefaultCommandService implements CommandService {
                 body.put("skills", field.substring("-s ".length()).trim());
             } else if (field.startsWith("--deliver ")) {
                 body.put("deliver", field.substring("--deliver ".length()).trim());
+            } else if (field.startsWith("--deliver-chat-id ")) {
+                body.put("deliver_chat_id", field.substring("--deliver-chat-id ".length()).trim());
+            } else if (field.startsWith("--deliver_chat_id ")) {
+                body.put("deliver_chat_id", field.substring("--deliver_chat_id ".length()).trim());
+            } else if (field.startsWith("--deliver-thread-id ")) {
+                body.put("deliver_thread_id", field.substring("--deliver-thread-id ".length()).trim());
+            } else if (field.startsWith("--deliver_thread_id ")) {
+                body.put("deliver_thread_id", field.substring("--deliver_thread_id ".length()).trim());
             } else if (field.startsWith("--repeat ")) {
                 body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
             } else if (field.startsWith("--script ")) {
@@ -2423,6 +2431,8 @@ public class DefaultCommandService implements CommandService {
 
     private void appendCronFlagOptions(Map<String, Object> body, CronFlagOptions options) {
         putIfNotBlank(body, "deliver", options.deliver);
+        putCronStringOption(body, "deliver_chat_id", options.deliverChatId);
+        putCronStringOption(body, "deliver_thread_id", options.deliverThreadId);
         if (options.repeat != null) {
             body.put("repeat", options.repeat);
         }
@@ -2474,6 +2484,12 @@ public class DefaultCommandService implements CommandService {
                 options.name = tokens.get(++i);
             } else if ("--deliver".equals(token) && i + 1 < tokens.size()) {
                 options.deliver = tokens.get(++i);
+            } else if (("--deliver-chat-id".equals(token) || "--deliver_chat_id".equals(token))
+                    && i + 1 < tokens.size()) {
+                options.deliverChatId = tokens.get(++i);
+            } else if (("--deliver-thread-id".equals(token) || "--deliver_thread_id".equals(token))
+                    && i + 1 < tokens.size()) {
+                options.deliverThreadId = tokens.get(++i);
             } else if ("--repeat".equals(token) && i + 1 < tokens.size()) {
                 options.repeat = Integer.valueOf(tokens.get(++i));
             } else if ("--limit".equals(token) && i + 1 < tokens.size()) {
@@ -3642,6 +3658,8 @@ public class DefaultCommandService implements CommandService {
     private static class CronFlagOptions {
         private String name;
         private String deliver;
+        private String deliverChatId;
+        private String deliverThreadId;
         private Integer repeat;
         private Integer limit;
         private String reason;
