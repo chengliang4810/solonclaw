@@ -3290,6 +3290,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactApproverBeforeNotifyingApprovalObservers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> approvers = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {}
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        approvers.add(event.getApprover());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "ops token=ghp_approver123"))
+                .isTrue();
+
+        assertThat(approvers).hasSize(1);
+        assertThat(approvers.get(0)).contains("token=***").doesNotContain("ghp_approver123");
+    }
+
+    @Test
     void shouldNotifyApprovalObserversForDenyResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         final List<String> choices = new java.util.ArrayList<String>();

@@ -3617,7 +3617,7 @@ public class DangerousCommandApprovalService {
                 String sessionId, PendingApproval pendingApproval, String choice, String approver) {
             super(sessionId, pendingApproval);
             this.choice = StrUtil.nullToEmpty(choice);
-            this.approver = StrUtil.nullToEmpty(approver);
+            this.approver = redactedApprover(approver);
         }
 
         public String getChoice() {
