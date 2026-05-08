@@ -94,18 +94,21 @@ public class SolonClawToolSchemaSanitizerTest {
     }
 
     @Test
-    void shouldPreserveNestedCombinatorsInsideProperties() {
+    void shouldStripNestedUnsupportedSchemaKeywordsInsideProperties() {
         ONode root =
                 ONode.ofJson(
                         SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
                                 "{"
                                         + "\"type\":\"object\","
-                                        + "\"properties\":{\"config\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\"}},\"allOf\":[{\"required\":[\"mode\"]}]}}"
+                                        + "\"properties\":{\"config\":{\"type\":\"object\",\"properties\":{\"mode\":{\"type\":\"string\"}},\"allOf\":[{\"required\":[\"mode\"]}],\"if\":{\"required\":[\"mode\"]},\"then\":{\"required\":[\"extra\"]},\"else\":{\"required\":[\"fallback\"]}}}"
                                         + "}"));
 
         ONode nested = root.get("properties").get("config");
-        assertThat(nested.hasKey("allOf")).isTrue();
-        assertThat(nested.get("allOf").get(0).get("required").get(0).getString()).isEqualTo("mode");
+        assertThat(nested.hasKey("allOf")).isFalse();
+        assertThat(nested.hasKey("if")).isFalse();
+        assertThat(nested.hasKey("then")).isFalse();
+        assertThat(nested.hasKey("else")).isFalse();
+        assertThat(nested.get("properties").hasKey("mode")).isTrue();
     }
 
     @Test
@@ -191,6 +194,47 @@ public class SolonClawToolSchemaSanitizerTest {
 
         assertThat(dynamic.get("type").getString()).isEqualTo("object");
         assertThat(dynamic.get("properties").isObject()).isTrue();
+    }
+
+    @Test
+    void shouldStripDynamicToolUnsupportedSchemaKeywordsRecursively() {
+        ONode root =
+                ONode.ofJson(
+                        SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
+                                "{"
+                                        + "\"$schema\":\"https://json-schema.org/draft/2020-12/schema\","
+                                        + "\"$id\":\"urn:test\","
+                                        + "\"type\":\"object\","
+                                        + "\"$defs\":{\"refValue\":{\"type\":\"string\"}},"
+                                        + "\"properties\":{"
+                                        + "\"value\":{\"$ref\":\"#/$defs/refValue\"},"
+                                        + "\"names\":{\"type\":\"array\",\"contains\":{\"type\":\"string\"},\"minContains\":1,\"maxContains\":3,\"prefixItems\":[{\"type\":\"string\"}],\"items\":{\"type\":\"string\"}},"
+                                        + "\"attrs\":{\"type\":\"object\",\"propertyNames\":{\"pattern\":\"^[a-z]+$\"},\"dependentSchemas\":{\"mode\":{\"required\":[\"level\"]}},\"unevaluatedProperties\":false,\"properties\":{\"mode\":{\"type\":\"string\"}},\"required\":[\"mode\",\"level\"]}"
+                                        + "},"
+                                        + "\"dependentRequired\":{\"value\":[\"names\"]},"
+                                        + "\"unevaluatedProperties\":false"
+                                        + "}"));
+
+        ONode attrs = root.get("properties").get("attrs");
+        ONode names = root.get("properties").get("names");
+        ONode value = root.get("properties").get("value");
+
+        assertThat(root.hasKey("$schema")).isFalse();
+        assertThat(root.hasKey("$id")).isFalse();
+        assertThat(root.hasKey("$defs")).isFalse();
+        assertThat(root.hasKey("dependentRequired")).isFalse();
+        assertThat(root.hasKey("unevaluatedProperties")).isFalse();
+        assertThat(value.hasKey("$ref")).isFalse();
+        assertThat(names.hasKey("contains")).isFalse();
+        assertThat(names.hasKey("minContains")).isFalse();
+        assertThat(names.hasKey("maxContains")).isFalse();
+        assertThat(names.hasKey("prefixItems")).isFalse();
+        assertThat(names.get("items").get("type").getString()).isEqualTo("string");
+        assertThat(attrs.hasKey("propertyNames")).isFalse();
+        assertThat(attrs.hasKey("dependentSchemas")).isFalse();
+        assertThat(attrs.hasKey("unevaluatedProperties")).isFalse();
+        assertThat(attrs.get("required").size()).isEqualTo(1);
+        assertThat(attrs.get("required").get(0).getString()).isEqualTo("mode");
     }
 
     @Test

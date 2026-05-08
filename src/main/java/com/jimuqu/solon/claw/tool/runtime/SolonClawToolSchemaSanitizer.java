@@ -11,6 +11,33 @@ import org.noear.snack4.ONode;
 public final class SolonClawToolSchemaSanitizer {
     private static final String[] TOP_LEVEL_FORBIDDEN_COMBINATORS =
             new String[] {"allOf", "anyOf", "oneOf", "enum", "not"};
+    private static final String[] UNSUPPORTED_SCHEMA_KEYWORDS =
+            new String[] {
+                "$schema",
+                "$id",
+                "$anchor",
+                "$dynamicAnchor",
+                "$dynamicRef",
+                "$ref",
+                "$defs",
+                "definitions",
+                "allOf",
+                "anyOf",
+                "oneOf",
+                "not",
+                "if",
+                "then",
+                "else",
+                "dependentSchemas",
+                "dependentRequired",
+                "propertyNames",
+                "unevaluatedProperties",
+                "unevaluatedItems",
+                "contains",
+                "minContains",
+                "maxContains",
+                "prefixItems"
+            };
 
     private SolonClawToolSchemaSanitizer() {}
 
@@ -33,7 +60,8 @@ public final class SolonClawToolSchemaSanitizer {
         }
         Object stripped = stripNullableUnions(top, true);
         Object patternSafe = stripPatternAndFormat(stripped).getSchema();
-        Object compatible = stripTopLevelForbiddenCombinators(patternSafe);
+        Object compatible = stripUnsupportedSchemaKeywords(patternSafe);
+        compatible = stripTopLevelForbiddenCombinators(compatible);
         return ONode.serialize(compatible instanceof Map ? compatible : defaultObjectSchema());
     }
 
@@ -52,7 +80,8 @@ public final class SolonClawToolSchemaSanitizer {
         }
         Object stripped = stripNullableUnions(top, true);
         Object patternSafe = stripPatternAndFormat(stripped).getSchema();
-        Object compatible = stripTopLevelForbiddenCombinators(patternSafe);
+        Object compatible = stripUnsupportedSchemaKeywords(patternSafe);
+        compatible = stripTopLevelForbiddenCombinators(compatible);
         return compatible instanceof Map ? compatible : defaultObjectSchema();
     }
 
@@ -209,6 +238,41 @@ public final class SolonClawToolSchemaSanitizer {
     }
 
     @SuppressWarnings("unchecked")
+    private static Object stripUnsupportedSchemaKeywords(Object schema) {
+        Object copy = deepCopy(schema);
+        stripUnsupportedSchemaKeywordsInPlace(copy);
+        return copy;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void stripUnsupportedSchemaKeywordsInPlace(Object node) {
+        if (node instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) node;
+            boolean schemaNode =
+                    map.containsKey("type")
+                            || map.containsKey("properties")
+                            || map.containsKey("items")
+                            || map.containsKey("additionalProperties")
+                            || map.containsKey("anyOf")
+                            || map.containsKey("oneOf")
+                            || map.containsKey("allOf")
+                            || map.containsKey("$ref");
+            for (String key : new ArrayList<String>(map.keySet())) {
+                if (schemaNode && isUnsupportedSchemaKeyword(key)) {
+                    map.remove(key);
+                } else {
+                    stripUnsupportedSchemaKeywordsInPlace(map.get(key));
+                }
+            }
+            pruneRequired(map);
+        } else if (node instanceof List) {
+            for (Object item : (List<Object>) node) {
+                stripUnsupportedSchemaKeywordsInPlace(item);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     private static void stripPatternAndFormatInPlace(Object node, Counter counter) {
         if (node instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) node;
@@ -241,6 +305,15 @@ public final class SolonClawToolSchemaSanitizer {
 
     private static boolean isUnionKey(String key) {
         return "anyOf".equals(key) || "oneOf".equals(key) || "allOf".equals(key);
+    }
+
+    private static boolean isUnsupportedSchemaKeyword(String key) {
+        for (String unsupported : UNSUPPORTED_SCHEMA_KEYWORDS) {
+            if (unsupported.equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String firstNonNullType(List<?> values) {
