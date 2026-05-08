@@ -24,12 +24,14 @@ public class TuiShell {
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
-                "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/exit"
+                "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/copy",
+                "/exit"
             };
 
     private final CliRuntime cliRuntime;
     private final CliMode mode;
     private final CliAttachmentResolver attachmentResolver;
+    private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
         this(cliRuntime, mode, null);
@@ -91,6 +93,10 @@ public class TuiShell {
     }
 
     private int send(PrintWriter writer, String sessionId, String input) throws Exception {
+        String trimmed = StrUtil.nullToEmpty(input).trim();
+        if ("/copy".equalsIgnoreCase(trimmed)) {
+            return copyLastReply(writer);
+        }
         ConsoleEventSink sink = new ConsoleEventSink(writer, true);
         CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);
         if (!resolved.getAttachments().isEmpty()) {
@@ -99,12 +105,31 @@ public class TuiShell {
         }
         GatewayReply reply =
                 cliRuntime.send(sessionId, resolved.getText(), resolved.getAttachments(), sink);
+        String finalText = reply == null ? "" : StrUtil.nullToEmpty(reply.getContent());
+        if (StrUtil.isBlank(finalText)) {
+            finalText = sink.assistantText();
+        }
+        if (StrUtil.isNotBlank(finalText)) {
+            lastReply = finalText;
+        }
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
             writer.println(BOLD + CYAN + "系统" + RESET);
             writer.println(reply.getContent());
             writer.flush();
         }
         return reply != null && reply.isError() ? 1 : 0;
+    }
+
+    private int copyLastReply(PrintWriter writer) {
+        if (StrUtil.isBlank(lastReply)) {
+            writer.println(DIM + "没有可复制的上一条回复。" + RESET);
+            writer.flush();
+            return 1;
+        }
+        TerminalClipboardSupport.copy(writer, lastReply);
+        writer.println(DIM + "已复制上一条回复到终端剪贴板。" + RESET);
+        writer.flush();
+        return 0;
     }
 
     private CliAttachmentResolver.ResolvedInput resolveAttachments(String input) {

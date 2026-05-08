@@ -21,7 +21,7 @@ public class CliShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/exit", "/quit"
+                "/platforms", "/copy", "/exit", "/quit"
             };
 
     private final CliRuntime cliRuntime;
@@ -81,6 +81,10 @@ public class CliShell {
 
     private int sendOnce(PrintWriter writer, String sessionId, String input, boolean verbose)
             throws Exception {
+        String trimmed = StrUtil.nullToEmpty(input).trim();
+        if ("/copy".equalsIgnoreCase(trimmed)) {
+            return copyLastReply(writer);
+        }
         ConsoleEventSink sink = new ConsoleEventSink(writer, verbose);
         CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);
         if (!resolved.getAttachments().isEmpty()) {
@@ -89,11 +93,32 @@ public class CliShell {
         }
         GatewayReply reply =
                 cliRuntime.send(sessionId, resolved.getText(), resolved.getAttachments(), sink);
+        String finalText = reply == null ? "" : StrUtil.nullToEmpty(reply.getContent());
+        if (StrUtil.isBlank(finalText)) {
+            finalText = sink.assistantText();
+        }
+        if (StrUtil.isNotBlank(finalText)) {
+            lastReply = finalText;
+        }
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
             writer.println(reply.getContent());
             writer.flush();
         }
         return reply != null && reply.isError() ? 1 : 0;
+    }
+
+    private String lastReply;
+
+    private int copyLastReply(PrintWriter writer) {
+        if (StrUtil.isBlank(lastReply)) {
+            writer.println("没有可复制的上一条回复。");
+            writer.flush();
+            return 1;
+        }
+        TerminalClipboardSupport.copy(writer, lastReply);
+        writer.println("已复制上一条回复到终端剪贴板。");
+        writer.flush();
+        return 0;
     }
 
     private CliAttachmentResolver.ResolvedInput resolveAttachments(String input) {

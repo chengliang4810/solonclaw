@@ -16,6 +16,7 @@ public class ConsoleEventSink implements ConversationEventSink {
 
     private final PrintWriter writer;
     private final boolean verbose;
+    private final StringBuilder assistant = new StringBuilder();
     private boolean assistantStarted;
     private boolean reasoningStarted;
 
@@ -73,7 +74,9 @@ public class ConsoleEventSink implements ConversationEventSink {
             writer.print(CYAN + "Assistant" + RESET + "\n");
             assistantStarted = true;
         }
-        writer.print(StrUtil.nullToEmpty(delta));
+        String text = StrUtil.nullToEmpty(delta);
+        assistant.append(text);
+        writer.print(text);
         writer.flush();
     }
 
@@ -127,6 +130,10 @@ public class ConsoleEventSink implements ConversationEventSink {
 
     public boolean hasAssistantOutput() {
         return assistantStarted;
+    }
+
+    public String assistantText() {
+        return assistant.toString();
     }
 
     private void line(String text) {
