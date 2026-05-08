@@ -137,16 +137,12 @@ try {
             -Version "0.0.0-test" `
             -CommitRange "HEAD" `
             -DisplayRange "HEAD" `
-            -ExtraBlockedTerms $blockedFixture
-        if ($LASTEXITCODE -ne 0) {
-            throw "Release notes generation failed."
+            -ExtraBlockedTerms $blockedFixture 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            throw "Release notes generation should fail on blocked legacy naming."
         }
     } finally {
         Pop-Location
-    }
-    $releaseNaming = Invoke-NamingCheck -WithExtraFixture
-    if ($releaseNaming.ExitCode -ne 0) {
-        throw "Generated release notes leaked legacy naming: $($releaseNaming.Output)"
     }
 } finally {
     Pop-Location

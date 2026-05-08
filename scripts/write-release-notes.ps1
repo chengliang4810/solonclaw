@@ -20,15 +20,8 @@ function Join-Chars {
     return -join ($Codes | ForEach-Object { [char] $_ })
 }
 
-function Convert-LegacyReleaseText {
-    param([string] $Text)
-
-    if ([string]::IsNullOrEmpty($Text)) {
-        return $Text
-    }
-
+function Get-BlockedReleaseRegex {
     $legacyOne = Join-Chars @(72, 101, 114, 109, 101, 115)
-    $legacyOneUpper = $legacyOne.ToUpperInvariant()
     $legacyTwo = Join-Chars @(79, 112, 101, 110, 67, 108, 97, 119)
     $legacyTwoWords = @(
         $legacyTwo,
@@ -36,46 +29,42 @@ function Convert-LegacyReleaseText {
         ($legacyTwo.Substring(0, 4) + "-" + $legacyTwo.Substring(4)),
         ($legacyTwo.Substring(0, 4) + " " + $legacyTwo.Substring(4))
     )
-
-    $result = $Text
-    $result = [Regex]::Replace(
-        $result,
-        ("\b" + [Regex]::Escape($legacyOneUpper) + "_([A-Z0-9_]+)\b"),
-        "JIMUQU_`$1",
-        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    $result = [Regex]::Replace(
-        $result,
-        ("\b" + [Regex]::Escape($legacyOne) + "([-_ ]agent|[-_ ]cli|[-_ ]api)?\b"),
-        "jimuqu-agent",
-        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    foreach ($legacyWord in $legacyTwoWords) {
-        $result = [Regex]::Replace(
-            $result,
-            ("\b" + [Regex]::Escape($legacyWord) + "(_[A-Z0-9_]+)?\b"),
-            "SolonClaw",
-            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    }
+    $terms = @(
+        $legacyOne,
+        ($legacyOne + "_")
+    )
+    $terms += $legacyTwoWords
     foreach ($blockedTerm in $ExtraBlockedTerms) {
-        if ([string]::IsNullOrWhiteSpace($blockedTerm)) {
-            continue
+        if (-not [string]::IsNullOrWhiteSpace($blockedTerm)) {
+            $terms += $blockedTerm
         }
-        $result = [Regex]::Replace(
-            $result,
-            [Regex]::Escape($blockedTerm),
-            "JIMUQU_BLOCKED_TERM",
-            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     }
-    return $result
+
+    return [Regex]::new(
+        (($terms | ForEach-Object { [Regex]::Escape($_) }) -join "|"),
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+
+function Assert-CleanReleaseText {
+    param([string] $Text)
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return
+    }
+
+    if ($script:BlockedReleaseRegex.IsMatch($Text)) {
+        throw "Release notes input contains blocked legacy project naming. Rewrite the commit subject before publishing."
+    }
 }
 
 function Normalize-ReleaseItem {
     param([string] $Item)
 
-    $safe = Convert-LegacyReleaseText $Item
-    if ($safe -match "\s/\s") {
-        return $safe
+    Assert-CleanReleaseText $Item
+    if ($Item -match "\s/\s") {
+        return $Item
     }
-    return ("提交：{0} / Commit: {0}" -f $safe)
+    return ("提交：{0} / Commit: {0}" -f $Item)
 }
 
 function Get-CommitSubjects {
@@ -109,10 +98,14 @@ function Write-Items {
     return ($Items | ForEach-Object { "- " + (Normalize-ReleaseItem $_) }) -join [Environment]::NewLine
 }
 
+$script:BlockedReleaseRegex = Get-BlockedReleaseRegex
 $commits = Get-CommitSubjects $CommitRange
 if ($commits.Length -eq 0) {
     $commits = Get-CommitSubjects "HEAD"
     $DisplayRange = (& git rev-parse --short HEAD).Trim()
+}
+foreach ($commit in $commits) {
+    Assert-CleanReleaseText $commit
 }
 
 $featurePattern = '(^|\b)(feat|feature)(\(.+\))?:|功能|新增|支持|对齐|补齐|完善|实现|add|implement|support|align|complete|improve'
