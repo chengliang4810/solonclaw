@@ -258,7 +258,7 @@ public class DefaultCronScheduler {
         try {
             tick();
         } catch (Exception e) {
-            log.warn("Cron tick failed", e);
+            log.warn("Cron tick failed: error={}", safeError(e));
         }
     }
 
@@ -452,7 +452,10 @@ public class DefaultCronScheduler {
                 job.setNextRunAt(next);
             }
         } catch (Exception e) {
-            log.warn("Cron pre-run next_run_at advance failed: jobId={}", job.getJobId(), e);
+            log.warn(
+                    "Cron pre-run next_run_at advance failed: jobId={}, error={}",
+                    job.getJobId(),
+                    safeError(e));
         }
     }
 
@@ -1044,7 +1047,10 @@ public class DefaultCronScheduler {
         try {
             data = ONode.ofJson(originJson).toData();
         } catch (Exception e) {
-            log.warn("Cron origin parse failed: {}", originJson, e);
+            log.warn(
+                    "Cron origin parse failed: origin={}, error={}",
+                    safeText(originJson),
+                    safeError(e));
             return null;
         }
         if (!(data instanceof Map)) {
@@ -1079,7 +1085,10 @@ public class DefaultCronScheduler {
         try {
             home = gatewayPolicyRepository.getHomeChannel(platform);
         } catch (Exception e) {
-            log.warn("Cron deliver home channel lookup failed: platform={}", platform, e);
+            log.warn(
+                    "Cron deliver home channel lookup failed: platform={}, error={}",
+                    platform,
+                    safeError(e));
             return null;
         }
         if (home == null || StrUtil.isBlank(home.getChatId())) {
@@ -1237,7 +1246,10 @@ public class DefaultCronScheduler {
         try {
             localSkillService.bumpUsage(skill, "load");
         } catch (Exception e) {
-            log.debug("Cron job failed to bump skill usage for '{}'", skill, e);
+            log.debug(
+                    "Cron job failed to bump skill usage for '{}': error={}",
+                    safeText(skill),
+                    safeError(e));
         }
     }
 
@@ -1293,7 +1305,10 @@ public class DefaultCronScheduler {
                 }
             }
         } catch (Exception e) {
-            log.warn("Cron enabled_toolsets parse failed: jobId={}", job.getJobId(), e);
+            log.warn(
+                    "Cron enabled_toolsets parse failed: jobId={}, error={}",
+                    job.getJobId(),
+                    safeError(e));
         }
         return result;
     }
@@ -1498,7 +1513,10 @@ public class DefaultCronScheduler {
             run.setSummary(summary(status, error, output, deliveryError));
             cronJobRepository.saveRun(run);
         } catch (Exception e) {
-            log.warn("Cron run history record failed: jobId={}", job.getJobId(), e);
+            log.warn(
+                    "Cron run history record failed: jobId={}, error={}",
+                    job.getJobId(),
+                    safeError(e));
         }
     }
 
