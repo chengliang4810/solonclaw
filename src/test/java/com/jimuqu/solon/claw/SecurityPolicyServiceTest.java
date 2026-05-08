@@ -180,6 +180,27 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckHostTargetArgumentKeysForRemoteTools() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put("server", "internal.example");
+        nested.put("proxyHost", "proxy.example:8080");
+        nested.put("upstream_target", "upstream.example");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("transport", nested);
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkToolArgs("mcp_proxy", args);
+
+        assertThat(policy.extractUrlishValues(args))
+                .contains("http://internal.example", "http://proxy.example:8080");
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldBlockBarePackedIpv4MetadataCommandTargets() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 

@@ -621,12 +621,40 @@ public class SecurityPolicyService {
                 || "callback_url".equals(normalized)
                 || "redirect_url".equals(normalized)
                 || "webhook_url".equals(normalized)
+                || looksLikeHostTargetKey(normalized)
                 || normalized.endsWith("_url")
                 || normalized.endsWith("url")
                 || normalized.endsWith("_uri")
                 || normalized.endsWith("uri")
                 || normalized.endsWith("_endpoint")
                 || normalized.endsWith("endpoint");
+    }
+
+    private boolean looksLikeHostTargetKey(String normalized) {
+        return "host".equals(normalized)
+                || "hostname".equals(normalized)
+                || "server".equals(normalized)
+                || "target".equals(normalized)
+                || "upstream".equals(normalized)
+                || "remote".equals(normalized)
+                || "origin".equals(normalized)
+                || "proxy".equals(normalized)
+                || normalized.endsWith("_host")
+                || normalized.endsWith("host")
+                || normalized.endsWith("_hostname")
+                || normalized.endsWith("hostname")
+                || normalized.endsWith("_server")
+                || normalized.endsWith("server")
+                || normalized.endsWith("_target")
+                || normalized.endsWith("target")
+                || normalized.endsWith("_upstream")
+                || normalized.endsWith("upstream")
+                || normalized.endsWith("_remote")
+                || normalized.endsWith("remote")
+                || normalized.endsWith("_origin")
+                || normalized.endsWith("origin")
+                || normalized.endsWith("_proxy")
+                || normalized.endsWith("proxy");
     }
 
     private void extractUrlishFromText(Object raw, List<String> urls) {
