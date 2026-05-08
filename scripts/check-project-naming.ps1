@@ -17,17 +17,9 @@ $ErrorActionPreference = "Stop"
 $scanRoot = Resolve-Path $RootPath
 Push-Location $scanRoot
 try {
-    function New-TextFromCodes {
-        param([int[]] $Codes)
-
-        return (($Codes | ForEach-Object { [string] [char] $_ }) -join "")
-    }
-
     function Get-BlockedPatterns {
-        $firstExternalName = [Regex]::Escape((New-TextFromCodes @(72, 69, 82, 77, 69, 83)))
-        $secondExternalNamePartA = [Regex]::Escape((New-TextFromCodes @(79, 80, 69, 78)))
-        $secondExternalNamePartB = [Regex]::Escape((New-TextFromCodes @(67, 76, 65, 87)))
-        $secondExternalName = $secondExternalNamePartA + "(?:[_\-\.\s])?" + $secondExternalNamePartB
+        $firstExternalName = "[Hh][Ee][Rr][Mm][Ee][Ss]"
+        $secondExternalName = "[Oo][Pp][Ee][Nn](?:[_\-\.\s])?[Cc][Ll][Aa][Ww]"
         $patterns = @()
         $patterns += ($firstExternalName + "_?")
         $patterns += ($secondExternalName + "[_\-]?")
@@ -43,10 +35,8 @@ try {
     }
 
     function Get-GitGrepBlockedPatterns {
-        $firstExternalName = New-TextFromCodes @(72, 69, 82, 77, 69, 83)
-        $secondExternalNamePartA = New-TextFromCodes @(79, 80, 69, 78)
-        $secondExternalNamePartB = New-TextFromCodes @(67, 76, 65, 87)
-        $secondExternalName = $secondExternalNamePartA + "([_[:space:].-])?" + $secondExternalNamePartB
+        $firstExternalName = "[Hh][Ee][Rr][Mm][Ee][Ss]"
+        $secondExternalName = "[Oo][Pp][Ee][Nn]([_[:space:].-])?[Cc][Ll][Aa][Ww]"
         $patterns = @()
         $patterns += ($firstExternalName + "_?")
         $patterns += ($secondExternalName + "[_ -]?")

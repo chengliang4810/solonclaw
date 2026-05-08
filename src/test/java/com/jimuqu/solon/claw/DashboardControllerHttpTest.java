@@ -400,7 +400,15 @@ public class DashboardControllerHttpTest {
         assertThat(cronNext.status).isEqualTo(200);
         ONode cronNextData = ONode.ofJson(cronNext.body).get("data");
         assertThat(cronNextData.get("count").getInt()).isEqualTo(1);
+        assertThat(cronNextData.get("include_disabled").getBoolean()).isFalse();
         assertThat(cronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+        HttpResult apiCronNext =
+                request("GET", "/api/jobs/next?include_disabled=true&limit=1", null, token);
+        assertThat(apiCronNext.status).isEqualTo(200);
+        ONode apiCronNextData = ONode.ofJson(apiCronNext.body);
+        assertThat(apiCronNextData.get("count").getInt()).isEqualTo(1);
+        assertThat(apiCronNextData.get("include_disabled").getBoolean()).isTrue();
+        assertThat(apiCronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
 
         HttpResult triggerCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);

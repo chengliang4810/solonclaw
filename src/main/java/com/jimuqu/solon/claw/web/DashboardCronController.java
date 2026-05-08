@@ -32,18 +32,27 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/next", method = MethodType.GET)
-    public Map<String, Object> next(@Param(defaultValue = "5") Integer limit) throws Exception {
-        List<Map<String, Object>> jobs = cronService.nextJobs(limit == null ? 5 : limit.intValue());
+    public Map<String, Object> next(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        List<Map<String, Object>> jobs = cronService.nextJobs(limit == null ? 5 : limit.intValue(), includeDisabled);
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("jobs", jobs);
         data.put("count", Integer.valueOf(jobs.size()));
         data.put("limit", Integer.valueOf(limit == null ? 5 : limit.intValue()));
+        data.put("include_disabled", Boolean.valueOf(includeDisabled));
         return DashboardResponse.ok(data);
     }
 
     @Mapping(value = "/api/jobs/next", method = MethodType.GET)
-    public Map<String, Object> apiNext(@Param(defaultValue = "5") Integer limit) throws Exception {
-        return apiJobsResponse(cronService.nextJobs(limit == null ? 5 : limit.intValue()));
+    public Map<String, Object> apiNext(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        List<Map<String, Object>> jobs = cronService.nextJobs(limit == null ? 5 : limit.intValue(), includeDisabled);
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("jobs", jobs);
+        data.put("count", Integer.valueOf(jobs.size()));
+        data.put("limit", Integer.valueOf(limit == null ? 5 : limit.intValue()));
+        data.put("include_disabled", Boolean.valueOf(includeDisabled));
+        return data;
     }
 
     @Mapping(value = "/api/cron/jobs/status", method = MethodType.GET)

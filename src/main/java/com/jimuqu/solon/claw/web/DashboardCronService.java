@@ -44,9 +44,13 @@ public class DashboardCronService {
     }
 
     public List<Map<String, Object>> nextJobs(int limit) throws Exception {
+        return nextJobs(limit, true);
+    }
+
+    public List<Map<String, Object>> nextJobs(int limit, boolean includeDisabled) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
         List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
-        for (CronJobRecord record : cronJobService.listAll(true)) {
+        for (CronJobRecord record : cronJobService.listAll(includeDisabled)) {
             if (record.getNextRunAt() <= 0L) {
                 continue;
             }
