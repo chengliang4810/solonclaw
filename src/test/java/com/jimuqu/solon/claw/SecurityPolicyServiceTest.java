@@ -599,17 +599,28 @@ public class SecurityPolicyServiceTest {
                         + "@@ -1 +1 @@\n"
                         + "-old\n"
                         + "+new\n");
+        Map<String, Object> moveSourceArgs = new LinkedHashMap<String, Object>();
+        moveSourceArgs.put(
+                "patch",
+                "*** Begin Patch\n"
+                        + "*** Move File: .env.local\n"
+                        + "*** End Patch\n");
 
         SecurityPolicyService.FileVerdict addFileVerdict =
                 policy.checkFileToolArgs("patch", addFileArgs);
         SecurityPolicyService.FileVerdict unifiedVerdict =
                 policy.checkFileToolArgs("patch", unifiedArgs);
+        SecurityPolicyService.FileVerdict moveSourceVerdict =
+                policy.checkFileToolArgs("patch", moveSourceArgs);
 
         assertThat(addFileVerdict.isAllowed()).isFalse();
         assertThat(addFileVerdict.getPath()).isEqualTo(".env");
         assertThat(addFileVerdict.getMessage()).contains("凭据");
         assertThat(unifiedVerdict.isAllowed()).isFalse();
         assertThat(unifiedVerdict.getPath()).isEqualTo(".ssh/authorized_keys");
+        assertThat(moveSourceVerdict.isAllowed()).isFalse();
+        assertThat(moveSourceVerdict.getPath()).isEqualTo(".env.local");
+        assertThat(moveSourceVerdict.getMessage()).contains("凭据");
         assertThat(policy.checkFileToolArgs("patch", safeArgs).isAllowed()).isTrue();
     }
 
