@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.ConsoleEventSink;
 import com.jimuqu.solon.claw.cli.TerminalClipboardSupport;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import org.junit.jupiter.api.Test;
@@ -41,5 +42,26 @@ public class TerminalClipboardSupportTest {
 
         assertThat(sink.assistantText()).isEqualTo("hello world");
         assertThat(sink.hasAssistantOutput()).isTrue();
+    }
+
+    @Test
+    void shouldRenderVerboseRunFooter() {
+        StringWriter buffer = new StringWriter();
+        ConsoleEventSink sink = new ConsoleEventSink(new PrintWriter(buffer), true);
+        LlmResult result = new LlmResult();
+        result.setProvider("default");
+        result.setModel("gpt-test");
+        result.setInputTokens(10);
+        result.setOutputTokens(5);
+        result.setReasoningTokens(2);
+        result.setCacheReadTokens(3);
+        result.setCacheWriteTokens(4);
+        result.setTotalTokens(22);
+
+        sink.onRunCompleted("session", "done", result);
+
+        assertThat(buffer.toString())
+                .contains("model=default/gpt-test")
+                .contains("tokens total=22 input=10 output=5 reasoning=2 cache_read=3 cache_write=4");
     }
 }

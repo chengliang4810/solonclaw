@@ -114,14 +114,9 @@ public class ConsoleEventSink implements ConversationEventSink {
             writer.print(markdownRenderer.flush());
             writer.println();
         }
-        if (verbose && result != null) {
-            line(
-                    DIM
-                            + "usage input="
-                            + result.getInputTokens()
-                            + " output="
-                            + result.getOutputTokens()
-                            + RESET);
+        String footer = footer(result);
+        if (verbose && StrUtil.isNotBlank(footer)) {
+            line(DIM + footer + RESET);
         }
     }
 
@@ -136,6 +131,49 @@ public class ConsoleEventSink implements ConversationEventSink {
 
     public String assistantText() {
         return assistant.toString();
+    }
+
+    String footer(LlmResult result) {
+        if (result == null) {
+            return "";
+        }
+        StringBuilder buffer = new StringBuilder();
+        String provider = StrUtil.nullToEmpty(result.getProvider()).trim();
+        String model = StrUtil.nullToEmpty(result.getModel()).trim();
+        if (StrUtil.isNotBlank(provider) || StrUtil.isNotBlank(model)) {
+            buffer.append("model=");
+            buffer.append(StrUtil.blankToDefault(provider, "-"));
+            buffer.append("/");
+            buffer.append(StrUtil.blankToDefault(model, "-"));
+        }
+        long total = result.getTotalTokens();
+        if (total <= 0L) {
+            total =
+                    result.getInputTokens()
+                            + result.getOutputTokens()
+                            + result.getCacheReadTokens()
+                            + result.getCacheWriteTokens();
+        }
+        if (total > 0L || result.getInputTokens() > 0L || result.getOutputTokens() > 0L) {
+            appendSeparator(buffer);
+            buffer.append("tokens total=").append(total);
+            buffer.append(" input=").append(result.getInputTokens());
+            buffer.append(" output=").append(result.getOutputTokens());
+            if (result.getReasoningTokens() > 0L) {
+                buffer.append(" reasoning=").append(result.getReasoningTokens());
+            }
+            if (result.getCacheReadTokens() > 0L || result.getCacheWriteTokens() > 0L) {
+                buffer.append(" cache_read=").append(result.getCacheReadTokens());
+                buffer.append(" cache_write=").append(result.getCacheWriteTokens());
+            }
+        }
+        return buffer.toString();
+    }
+
+    private void appendSeparator(StringBuilder buffer) {
+        if (buffer.length() > 0) {
+            buffer.append("  ");
+        }
     }
 
     private void line(String text) {
