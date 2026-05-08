@@ -39,6 +39,22 @@ export interface Job {
     thread_id: string | null
   } | null
   last_delivery_error: string | null
+  last_output: string | null
+}
+
+export interface JobRun {
+  run_id: string
+  job_id: string
+  source_key: string | null
+  trigger: string
+  attempt: number
+  started_at: string | null
+  finished_at: string | null
+  status: string | null
+  output: string | null
+  error: string | null
+  delivery_error: string | null
+  summary: string | null
 }
 
 export interface CreateJobRequest {
@@ -46,6 +62,8 @@ export interface CreateJobRequest {
   schedule: string
   prompt?: string
   deliver?: string
+  deliver_chat_id?: string
+  deliver_thread_id?: string
   skills?: string[]
   repeat?: number
   wrap_response?: boolean
@@ -64,6 +82,8 @@ export interface UpdateJobRequest {
   schedule?: string | { kind: string; raw?: string; expr?: string; run_at?: string | number; minutes?: number; display: string }
   prompt?: string
   deliver?: string
+  deliver_chat_id?: string | null
+  deliver_thread_id?: string | null
   skills?: string[]
   skill?: string
   repeat?: number
@@ -112,6 +132,7 @@ interface DashboardJob {
   last_status?: string | null
   last_error?: string | null
   last_delivery_error?: string | null
+  last_output?: string | null
 }
 
 function mapJob(job: DashboardJob): Job {
@@ -150,6 +171,7 @@ function mapJob(job: DashboardJob): Job {
     deliver: job.deliver || 'local',
     origin: job.origin || null,
     last_delivery_error: job.last_delivery_error || null,
+    last_output: job.last_output || null,
   }
 }
 
@@ -179,6 +201,8 @@ export async function createJob(data: CreateJobRequest): Promise<Job> {
       prompt: data.prompt || '',
       schedule: data.schedule,
       deliver: data.deliver || 'local',
+      deliver_chat_id: data.deliver_chat_id,
+      deliver_thread_id: data.deliver_thread_id,
       skills: data.skills || [],
       repeat: data.repeat,
       wrap_response: data.wrap_response,
@@ -203,6 +227,8 @@ export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<
       prompt: data.prompt,
       schedule: unwrapSchedule(data.schedule),
       deliver: data.deliver,
+      deliver_chat_id: data.deliver_chat_id,
+      deliver_thread_id: data.deliver_thread_id,
       skills: data.skills,
       skill: data.skill,
       repeat: data.repeat,
@@ -240,4 +266,11 @@ export async function resumeJob(jobId: string): Promise<Job> {
 export async function runJob(jobId: string): Promise<Job> {
   await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/trigger`, { method: 'POST' })
   return getJob(jobId)
+}
+
+export async function fetchJobRuns(jobId: string, limit = 20): Promise<JobRun[]> {
+  const result = await request<{ job_id: string; runs: JobRun[]; count: number }>(
+    `/api/cron/jobs/${jobId}/runs?limit=${encodeURIComponent(String(limit))}`,
+  )
+  return result.runs || []
 }
