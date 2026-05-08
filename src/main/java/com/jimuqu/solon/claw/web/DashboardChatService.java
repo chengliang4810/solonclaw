@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -545,10 +546,12 @@ public class DashboardChatService {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
             payload.put(
                     "error",
-                    error == null
-                            ? "Run failed"
-                            : StrUtil.blankToDefault(
-                                    error.getMessage(), error.getClass().getSimpleName()));
+                    SecretRedactor.redact(
+                            error == null
+                                    ? "Run failed"
+                                    : StrUtil.blankToDefault(
+                                            error.getMessage(), error.getClass().getSimpleName()),
+                            1000));
             enqueue(state, "run.failed", payload);
         }
 

@@ -1311,6 +1311,34 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRedactDashboardChatRunFailedEvents() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        String leakedToken = "sk-chatfailed12345";
+        ONode start =
+                ONode.ofJson(
+                        request(
+                                        "POST",
+                                        "/api/chat/runs",
+                                        "{\"input\":\"/resume "
+                                                + leakedToken
+                                                + "\",\"session_id\":\"dashboard-chat-failed-redaction\"}",
+                                        token)
+                                .body);
+        assertThat(start.get("run_id").getString()).isNotBlank();
+
+        String events =
+                request(
+                                "GET",
+                                "/api/chat/runs/" + start.get("run_id").getString() + "/events",
+                                null,
+                                token)
+                        .body;
+        ONode failed = extractSseEvent(events, "run.failed");
+        assertThat(failed.get("error").getString()).contains("***").doesNotContain(leakedToken);
+        assertThat(events).doesNotContain(leakedToken);
+    }
+
+    @Test
     void shouldSupportDashboardChatRunsAndUploads() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
