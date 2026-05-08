@@ -42,6 +42,33 @@ public class ApprovalAuditObserverTest {
         assertThat(event.getCommandPreview()).doesNotContain("ghp_commandsecret123");
     }
 
+    @Test
+    void shouldRedactSecretsFromApprovalAuditApprover() throws Exception {
+        CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        service.addApprovalObserver(new ApprovalAuditObserver(repository));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-approver");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+
+        service.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        service.approve(session, DangerousCommandApprovalService.ApprovalScope.ONCE, "ops token=ghp_approver123");
+
+        assertThat(repository.events).hasSize(2);
+        ApprovalAuditEvent response = repository.events.get(1);
+        assertThat(response.getChoice()).isEqualTo("once");
+        assertThat(response.getApprover()).doesNotContain("ghp_approver123");
+        assertThat(response.getApprover()).contains("token=***");
+    }
+
     private static class CapturingApprovalAuditRepository implements ApprovalAuditRepository {
         private final List<ApprovalAuditEvent> events = new ArrayList<ApprovalAuditEvent>();
 

@@ -38,7 +38,7 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
         audit.setSessionId(event.getSessionId());
         audit.setEventType(eventType);
         audit.setChoice(choice);
-        audit.setApprover(approver);
+        audit.setApprover(SecretRedactor.redact(approver, 200));
         audit.setToolName(event.getToolName());
         audit.setApprovalId(pending.getApprovalId());
         audit.setApprovalKey(pending.approvalKey());
