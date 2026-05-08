@@ -173,6 +173,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (runningRecord != null && runningRecord.isBackgrounded()) {
             return RunBusyDecision.runNow(policy);
         }
+        if (message != null && message.isHeartbeat()) {
+            if (runningRecord != null) {
+                heartbeat(runningRecord);
+                agentRunRepository.saveRun(runningRecord);
+                appendRunEvent(
+                        runningRecord,
+                        "run.heartbeat",
+                        "收到 heartbeat，当前 run 保持活跃，不按 busy 策略打断或排队",
+                        null);
+            }
+            RunBusyDecision decision = new RunBusyDecision();
+            decision.setPolicy(policy);
+            decision.setStatus("heartbeat");
+            decision.setRunId(handle.runId);
+            decision.setMessage("HEARTBEAT_OK");
+            return decision;
+        }
         if ("interrupt".equals(policy)) {
             AgentRunRecord active = runningRecord;
             if (active != null) {
