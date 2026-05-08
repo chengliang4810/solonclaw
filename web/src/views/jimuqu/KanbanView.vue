@@ -63,6 +63,10 @@ const taskForm = ref({
   priority: 0,
   max_retries: null as number | null,
   tenant: '',
+  parents: '',
+  skills: '',
+  workflow_template_id: '',
+  current_step_key: '',
 })
 const boardForm = ref({ slug: '', name: '', description: '' })
 
@@ -171,6 +175,41 @@ function filterText(value: string | null | undefined) {
   return (value || '').trim()
 }
 
+function splitList(value: string): string[] {
+  return value
+    .split(/[\s,，]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function taskRefText(tasks?: Array<Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>>): string {
+  return (tasks || [])
+    .map(task => task.task_id || task.id)
+    .filter(Boolean)
+    .join(', ')
+}
+
+function skillsText(skills: unknown): string {
+  if (!skills) return ''
+  if (Array.isArray(skills)) {
+    return skills.map(item => String(item)).filter(Boolean).join(', ')
+  }
+  if (typeof skills === 'string') return skills
+  return ''
+}
+
+function taskPipelineLabel(task: KanbanTask): string {
+  const values = []
+  if (task.workflow_template_id) values.push(task.workflow_template_id)
+  if (task.current_step_key) values.push(task.current_step_key)
+  return values.join(' / ')
+}
+
+function taskRefLabel(task: Pick<KanbanTask, 'id' | 'task_id' | 'title' | 'status' | 'assignee' | 'priority'>): string {
+  const owner = task.assignee ? ` @${task.assignee}` : ''
+  return `${task.task_id || task.id} · ${task.title || '-'} · ${statusLabels[task.status as KanbanStatus] || task.status || '-'}${owner}`
+}
+
 async function handleFilterChange() {
   await reloadTasks()
 }
@@ -191,6 +230,10 @@ function openCreateTask() {
     priority: 0,
     max_retries: null,
     tenant: '',
+    parents: '',
+    skills: '',
+    workflow_template_id: '',
+    current_step_key: '',
   }
   showTaskModal.value = true
 }
@@ -206,6 +249,10 @@ async function openTask(task: KanbanTask) {
     priority: selectedTask.value.priority || 0,
     max_retries: selectedTask.value.max_retries || null,
     tenant: selectedTask.value.tenant || '',
+    parents: taskRefText(selectedTask.value.parents),
+    skills: skillsText(selectedTask.value.skills),
+    workflow_template_id: selectedTask.value.workflow_template_id || '',
+    current_step_key: selectedTask.value.current_step_key || '',
   }
   commentText.value = ''
   recoveryReason.value = ''
@@ -227,6 +274,10 @@ async function saveTask() {
     priority: taskForm.value.priority || 0,
     max_retries: taskForm.value.max_retries || null,
     tenant: taskForm.value.tenant.trim(),
+    parents: splitList(taskForm.value.parents),
+    skills: splitList(taskForm.value.skills),
+    workflow_template_id: taskForm.value.workflow_template_id.trim(),
+    current_step_key: taskForm.value.current_step_key.trim(),
   }
   if (selectedTask.value) {
     await updateKanbanTask(selectedTask.value.id, payload)
@@ -686,6 +737,11 @@ function hasWarnings(task: KanbanTask): boolean {
                 <span>@{{ task.assignee || '未分配' }}</span>
                 <span v-if="task.tenant">{{ task.tenant }}</span>
               </div>
+              <div v-if="taskPipelineLabel(task) || (task.parents || []).length || (task.children || []).length" class="task-pipeline">
+                <span v-if="taskPipelineLabel(task)">{{ taskPipelineLabel(task) }}</span>
+                <span v-if="(task.parents || []).length">前置 {{ (task.parents || []).length }}</span>
+                <span v-if="(task.children || []).length">后续 {{ (task.children || []).length }}</span>
+              </div>
               <div class="task-actions" @click.stop>
                 <NButton
                   v-for="status in visibleStatuses"
@@ -717,6 +773,24 @@ function hasWarnings(task: KanbanTask): boolean {
         </label>
         <div class="form-grid">
           <label>
+            <span>前置任务</span>
+            <NInput v-model:value="taskForm.parents" placeholder="task-1, task-2" />
+          </label>
+          <label>
+            <span>技能绑定</span>
+            <NInput v-model:value="taskForm.skills" placeholder="skill-a, skill-b" />
+          </label>
+          <label>
+            <span>流程模板</span>
+            <NInput v-model:value="taskForm.workflow_template_id" placeholder="可选" />
+          </label>
+          <label>
+            <span>当前步骤</span>
+            <NInput v-model:value="taskForm.current_step_key" placeholder="例如 draft / review / deliver" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
             <span>状态</span>
             <NSelect v-model:value="taskForm.status" :options="statusOptions" />
           </label>
@@ -741,6 +815,23 @@ function hasWarnings(task: KanbanTask): boolean {
           <div class="detail-strip">
             <span>启动失败 {{ selectedTask.spawn_failures || 0 }} 次</span>
             <span>最大重试 {{ selectedTask.max_retries || '跟随派发器' }}</span>
+            <span v-if="selectedTask.workflow_template_id">流程 {{ selectedTask.workflow_template_id }}</span>
+            <span v-if="selectedTask.current_step_key">步骤 {{ selectedTask.current_step_key }}</span>
+            <span v-if="skillsText(selectedTask.skills)">技能 {{ skillsText(selectedTask.skills) }}</span>
+          </div>
+          <div v-if="(selectedTask.parents || []).length || (selectedTask.children || []).length" class="task-relations">
+            <div v-if="(selectedTask.parents || []).length">
+              <div class="panel-title">前置任务</div>
+              <div v-for="parent in selectedTask.parents || []" :key="parent.id" class="relation-row">
+                {{ taskRefLabel(parent) }}
+              </div>
+            </div>
+            <div v-if="(selectedTask.children || []).length">
+              <div class="panel-title">后续任务</div>
+              <div v-for="child in selectedTask.children || []" :key="child.id" class="relation-row">
+                {{ taskRefLabel(child) }}
+              </div>
+            </div>
           </div>
           <div v-if="selectedDrawer?.execution_overview" class="execution-overview">
             <div class="panel-title">执行概览</div>
@@ -1117,6 +1208,24 @@ function hasWarnings(task: KanbanTask): boolean {
   font-size: 11px;
 }
 
+.task-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+
+  span {
+    min-width: 0;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: $text-muted;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+}
+
 .task-id {
   font-family: $font-code;
 }
@@ -1217,6 +1326,7 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .recovery-panel,
 .execution-overview,
+.task-relations,
 .runs,
 .events,
 .notifications,
@@ -1292,6 +1402,26 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .overview-summary {
   margin-top: 8px;
+}
+
+.task-relations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.relation-row {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: $text-secondary;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+
+  & + & {
+    margin-top: 6px;
+  }
 }
 
 .recovery-actions {
@@ -1566,6 +1696,9 @@ function hasWarnings(task: KanbanTask): boolean {
 
   .recovery-actions,
   .overview-grid,
+  .task-relations,
+  .run-head,
+  .run-grid,
   .run-row,
   .event-row,
   .notification-row,
