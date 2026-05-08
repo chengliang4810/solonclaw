@@ -1556,8 +1556,16 @@ public class SecurityPolicyService {
                     rawAddress[3] & 0xff);
         }
         if (rawAddress.length == 16
+                && isZeroSuffix(rawAddress, 0, 10)
                 && rawAddress[10] == (byte) 0xff
                 && rawAddress[11] == (byte) 0xff) {
+            return isAlwaysBlockedIpv4(
+                    rawAddress[12] & 0xff,
+                    rawAddress[13] & 0xff,
+                    rawAddress[14] & 0xff,
+                    rawAddress[15] & 0xff);
+        }
+        if (rawAddress.length == 16 && isZeroSuffix(rawAddress, 0, 12)) {
             return isAlwaysBlockedIpv4(
                     rawAddress[12] & 0xff,
                     rawAddress[13] & 0xff,
@@ -1587,8 +1595,18 @@ public class SecurityPolicyService {
         }
         byte[] rawAddress = address.getAddress();
         if (rawAddress.length == 16
+                && isZeroSuffix(rawAddress, 0, 10)
                 && rawAddress[10] == (byte) 0xff
                 && rawAddress[11] == (byte) 0xff) {
+            int a = rawAddress[12] & 0xff;
+            int b = rawAddress[13] & 0xff;
+            int c = rawAddress[14] & 0xff;
+            int d = rawAddress[15] & 0xff;
+            if (isBlockedIpv4(a, b, c, d)) {
+                return true;
+            }
+        }
+        if (rawAddress.length == 16 && isZeroSuffix(rawAddress, 0, 12)) {
             int a = rawAddress[12] & 0xff;
             int b = rawAddress[13] & 0xff;
             int c = rawAddress[14] & 0xff;
