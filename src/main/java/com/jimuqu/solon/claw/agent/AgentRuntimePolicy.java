@@ -52,6 +52,7 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.KANBAN_HEARTBEAT,
                     ToolNameConstants.KANBAN_COMMENT,
                     ToolNameConstants.KANBAN_CREATE,
+                    ToolNameConstants.KANBAN_SCHEMA_CREATE,
                     ToolNameConstants.KANBAN_LINK,
                     ToolNameConstants.KANBAN_UNLINK,
                     ToolNameConstants.CONFIG_GET,
@@ -273,6 +274,7 @@ public final class AgentRuntimePolicy {
             output.add(ToolNameConstants.KANBAN_HEARTBEAT);
             output.add(ToolNameConstants.KANBAN_COMMENT);
             output.add(ToolNameConstants.KANBAN_CREATE);
+            output.add(ToolNameConstants.KANBAN_SCHEMA_CREATE);
             output.add(ToolNameConstants.KANBAN_LINK);
             output.add(ToolNameConstants.KANBAN_UNLINK);
             return;

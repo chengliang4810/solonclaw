@@ -209,6 +209,44 @@ public class KanbanTools {
     }
 
     @ToolMapping(
+            name = "kanban_schema_create",
+            description =
+                    "Create a Kanban task from a structured JSON object. Supports title, body, assignee, board, status, priority, tenant, parents, skills, workflow_template_id, current_step_key, idempotency_key, max_retries, and max_runtime_seconds.")
+    public String kanbanSchemaCreate(
+            @Param(
+                            name = "task_json",
+                            description =
+                                    "Task JSON object. Example: {\"title\":\"Review API\",\"assignee\":\"reviewer\",\"parents\":[\"task-1\"],\"skills\":[\"review\"],\"workflow_template_id\":\"delivery\",\"current_step_key\":\"review\"}.")
+                    String taskJson) {
+        if (StrUtil.isBlank(taskJson)) {
+            return error("task_json is required");
+        }
+        try {
+            Map<String, Object> request = parseTaskJson(taskJson);
+            if (request == null || request.isEmpty()) {
+                return error("task_json must be a JSON object");
+            }
+            if (StrUtil.isBlank(stringValue(request.get("title")))) {
+                return error("title is required");
+            }
+            if (StrUtil.isBlank(stringValue(request.get("assignee")))) {
+                return error("assignee is required");
+            }
+            if (!request.containsKey("created_by")) {
+                request.put("created_by", defaultWorkerName());
+            }
+            Map<String, Object> detail = kanbanService.createTask(request);
+            return ToolResultEnvelope.ok("Created Kanban schema task: " + detail.get("id"))
+                    .data("task", detail)
+                    .data("task_id", detail.get("id"))
+                    .preview(detail.get("id") + " " + detail.get("title"))
+                    .toJson();
+        } catch (Exception e) {
+            return error("kanban_schema_create: " + e.getMessage());
+        }
+    }
+
+    @ToolMapping(
             name = "kanban_link",
             description = "Add a parent-child dependency edge between two existing Kanban tasks.")
     public String kanbanLink(
@@ -308,6 +346,25 @@ public class KanbanTools {
         } catch (Exception e) {
             return metadata;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseTaskJson(String taskJson) {
+        Object parsed = ONode.deserialize(taskJson, Object.class);
+        if (!(parsed instanceof Map<?, ?>)) {
+            return null;
+        }
+        Map<String, Object> request = new LinkedHashMap<String, Object>();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) parsed).entrySet()) {
+            if (entry.getKey() != null) {
+                request.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return request;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String error(String message) {

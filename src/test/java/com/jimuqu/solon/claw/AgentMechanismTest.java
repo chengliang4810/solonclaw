@@ -175,6 +175,7 @@ public class AgentMechanismTest {
                         "kanban_heartbeat",
                         "kanban_comment",
                         "kanban_create",
+                        "kanban_schema_create",
                         "kanban_link",
                         "kanban_unlink");
 

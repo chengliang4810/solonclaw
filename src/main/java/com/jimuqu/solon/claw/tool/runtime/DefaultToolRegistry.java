@@ -77,6 +77,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.KANBAN_HEARTBEAT,
                     ToolNameConstants.KANBAN_COMMENT,
                     ToolNameConstants.KANBAN_CREATE,
+                    ToolNameConstants.KANBAN_SCHEMA_CREATE,
                     ToolNameConstants.KANBAN_LINK,
                     ToolNameConstants.KANBAN_UNLINK,
                     ToolNameConstants.CONFIG_GET,
@@ -552,6 +553,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 || ToolNameConstants.KANBAN_HEARTBEAT.equals(toolName)
                 || ToolNameConstants.KANBAN_COMMENT.equals(toolName)
                 || ToolNameConstants.KANBAN_CREATE.equals(toolName)
+                || ToolNameConstants.KANBAN_SCHEMA_CREATE.equals(toolName)
                 || ToolNameConstants.KANBAN_LINK.equals(toolName)
                 || ToolNameConstants.KANBAN_UNLINK.equals(toolName);
     }
