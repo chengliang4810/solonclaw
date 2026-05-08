@@ -455,7 +455,40 @@ public class ProcessRegistry {
     }
 
     private void enqueueEvent(Map<String, Object> event) {
-        processEvents.offer(event);
+        processEvents.offer(redactEvent(event));
+    }
+
+    private Map<String, Object> redactEvent(Map<String, Object> event) {
+        Map<String, Object> redacted = new LinkedHashMap<String, Object>();
+        if (event == null) {
+            return redacted;
+        }
+        for (Map.Entry<String, Object> entry : event.entrySet()) {
+            redacted.put(entry.getKey(), redactEventValue(entry.getValue()));
+        }
+        return redacted;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object redactEventValue(Object value) {
+        if (value instanceof String) {
+            return SecretRedactor.redact((String) value);
+        }
+        if (value instanceof List) {
+            List<Object> redacted = new ArrayList<Object>();
+            for (Object item : (List<Object>) value) {
+                redacted.add(redactEventValue(item));
+            }
+            return redacted;
+        }
+        if (value instanceof Map) {
+            Map<Object, Object> redacted = new LinkedHashMap<Object, Object>();
+            for (Map.Entry<Object, Object> entry : ((Map<Object, Object>) value).entrySet()) {
+                redacted.put(entry.getKey(), redactEventValue(entry.getValue()));
+            }
+            return redacted;
+        }
+        return value;
     }
 
     private String limitWatchOutput(List<String> matchedLines) {

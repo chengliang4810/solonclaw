@@ -607,6 +607,47 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromManagedProcessEvents() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        ProcessRegistry.ManagedProcess managed =
+                registry.start(
+                        secretEventEchoCommand(),
+                        new File(env.appConfig.getRuntime().getHome()),
+                        true,
+                        java.util.Collections.<String>emptyList());
+        ProcessTools tools =
+                new ProcessTools(
+                        registry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        assertThat(registry.waitFor(managed.getId(), 5000L)).isTrue();
+        ONode events =
+                ONode.ofJson(
+                        tools.process(
+                                "events",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                Integer.valueOf(10)));
+        String json = events.toJson();
+
+        assertThat(events.get("success").getBoolean()).isTrue();
+        assertThat(events.get("events").get(0).get("type").getString()).isEqualTo("completion");
+        assertThat(json)
+                .contains("api_key=***")
+                .contains("token=***")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("sk-test-secret")
+                .doesNotContain("secret123")
+                .doesNotContain("credentials.json");
+    }
+
+    @Test
     void shouldReturnCleanErrorsForInvalidTerminalCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawShellSkill shell =
@@ -2556,6 +2597,13 @@ public class ToolRegistryExposureTest {
             return "echo api_key=sk-test-secret token=secret123 https://example.com/public";
         }
         return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 https://example.com/public'";
+    }
+
+    private String secretEventEchoCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo api_key=sk-test-secret token=secret123 credentials.json";
+        }
+        return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 credentials.json'";
     }
 
     private boolean commandExists(String command) {
