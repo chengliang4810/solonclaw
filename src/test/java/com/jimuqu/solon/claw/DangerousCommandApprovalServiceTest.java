@@ -1230,6 +1230,7 @@ public class DangerousCommandApprovalServiceTest {
                         "curl http://169.254.169.254",
                         "Invoke-WebRequest http://169.254.169.254",
                         "Start-BitsTransfer -Source 169.254.169.254 -Destination out.txt",
+                        "certutil -urlcache -split -f 169.254.169.254 payload.bin",
                         "python -c \"import requests; requests.get('http://169.254.169.254/latest/meta-data/')\"");
 
         for (String command : commands) {
