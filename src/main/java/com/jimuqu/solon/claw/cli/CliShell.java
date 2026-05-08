@@ -22,20 +22,21 @@ public class CliShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/models", "/copy", "/exit", "/quit"
+                "/platforms", "/models", "/sessions", "/session", "/copy", "/exit", "/quit"
             };
 
     private final CliRuntime cliRuntime;
     private final CliMode mode;
     private final CliAttachmentResolver attachmentResolver;
     private final TerminalModelPicker modelPicker;
+    private final TerminalSessionBrowser sessionBrowser;
 
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
-        this(cliRuntime, mode, null, null);
+        this(cliRuntime, mode, null, null, null);
     }
 
     public CliShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
-        this(cliRuntime, mode, attachmentResolver, null);
+        this(cliRuntime, mode, attachmentResolver, null, null);
     }
 
     public CliShell(
@@ -43,10 +44,20 @@ public class CliShell {
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             TerminalModelPicker modelPicker) {
+        this(cliRuntime, mode, attachmentResolver, modelPicker, null);
+    }
+
+    public CliShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            TerminalModelPicker modelPicker,
+            TerminalSessionBrowser sessionBrowser) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
         this.modelPicker = modelPicker;
+        this.sessionBrowser = sessionBrowser;
     }
 
     public int run() throws Exception {
@@ -143,6 +154,16 @@ public class CliShell {
             String command = modelPicker.resolveCommand(trimmed);
             if (StrUtil.isBlank(command)) {
                 writer.println(modelPicker.render());
+                writer.flush();
+                return 0;
+            }
+            trimmed = command;
+            input = command;
+        }
+        if (sessionBrowser != null && sessionBrowser.isBrowserCommand(trimmed)) {
+            String command = sessionBrowser.resolveCommand(trimmed);
+            if (StrUtil.isBlank(command)) {
+                writer.println(sessionBrowser.render(trimmed));
                 writer.flush();
                 return 0;
             }

@@ -27,7 +27,7 @@ public class TuiShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/copy",
-                "/models", "/exit"
+                "/models", "/sessions", "/session", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -35,14 +35,15 @@ public class TuiShell {
     private final CliAttachmentResolver attachmentResolver;
     private final AppConfig appConfig;
     private final TerminalModelPicker modelPicker;
+    private final TerminalSessionBrowser sessionBrowser;
     private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
-        this(cliRuntime, mode, null, null, null);
+        this(cliRuntime, mode, null, null, null, null);
     }
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
-        this(cliRuntime, mode, attachmentResolver, null, null);
+        this(cliRuntime, mode, attachmentResolver, null, null, null);
     }
 
     public TuiShell(
@@ -50,7 +51,7 @@ public class TuiShell {
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             AppConfig appConfig) {
-        this(cliRuntime, mode, attachmentResolver, appConfig, null);
+        this(cliRuntime, mode, attachmentResolver, appConfig, null, null);
     }
 
     public TuiShell(
@@ -59,11 +60,22 @@ public class TuiShell {
             CliAttachmentResolver attachmentResolver,
             AppConfig appConfig,
             TerminalModelPicker modelPicker) {
+        this(cliRuntime, mode, attachmentResolver, appConfig, modelPicker, null);
+    }
+
+    public TuiShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            AppConfig appConfig,
+            TerminalModelPicker modelPicker,
+            TerminalSessionBrowser sessionBrowser) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
         this.appConfig = appConfig;
         this.modelPicker = modelPicker;
+        this.sessionBrowser = sessionBrowser;
     }
 
     public int run() throws Exception {
@@ -173,6 +185,16 @@ public class TuiShell {
             trimmed = command;
             input = command;
         }
+        if (sessionBrowser != null && sessionBrowser.isBrowserCommand(trimmed)) {
+            String command = sessionBrowser.resolveCommand(trimmed);
+            if (StrUtil.isBlank(command)) {
+                writer.println(sessionBrowser.render(trimmed));
+                writer.flush();
+                return 0;
+            }
+            trimmed = command;
+            input = command;
+        }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
         }
@@ -222,7 +244,10 @@ public class TuiShell {
     private void renderHeader(PrintWriter writer, String sessionId) {
         writer.println(BOLD + "Jimuqu Agent TUI" + RESET);
         writer.println(DIM + statusLine(sessionId) + RESET);
-        writer.println(DIM + "tips: /help 命令  /copy 复制上一条回复  粘贴本地文件路径可作为附件  /exit 退出" + RESET);
+        writer.println(
+                DIM
+                        + "tips: /help 命令  /sessions 浏览会话  /copy 复制上一条回复  粘贴文件路径可作为附件  /exit 退出"
+                        + RESET);
         writer.println(DIM + BORDER + RESET);
         writer.flush();
     }

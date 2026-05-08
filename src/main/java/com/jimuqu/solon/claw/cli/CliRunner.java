@@ -13,6 +13,7 @@ public class CliRunner {
     private final AppConfig appConfig;
     private final CliAttachmentResolver attachmentResolver;
     private final TerminalModelPicker modelPicker;
+    private final TerminalSessionBrowser sessionBrowser;
 
     public CliRunner(CliRuntime cliRuntime) {
         this(cliRuntime, null, null, null, null, null);
@@ -62,6 +63,8 @@ public class CliRunner {
                 appConfig == null || llmProviderService == null
                         ? null
                         : new TerminalModelPicker(appConfig, llmProviderService);
+        this.sessionBrowser =
+                sessionRepository == null ? null : new TerminalSessionBrowser(sessionRepository);
     }
 
     public int run(CliMode mode) throws Exception {
@@ -74,8 +77,15 @@ public class CliRunner {
                     .run();
         }
         if (mode.getKind() == CliMode.Kind.TUI) {
-            return new TuiShell(cliRuntime, mode, attachmentResolver, appConfig, modelPicker).run();
+            return new TuiShell(
+                            cliRuntime,
+                            mode,
+                            attachmentResolver,
+                            appConfig,
+                            modelPicker,
+                            sessionBrowser)
+                    .run();
         }
-        return new CliShell(cliRuntime, mode, attachmentResolver, modelPicker).run();
+        return new CliShell(cliRuntime, mode, attachmentResolver, modelPicker, sessionBrowser).run();
     }
 }

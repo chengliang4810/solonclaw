@@ -17,7 +17,14 @@ public class ShellCompletionGenerator {
                     Arrays.asList("--cli", "--tui", "--acp", "--session", "--ask", "-p"));
     private static final List<String> LOCAL_SLASH_COMMANDS =
             Collections.unmodifiableList(
-                    Arrays.asList("/help", "/models", "/copy", "/exit", "/quit"));
+                    Arrays.asList(
+                            "/help",
+                            "/models",
+                            "/sessions",
+                            "/session",
+                            "/copy",
+                            "/exit",
+                            "/quit"));
 
     public int write(String shell, PrintStream out, PrintStream err) {
         String normalized = StrUtil.blankToDefault(shell, "bash").trim().toLowerCase();
