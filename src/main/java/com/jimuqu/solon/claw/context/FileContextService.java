@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 
@@ -76,7 +77,7 @@ public class FileContextService implements ContextService {
             }
         } catch (Exception e) {
             buffer.append("\n\n[Enabled Skills]\nFailed to load local skills: ")
-                    .append(e.getMessage());
+                    .append(safeError(e));
         }
 
         return buffer.toString().trim();
@@ -131,7 +132,7 @@ public class FileContextService implements ContextService {
             java.io.File file = FileUtil.file(path);
             return file.exists() && file.isFile() ? FileUtil.readUtf8String(file) : "";
         } catch (Exception e) {
-            return "Failed to load file: " + e.getMessage();
+            return "Failed to load file: " + safeError(e);
         }
     }
 
@@ -167,7 +168,7 @@ public class FileContextService implements ContextService {
             appendBlock(buffer, "Personality: " + active, prompt);
         } catch (Exception e) {
             appendBlock(
-                    buffer, "Personality", "Failed to load active personality: " + e.getMessage());
+                    buffer, "Personality", "Failed to load active personality: " + safeError(e));
         }
     }
 
@@ -180,7 +181,7 @@ public class FileContextService implements ContextService {
                     memoryManager == null ? "" : memoryManager.buildSystemPrompt(sourceKey));
         } catch (Exception e) {
             appendBlock(
-                    buffer, "Memory Manager", "Failed to load memory context: " + e.getMessage());
+                    buffer, "Memory Manager", "Failed to load memory context: " + safeError(e));
         }
     }
 
@@ -202,5 +203,10 @@ public class FileContextService implements ContextService {
             buffer.append("\n\n");
         }
         buffer.append("[").append(label).append("]\n").append(content.trim());
+    }
+
+    private String safeError(Exception e) {
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 }
