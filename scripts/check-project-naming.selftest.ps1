@@ -7,6 +7,8 @@ $releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
+$defaultBlockedEnvFixture = ("{0}_ALLOW_PRIVATE_URLS" -f ([string]::Concat("HER", "MES")))
+$defaultBlockedProjectFixture = [string]::Concat("Open", "Claw")
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -96,6 +98,24 @@ try {
     Assert-NoRawBlockedOutput $blocked.Output @($blockedFixture) "directory text scan"
 
     Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($defaultBlockedEnvFixture + "=true") -Encoding UTF8
+    $defaultBlockedEnv = Invoke-NamingCheck
+    if ($defaultBlockedEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden default environment variable."
+    }
+    Assert-NoRawBlockedOutput $defaultBlockedEnv.Output @($defaultBlockedEnvFixture) "default environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "docs\name.txt") -Value ("Do not copy " + $defaultBlockedProjectFixture + " naming.") -Encoding UTF8
+    $defaultBlockedProject = Invoke-NamingCheck
+    if ($defaultBlockedProject.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden default project name."
+    }
+    Assert-NoRawBlockedOutput $defaultBlockedProject.Output @($defaultBlockedProjectFixture) "default project name scan"
+
+    Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
     Set-Content -Path (Join-Path $sandbox "web\node_modules\fixture\README.md") -Value ("Third-party text may mention " + $blockedFixture + ".") -Encoding UTF8
     $ignored = Invoke-NamingCheck -WithExtraFixture
@@ -181,7 +201,7 @@ try {
         & git config user.email "naming-check@example.invalid" | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean baseline" -Encoding UTF8
         & git add README.md | Out-Null
-        & git commit -m ("fix: " + $legacyEnvFixture + " historical fixture") | Out-Null
+        & git commit -m ("fix: " + $blockedFixture + " historical fixture") | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean current branch" -Encoding UTF8
         & git add README.md | Out-Null
         & git commit -m "fix: clean current branch / Clean current branch" | Out-Null
