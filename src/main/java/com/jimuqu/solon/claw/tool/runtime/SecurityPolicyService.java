@@ -432,6 +432,22 @@ public class SecurityPolicyService {
         return UrlVerdict.allow();
     }
 
+    public UrlVerdict checkCommandAlwaysBlockedUrls(String command) {
+        List<String> urls = new ArrayList<String>();
+        extractUrlishFromText(command, urls);
+        for (String url : urls) {
+            String value = cleanUrlToken(url);
+            UrlVerdict verdict =
+                    value.contains("://")
+                            ? checkAlwaysBlockedUrl(value)
+                            : checkAlwaysBlockedSchemelessUrl(value);
+            if (!verdict.allowed) {
+                return verdict;
+            }
+        }
+        return UrlVerdict.allow();
+    }
+
     public FileVerdict checkPath(String rawPath, boolean writeLike) {
         String path = StrUtil.nullToEmpty(rawPath).trim();
         if (path.length() == 0) {
@@ -597,6 +613,14 @@ public class SecurityPolicyService {
                 urls.add(value);
             }
         }
+    }
+
+    private UrlVerdict checkAlwaysBlockedSchemelessUrl(String raw) {
+        String host = extractSchemelessHost(raw);
+        if (StrUtil.isBlank(host)) {
+            return UrlVerdict.allow();
+        }
+        return checkAlwaysBlockedHost(raw, host);
     }
 
     private String cleanUrlToken(String raw) {

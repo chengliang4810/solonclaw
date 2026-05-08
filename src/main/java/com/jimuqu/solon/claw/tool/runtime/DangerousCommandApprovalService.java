@@ -505,7 +505,7 @@ public class DangerousCommandApprovalService {
                                     "hardline_windows_shutdown",
                                     "Windows shutdown/reboot",
                                     pattern(
-                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c|(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:-Command|-c))\\s+)?(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
+                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c\\s+)|(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?))?(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL)));
     private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES =
             buildApprovalKeyAliases();
@@ -809,6 +809,10 @@ public class DangerousCommandApprovalService {
             result.setHardline(true);
             return result;
         }
+        DetectionResult blockedUrl = detectHardlineCommandUrl(toolName, normalized);
+        if (blockedUrl != null) {
+            return blockedUrl;
+        }
         if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
             for (String shellCommand : extractPythonShellCommands(normalized)) {
                 DetectionResult result =
@@ -819,6 +823,28 @@ public class DangerousCommandApprovalService {
             }
         }
         return null;
+    }
+
+    private DetectionResult detectHardlineCommandUrl(String toolName, String normalized) {
+        if (securityPolicyService == null
+                || (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                        && !ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
+                        && !ToolNameConstants.EXECUTE_JS.equals(toolName)
+                        && !ToolNameConstants.EXECUTE_CODE.equals(toolName))) {
+            return null;
+        }
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkCommandAlwaysBlockedUrls(normalized);
+        if (verdict.isAllowed()) {
+            return null;
+        }
+        DetectionResult result = new DetectionResult();
+        result.setPatternKey("hardline_metadata_url");
+        result.setPatternKeys(Collections.singletonList("hardline_metadata_url"));
+        result.setDescription(verdict.getMessage());
+        result.setNormalizedCode(normalized);
+        result.setHardline(true);
+        return result;
     }
 
     public String foregroundBackgroundGuidance(String toolName, String code) {

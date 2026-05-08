@@ -644,9 +644,15 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell",
                         "powershell -NoProfile -Command Restart-Computer -Force");
+        DangerousCommandApprovalService.DetectionResult barePowershellRestart =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "powershell Restart-Computer");
         DangerousCommandApprovalService.DetectionResult pwshStop =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "pwsh -c Stop-Computer -Force");
+        DangerousCommandApprovalService.DetectionResult barePwshStop =
+                env.dangerousCommandApprovalService.detectHardline(
+                        "execute_shell", "pwsh Stop-Computer");
 
         assertThat(format).isNotNull();
         assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
@@ -678,8 +684,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cmdShutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(powershellRestart).isNotNull();
         assertThat(powershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(barePowershellRestart).isNotNull();
+        assertThat(barePowershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(pwshStop).isNotNull();
         assertThat(pwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
+        assertThat(barePwshStop).isNotNull();
+        assertThat(barePwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
     }
 
     @Test
@@ -830,6 +840,80 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(verdict.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldTreatEmbeddedMetadataUrlCommandsAsHardline() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "curl http://169.254.169.254",
+                        "Invoke-WebRequest http://169.254.169.254",
+                        "python -c \"import requests; requests.get('http://169.254.169.254/latest/meta-data/')\"");
+
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detectHardline("execute_shell", command);
+
+            assertThat(result)
+                    .withFailMessage("expected hardline metadata URL block for command: %s", command)
+                    .isNotNull();
+            assertThat(result.isHardline()).isTrue();
+            assertThat(result.getPatternKey()).isEqualTo("hardline_metadata_url");
+            assertThat(result.getDescription()).contains("元数据");
+        }
+    }
+
+    @Test
+    void shouldBlockEmbeddedMetadataUrlCommandsEvenWhenApprovalModeIsOffOrYolo()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("off");
+        TestTrace offTrace = new TestTrace();
+        Map<String, Object> offArgs = new LinkedHashMap<String, Object>();
+        offArgs.put("code", "curl http://169.254.169.254");
+
+        env.dangerousCommandApprovalService.buildInterceptor().onAction(
+                offTrace, "execute_shell", offArgs);
+
+        assertThat(offTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(offTrace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("元数据");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(offTrace.session))
+                .isNull();
+
+        TestTrace yoloTrace = new TestTrace();
+        Map<String, Object> yoloArgs = new LinkedHashMap<String, Object>();
+        yoloArgs.put(
+                "code",
+                "python -c \"import requests; requests.get('http://169.254.169.254/latest/meta-data/')\"");
+
+        assertThat(env.dangerousCommandApprovalService.enableSessionYolo(yoloTrace.session))
+                .isTrue();
+        env.dangerousCommandApprovalService.buildInterceptor().onAction(
+                yoloTrace, "execute_shell", yoloArgs);
+
+        assertThat(yoloTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(yoloTrace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("元数据");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(yoloTrace.session))
+                .isNull();
+    }
+
+    @Test
+    void shouldExposeAlwaysBlockedCommandUrlScanForMetadataOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        SecurityPolicyService.UrlVerdict metadata =
+                securityPolicyService.checkCommandAlwaysBlockedUrls(
+                        "Invoke-WebRequest http://169.254.169.254");
+        SecurityPolicyService.UrlVerdict privateUrl =
+                securityPolicyService.checkCommandAlwaysBlockedUrls("curl http://127.0.0.1:8080");
+
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+        assertThat(privateUrl.isAllowed()).isTrue();
     }
 
     @Test
@@ -3367,6 +3451,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockWindowsShutdownHardlineSamplesBeforeApprovalBypasses()
+            throws Exception {
+        TestEnvironment offEnv = TestEnvironment.withFakeLlm();
+        offEnv.appConfig.getApprovals().setMode("off");
+        assertHardlineBlocked(offEnv.dangerousCommandApprovalService, "cmd /c shutdown /r");
+
+        TestEnvironment sessionYoloEnv = TestEnvironment.withFakeLlm();
+        TestTrace sessionYoloTrace = new TestTrace();
+        assertThat(sessionYoloEnv.dangerousCommandApprovalService.enableSessionYolo(sessionYoloTrace.session))
+                .isTrue();
+        assertHardlineBlocked(
+                sessionYoloEnv.dangerousCommandApprovalService,
+                sessionYoloTrace,
+                "powershell Restart-Computer");
+
+        TestEnvironment compatibilityYoloEnv = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService compatibilityYoloService =
+                new YoloDangerousCommandApprovalService(
+                        compatibilityYoloEnv.globalSettingRepository,
+                        compatibilityYoloEnv.appConfig,
+                        new SecurityPolicyService(compatibilityYoloEnv.appConfig),
+                        "1");
+        assertHardlineBlocked(compatibilityYoloService, "pwsh Stop-Computer");
+    }
+
+    @Test
     void shouldBlockHermesHardlineCommandSamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String[] commands =
@@ -3506,6 +3616,24 @@ public class DangerousCommandApprovalServiceTest {
         values.put("title", title);
         values.put("description", description);
         return TirithSecurityService.Finding.from(values);
+    }
+
+    private void assertHardlineBlocked(DangerousCommandApprovalService service, String command) {
+        assertHardlineBlocked(service, new TestTrace(), command);
+    }
+
+    private void assertHardlineBlocked(
+            DangerousCommandApprovalService service, TestTrace trace, String command) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", command);
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED (hardline)")
+                .contains("Windows shutdown/reboot");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
     private static void assertWriteDenied(SecurityPolicyService securityPolicyService, String path) {
