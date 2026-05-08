@@ -1255,6 +1255,15 @@ public class DangerousCommandApprovalService {
                 || "terminal_execute".equals(lower)) {
             return ToolNameConstants.TERMINAL;
         }
+        if ("start_process".equals(lower)
+                || "process_start".equals(lower)
+                || "run_process".equals(lower)
+                || "background_process".equals(lower)
+                || "managed_process".equals(lower)
+                || "process-run".equals(lower)
+                || "process-start".equals(lower)) {
+            return ToolNameConstants.PROCESS;
+        }
         if ("python".equals(lower)
                 || "python_exec".equals(lower)
                 || "python_execute".equals(lower)

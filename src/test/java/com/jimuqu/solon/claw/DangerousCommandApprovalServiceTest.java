@@ -3301,6 +3301,22 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(terminalPending).isNotNull();
         assertThat(terminalPending.getToolName()).isEqualTo("terminal");
 
+        Map<String, Object> processArgs = new LinkedHashMap<String, Object>();
+        processArgs.put("action", "start");
+        processArgs.put("command", "rm -rf runtime/cache");
+        Map<String, Object> gatewayProcess = new LinkedHashMap<String, Object>();
+        gatewayProcess.put("tool_name", "start_process");
+        gatewayProcess.put("tool_args", processArgs);
+        TestTrace processTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(processTrace, "call_tool", gatewayProcess);
+
+        DangerousCommandApprovalService.PendingApproval processPending =
+                service.getPendingApproval(processTrace.session);
+        assertThat(processTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
+        assertThat(processPending).isNotNull();
+        assertThat(processPending.getToolName()).isEqualTo("process");
+
         Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
         urlArgs.put("url", "http://169.254.169.254/latest/meta-data/");
         Map<String, Object> gatewayUrl = new LinkedHashMap<String, Object>();
