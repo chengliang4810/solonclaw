@@ -32,6 +32,7 @@ import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -770,6 +771,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runContext.event("run.cancelled", e.getMessage());
             throw e;
         } finally {
+            SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
             unregisterRun(session.getSourceKey(), runHandle);
             AgentRunContext.setCurrent(previousContext);
             if (runHandle.cancelled.get()) {

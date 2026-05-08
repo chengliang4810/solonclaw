@@ -125,6 +125,30 @@ public final class SubprocessEnvironmentSanitizer {
         };
     }
 
+    public static void registerSkillEnvironmentPassthrough(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        Set<String> current = SKILL_ENV_PASSTHROUGH.get();
+        Set<String> next =
+                current == null ? new HashSet<String>() : new HashSet<String>(current);
+        for (String name : names) {
+            String normalized = normalizeEnvName(name);
+            if (normalized != null && !isProviderEnvBlocked(normalized)) {
+                next.add(normalized);
+            }
+        }
+        if (next.isEmpty()) {
+            SKILL_ENV_PASSTHROUGH.remove();
+        } else {
+            SKILL_ENV_PASSTHROUGH.set(next);
+        }
+    }
+
+    public static void clearSkillEnvironmentPassthrough() {
+        SKILL_ENV_PASSTHROUGH.remove();
+    }
+
     private static boolean isEnvPassthrough(String name, Set<String> passthrough) {
         return passthrough != null
                 && passthrough.contains(StrUtil.nullToEmpty(name).trim().toUpperCase(Locale.ROOT));

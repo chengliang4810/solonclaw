@@ -112,23 +112,7 @@ public final class SkillFrontmatterSupport {
             }
         }
 
-        Object required = frontmatter.get("required_environment_variables");
-        if (required instanceof List) {
-            for (Object item : (List<?>) required) {
-                if (item instanceof Map) {
-                    Object name = ((Map<?, ?>) item).get("name");
-                    if (name != null
-                            && StrUtil.isBlank(
-                                    RuntimeConfigResolver.getValue(String.valueOf(name)))) {
-                        return SkillSetupState.SETUP_NEEDED;
-                    }
-                }
-            }
-        }
-
-        Map<String, Object> prerequisites = getMap(frontmatter, "prerequisites");
-        List<String> envVars = parseStringList(prerequisites.get("env_vars"));
-        for (String envVar : envVars) {
+        for (String envVar : resolveRequiredEnvironmentVariables(frontmatter)) {
             if (StrUtil.isBlank(RuntimeConfigResolver.getValue(envVar))) {
                 return SkillSetupState.SETUP_NEEDED;
             }
@@ -137,12 +121,55 @@ public final class SkillFrontmatterSupport {
         return SkillSetupState.AVAILABLE;
     }
 
+    public static List<String> resolveRequiredEnvironmentVariables(
+            Map<String, Object> frontmatter) {
+        if (frontmatter == null || frontmatter.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> results = new ArrayList<String>();
+        addRequiredEnvironmentVariables(results, frontmatter.get("required_environment_variables"));
+        Map<String, Object> prerequisites = getMap(frontmatter, "prerequisites");
+        addStringValues(results, parseStringList(prerequisites.get("env_vars")));
+        return results;
+    }
+
     public static Map<String, Object> getMap(Map<String, Object> parent, String key) {
         Object value = parent.get(key);
         if (!(value instanceof Map)) {
             return Collections.emptyMap();
         }
         return sanitizeMap((Map<?, ?>) value);
+    }
+
+    private static void addRequiredEnvironmentVariables(List<String> results, Object value) {
+        if (value instanceof List) {
+            for (Object item : (List<?>) value) {
+                if (item instanceof Map) {
+                    Object name = ((Map<?, ?>) item).get("name");
+                    addStringValue(results, name);
+                } else {
+                    addStringValue(results, item);
+                }
+            }
+            return;
+        }
+        addStringValue(results, value);
+    }
+
+    private static void addStringValues(List<String> results, List<String> values) {
+        for (String value : values) {
+            addStringValue(results, value);
+        }
+    }
+
+    private static void addStringValue(List<String> results, Object value) {
+        if (value == null || StrUtil.isBlank(String.valueOf(value))) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!results.contains(text)) {
+            results.add(text);
+        }
     }
 
     private static String currentPlatform() {

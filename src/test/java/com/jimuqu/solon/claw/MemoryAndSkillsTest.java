@@ -20,9 +20,11 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MemoryTools;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
+import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
-import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -69,6 +71,49 @@ public class MemoryAndSkillsTest {
         assertThat(view.getDescriptor().getSource()).isEqualTo("external");
         assertThat(view.getDescriptor().getTrustLevel()).isEqualTo("external");
         assertThat(prompt).contains("research/shared-report");
+    }
+
+    @Test
+    void shouldRegisterSkillDeclaredEnvironmentPassthroughOnSkillViewLikeHermes()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill(
+                "gif-search",
+                null,
+                "---\n"
+                        + "name: gif-search\n"
+                        + "description: gif search\n"
+                        + "required_environment_variables:\n"
+                        + "  - TENOR_API_KEY\n"
+                        + "  - name: OPENAI_API_KEY\n"
+                        + "prerequisites:\n"
+                        + "  env_vars:\n"
+                        + "    - MAPBOX_TOKEN\n"
+                        + "---\n\n# Steps\n- search gifs\n");
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:room:user");
+        try {
+            String viewed = tools.skillView("gif-search", null);
+            Map<String, String> subprocessEnv = new LinkedHashMap<String, String>();
+            subprocessEnv.put("PATH", "/usr/bin");
+            subprocessEnv.put("TENOR_API_KEY", "tenor-secret");
+            subprocessEnv.put("MAPBOX_TOKEN", "mapbox-secret");
+            subprocessEnv.put("OPENAI_API_KEY", "sk-provider");
+
+            SubprocessEnvironmentSanitizer.sanitize(subprocessEnv);
+
+            assertThat(viewed).contains("gif-search");
+            assertThat(subprocessEnv)
+                    .containsEntry("TENOR_API_KEY", "tenor-secret")
+                    .containsEntry("MAPBOX_TOKEN", "mapbox-secret");
+            assertThat(subprocessEnv).doesNotContainKey("OPENAI_API_KEY");
+        } finally {
+            SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
+        }
     }
 
     @Test

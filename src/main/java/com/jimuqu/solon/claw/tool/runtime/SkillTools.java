@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import java.io.File;
 import java.util.ArrayList;
@@ -103,6 +104,7 @@ public class SkillTools {
             throws Exception {
         try {
             SkillView view = localSkillService.viewSkill(name, filePath, agentScope);
+            registerSkillEnvironmentPassthrough(filePath, view);
             return ONode.serialize(view);
         } catch (Exception e) {
             return toolError(e.getMessage());
@@ -190,6 +192,19 @@ public class SkillTools {
             files.add(FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME));
         }
         return files;
+    }
+
+    private void registerSkillEnvironmentPassthrough(String filePath, SkillView view) {
+        if (view == null || view.getDescriptor() == null) {
+            return;
+        }
+        if (StrUtil.isNotBlank(filePath)
+                && !SkillConstants.SKILL_FILE_NAME.equalsIgnoreCase(filePath.trim())) {
+            return;
+        }
+        SubprocessEnvironmentSanitizer.registerSkillEnvironmentPassthrough(
+                SkillFrontmatterSupport.resolveRequiredEnvironmentVariables(
+                        view.getDescriptor().getMetadata()));
     }
 
     /** 创建 checkpoint。 */

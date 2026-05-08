@@ -263,6 +263,32 @@ public class SubprocessEnvironmentSanitizerTest {
     }
 
     @Test
+    void shouldRegisterAndClearSkillEnvironmentPassthroughForCurrentRun() {
+        try {
+            SubprocessEnvironmentSanitizer.registerSkillEnvironmentPassthrough(
+                    Arrays.asList("TENOR_API_KEY", "OPENAI_API_KEY", "BAD-NAME"));
+            Map<String, String> env = new LinkedHashMap<String, String>();
+            env.put("PATH", "/usr/bin");
+            env.put("TENOR_API_KEY", "tenor-secret");
+            env.put("OPENAI_API_KEY", "sk-provider");
+            env.put("BAD-NAME", "bad");
+
+            SubprocessEnvironmentSanitizer.sanitize(env);
+
+            assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
+            assertThat(env).doesNotContainKeys("OPENAI_API_KEY", "BAD-NAME");
+        } finally {
+            SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
+        }
+
+        Map<String, String> afterClear = new LinkedHashMap<String, String>();
+        afterClear.put("PATH", "/usr/bin");
+        afterClear.put("TENOR_API_KEY", "tenor-secret");
+        SubprocessEnvironmentSanitizer.sanitize(afterClear);
+        assertThat(afterClear).doesNotContainKey("TENOR_API_KEY");
+    }
+
+    @Test
     void shouldAppendSanePosixPathWhenPathIsTooNarrowLikeHermes() {
         String result =
                 SubprocessEnvironmentSanitizer.pathWithSaneFallback(
