@@ -1,7 +1,12 @@
+param(
+    [string] $RootPath = (Join-Path $PSScriptRoot ".."),
+    [string[]] $ExtraBlockedTerms = @()
+)
+
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-Push-Location $repoRoot
+$scanRoot = Resolve-Path $RootPath
+Push-Location $scanRoot
 try {
     $h = (([char]72) + ([char]101) + ([char]114) + ([char]109) + ([char]101) + ([char]115))
     $oc = (([char]79) + ([char]112) + ([char]101) + ([char]110) + ([char]67) + ([char]108) + ([char]97) + ([char]119))
@@ -16,6 +21,11 @@ try {
         (([char]79) + ([char]112) + ([char]101) + ([char]110) + "-" + ([char]67) + ([char]108) + ([char]97) + ([char]119) + "-"),
         (([char]79) + ([char]112) + ([char]101) + ([char]110) + " " + ([char]67) + ([char]108) + ([char]97) + ([char]119))
     )
+    foreach ($term in $ExtraBlockedTerms) {
+        if (-not [string]::IsNullOrWhiteSpace($term)) {
+            $terms += $term
+        }
+    }
     $regex = [Regex]::new(
         (($terms | ForEach-Object { [Regex]::Escape($_) }) -join "|"),
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
@@ -106,7 +116,7 @@ try {
         param([System.IO.DirectoryInfo] $Directory)
 
         Get-ChildItem -LiteralPath $Directory.FullName -Force | ForEach-Object {
-            $relativePath = [System.IO.Path]::GetRelativePath($repoRoot, $_.FullName)
+            $relativePath = [System.IO.Path]::GetRelativePath($scanRoot, $_.FullName)
             if (Test-IgnoredPath $relativePath) {
                 return
             }
@@ -132,11 +142,11 @@ try {
     }
 
     $matches = New-Object System.Collections.Generic.List[string]
-    Search-Directory (Get-Item -LiteralPath $repoRoot)
+    Search-Directory (Get-Item -LiteralPath $scanRoot)
 
     if ($matches) {
-        Write-Error "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, and generated source."
-        $matches | ForEach-Object { Write-Error $_ }
+        Write-Host "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, and generated source." -ForegroundColor Red
+        $matches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
         exit 1
     }
 } finally {
