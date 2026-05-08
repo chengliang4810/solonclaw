@@ -50,7 +50,7 @@ class SecretRedactorTest {
                                 + "-----END RSA PRIVATE KEY-----");
 
         assertThat(result)
-                .contains("https://user:***@host.example.com/path?code=***&state=ok")
+                .contains("[REDACTED_PATH]")
                 .contains("postgres://admin:***@db.internal:5432/app")
                 .contains("[REDACTED PRIVATE KEY]")
                 .doesNotContain("supersecretpw")

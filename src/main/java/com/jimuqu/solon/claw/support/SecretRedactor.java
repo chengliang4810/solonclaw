@@ -21,6 +21,8 @@ public final class SecretRedactor {
                     "(?i)(\"(?:api_?key|token|secret|password|access_token|refresh_token|auth_token|bearer|secret_value|raw_secret|secret_input|key_material|private_key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
+    private static final Pattern SENSITIVE_URL_USERINFO =
+            Pattern.compile("(?i)\\b(?:https?|wss?|ftp)://[^/?#\\s:@]+:[^/?#\\s@]+@[^\\s]+");
     private static final Pattern DB_CONNSTR =
             Pattern.compile(
                     "(?i)\\b((?:postgres(?:ql)?|mysql|mongodb(?:\\+srv)?|redis|amqp)://[^:\\s/@]+:)([^@\\s]+)(@)");
@@ -99,6 +101,7 @@ public final class SecretRedactor {
         result = PRIVATE_KEY.matcher(result).replaceAll("[REDACTED PRIVATE KEY]");
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = JWT.matcher(result).replaceAll("***");
+        result = SENSITIVE_URL_USERINFO.matcher(result).replaceAll("[REDACTED_PATH]");
         result = redactUrlUserinfo(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");

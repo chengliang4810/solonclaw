@@ -22,6 +22,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -34,6 +36,10 @@ public class SolonClawCodeExecutionSkills {
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
     private static final int MAX_STDERR_CHARS = 10000;
+    private static final Pattern MANAGED_FILE_TOOL_CALL =
+            Pattern.compile(
+                    "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file)\\s*\\(\\s*(['\"])(.*?)\\1",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private SolonClawCodeExecutionSkills() {}
 
     public static class SafeExecuteCodeTool {
@@ -1013,9 +1019,10 @@ public class SolonClawCodeExecutionSkills {
 
     static void assertSafeExecuteCodeScript(
             String code, SecurityPolicyService securityPolicyService) {
+        String scriptForPreflight = stripManagedFileToolPathLiterals(code);
         if (securityPolicyService != null) {
             SecurityPolicyService.FileVerdict fileVerdict =
-                    securityPolicyService.checkCommandPaths(code);
+                    securityPolicyService.checkCommandPaths(scriptForPreflight);
             if (!fileVerdict.isAllowed()) {
                 throw new IllegalArgumentException(
                         blockedFileMessage(ToolNameConstants.EXECUTE_CODE, fileVerdict));
@@ -1051,6 +1058,18 @@ public class SolonClawCodeExecutionSkills {
             throw new IllegalArgumentException(
                     blockedDangerousMessage(ToolNameConstants.EXECUTE_CODE, dangerous));
         }
+    }
+
+    private static String stripManagedFileToolPathLiterals(String code) {
+        String value = StrUtil.nullToEmpty(code);
+        Matcher matcher = MANAGED_FILE_TOOL_CALL.matcher(value);
+        StringBuffer buffer = new StringBuffer(value.length());
+        while (matcher.find()) {
+            String replacement = matcher.group().replace(matcher.group(2), "__managed_file_tool_path__");
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
     }
 
     private static String blockedFileMessage(
