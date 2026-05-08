@@ -206,6 +206,7 @@ public class GatewayAuthorizationService {
         HomeChannelRecord record = new HomeChannelRecord();
         record.setPlatform(message.getPlatform());
         record.setChatId(message.getChatId());
+        record.setThreadId(blankToNull(message.getThreadId()));
         record.setChatName(blankToDefault(message.getChatName(), message.getChatId()));
         record.setUpdatedAt(System.currentTimeMillis());
         repository.saveHomeChannel(record);
@@ -539,6 +540,10 @@ public class GatewayAuthorizationService {
     /** 为空字符串提供默认值。 */
     private String blankToDefault(String value, String defaultValue) {
         return StrUtil.blankToDefault(value, defaultValue);
+    }
+
+    private String blankToNull(String value) {
+        return StrUtil.blankToDefault(value, null);
     }
 
     /** 生成新的 pairing code。 */

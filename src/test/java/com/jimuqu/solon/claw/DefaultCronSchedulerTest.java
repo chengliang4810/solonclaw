@@ -549,6 +549,7 @@ public class DefaultCronSchedulerTest {
         HomeChannelRecord feishuHome = new HomeChannelRecord();
         feishuHome.setPlatform(PlatformType.FEISHU);
         feishuHome.setChatId("feishu-home-room");
+        feishuHome.setThreadId("topic-home");
         feishuHome.setChatName("Feishu Home");
         feishuHome.setUpdatedAt(System.currentTimeMillis());
         env.gatewayPolicyRepository.saveHomeChannel(feishuHome);
@@ -580,6 +581,7 @@ public class DefaultCronSchedulerTest {
         DeliveryRequest request = deliveryService.requests.get(0);
         assertThat(request.getPlatform()).isEqualTo(PlatformType.FEISHU);
         assertThat(request.getChatId()).isEqualTo("feishu-home-room");
+        assertThat(request.getThreadId()).isEqualTo("topic-home");
         assertThat(request.getText()).contains("home fallback ok");
         assertThat(env.cronJobRepository.findById(job.getJobId()).getLastDeliveryError()).isNull();
     }

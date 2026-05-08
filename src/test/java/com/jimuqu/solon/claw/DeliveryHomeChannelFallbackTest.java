@@ -24,4 +24,23 @@ public class DeliveryHomeChannelFallbackTest {
         assertThat(env.memoryChannelAdapter.getLastRequest().getChatId()).isEqualTo("group-1");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText()).isEqualTo("scheduled");
     }
+
+    @Test
+    void shouldUseHomeChannelThreadWhenChatIdIsEmpty() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("admin-dm", "admin-user", "hello");
+        env.send("admin-dm", "admin-user", "/pairing claim-admin");
+        com.jimuqu.solon.claw.core.model.GatewayMessage home =
+                env.message("group-1", "admin-user", "group", "Dev Group", "Alice", "/sethome");
+        home.setThreadId("topic-1");
+        env.gatewayService.handle(home);
+
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.MEMORY);
+        request.setText("scheduled");
+        env.deliveryService.deliver(request);
+        assertThat(env.memoryChannelAdapter.getLastRequest().getChatId()).isEqualTo("group-1");
+        assertThat(env.memoryChannelAdapter.getLastRequest().getThreadId()).isEqualTo("topic-1");
+    }
 }

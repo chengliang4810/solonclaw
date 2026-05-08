@@ -422,9 +422,11 @@ public class SqliteDatabase {
                     "create table if not exists home_channels ("
                             + "platform text primary key,"
                             + "chat_id text not null,"
+                            + "thread_id text,"
                             + "chat_name text,"
                             + "updated_at integer not null"
                             + ")");
+            addColumn(statement, "home_channels", "thread_id text");
             statement.execute(
                     "create table if not exists approved_users ("
                             + "platform text not null,"

@@ -1083,7 +1083,7 @@ public class DefaultCronScheduler {
         if (home == null || StrUtil.isBlank(home.getChatId())) {
             return null;
         }
-        return new CronDeliveryTarget(platform, home.getChatId(), null);
+        return new CronDeliveryTarget(platform, home.getChatId(), normalizeBlank(home.getThreadId()));
     }
 
     private CronDeliveryTarget originFallbackHomeTarget(CronJobRecord job) {
