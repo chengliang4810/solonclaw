@@ -17,6 +17,8 @@ public class LocalTerminalHelpTest {
     void shouldDescribeLocalTerminalCommands() {
         assertThat(LocalTerminalHelp.text())
                 .contains("/copy")
+                .contains("/models")
+                .contains("/model pick")
                 .contains("/exit")
                 .contains("/quit")
                 .contains("粘贴本地文件路径")

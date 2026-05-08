@@ -12,6 +12,7 @@ public final class LocalTerminalHelp {
     public static String text() {
         return "本地终端命令：\n"
                 + "/copy - 复制上一条回复到终端剪贴板\n"
+                + "/models 或 /model pick - 列出可选模型；/model pick <编号> 切换\n"
                 + "/exit 或 /quit - 退出当前终端会话\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
                 + "\n"

@@ -27,21 +27,22 @@ public class TuiShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/kanban", "/restart", "/stop", "/compress", "/rollback", "/version", "/copy",
-                "/exit"
+                "/models", "/exit"
             };
 
     private final CliRuntime cliRuntime;
     private final CliMode mode;
     private final CliAttachmentResolver attachmentResolver;
     private final AppConfig appConfig;
+    private final TerminalModelPicker modelPicker;
     private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
-        this(cliRuntime, mode, null, null);
+        this(cliRuntime, mode, null, null, null);
     }
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
-        this(cliRuntime, mode, attachmentResolver, null);
+        this(cliRuntime, mode, attachmentResolver, null, null);
     }
 
     public TuiShell(
@@ -49,10 +50,20 @@ public class TuiShell {
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             AppConfig appConfig) {
+        this(cliRuntime, mode, attachmentResolver, appConfig, null);
+    }
+
+    public TuiShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            AppConfig appConfig,
+            TerminalModelPicker modelPicker) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
         this.appConfig = appConfig;
+        this.modelPicker = modelPicker;
     }
 
     public int run() throws Exception {
@@ -151,6 +162,16 @@ public class TuiShell {
             writer.println(LocalTerminalHelp.text());
             writer.flush();
             return 0;
+        }
+        if (modelPicker != null && modelPicker.isPickerCommand(trimmed)) {
+            String command = modelPicker.resolveCommand(trimmed);
+            if (StrUtil.isBlank(command)) {
+                writer.println(modelPicker.render());
+                writer.flush();
+                return 0;
+            }
+            trimmed = command;
+            input = command;
         }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);

@@ -22,21 +22,31 @@ public class CliShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/copy", "/exit", "/quit"
+                "/platforms", "/models", "/copy", "/exit", "/quit"
             };
 
     private final CliRuntime cliRuntime;
     private final CliMode mode;
     private final CliAttachmentResolver attachmentResolver;
+    private final TerminalModelPicker modelPicker;
 
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
-        this(cliRuntime, mode, null);
+        this(cliRuntime, mode, null, null);
     }
 
     public CliShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
+        this(cliRuntime, mode, attachmentResolver, null);
+    }
+
+    public CliShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            TerminalModelPicker modelPicker) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
+        this.modelPicker = modelPicker;
     }
 
     public int run() throws Exception {
@@ -128,6 +138,16 @@ public class CliShell {
             writer.println(LocalTerminalHelp.text());
             writer.flush();
             return 0;
+        }
+        if (modelPicker != null && modelPicker.isPickerCommand(trimmed)) {
+            String command = modelPicker.resolveCommand(trimmed);
+            if (StrUtil.isBlank(command)) {
+                writer.println(modelPicker.render());
+                writer.flush();
+                return 0;
+            }
+            trimmed = command;
+            input = command;
         }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);

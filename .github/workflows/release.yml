@@ -116,9 +116,12 @@ jobs:
           RELEASE_DISPLAY_RANGE: ${{ steps.release_range.outputs.display_range }}
         run: |
           VERSION="$(mvn -B -q -DforceStdout help:evaluate "-Dexpression=project.version")"
-          JAR_PATH="$(find target -maxdepth 1 -type f -name "solon-claw-${VERSION}.jar" ! -name 'original-*' -print -quit)"
+          JAR_PATH="$(find target -maxdepth 1 -type f -name "${{ github.event.repository.name }}-${VERSION}.jar" ! -name 'original-*' -print -quit)"
           if [ -z "$JAR_PATH" ]; then
-            JAR_PATH="$(find target -maxdepth 1 -type f -name 'solon-claw-*.jar' ! -name 'original-*' -print -quit)"
+            JAR_PATH="$(find target -maxdepth 1 -type f -name "${{ github.event.repository.name }}-*.jar" ! -name 'original-*' -print -quit)"
+          fi
+          if [ -z "$JAR_PATH" ]; then
+            JAR_PATH="$(find target -maxdepth 1 -type f -name "*.jar" ! -name 'original-*' -print -quit)"
           fi
           if [ -z "$JAR_PATH" ] || [ ! -f "$JAR_PATH" ]; then
             echo "Release jar not found"
@@ -127,7 +130,7 @@ jobs:
           fi
 
           mkdir -p dist
-          RELEASE_JAR="dist/solon-claw-${VERSION}.jar"
+          RELEASE_JAR="dist/${{ github.event.repository.name }}-${VERSION}.jar"
           cp "$JAR_PATH" "$RELEASE_JAR"
           (cd dist && sha256sum "$(basename "$RELEASE_JAR")" > SHA256SUMS)
 
@@ -149,7 +152,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: solon-claw-release
+          name: jimuqu-agent-release
           path: |
             ${{ steps.artifact.outputs.jar_path }}
             ${{ steps.artifact.outputs.sha_path }}
@@ -160,7 +163,7 @@ jobs:
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: solon-claw ${{ steps.release.outputs.tag }}
+          name: jimuqu-agent ${{ steps.release.outputs.tag }}
           body_path: ${{ steps.artifact.outputs.body_path }}
           generate_release_notes: false
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.cli;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 
 /** Dispatches parsed console modes. */
 public class CliRunner {
@@ -11,20 +12,21 @@ public class CliRunner {
     private final DashboardMcpService dashboardMcpService;
     private final AppConfig appConfig;
     private final CliAttachmentResolver attachmentResolver;
+    private final TerminalModelPicker modelPicker;
 
     public CliRunner(CliRuntime cliRuntime) {
-        this(cliRuntime, null, null, null, null);
+        this(cliRuntime, null, null, null, null, null);
     }
 
     public CliRunner(CliRuntime cliRuntime, SessionRepository sessionRepository) {
-        this(cliRuntime, sessionRepository, null, null, null);
+        this(cliRuntime, sessionRepository, null, null, null, null);
     }
 
     public CliRunner(
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
             DashboardMcpService dashboardMcpService) {
-        this(cliRuntime, sessionRepository, dashboardMcpService, null, null);
+        this(cliRuntime, sessionRepository, dashboardMcpService, null, null, null);
     }
 
     public CliRunner(
@@ -32,7 +34,7 @@ public class CliRunner {
             SessionRepository sessionRepository,
             DashboardMcpService dashboardMcpService,
             AppConfig appConfig) {
-        this(cliRuntime, sessionRepository, dashboardMcpService, appConfig, null);
+        this(cliRuntime, sessionRepository, dashboardMcpService, appConfig, null, null);
     }
 
     public CliRunner(
@@ -41,11 +43,25 @@ public class CliRunner {
             DashboardMcpService dashboardMcpService,
             AppConfig appConfig,
             CliAttachmentResolver attachmentResolver) {
+        this(cliRuntime, sessionRepository, dashboardMcpService, appConfig, attachmentResolver, null);
+    }
+
+    public CliRunner(
+            CliRuntime cliRuntime,
+            SessionRepository sessionRepository,
+            DashboardMcpService dashboardMcpService,
+            AppConfig appConfig,
+            CliAttachmentResolver attachmentResolver,
+            LlmProviderService llmProviderService) {
         this.cliRuntime = cliRuntime;
         this.sessionRepository = sessionRepository;
         this.dashboardMcpService = dashboardMcpService;
         this.appConfig = appConfig;
         this.attachmentResolver = attachmentResolver;
+        this.modelPicker =
+                appConfig == null || llmProviderService == null
+                        ? null
+                        : new TerminalModelPicker(appConfig, llmProviderService);
     }
 
     public int run(CliMode mode) throws Exception {
@@ -58,8 +74,8 @@ public class CliRunner {
                     .run();
         }
         if (mode.getKind() == CliMode.Kind.TUI) {
-            return new TuiShell(cliRuntime, mode, attachmentResolver, appConfig).run();
+            return new TuiShell(cliRuntime, mode, attachmentResolver, appConfig, modelPicker).run();
         }
-        return new CliShell(cliRuntime, mode, attachmentResolver).run();
+        return new CliShell(cliRuntime, mode, attachmentResolver, modelPicker).run();
     }
 }

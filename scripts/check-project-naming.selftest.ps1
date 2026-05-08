@@ -7,6 +7,8 @@ $releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
+$blockedLegacyEnvFixture = ("HER" + "MES_ALLOW_PRIVATE_URLS")
+$blockedLegacyNameFixture = ("Open" + "Claw")
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -94,6 +96,24 @@ try {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
     Assert-NoRawBlockedOutput $blocked.Output @($blockedFixture) "directory text scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
+    $blockedLegacyEnv = Invoke-NamingCheck
+    if ($blockedLegacyEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden legacy environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedLegacyEnv.Output @($blockedLegacyEnvFixture) "legacy environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyNameFixture) -Encoding UTF8
+    $blockedLegacyName = Invoke-NamingCheck
+    if ($blockedLegacyName.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden legacy project name."
+    }
+    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedLegacyNameFixture) "legacy project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
