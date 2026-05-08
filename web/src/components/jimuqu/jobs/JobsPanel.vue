@@ -22,6 +22,10 @@ const scheduleLabel = (job: any) => {
   if (typeof schedule === 'string') return schedule
   return schedule?.display || schedule?.expr || job.schedule_display || '—'
 }
+
+function refreshUpcoming() {
+  jobsStore.fetchUpcomingJobs()
+}
 </script>
 
 <template>
@@ -29,8 +33,11 @@ const scheduleLabel = (job: any) => {
     <section v-if="jobsStore.upcomingJobs.length || jobsStore.upcomingLoading" class="upcoming-panel">
       <div class="upcoming-head">
         <span class="upcoming-title">{{ t('jobs.upcomingTitle') }}</span>
-        <span class="upcoming-meta">{{ t('jobs.upcomingCount', { count: jobsStore.upcomingJobs.length }) }}</span>
+        <button class="upcoming-refresh" type="button" @click="refreshUpcoming">
+          {{ jobsStore.upcomingLoading ? t('common.loading') : t('jobs.action.refreshUpcoming') }}
+        </button>
       </div>
+      <div class="upcoming-meta">{{ t('jobs.upcomingCount', { count: jobsStore.upcomingJobs.length }) }}</div>
       <div class="upcoming-list">
         <button
           v-for="job in jobsStore.upcomingJobs"
@@ -59,10 +66,10 @@ const scheduleLabel = (job: any) => {
       <JobCard
         v-for="job in jobsStore.jobs"
         :key="job.id"
-      :job="job"
-      @edit="emit('edit', job.id)"
-      @changed="emit('changed')"
-    />
+        :job="job"
+        @edit="emit('edit', job.id)"
+        @changed="emit('changed')"
+      />
     </div>
   </div>
 </template>
@@ -100,6 +107,24 @@ const scheduleLabel = (job: any) => {
 .upcoming-meta {
   font-size: 12px;
   color: $text-muted;
+  margin-bottom: 8px;
+}
+
+.upcoming-refresh {
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  background: transparent;
+  color: $text-secondary;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 2px 8px;
+  transition: background $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    background: $bg-card-hover;
+    border-color: $border-color;
+  }
 }
 
 .upcoming-list {

@@ -297,6 +297,8 @@ export default {
       runNow: 'Run Now',
       triggerImmediately: 'Trigger immediately',
       history: 'History',
+      detail: 'Details',
+      refreshUpcoming: 'Refresh',
     },
   },
 

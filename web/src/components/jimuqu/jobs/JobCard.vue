@@ -257,7 +257,7 @@ async function handleDelete() {
         </template>
         {{ t('jobs.action.triggerImmediately') }}
       </NTooltip>
-      <NButton size="tiny" quaternary @click="openRuns">{{ t('jobs.action.history') }}</NButton>
+      <NButton size="tiny" quaternary @click="openRuns">{{ t('jobs.action.detail') }}</NButton>
       <NButton size="tiny" quaternary @click="emit('edit', jobId)">{{ t('common.edit') }}</NButton>
       <NButton size="tiny" quaternary type="error" @click="handleDelete">{{ t('common.delete') }}</NButton>
     </div>

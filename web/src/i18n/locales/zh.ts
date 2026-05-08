@@ -300,6 +300,8 @@ export default {
       runNow: '立即运行',
       triggerImmediately: '立即触发',
       history: '历史',
+      detail: '详情',
+      refreshUpcoming: '刷新',
     },
   },
 
