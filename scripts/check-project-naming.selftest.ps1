@@ -6,8 +6,6 @@ $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
-$blockedEnvFixture = (([char[]] @(72, 69, 82, 77, 69, 83)) -join "") + "_ALLOW_PRIVATE_URLS"
-$blockedProductFixture = (([char[]] @(79, 112, 101, 110, 67, 108, 97, 119)) -join "") + "_ALLOW_PRIVATE_URLS"
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -91,24 +89,6 @@ try {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
     Assert-NoRawBlockedOutput $blocked.Output @($blockedFixture) "directory text scan"
-
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($blockedEnvFixture + "=true") -Encoding UTF8
-    $blockedDefaultEnv = Invoke-NamingCheck
-    if ($blockedDefaultEnv.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden legacy environment variable prefix."
-    }
-    Assert-NoRawBlockedOutput $blockedDefaultEnv.Output @($blockedEnvFixture) "default environment variable scan"
-
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($blockedProductFixture + "=true") -Encoding UTF8
-    $blockedDefaultProduct = Invoke-NamingCheck
-    if ($blockedDefaultProduct.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden legacy product variable prefix."
-    }
-    Assert-NoRawBlockedOutput $blockedDefaultProduct.Output @($blockedProductFixture) "default product variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null

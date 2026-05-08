@@ -51,7 +51,8 @@ try {
         ".mvn",
         ".turbo",
         ".vite",
-        "coverage"
+        "coverage",
+        "target"
     )
     $ignoredFiles = @(
         "package-lock.json",
