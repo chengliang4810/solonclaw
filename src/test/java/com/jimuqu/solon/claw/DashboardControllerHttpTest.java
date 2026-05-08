@@ -1371,6 +1371,37 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldHideAgentHostPaths() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult defaultAgent = request("GET", "/api/agents/default", null, token);
+        assertThat(defaultAgent.status).isEqualTo(200);
+        assertThat(defaultAgent.body).contains("agent://default/workspace");
+        assertThat(defaultAgent.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult created =
+                request(
+                        "POST",
+                        "/api/agents",
+                        "{\"name\":\"dashboard-path-agent\",\"role_prompt\":\"测试路径脱敏\"}",
+                        token);
+        assertThat(created.status).isEqualTo(200);
+        assertThat(created.body).contains("agent://dashboard-path-agent/workspace");
+        assertThat(created.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult agents = request("GET", "/api/agents", null, token);
+        assertThat(agents.status).isEqualTo(200);
+        assertThat(agents.body).contains("agent://dashboard-path-agent/workspace");
+        assertThat(agents.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult detail = request("GET", "/api/agents/dashboard-path-agent", null, token);
+        assertThat(detail.status).isEqualTo(200);
+        assertThat(detail.body).contains("agent://dashboard-path-agent/skills");
+        assertThat(detail.body).contains("agent://dashboard-path-agent/cache");
+        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
     void shouldHideWorkspaceHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         File diaryDir = new File(runtimeHome, "memory");

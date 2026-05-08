@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.web;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfile;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
@@ -10,7 +9,6 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -151,9 +149,7 @@ public class DashboardAgentService {
         item.put("allowed_tools_json", "[]");
         item.put("skills_json", "[]");
         item.put("memory", "");
-        item.put("workspace_path", scope.getWorkspaceDir());
-        item.put("skills_path", scope.getSkillsDir());
-        item.put("cache_path", scope.getCacheDir());
+        putPathReferences(item, scope.getEffectiveName());
         item.put("running_runs", 0);
         item.put("recent_runs", Collections.emptyList());
         return item;
@@ -179,7 +175,6 @@ public class DashboardAgentService {
     }
 
     private Map<String, Object> baseProfile(AgentProfile profile, String active) {
-        File root = agentRuntimeService.agentRoot(profile.getAgentName());
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("name", profile.getAgentName());
         item.put(
@@ -191,12 +186,17 @@ public class DashboardAgentService {
         item.put("enabled", profile.isEnabled());
         item.put("active", StrUtil.equals(profile.getAgentName(), active));
         item.put("default_model", StrUtil.nullToEmpty(profile.getDefaultModel()));
-        item.put("workspace_path", FileUtil.file(root, "workspace").getAbsolutePath());
-        item.put("skills_path", FileUtil.file(root, "skills").getAbsolutePath());
-        item.put("cache_path", FileUtil.file(root, "cache").getAbsolutePath());
+        putPathReferences(item, profile.getAgentName());
         item.put("last_used_at", profile.getLastUsedAt());
         item.put("updated_at", profile.getUpdatedAt());
         return item;
+    }
+
+    private void putPathReferences(Map<String, Object> item, String agentName) {
+        String base = "agent://" + agentRuntimeService.normalizeName(agentName);
+        item.put("workspace_path", base + "/workspace");
+        item.put("skills_path", base + "/skills");
+        item.put("cache_path", base + "/cache");
     }
 
     private List<Map<String, Object>> recentRuns(String agentName) throws Exception {
