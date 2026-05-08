@@ -75,6 +75,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.KANBAN_COMPLETE,
                     ToolNameConstants.KANBAN_BLOCK,
                     ToolNameConstants.KANBAN_HEARTBEAT,
+                    ToolNameConstants.KANBAN_STEP,
                     ToolNameConstants.KANBAN_COMMENT,
                     ToolNameConstants.KANBAN_CREATE,
                     ToolNameConstants.KANBAN_SCHEMA_CREATE,
@@ -551,6 +552,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 || ToolNameConstants.KANBAN_COMPLETE.equals(toolName)
                 || ToolNameConstants.KANBAN_BLOCK.equals(toolName)
                 || ToolNameConstants.KANBAN_HEARTBEAT.equals(toolName)
+                || ToolNameConstants.KANBAN_STEP.equals(toolName)
                 || ToolNameConstants.KANBAN_COMMENT.equals(toolName)
                 || ToolNameConstants.KANBAN_CREATE.equals(toolName)
                 || ToolNameConstants.KANBAN_SCHEMA_CREATE.equals(toolName)

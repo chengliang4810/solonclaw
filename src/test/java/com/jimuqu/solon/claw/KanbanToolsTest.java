@@ -77,6 +77,14 @@ public class KanbanToolsTest {
         String heartbeat = tools.kanbanHeartbeat(parentId, "working");
         assertThat(heartbeat).contains("\"success\":true").contains("heartbeat");
 
+        String step = tools.kanbanStep(parentId, "review", "delivery", "准备复核");
+        assertThat(step)
+                .contains("\"success\":true")
+                .contains("Advanced Kanban step")
+                .contains("current_step_key")
+                .contains("review");
+        assertThat(String.valueOf(service.task(parentId).get("events"))).contains("step_changed").contains("准备复核");
+
         String blocked = tools.kanbanBlock(parentId, "需要人工确认");
         assertThat(blocked).contains("\"success\":true").contains("blocked");
 

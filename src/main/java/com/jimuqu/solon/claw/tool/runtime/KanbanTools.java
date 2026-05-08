@@ -135,6 +135,37 @@ public class KanbanTools {
     }
 
     @ToolMapping(
+            name = "kanban_step",
+            description =
+                    "Advance a Kanban task to a workflow/pipeline step and record a step_changed event. Worker-scoped calls may only mutate their own task.")
+    public String kanbanStep(
+            @Param(name = "task_id", description = "Task id. Optional when worker env is set.", required = false)
+                    String taskId,
+            @Param(name = "step_key", description = "Target workflow step key.") String stepKey,
+            @Param(name = "workflow_template_id", description = "Optional workflow template id.", required = false)
+                    String workflowTemplateId,
+            @Param(name = "note", description = "Optional transition note.", required = false) String note) {
+        String tid = defaultTaskId(taskId);
+        String ownership = ownershipError(tid);
+        if (ownership != null) {
+            return ownership;
+        }
+        if (StrUtil.isBlank(stepKey)) {
+            return error("step_key is required");
+        }
+        try {
+            Map<String, Object> detail =
+                    kanbanService.step(tid, stepKey, workflowTemplateId, note, defaultWorkerName());
+            return ToolResultEnvelope.ok("Advanced Kanban step: " + tid + " -> " + detail.get("current_step_key"))
+                    .data("task", detail)
+                    .preview(String.valueOf(detail.get("worker_context")))
+                    .toJson();
+        } catch (Exception e) {
+            return error("kanban_step: " + e.getMessage());
+        }
+    }
+
+    @ToolMapping(
             name = "kanban_comment",
             description =
                     "Append a durable comment to a Kanban task. Comments may target any task for handoffs, questions, or findings.")

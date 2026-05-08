@@ -297,6 +297,31 @@ public class KanbanService {
         return task(child);
     }
 
+    public Map<String, Object> step(
+            String taskId, String stepKey, String workflowTemplateId, String note, String actor)
+            throws Exception {
+        String tid = requireArg(taskId, "kanban_step task_id");
+        String nextStep = requireArg(stepKey, "kanban_step step_key");
+        KanbanTaskRecord task = requireTask(tid);
+        String previousStep = task.getCurrentStepKey();
+        String previousWorkflow = task.getWorkflowTemplateId();
+        if (StrUtil.isNotBlank(workflowTemplateId)) {
+            task.setWorkflowTemplateId(workflowTemplateId.trim());
+        }
+        task.setCurrentStepKey(nextStep.trim());
+        repository.saveTask(task);
+
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("from_step", previousStep);
+        payload.put("to_step", task.getCurrentStepKey());
+        payload.put("from_workflow", previousWorkflow);
+        payload.put("to_workflow", task.getWorkflowTemplateId());
+        payload.put("note", note);
+        payload.put("actor", StrUtil.blankToDefault(actor, "user"));
+        addEvent(tid, "step_changed", payload);
+        return task(tid);
+    }
+
     public Map<String, Object> status(String taskId, String status, String result) throws Exception {
         return status(taskId, status, result, null, null);
     }
@@ -789,6 +814,9 @@ public class KanbanService {
             unlink(tokens[0], tokens[1]);
             return "已移除依赖：" + tokens[0] + " -> " + tokens[1];
         }
+        if ("step".equals(action) || "pipeline".equals(action)) {
+            return stepCommand(rest, author);
+        }
         if ("reclaim".equals(action)) {
             ParsedKanbanOptions parsed = parseCommandOptions(rest);
             List<String> tokens = positionalTokens(parsed);
@@ -938,6 +966,28 @@ public class KanbanService {
             return bulkStatusCommand(rest, "archived", "已归档任务", "/kanban archive <task-id> [task-id...]");
         }
         return kanbanHelp();
+    }
+
+    private String stepCommand(String rest, String author) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<String> tokens = positionalTokens(parsed);
+        if (tokens.size() < 2) {
+            return "用法：/kanban step <task-id> <step-key> [--workflow template] [--note text] [--json]";
+        }
+        String taskId = tokens.get(0);
+        String stepKey = tokens.get(1);
+        String note = firstNonBlank(parsed.value("note"), joinTokens(tokens, 2));
+        Map<String, Object> detail = step(taskId, stepKey, parsed.value("workflow"), note, author);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(detail);
+        }
+        return "已推进任务步骤："
+                + taskId
+                + " -> "
+                + detail.get("current_step_key")
+                + "（流程："
+                + StrUtil.blankToDefault(String.valueOf(detail.get("workflow_template_id")), "-")
+                + "）";
     }
 
     private String createCommand(String rest, String author) throws Exception {
@@ -1980,6 +2030,7 @@ public class KanbanService {
                         "/kanban show <task-id> - 查看任务详情",
                         "/kanban move <task-id> <status> - 移动任务状态",
                         "/kanban assign <task-id> <assignee> - 分配执行人",
+                        "/kanban step <task-id> <step-key> [--workflow template] [--note text] - 推进任务流程步骤",
                         "/kanban reclaim <task-id> [reason] - 收回运行中的任务",
                         "/kanban reassign <task-id> <assignee> [--reclaim] - 重新分配任务",
                         "/kanban retry <task-id> [reason] - 将任务重置为 ready 并保留运行历史",

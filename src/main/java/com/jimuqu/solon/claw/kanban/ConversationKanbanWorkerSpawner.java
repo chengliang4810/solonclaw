@@ -79,6 +79,9 @@ public class ConversationKanbanWorkerSpawner implements KanbanWorkerSpawner {
         buffer.append("- 长任务需要用 kanban_heartbeat(task_id=\"")
                 .append(task.getTaskId())
                 .append("\") 保持心跳。\n");
+        buffer.append("- 进入新流程步骤时调用 kanban_step(task_id=\"")
+                .append(task.getTaskId())
+                .append("\", step_key=\"...\", note=\"...\") 记录推进。\n");
         buffer.append("- 完成时调用 kanban_complete(task_id=\"")
                 .append(task.getTaskId())
                 .append("\", summary=\"...\", result=\"...\")。\n");

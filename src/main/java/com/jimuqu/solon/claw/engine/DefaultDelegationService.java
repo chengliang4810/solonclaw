@@ -92,6 +92,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.KANBAN_COMPLETE,
                     ToolNameConstants.KANBAN_BLOCK,
                     ToolNameConstants.KANBAN_HEARTBEAT,
+                    ToolNameConstants.KANBAN_STEP,
                     ToolNameConstants.KANBAN_COMMENT,
                     ToolNameConstants.KANBAN_CREATE,
                     ToolNameConstants.KANBAN_LINK,

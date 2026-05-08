@@ -173,6 +173,7 @@ public class AgentMechanismTest {
                         "kanban_complete",
                         "kanban_block",
                         "kanban_heartbeat",
+                        "kanban_step",
                         "kanban_comment",
                         "kanban_create",
                         "kanban_schema_create",

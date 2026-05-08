@@ -147,6 +147,42 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldAdvanceWorkflowStepAndRecordTransitionEvent() throws Exception {
+        KanbanService service = service();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("title", "流程任务");
+        body.put("assignee", "alice");
+        body.put("workflow_template_id", "delivery");
+        body.put("current_step_key", "draft");
+        String taskId = String.valueOf(service.createTask(body).get("id"));
+
+        String output =
+                service.handleCommand(
+                        "step "
+                                + taskId
+                                + " review --workflow delivery-v2 --note 准备复核",
+                        "planner");
+        assertThat(output).contains("已推进任务步骤").contains("review").contains("delivery-v2");
+
+        Map<String, Object> detail = service.task(taskId);
+        assertThat(detail.get("workflow_template_id")).isEqualTo("delivery-v2");
+        assertThat(detail.get("current_step_key")).isEqualTo("review");
+        assertThat(String.valueOf(detail.get("events")))
+                .contains("step_changed")
+                .contains("from_step=draft")
+                .contains("to_step=review")
+                .contains("from_workflow=delivery")
+                .contains("to_workflow=delivery-v2")
+                .contains("准备复核")
+                .contains("planner");
+
+        String json = service.handleCommand("pipeline " + taskId + " done --json", "planner");
+        assertThat(json)
+                .contains("\"current_step_key\":\"done\"")
+                .contains("\"kind\":\"step_changed\"");
+    }
+
+    @Test
     void shouldVerifyWorkerCreatedCardsBeforeCompletion() throws Exception {
         KanbanService service = service();
 
