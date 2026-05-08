@@ -1128,6 +1128,12 @@ public class ToolRegistryExposureTest {
                 .isEqualTo("execute_python");
         assertThat(resolveStdinExecutionToolName(tools, "sudo --user root -- bash"))
                 .isEqualTo("execute_shell");
+        assertThat(resolveStdinExecutionToolName(tools, "doas python3"))
+                .isEqualTo("execute_python");
+        assertThat(resolveStdinExecutionToolName(tools, "pkexec node"))
+                .isEqualTo("execute_js");
+        assertThat(resolveStdinExecutionToolName(tools, "runas /user:Administrator powershell"))
+                .isEqualTo("execute_shell");
         assertThat(resolveStdinExecutionToolName(tools, "command -p sh"))
                 .isEqualTo("execute_shell");
         assertThat(resolveStdinExecutionToolName(tools, "exec /bin/bash"))

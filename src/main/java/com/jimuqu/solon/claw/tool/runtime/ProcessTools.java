@@ -470,7 +470,12 @@ public class ProcessTools {
                 }
                 continue;
             }
-            if ("sudo".equals(normalized) || "sudo.exe".equals(normalized)) {
+            if ("sudo".equals(normalized)
+                    || "sudo.exe".equals(normalized)
+                    || "doas".equals(normalized)
+                    || "doas.exe".equals(normalized)
+                    || "pkexec".equals(normalized)
+                    || "pkexec.exe".equals(normalized)) {
                 index++;
                 while (index < tokens.size()) {
                     String option = tokens.get(index);
@@ -490,6 +495,17 @@ public class ProcessTools {
                     } else {
                         index++;
                     }
+                }
+                continue;
+            }
+            if ("runas".equals(normalized) || "runas.exe".equals(normalized)) {
+                index++;
+                while (index < tokens.size()) {
+                    String option = tokens.get(index);
+                    if (!option.startsWith("/") && !option.startsWith("-")) {
+                        break;
+                    }
+                    index++;
                 }
                 continue;
             }
