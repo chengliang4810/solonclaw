@@ -130,6 +130,43 @@ public class DangerousCommandApprovalCommandTest {
     }
 
     @Test
+    void shouldListPendingDangerousCommandsThroughDenyCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-deny-list", "user-deny-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-deny-list", "user-deny-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-deny-list:user-deny-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset --hard (destroys uncommitted changes)",
+                "git reset --hard origin/main");
+
+        GatewayReply list = env.send("room-deny-list", "user-deny-list", "/deny list");
+        GatewayReply status = env.send("room-deny-list", "user-deny-list", "/deny status");
+
+        assertThat(list.getContent())
+                .contains("pending=2")
+                .contains("#1")
+                .contains("#2")
+                .contains("recursive_delete")
+                .contains("git_reset_hard");
+        assertThat(status.getContent()).isEqualTo(list.getContent());
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(agentSession))
+                .hasSize(2);
+    }
+
+    @Test
     void shouldListTirithPendingApprovalWithoutAlwaysScope() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-tirith-list", "user-tirith-list", "hello"));
