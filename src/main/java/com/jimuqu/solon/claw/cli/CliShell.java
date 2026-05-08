@@ -22,8 +22,8 @@ public class CliShell {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent", "/cron", "/approve",
                 "/kanban", "/deny", "/restart", "/stop", "/compress", "/rollback", "/version",
-                "/platforms", "/models", "/sessions", "/session", "/history", "/tasks", "/copy",
-                "/exit", "/quit"
+                "/platforms", "/models", "/sessions", "/session", "/history", "/tasks",
+                "/attachments", "/copy", "/exit", "/quit"
             };
 
     private final CliRuntime cliRuntime;
@@ -149,7 +149,9 @@ public class CliShell {
         String value = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
-                || "/tasks".equalsIgnoreCase(value)) {
+                || "/tasks".equalsIgnoreCase(value)
+                || value.equalsIgnoreCase("/attachments")
+                || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ")) {
             return true;
         }
         return value.startsWith("/")
@@ -200,6 +202,11 @@ public class CliShell {
         }
         if ("/tasks".equalsIgnoreCase(trimmed)) {
             writer.println(taskRunner == null ? "暂无终端后台任务。" : taskRunner.renderTasks());
+            writer.flush();
+            return 0;
+        }
+        if (isAttachmentPreviewCommand(trimmed)) {
+            writer.println(renderAttachmentPreview(trimmed));
             writer.flush();
             return 0;
         }
@@ -267,5 +274,20 @@ public class CliShell {
         } catch (Exception ignored) {
             // best effort only
         }
+    }
+
+    private boolean isAttachmentPreviewCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/attachments".equalsIgnoreCase(value)
+                || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ");
+    }
+
+    private String renderAttachmentPreview(String input) {
+        if (attachmentResolver == null) {
+            return "当前终端未启用附件解析。";
+        }
+        String value = StrUtil.nullToEmpty(input).trim();
+        String rest = value.length() <= "/attachments".length() ? "" : value.substring("/attachments".length()).trim();
+        return attachmentResolver.renderPreview(rest);
     }
 }

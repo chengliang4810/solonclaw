@@ -19,6 +19,7 @@ public class TerminalTipsTest {
                 .contains("终端提示")
                 .contains("/queue")
                 .contains("/steer")
-                .contains("/events");
+                .contains("/events")
+                .contains("/attachments");
     }
 }

@@ -24,7 +24,7 @@ public class TuiShell {
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress", "/rollback",
                 "/version", "/copy", "/models", "/sessions", "/session", "/history", "/events",
-                "/tasks", "/tips", "/skin", "/exit"
+                "/tasks", "/attachments", "/tips", "/skin", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -177,6 +177,8 @@ public class TuiShell {
                 || "/copy".equalsIgnoreCase(value)
                 || "/events".equalsIgnoreCase(value)
                 || "/tasks".equalsIgnoreCase(value)
+                || value.equalsIgnoreCase("/attachments")
+                || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ")
                 || TerminalTips.isTipsCommand(value)) {
             return true;
         }
@@ -239,6 +241,11 @@ public class TuiShell {
         }
         if ("/tasks".equalsIgnoreCase(trimmed)) {
             writer.println(taskRunner == null ? "暂无终端后台任务。" : taskRunner.renderTasks());
+            writer.flush();
+            return 0;
+        }
+        if (isAttachmentPreviewCommand(trimmed)) {
+            writer.println(renderAttachmentPreview(trimmed));
             writer.flush();
             return 0;
         }
@@ -344,5 +351,20 @@ public class TuiShell {
                 + StrUtil.blankToDefault(model, "-")
                 + "  reasoning="
                 + StrUtil.blankToDefault(reasoning, "-");
+    }
+
+    private boolean isAttachmentPreviewCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/attachments".equalsIgnoreCase(value)
+                || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ");
+    }
+
+    private String renderAttachmentPreview(String input) {
+        if (attachmentResolver == null) {
+            return "当前终端未启用附件解析。";
+        }
+        String value = StrUtil.nullToEmpty(input).trim();
+        String rest = value.length() <= "/attachments".length() ? "" : value.substring("/attachments".length()).trim();
+        return attachmentResolver.renderPreview(rest);
     }
 }

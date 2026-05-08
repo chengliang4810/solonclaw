@@ -79,6 +79,50 @@ public class CliAttachmentResolverTest {
                 .hasMessageContaining("安全策略阻断");
     }
 
+    @Test
+    void shouldPreviewAttachmentPathsWithoutCaching() throws Exception {
+        AppConfig config = testConfig();
+        File file = new File(config.getRuntime().getHome(), "preview.txt");
+        Files.write(file.toPath(), "hello".getBytes("UTF-8"));
+        CliAttachmentResolver resolver = resolver(config);
+
+        List<CliAttachmentResolver.AttachmentPreview> previews =
+                resolver.preview("预检 " + file.getAbsolutePath());
+
+        assertThat(previews).hasSize(1);
+        CliAttachmentResolver.AttachmentPreview preview = previews.get(0);
+        assertThat(preview.getStatus()).isEqualTo("allowed");
+        assertThat(preview.getName()).isEqualTo("preview.txt");
+        assertThat(preview.getKind()).isEqualTo("file");
+        assertThat(preview.getMimeType()).isEqualTo("text/plain");
+        assertThat(preview.getSizeBytes()).isEqualTo(5L);
+        assertThat(resolver.renderPreview(file.getAbsolutePath()))
+                .contains("附件预检")
+                .contains("allowed")
+                .contains("preview.txt")
+                .contains("size=5");
+        assertThat(new File(config.getRuntime().getCacheDir(), "media")).doesNotExist();
+    }
+
+    @Test
+    void shouldPreviewBlockedAndMissingAttachmentPaths() throws Exception {
+        AppConfig config = testConfig();
+        File sshDir = new File(config.getRuntime().getHome(), ".ssh");
+        Files.createDirectories(sshDir.toPath());
+        File privateKey = new File(sshDir, "id_ed25519");
+        Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
+        File missing = new File(config.getRuntime().getHome(), "missing.txt");
+        CliAttachmentResolver resolver = resolver(config);
+
+        String preview = resolver.renderPreview(privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
+
+        assertThat(preview)
+                .contains("blocked")
+                .contains("id_ed25519")
+                .contains("missing")
+                .contains("missing.txt");
+    }
+
     private CliAttachmentResolver resolver(AppConfig config) {
         return new CliAttachmentResolver(
                 new AttachmentCacheService(config), new SecurityPolicyService(config));

@@ -99,6 +99,71 @@ public class CliAttachmentResolver {
         return new ResolvedInput(resolvedText, attachments);
     }
 
+    public String renderPreview(String input) {
+        List<AttachmentPreview> previews = preview(input);
+        if (previews.isEmpty()) {
+            return "未识别到可预检的本地附件路径。";
+        }
+        StringBuilder buffer = new StringBuilder("附件预检：");
+        for (int i = 0; i < previews.size(); i++) {
+            AttachmentPreview preview = previews.get(i);
+            buffer.append('\n')
+                    .append(i + 1)
+                    .append(". ")
+                    .append(preview.getStatus())
+                    .append(" name=")
+                    .append(preview.getName())
+                    .append(" kind=")
+                    .append(preview.getKind())
+                    .append(" mime=")
+                    .append(preview.getMimeType())
+                    .append(" size=")
+                    .append(preview.getSizeText());
+            if (StrUtil.isNotBlank(preview.getMessage())) {
+                buffer.append(" - ").append(preview.getMessage());
+            }
+        }
+        return buffer.toString();
+    }
+
+    public List<AttachmentPreview> preview(String input) {
+        String text = StrUtil.nullToEmpty(input);
+        List<Candidate> candidates = findCandidates(text);
+        if (candidates.isEmpty()) {
+            return java.util.Collections.<AttachmentPreview>emptyList();
+        }
+        List<AttachmentPreview> previews = new ArrayList<AttachmentPreview>();
+        for (Candidate candidate : candidates) {
+            if (previews.size() >= MAX_ATTACHMENT_PATHS) {
+                break;
+            }
+            File file = resolveCandidate(candidate.path);
+            if (file == null || !file.isFile()) {
+                previews.add(AttachmentPreview.missing(displayName(candidate.path)));
+                continue;
+            }
+            String name = file.getName();
+            SecurityPolicyService.FileVerdict verdict =
+                    securityPolicyService.checkPath(file.getAbsolutePath(), false);
+            if (!verdict.isAllowed()) {
+                previews.add(AttachmentPreview.blocked(name, verdict.getMessage()));
+                continue;
+            }
+            if (file.length() > MAX_ATTACHMENT_BYTES) {
+                previews.add(AttachmentPreview.blocked(name, "附件文件过大"));
+                continue;
+            }
+            String mimeType = AttachmentCacheService.normalizeMimeType(file, null, name);
+            previews.add(
+                    AttachmentPreview.allowed(
+                            name,
+                            AttachmentCacheService.normalizeKind(null, name, mimeType),
+                            mimeType,
+                            file.length()));
+        }
+        return previews;
+    }
+
     private List<Candidate> findCandidates(String input) {
         Set<String> seen = new LinkedHashSet<String>();
         List<Candidate> candidates = new ArrayList<Candidate>();
@@ -215,6 +280,20 @@ public class CliAttachmentResolver {
         return text;
     }
 
+    private String displayName(String path) {
+        String value = stripWrappingQuotes(StrUtil.nullToEmpty(path).trim());
+        if (StrUtil.isBlank(value)) {
+            return "-";
+        }
+        try {
+            if (value.toLowerCase(Locale.ROOT).startsWith("file://")) {
+                return new File(new URI(value)).getName();
+            }
+        } catch (Exception ignored) {
+        }
+        return FileUtil.file(value).getName();
+    }
+
     private static class Candidate {
         private final String originalToken;
         private final String path;
@@ -243,6 +322,71 @@ public class CliAttachmentResolver {
 
         public List<MessageAttachment> getAttachments() {
             return new ArrayList<MessageAttachment>(attachments);
+        }
+    }
+
+    public static class AttachmentPreview {
+        private final String status;
+        private final String name;
+        private final String kind;
+        private final String mimeType;
+        private final long sizeBytes;
+        private final String message;
+
+        private AttachmentPreview(
+                String status,
+                String name,
+                String kind,
+                String mimeType,
+                long sizeBytes,
+                String message) {
+            this.status = status;
+            this.name = StrUtil.blankToDefault(name, "-");
+            this.kind = StrUtil.blankToDefault(kind, "-");
+            this.mimeType = StrUtil.blankToDefault(mimeType, "-");
+            this.sizeBytes = sizeBytes;
+            this.message = StrUtil.nullToEmpty(message);
+        }
+
+        public static AttachmentPreview allowed(
+                String name, String kind, String mimeType, long sizeBytes) {
+            return new AttachmentPreview("allowed", name, kind, mimeType, sizeBytes, "");
+        }
+
+        public static AttachmentPreview blocked(String name, String message) {
+            return new AttachmentPreview("blocked", name, "-", "-", -1L, message);
+        }
+
+        public static AttachmentPreview missing(String name) {
+            return new AttachmentPreview("missing", name, "-", "-", -1L, "文件不存在或不可读取");
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getKind() {
+            return kind;
+        }
+
+        public String getMimeType() {
+            return mimeType;
+        }
+
+        public long getSizeBytes() {
+            return sizeBytes;
+        }
+
+        public String getSizeText() {
+            return sizeBytes < 0L ? "-" : String.valueOf(sizeBytes);
+        }
+
+        public String getMessage() {
+            return message;
         }
     }
 }
