@@ -195,6 +195,21 @@ try {
 
     Push-Location $sandbox
     try {
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean body fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean subject with polluted body / Clean subject with polluted body" `
+            -m ("body uses " + $legacyPrivateUrlFixture) | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $blockedCommitBody = Invoke-GitNamingCheck -Range "HEAD"
+    if ($blockedCommitBody.ExitCode -eq 0) {
+        throw "Naming check did not block forbidden naming in git commit messages."
+    }
+    Assert-NoRawBlockedOutput $blockedCommitBody.Output @($legacyPrivateUrlFixture) "git commit body scan"
+
+    Push-Location $sandbox
+    try {
         Set-Content -Path (Join-Path $sandbox "README.md") -Value ($blockedFixture + " removed later") -Encoding UTF8
         & git add README.md | Out-Null
         & git commit -m "fix: temporary polluted file / Temporary polluted file" | Out-Null
