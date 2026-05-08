@@ -169,7 +169,9 @@ public class SecurityPolicyService {
                     "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
     private static final Pattern BARE_HOST_FETCH_CONTEXT_PATTERN =
             Pattern.compile(
-                    "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
+                    "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|nc|netcat|ncat|telnet|socat|openssl\\s+s_client|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
+    private static final Pattern DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN =
+            Pattern.compile("(?iu)^(tcp|tcp4|tcp6|udp|udp4|udp6|ssl|tls|connect):(.+)$");
 
     private final AppConfig appConfig;
 
@@ -792,6 +794,7 @@ public class SecurityPolicyService {
         if (!hasBareHostFetchContext(text)) {
             return;
         }
+        extractDirectNetworkEndpointHosts(text, urls);
         Matcher matcher = BARE_HOST_TOKEN_PATTERN.matcher(StrUtil.nullToEmpty(text));
         while (matcher.find()) {
             String value = cleanUrlToken(matcher.group(1));
@@ -810,6 +813,54 @@ public class SecurityPolicyService {
 
     private boolean hasBareHostFetchContext(String text) {
         return BARE_HOST_FETCH_CONTEXT_PATTERN.matcher(StrUtil.nullToEmpty(text)).find();
+    }
+
+    private void extractDirectNetworkEndpointHosts(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = cleanUrlToken(tokens.get(i));
+            if (token.length() == 0) {
+                continue;
+            }
+            String host = extractDirectNetworkEndpointHost(token);
+            if (StrUtil.isBlank(host)
+                    && "-connect".equalsIgnoreCase(token)
+                    && i + 1 < tokens.size()) {
+                host = extractHostFromDirectEndpoint(tokens.get(++i));
+            }
+            if (StrUtil.isBlank(host) || !shouldCheckBareHost(host)) {
+                continue;
+            }
+            urls.add(host);
+        }
+    }
+
+    private String extractDirectNetworkEndpointHost(String raw) {
+        String value = cleanUrlToken(raw);
+        Matcher matcher = DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN.matcher(value);
+        if (!matcher.find()) {
+            return "";
+        }
+        return extractHostFromDirectEndpoint(matcher.group(2));
+    }
+
+    private String extractHostFromDirectEndpoint(String raw) {
+        String value = cleanUrlToken(raw);
+        if (value.length() == 0 || value.contains("://")) {
+            return "";
+        }
+        int comma = value.indexOf(',');
+        if (comma >= 0) {
+            value = value.substring(0, comma);
+        }
+        if (value.startsWith("[") && value.contains("]")) {
+            return normalizeHost(value.substring(0, value.indexOf(']') + 1));
+        }
+        int colon = value.indexOf(':');
+        if (colon > 0 && value.indexOf(':', colon + 1) < 0) {
+            value = value.substring(0, colon);
+        }
+        return normalizeHost(value);
     }
 
     private boolean shouldCheckBareHost(String host) {

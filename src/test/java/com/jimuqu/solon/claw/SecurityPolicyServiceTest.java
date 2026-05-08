@@ -197,6 +197,17 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandAlwaysBlockedUrls("aria2c 0xa9fea9fe");
         SecurityPolicyService.UrlVerdict httpie =
                 policy.checkCommandAlwaysBlockedUrls("http 2852039166");
+        SecurityPolicyService.UrlVerdict nc =
+                policy.checkCommandAlwaysBlockedUrls("nc 2852039166 80");
+        SecurityPolicyService.UrlVerdict ncat =
+                policy.checkCommandAlwaysBlockedUrls("ncat 0xa9fea9fe 80");
+        SecurityPolicyService.UrlVerdict telnet =
+                policy.checkCommandAlwaysBlockedUrls("telnet 169.254.169.254 80");
+        SecurityPolicyService.UrlVerdict socat =
+                policy.checkCommandAlwaysBlockedUrls("socat - TCP:169.254.169.254:80");
+        SecurityPolicyService.UrlVerdict openssl =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "openssl s_client -connect 169.254.169.254:443");
         SecurityPolicyService.UrlVerdict safeNumber =
                 policy.checkCommandAlwaysBlockedUrls("printf 12345");
 
@@ -212,6 +223,16 @@ public class SecurityPolicyServiceTest {
         assertThat(aria.getMessage()).contains("元数据");
         assertThat(httpie.isAllowed()).isFalse();
         assertThat(httpie.getMessage()).contains("元数据");
+        assertThat(nc.isAllowed()).isFalse();
+        assertThat(nc.getMessage()).contains("元数据");
+        assertThat(ncat.isAllowed()).isFalse();
+        assertThat(ncat.getMessage()).contains("元数据");
+        assertThat(telnet.isAllowed()).isFalse();
+        assertThat(telnet.getMessage()).contains("元数据");
+        assertThat(socat.isAllowed()).isFalse();
+        assertThat(socat.getMessage()).contains("元数据");
+        assertThat(openssl.isAllowed()).isFalse();
+        assertThat(openssl.getMessage()).contains("元数据");
         assertThat(safeNumber.isAllowed()).isTrue();
     }
 
@@ -228,6 +249,8 @@ public class SecurityPolicyServiceTest {
                         "bitsadmin /transfer job /download [::ffff:169.254.169.254] out.txt");
         SecurityPolicyService.UrlVerdict mshta =
                 policy.checkCommandAlwaysBlockedUrls("mshta [::ffff:169.254.169.254]");
+        SecurityPolicyService.UrlVerdict socat =
+                policy.checkCommandAlwaysBlockedUrls("socat - TCP:[::ffff:169.254.169.254]:80");
 
         assertThat(mapped.isAllowed()).isFalse();
         assertThat(mapped.getMessage()).contains("元数据");
@@ -237,6 +260,8 @@ public class SecurityPolicyServiceTest {
         assertThat(bitsAdmin.getMessage()).contains("元数据");
         assertThat(mshta.isAllowed()).isFalse();
         assertThat(mshta.getMessage()).contains("元数据");
+        assertThat(socat.isAllowed()).isFalse();
+        assertThat(socat.getMessage()).contains("元数据");
     }
 
     @Test

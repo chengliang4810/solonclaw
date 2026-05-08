@@ -1231,6 +1231,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Invoke-WebRequest http://169.254.169.254",
                         "Start-BitsTransfer -Source 169.254.169.254 -Destination out.txt",
                         "certutil -urlcache -split -f 169.254.169.254 payload.bin",
+                        "nc 169.254.169.254 80",
+                        "socat - TCP:169.254.169.254:80",
+                        "openssl s_client -connect 169.254.169.254:443",
                         "python -c \"import requests; requests.get('http://169.254.169.254/latest/meta-data/')\"");
 
         for (String command : commands) {
