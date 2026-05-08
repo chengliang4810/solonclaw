@@ -2,18 +2,21 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Hermes-style subprocess environment filtering for local tools. */
 public final class SubprocessEnvironmentSanitizer {
     public static final String FORCE_PREFIX = "_JIMUQU_FORCE_";
     public static final String HERMES_FORCE_PREFIX = "_HERMES_FORCE_";
 
+    private static final Pattern ENV_NAME_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
     private static final String[] SAFE_ENV_PREFIXES =
             new String[] {
                 "PATH", "HOME", "USER", "USERNAME", "USERPROFILE", "LANG", "LC_", "TERM",
@@ -26,6 +29,8 @@ public final class SubprocessEnvironmentSanitizer {
             "/opt/homebrew/bin:/opt/homebrew/sbin:"
                     + "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     private static final Set<String> PROVIDER_ENV_BLOCKLIST = providerEnvBlocklist();
+    private static final ThreadLocal<Set<String>> SKILL_ENV_PASSTHROUGH =
+            new ThreadLocal<Set<String>>();
 
     private SubprocessEnvironmentSanitizer() {}
 
@@ -38,6 +43,7 @@ public final class SubprocessEnvironmentSanitizer {
             return;
         }
         Set<String> passthrough = envPassthrough(appConfig);
+        passthrough.addAll(currentSkillEnvironmentPassthrough());
         Map<String, String> raw = new LinkedHashMap<String, String>(env);
         env.clear();
         for (Map.Entry<String, String> entry : raw.entrySet()) {
@@ -88,6 +94,37 @@ public final class SubprocessEnvironmentSanitizer {
         return PROVIDER_ENV_BLOCKLIST.contains(StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT));
     }
 
+    public static AutoCloseable withSkillEnvironmentPassthrough(List<String> names) {
+        final Set<String> previous = SKILL_ENV_PASSTHROUGH.get();
+        Set<String> next =
+                previous == null
+                        ? new HashSet<String>()
+                        : new HashSet<String>(previous);
+        if (names != null) {
+            for (String name : names) {
+                String normalized = normalizeEnvName(name);
+                if (normalized != null && !isProviderEnvBlocked(normalized)) {
+                    next.add(normalized);
+                }
+            }
+        }
+        if (next.isEmpty()) {
+            SKILL_ENV_PASSTHROUGH.remove();
+        } else {
+            SKILL_ENV_PASSTHROUGH.set(next);
+        }
+        return new AutoCloseable() {
+            @Override
+            public void close() {
+                if (previous == null || previous.isEmpty()) {
+                    SKILL_ENV_PASSTHROUGH.remove();
+                } else {
+                    SKILL_ENV_PASSTHROUGH.set(previous);
+                }
+            }
+        };
+    }
+
     private static boolean isEnvPassthrough(String name, Set<String> passthrough) {
         return passthrough != null
                 && passthrough.contains(StrUtil.nullToEmpty(name).trim().toUpperCase(Locale.ROOT));
@@ -109,6 +146,22 @@ public final class SubprocessEnvironmentSanitizer {
             }
         }
         return values;
+    }
+
+    private static Set<String> currentSkillEnvironmentPassthrough() {
+        Set<String> values = SKILL_ENV_PASSTHROUGH.get();
+        if (values == null || values.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return new HashSet<String>(values);
+    }
+
+    private static String normalizeEnvName(String name) {
+        String value = StrUtil.nullToEmpty(name).trim();
+        if (StrUtil.isBlank(value) || !ENV_NAME_PATTERN.matcher(value).matches()) {
+            return null;
+        }
+        return value.toUpperCase(Locale.ROOT);
     }
 
     static String pathWithSaneFallback(String path, boolean windows) {

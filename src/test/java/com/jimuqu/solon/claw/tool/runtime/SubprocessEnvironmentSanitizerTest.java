@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -194,6 +195,71 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(env).containsEntry("PATH", "/usr/bin");
         assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
         assertThat(env).doesNotContainKeys("FIRECRAWL_API_KEY", "BROWSERBASE_PROJECT_ID");
+    }
+
+    @Test
+    void shouldAllowScopedSkillEnvironmentPassthroughButKeepProviderSecretsBlocked()
+            throws Exception {
+        Map<String, String> env = new LinkedHashMap<String, String>();
+        env.put("PATH", "/usr/bin");
+        env.put("TENOR_API_KEY", "tenor-secret");
+        env.put("OPENAI_API_KEY", "sk-provider");
+        env.put("BAD-NAME", "bad");
+
+        AutoCloseable scope =
+                SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
+                        Arrays.asList("TENOR_API_KEY", "OPENAI_API_KEY", "BAD-NAME"));
+        try {
+            SubprocessEnvironmentSanitizer.sanitize(env);
+        } finally {
+            scope.close();
+        }
+
+        assertThat(env).containsEntry("PATH", "/usr/bin");
+        assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
+        assertThat(env).doesNotContainKeys("OPENAI_API_KEY", "BAD-NAME");
+
+        Map<String, String> afterScope = new LinkedHashMap<String, String>();
+        afterScope.put("PATH", "/usr/bin");
+        afterScope.put("TENOR_API_KEY", "tenor-secret");
+        SubprocessEnvironmentSanitizer.sanitize(afterScope);
+        assertThat(afterScope).doesNotContainKey("TENOR_API_KEY");
+    }
+
+    @Test
+    void shouldRestoreNestedSkillEnvironmentPassthroughScopes() throws Exception {
+        Map<String, String> outerEnv = new LinkedHashMap<String, String>();
+        outerEnv.put("PATH", "/usr/bin");
+        outerEnv.put("TENOR_API_KEY", "tenor-secret");
+        outerEnv.put("MAPBOX_TOKEN", "mapbox-token");
+
+        AutoCloseable outer =
+                SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
+                        Arrays.asList("TENOR_API_KEY"));
+        try {
+            AutoCloseable inner =
+                    SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
+                            Arrays.asList("MAPBOX_TOKEN"));
+            try {
+                SubprocessEnvironmentSanitizer.sanitize(outerEnv);
+            } finally {
+                inner.close();
+            }
+
+            Map<String, String> restored = new LinkedHashMap<String, String>();
+            restored.put("PATH", "/usr/bin");
+            restored.put("TENOR_API_KEY", "tenor-secret");
+            restored.put("MAPBOX_TOKEN", "mapbox-token");
+            SubprocessEnvironmentSanitizer.sanitize(restored);
+            assertThat(restored).containsEntry("TENOR_API_KEY", "tenor-secret");
+            assertThat(restored).doesNotContainKey("MAPBOX_TOKEN");
+        } finally {
+            outer.close();
+        }
+
+        assertThat(outerEnv)
+                .containsEntry("TENOR_API_KEY", "tenor-secret")
+                .containsEntry("MAPBOX_TOKEN", "mapbox-token");
     }
 
     @Test
