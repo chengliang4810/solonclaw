@@ -147,7 +147,9 @@ jobs:
 
       - name: Check release naming
         shell: pwsh
-        run: ./scripts/check-project-naming.ps1 -RootPath dist
+        run: |
+          ./scripts/check-project-naming.ps1 -RootPath dist -CheckBinaryText
+          ./scripts/check-archive-naming.ps1 -ArchivePath "${{ steps.artifact.outputs.jar_path }}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

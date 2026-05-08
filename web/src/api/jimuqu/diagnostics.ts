@@ -57,6 +57,7 @@ export interface PendingApproval {
   description?: string
   pattern_key?: string
   pattern_keys?: string[]
+  rule_sources?: string[]
   command_preview?: string
   command_hash?: string
   approval_key?: string
@@ -67,6 +68,7 @@ export interface PendingApproval {
   scopes?: string
   scope_options?: string[]
   permanent_allowed?: boolean
+  permanent_disabled_reason?: string
 }
 
 export interface PendingApprovalsResult {

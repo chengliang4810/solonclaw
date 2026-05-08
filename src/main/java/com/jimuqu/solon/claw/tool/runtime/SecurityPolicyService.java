@@ -1132,6 +1132,14 @@ public class SecurityPolicyService {
             addPathValue(paths, moveMatcher.group(1));
             addPathValue(paths, moveMatcher.group(2));
         }
+        Matcher moveSourceMatcher =
+                Pattern.compile(
+                                "^\\*\\*\\*\\s+Move\\s+File:\\s*(?!.*\\s->\\s)(.+)$",
+                                Pattern.MULTILINE)
+                        .matcher(text);
+        while (moveSourceMatcher.find()) {
+            addPathValue(paths, moveSourceMatcher.group(1));
+        }
         Matcher moveToMatcher =
                 Pattern.compile("^\\*\\*\\*\\s+Move\\s+to:\\s*(.+)$", Pattern.MULTILINE)
                         .matcher(text);

@@ -50,6 +50,7 @@ import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
@@ -3115,7 +3116,9 @@ public class DefaultCommandService implements CommandService {
                     .append(" tool=")
                     .append(pending.getToolName())
                     .append(" reason=")
-                    .append(pending.getDescription())
+                    .append(SecretRedactor.redact(pending.getDescription(), 1000))
+                    .append(" command_preview=")
+                    .append(SecretRedactor.redact(pending.getCommand(), 800))
                     .append(" scopes=")
                     .append(approvalScopes(pending))
                     .append(" expires_in=")
@@ -3123,14 +3126,16 @@ public class DefaultCommandService implements CommandService {
                     .append("s expired=")
                     .append(isExpired(pending.getExpiresAt()))
                     .append(" key=")
-                    .append(pending.approvalKey())
+                    .append(SecretRedactor.redact(pending.approvalKey(), 1000))
                     .append('\n');
         }
         buffer.append("session_approvals=")
-                .append(dangerousCommandApprovalService.listSessionApprovals(agentSession))
+                .append(SecretRedactor.redact(
+                        String.valueOf(dangerousCommandApprovalService.listSessionApprovals(agentSession)), 2000))
                 .append('\n');
         buffer.append("always_approvals=")
-                .append(dangerousCommandApprovalService.listAlwaysApprovals());
+                .append(SecretRedactor.redact(
+                        String.valueOf(dangerousCommandApprovalService.listAlwaysApprovals()), 2000));
         return buffer.toString();
     }
 
