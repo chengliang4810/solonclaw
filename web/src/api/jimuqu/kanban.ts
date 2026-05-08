@@ -180,6 +180,13 @@ export interface CreateKanbanTaskRequest {
   current_step_key?: string
 }
 
+export interface StepKanbanTaskRequest {
+  step_key: string
+  workflow_template_id?: string
+  note?: string
+  actor?: string
+}
+
 export interface KanbanDispatchResult {
   reclaimed: number
   promoted: number
@@ -299,6 +306,13 @@ export async function moveKanbanTask(taskId: string, status: KanbanStatus): Prom
   return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/status`, {
     method: 'POST',
     body: JSON.stringify({ status }),
+  })
+}
+
+export async function stepKanbanTask(taskId: string, data: StepKanbanTaskRequest): Promise<KanbanTask> {
+  return request<KanbanTask>(`/api/kanban/tasks/${encodeURIComponent(taskId)}/step`, {
+    method: 'POST',
+    body: JSON.stringify({ ...data, actor: data.actor || 'dashboard' }),
   })
 }
 

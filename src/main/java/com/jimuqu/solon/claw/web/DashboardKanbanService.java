@@ -88,6 +88,15 @@ public class DashboardKanbanService {
                 body == null ? null : body.get("created_cards"));
     }
 
+    public Map<String, Object> step(String taskId, Map<String, Object> body) throws Exception {
+        return kanbanService.step(
+                taskId,
+                text(body, "step_key"),
+                text(body, "workflow_template_id"),
+                text(body, "note"),
+                text(body, "actor"));
+    }
+
     public Map<String, Object> reclaim(String taskId, Map<String, Object> body) throws Exception {
         return kanbanService.reclaim(
                 taskId,

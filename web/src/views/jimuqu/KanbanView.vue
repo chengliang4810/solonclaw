@@ -18,6 +18,7 @@ import {
   reassignKanbanTask,
   retryKanbanTask,
   startKanbanDaemon,
+  stepKanbanTask,
   stopKanbanDaemon,
   switchKanbanBoard,
   updateKanbanTask,
@@ -44,6 +45,7 @@ const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
 const commentText = ref('')
 const recoveryReason = ref('')
 const reassignAssignee = ref('')
+const stepForm = ref({ workflow_template_id: '', step_key: '', note: '' })
 const dispatching = ref(false)
 const daemonBusy = ref(false)
 const daemon = ref<KanbanDaemonStatus | null>(null)
@@ -257,6 +259,11 @@ async function openTask(task: KanbanTask) {
   commentText.value = ''
   recoveryReason.value = ''
   reassignAssignee.value = selectedTask.value.assignee || ''
+  stepForm.value = {
+    workflow_template_id: selectedTask.value.workflow_template_id || '',
+    step_key: selectedTask.value.current_step_key || '',
+    note: '',
+  }
   showTaskModal.value = true
 }
 
@@ -303,6 +310,35 @@ async function saveComment() {
   selectedTask.value = selectedDrawer.value.task
   commentText.value = ''
   await reloadTasks()
+}
+
+async function advanceSelectedStep() {
+  if (!selectedTask.value) return
+  if (!stepForm.value.step_key.trim()) {
+    message.error('请输入目标步骤')
+    return
+  }
+  try {
+    selectedTask.value = await stepKanbanTask(selectedTask.value.id, {
+      workflow_template_id: stepForm.value.workflow_template_id.trim(),
+      step_key: stepForm.value.step_key.trim(),
+      note: stepForm.value.note.trim(),
+      actor: 'dashboard',
+    })
+    selectedDrawer.value = await fetchKanbanTaskDrawer(selectedTask.value.id)
+    selectedTask.value = selectedDrawer.value.task
+    stepForm.value = {
+      workflow_template_id: selectedTask.value.workflow_template_id || '',
+      step_key: selectedTask.value.current_step_key || '',
+      note: '',
+    }
+    taskForm.value.workflow_template_id = stepForm.value.workflow_template_id
+    taskForm.value.current_step_key = stepForm.value.step_key
+    message.success('流程步骤已推进')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '推进流程步骤失败')
+  }
 }
 
 async function reclaimSelectedTask() {
@@ -444,6 +480,13 @@ function eventSummary(event: KanbanEvent): string {
   }
   if (event.kind === 'completed') {
     return `完成记录：${String(payload.summary || '')}`
+  }
+  if (event.kind === 'step_changed') {
+    const workflow = String(payload.to_workflow || payload.from_workflow || '-')
+    const fromStep = String(payload.from_step || '-')
+    const toStep = String(payload.to_step || '-')
+    const note = payload.note ? `：${String(payload.note)}` : ''
+    return `流程 ${workflow}：${fromStep} -> ${toStep}${note}`
   }
   return event.kind
 }
@@ -818,6 +861,15 @@ function hasWarnings(task: KanbanTask): boolean {
             <span v-if="selectedTask.workflow_template_id">流程 {{ selectedTask.workflow_template_id }}</span>
             <span v-if="selectedTask.current_step_key">步骤 {{ selectedTask.current_step_key }}</span>
             <span v-if="skillsText(selectedTask.skills)">技能 {{ skillsText(selectedTask.skills) }}</span>
+          </div>
+          <div class="pipeline-panel">
+            <div class="panel-title">流程步骤推进</div>
+            <div class="pipeline-actions">
+              <NInput v-model:value="stepForm.workflow_template_id" placeholder="流程模板，例如 delivery" />
+              <NInput v-model:value="stepForm.step_key" placeholder="目标步骤，例如 review" />
+              <NInput v-model:value="stepForm.note" placeholder="推进说明" />
+              <NButton type="primary" @click="advanceSelectedStep">记录推进</NButton>
+            </div>
           </div>
           <div v-if="(selectedTask.parents || []).length || (selectedTask.children || []).length" class="task-relations">
             <div v-if="(selectedTask.parents || []).length">
@@ -1326,6 +1378,7 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .recovery-panel,
 .execution-overview,
+.pipeline-panel,
 .task-relations,
 .runs,
 .events,
@@ -1429,6 +1482,13 @@ function hasWarnings(task: KanbanTask): boolean {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   margin-top: 8px;
+  align-items: center;
+}
+
+.pipeline-actions {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(160px, 1.2fr) auto;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1694,6 +1754,7 @@ function hasWarnings(task: KanbanTask): boolean {
     grid-template-columns: 1fr;
   }
 
+  .pipeline-actions,
   .recovery-actions,
   .overview-grid,
   .task-relations,
