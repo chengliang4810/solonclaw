@@ -6,7 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { getApiKey, getBaseUrlValue } from "@/api/client";
 import { copyToClipboard, readFromClipboard } from "@/utils/clipboard";
-import { NButton, NPopconfirm, NTooltip, NSelect, useMessage } from "naive-ui";
+import { NButton, NModal, NPopconfirm, NTooltip, NSelect, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import type { ITheme } from "@xterm/xterm";
 
@@ -238,6 +238,7 @@ interface BrowserFileWithPath extends File {
 
 const terminalRef = ref<HTMLDivElement | null>(null);
 const showSessions = ref(true);
+const showShortcutModal = ref(false);
 const sessions = ref<SessionInfo[]>([]);
 const activeSessionId = ref<string | null>(null);
 const selectedTheme = ref(localStorage.getItem(STORAGE_KEY_THEME) || "default");
@@ -281,6 +282,19 @@ const shortcutHint = computed(() =>
       : "Ctrl",
   }),
 );
+
+const shortcutModifier = computed(() =>
+  navigator.platform.toLowerCase().includes("mac") ? "Cmd" : "Ctrl",
+);
+
+const shortcutRows = computed(() => [
+  { label: t("terminal.shortcutNewTab"), keys: `${shortcutModifier.value}+N` },
+  { label: t("terminal.shortcutClose"), keys: `${shortcutModifier.value}+W` },
+  { label: t("terminal.shortcutClear"), keys: `${shortcutModifier.value}+L` },
+  { label: t("terminal.shortcutCopy"), keys: `${shortcutModifier.value}+C` },
+  { label: t("terminal.shortcutPaste"), keys: `${shortcutModifier.value}+V` },
+  { label: t("terminal.shortcutSwitch"), keys: `${shortcutModifier.value}+Alt+1..9` },
+]);
 
 const connectionStatusText = computed(() => {
   if (connectionState.value === "reconnecting") {
@@ -519,8 +533,7 @@ async function handleTerminalKeydown(event: KeyboardEvent) {
       break;
     case "l":
       event.preventDefault();
-      activeTerm?.clear();
-      activeTerm?.focus();
+      clearActiveTerminal();
       break;
     case "c":
       await copySelectionToClipboard(event);
@@ -568,6 +581,35 @@ function pasteIntoTerminal(text: string) {
   if (!text || !activeTerm) return;
   activeTerm.paste(text);
   activeTerm.focus();
+}
+
+function clearActiveTerminal() {
+  activeTerm?.clear();
+  activeTerm?.focus();
+}
+
+async function copySelectionFromButton() {
+  const selection = activeTerm?.getSelection();
+  if (!selection) {
+    message.warning(t("terminal.noSelection"));
+    return;
+  }
+  const copied = await copyToClipboard(selection);
+  if (copied) {
+    message.success(t("terminal.selectionCopied"));
+  } else {
+    message.warning(t("terminal.clipboardUnavailable"));
+  }
+  activeTerm?.focus();
+}
+
+async function pasteFromButton() {
+  const text = await readFromClipboard();
+  if (text == null) {
+    message.warning(t("terminal.clipboardUnavailable"));
+    return;
+  }
+  pasteIntoTerminal(text);
 }
 
 function switchSessionByIndex(index: number) {
@@ -885,6 +927,30 @@ onUnmounted(() => {
           <span class="header-shortcuts">{{ shortcutHint }}</span>
         </div>
         <div class="header-actions">
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <NButton size="small" quaternary @click="copySelectionFromButton">
+                {{ t("terminal.copySelection") }}
+              </NButton>
+            </template>
+            {{ t("terminal.copySelectionTip") }}
+          </NTooltip>
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <NButton size="small" quaternary @click="pasteFromButton">
+                {{ t("terminal.paste") }}
+              </NButton>
+            </template>
+            {{ t("terminal.pasteTip") }}
+          </NTooltip>
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <NButton size="small" quaternary @click="clearActiveTerminal">
+                {{ t("terminal.clear") }}
+              </NButton>
+            </template>
+            {{ t("terminal.clearTip") }}
+          </NTooltip>
           <NSelect
             :value="selectedTheme"
             :options="themeOptions"
@@ -908,6 +974,9 @@ onUnmounted(() => {
               </svg>
             </template>
             {{ t("terminal.newTab") }}
+          </NButton>
+          <NButton size="small" quaternary @click="showShortcutModal = true">
+            {{ t("terminal.shortcutsButton") }}
           </NButton>
         </div>
       </header>
@@ -936,6 +1005,20 @@ onUnmounted(() => {
         </footer>
       </div>
     </div>
+
+    <NModal
+      v-model:show="showShortcutModal"
+      preset="card"
+      :title="t('terminal.shortcutsTitle')"
+      class="terminal-shortcuts-modal"
+    >
+      <div class="shortcut-grid">
+        <template v-for="row in shortcutRows" :key="row.keys">
+          <span>{{ row.label }}</span>
+          <code>{{ row.keys }}</code>
+        </template>
+      </div>
+    </NModal>
   </div>
 </template>
 
@@ -1243,6 +1326,26 @@ onUnmounted(() => {
 
   span {
     flex-shrink: 0;
+  }
+}
+
+.terminal-shortcuts-modal {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+
+  code {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    white-space: nowrap;
   }
 }
 
