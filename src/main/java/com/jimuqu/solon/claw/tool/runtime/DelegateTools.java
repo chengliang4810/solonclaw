@@ -4,7 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
+import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -41,25 +43,29 @@ public class DelegateTools {
             @Param(name = "writeScope", description = "可写入范围", required = false) String writeScope)
             throws Exception {
         if (delegationService == null) {
-            return "Delegate tool is not ready";
+            return error("Delegate tool is not ready");
         }
 
-        if ("batch".equalsIgnoreCase(mode)) {
-            List<DelegationTask> items = parseTasks(tasks);
-            List<DelegationResult> results = delegationService.delegateBatch(sourceKey, items);
-            return ONode.serialize(results);
-        }
+        try {
+            if ("batch".equalsIgnoreCase(mode)) {
+                List<DelegationTask> items = parseTasks(tasks);
+                List<DelegationResult> results = delegationService.delegateBatch(sourceKey, items);
+                return ONode.serialize(results);
+            }
 
-        DelegationTask task = new DelegationTask();
-        task.setName("delegate");
-        task.setPrompt(prompt);
-        task.setContext(context);
-        task.setAllowedTools(parseStringArray(allowedTools));
-        task.setToolsets(parseStringArray(toolsets));
-        task.setExpectedOutput(expectedOutput);
-        task.setWriteScope(writeScope);
-        DelegationResult result = delegationService.delegateSingle(sourceKey, task);
-        return result.getContent();
+            DelegationTask task = new DelegationTask();
+            task.setName("delegate");
+            task.setPrompt(prompt);
+            task.setContext(context);
+            task.setAllowedTools(parseStringArray(allowedTools));
+            task.setToolsets(parseStringArray(toolsets));
+            task.setExpectedOutput(expectedOutput);
+            task.setWriteScope(writeScope);
+            DelegationResult result = delegationService.delegateSingle(sourceKey, task);
+            return result.getContent();
+        } catch (Exception e) {
+            return error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        }
     }
 
     /** 解析批量任务 JSON。 */
@@ -92,5 +98,12 @@ public class DelegateTools {
             return new ArrayList<String>();
         }
         return AgentRuntimePolicy.parseStringList(json);
+    }
+
+    private String error(String message) {
+        return ToolResultEnvelope.error(
+                        SecretRedactor.redact(
+                                StrUtil.blankToDefault(message, "delegate failed"), 1000))
+                .toJson();
     }
 }

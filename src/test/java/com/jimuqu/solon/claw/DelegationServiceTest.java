@@ -144,6 +144,33 @@ public class DelegationServiceTest {
         assertThat(service.batchTasks.get(1).getAllowedTools()).isEmpty();
     }
 
+    @Test
+    void delegateToolShouldRedactErrors() throws Exception {
+        DelegateTools missingService = new DelegateTools(null, "MEMORY:room-a:user-a");
+        String notReady = missingService.delegateTask("single", "ghp_1234567890abcdef", null, null, null, null, null, null);
+        assertThat(notReady).contains("\"success\":false").doesNotContain("ghp_1234567890abcdef");
+
+        DelegateTools failing =
+                new DelegateTools(
+                        new FailingDelegationService(),
+                        "MEMORY:room-a:user-a");
+        String failed =
+                failing.delegateTask(
+                        "single",
+                        "prompt-ghp_1234567890abcdef",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThat(failed)
+                .contains("\"success\":false")
+                .contains("prompt-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
     private static class RecordingToolGateway extends FakeLlmGateway {
         private List<Object> lastToolObjects = new ArrayList<Object>();
 
@@ -189,6 +216,26 @@ public class DelegationServiceTest {
         @Override
         public List<Map<String, Object>> activeSubagents() {
             return java.util.Collections.emptyList();
+        }
+    }
+
+    private static class FailingDelegationService implements DelegationService {
+        @Override
+        public DelegationResult delegateSingle(String sourceKey, String prompt, String context)
+                throws Exception {
+            throw new IllegalArgumentException("delegate failed: " + prompt);
+        }
+
+        @Override
+        public DelegationResult delegateSingle(String sourceKey, DelegationTask task)
+                throws Exception {
+            throw new IllegalArgumentException("delegate failed: " + task.getPrompt());
+        }
+
+        @Override
+        public List<DelegationResult> delegateBatch(String sourceKey, List<DelegationTask> tasks)
+                throws Exception {
+            throw new IllegalArgumentException("delegate batch failed: ghp_1234567890abcdef");
         }
     }
 }
