@@ -1,7 +1,9 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import com.jimuqu.solon.claw.core.model.SessionSearchEntry;
+import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
@@ -22,8 +24,16 @@ public class SessionSearchTools {
             @Param(name = "query", description = "检索主题；为空时列出最近会话", required = false) String query,
             @Param(name = "limit", description = "结果条数，默认 3，最大 5", required = false) Integer limit)
             throws Exception {
-        List<SessionSearchEntry> sessions =
-                sessionSearchService.search(sourceKey, query, limit == null ? 3 : limit.intValue());
-        return ONode.serialize(sessions);
+        try {
+            List<SessionSearchEntry> sessions =
+                    sessionSearchService.search(sourceKey, query, limit == null ? 3 : limit.intValue());
+            return ONode.serialize(sessions);
+        } catch (Exception e) {
+            return ToolResultEnvelope.error(
+                            SecretRedactor.redact(
+                                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(),
+                                    1000))
+                    .toJson();
+        }
     }
 }

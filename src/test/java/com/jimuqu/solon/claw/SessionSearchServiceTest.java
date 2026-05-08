@@ -6,15 +6,18 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SessionSearchEntry;
 import com.jimuqu.solon.claw.core.model.SessionSearchQuery;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
+import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.SessionSearchTools;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
@@ -223,6 +226,23 @@ public class SessionSearchServiceTest {
         assertThat(entries.get(0).getToolName()).isEqualTo("execute_shell");
     }
 
+    @Test
+    void shouldRedactSecretsFromSessionSearchToolErrors() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(
+                        new FailingSessionSearchService(),
+                        "MEMORY:search-room:user");
+
+        ONode result =
+                ONode.ofJson(
+                        tools.sessionSearch("query-ghp_1234567890abcdef", Integer.valueOf(3)));
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString())
+                .contains("query-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
     private AssistantMessage assistantWithToolCall(String name, String arguments) {
         Map<String, Object> function = new LinkedHashMap<String, Object>();
         function.put("name", name);
@@ -234,5 +254,13 @@ public class SessionSearchServiceTest {
         List<Map> rawCalls = new ArrayList<Map>();
         rawCalls.add(raw);
         return new AssistantMessage("", false, rawCalls);
+    }
+
+    private static class FailingSessionSearchService implements SessionSearchService {
+        @Override
+        public List<SessionSearchEntry> search(String sourceKey, String query, int limit)
+                throws Exception {
+            throw new IllegalArgumentException("search failed: " + query);
+        }
     }
 }
