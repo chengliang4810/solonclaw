@@ -1255,6 +1255,30 @@ public class DangerousCommandApprovalService {
                 || "terminal_execute".equals(lower)) {
             return ToolNameConstants.TERMINAL;
         }
+        if ("python".equals(lower)
+                || "python_exec".equals(lower)
+                || "python_execute".equals(lower)
+                || "run_python".equals(lower)
+                || "execute-python".equals(lower)) {
+            return ToolNameConstants.EXECUTE_PYTHON;
+        }
+        if ("js".equals(lower)
+                || "node".equals(lower)
+                || "nodejs".equals(lower)
+                || "javascript".equals(lower)
+                || "run_js".equals(lower)
+                || "run_javascript".equals(lower)
+                || "execute-javascript".equals(lower)
+                || "execute-js".equals(lower)) {
+            return ToolNameConstants.EXECUTE_JS;
+        }
+        if ("code".equals(lower)
+                || "run_code".equals(lower)
+                || "code_run".equals(lower)
+                || "code_exec".equals(lower)
+                || "execute-code".equals(lower)) {
+            return ToolNameConstants.EXECUTE_CODE;
+        }
         if ("web_extract".equals(lower) || "web_fetch".equals(lower) || "fetch_url".equals(lower)) {
             return ToolNameConstants.WEBFETCH;
         }

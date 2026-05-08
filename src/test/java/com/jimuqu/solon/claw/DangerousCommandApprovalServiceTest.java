@@ -3364,6 +3364,36 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(writeFileTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(writeFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
+        Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
+        pythonArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
+        Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
+        gatewayPython.put("tool_name", "run_python");
+        gatewayPython.put("tool_args", pythonArgs);
+        TestTrace pythonTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(pythonTrace, "call_tool", gatewayPython);
+
+        DangerousCommandApprovalService.PendingApproval pythonPending =
+                service.getPendingApproval(pythonTrace.session);
+        assertThat(pythonTrace.getFinalAnswer()).contains("需要审批").contains("Python recursive delete");
+        assertThat(pythonPending).isNotNull();
+        assertThat(pythonPending.getToolName()).isEqualTo("execute_python");
+
+        Map<String, Object> codeArgs = new LinkedHashMap<String, Object>();
+        codeArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
+        Map<String, Object> gatewayCode = new LinkedHashMap<String, Object>();
+        gatewayCode.put("tool_name", "run_code");
+        gatewayCode.put("tool_args", codeArgs);
+        TestTrace codeTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(codeTrace, "call_tool", gatewayCode);
+
+        DangerousCommandApprovalService.PendingApproval codePending =
+                service.getPendingApproval(codeTrace.session);
+        assertThat(codeTrace.getFinalAnswer()).contains("需要审批").contains("Python recursive delete");
+        assertThat(codePending).isNotNull();
+        assertThat(codePending.getToolName()).isEqualTo("execute_code");
     }
 
     @Test
