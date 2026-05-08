@@ -27,12 +27,25 @@ function Invoke-ProjectNamingGuard {
     }
 
     $rootPath = (Get-Location).Path
-    $guardOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $scriptPath `
-        -RootPath $rootPath `
-        -CheckGitCommitSubjects `
-        -CheckGitObjectText `
-        -GitCommitRange $Range `
-        -ExtraBlockedTerms $ExtraBlockedTerms 2>&1
+    $guardArgs = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $scriptPath,
+        "-RootPath",
+        $rootPath,
+        "-CheckGitCommitSubjects",
+        "-CheckGitObjectText",
+        "-GitCommitRange",
+        $Range
+    )
+    $cleanExtraBlockedTerms = @($ExtraBlockedTerms | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($cleanExtraBlockedTerms.Length -gt 0) {
+        $guardArgs += @("-ExtraBlockedTerms")
+        $guardArgs += $cleanExtraBlockedTerms
+    }
+    $guardOutput = & pwsh @guardArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw ("Release naming guard failed for commit range: {0}`n{1}" -f $Range, ($guardOutput | Out-String))
     }

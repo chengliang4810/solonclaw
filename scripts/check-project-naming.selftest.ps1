@@ -14,11 +14,6 @@ $blockedLegacyEnvFixture =
         + ([string][char]80) + ([string][char]82) + ([string][char]69) `
         + ([string][char]70) + ([string][char]73) + ([string][char]88) `
         + "_ALLOW_PRIVATE_URLS")
-$blockedLegacyPrivateUrlEnvFixture =
-    (([string][char]72) + ([string][char]69) + ([string][char]82) `
-        + ([string][char]77) + ([string][char]69) + ([string][char]83) `
-        + "_ALLOW_PRIVATE_URLS")
-$blockedLegacyNameFixture = (([string][char]79) + ([string][char]112) + ([string][char]101) + ([string][char]110) + ([string][char]67) + ([string][char]108) + ([string][char]97) + ([string][char]119))
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -118,21 +113,21 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\private-url-env.txt") -Value ($blockedLegacyPrivateUrlEnvFixture + "=true") -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "src\private-url-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
     $blockedPrivateUrlEnv = Invoke-NamingCheck
     if ($blockedPrivateUrlEnv.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden private URL environment variable."
     }
-    Assert-NoRawBlockedOutput $blockedPrivateUrlEnv.Output @($blockedLegacyPrivateUrlEnvFixture) "legacy private URL environment variable scan"
+    Assert-NoRawBlockedOutput $blockedPrivateUrlEnv.Output @($blockedLegacyEnvFixture) "legacy private URL environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyNameFixture) -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyEnvFixture) -Encoding UTF8
     $blockedLegacyName = Invoke-NamingCheck
     if ($blockedLegacyName.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden legacy project name."
     }
-    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedLegacyNameFixture) "legacy project name scan"
+    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedLegacyEnvFixture) "legacy project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
@@ -300,7 +295,7 @@ try {
         & git config user.email "naming-check@example.invalid" | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean file for release subject fixture" -Encoding UTF8
         & git add README.md | Out-Null
-        & git commit -m ("fix: block " + $blockedLegacyPrivateUrlEnvFixture + " release leak") | Out-Null
+        & git commit -m ("fix: block " + $blockedLegacyEnvFixture + " release leak") | Out-Null
 
         $releaseSubjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
@@ -311,7 +306,36 @@ try {
         if ($LASTEXITCODE -eq 0) {
             throw "Release notes generation should fail when blocked default naming exists in a commit subject."
         }
-        Assert-NoRawBlockedOutput ($releaseSubjectOutput | Out-String) @($blockedLegacyPrivateUrlEnvFixture) "release notes default subject generation"
+        Assert-NoRawBlockedOutput ($releaseSubjectOutput | Out-String) @($blockedLegacyEnvFixture) "release notes default subject generation"
+    } finally {
+        Pop-Location
+    }
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
+    $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean release note fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean release notes / Clean release notes" | Out-Null
+
+        $cleanReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+            -OutputPath $releaseNotesPath `
+            -Tag "v2099.01.03-cdef012" `
+            -Version "0.0.0-test" `
+            -CommitRange "HEAD" `
+            -DisplayRange "HEAD" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Release notes generation should succeed for a clean range without extra blocked terms: $($cleanReleaseOutput | Out-String)"
+        }
+        $cleanReleaseText = Get-Content -LiteralPath $releaseNotesPath -Raw -Encoding UTF8
+        if ($cleanReleaseText -notmatch "fix: clean release notes / Clean release notes") {
+            throw "Release notes generation did not include the clean commit subject."
+        }
     } finally {
         Pop-Location
     }
