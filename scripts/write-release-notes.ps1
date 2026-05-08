@@ -54,7 +54,9 @@ function Invoke-ProjectNamingGuard {
 function Get-BlockedReleaseRegex {
     $patterns = @(
         "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-        "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?"
+        "[Hh][Ee][Rr][Mm][Ee][Ss](?:[_\-.])",
+        "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?",
+        "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww](?:[_\-.])"
     )
     foreach ($blockedTerm in $ExtraBlockedTerms) {
         if (-not [string]::IsNullOrWhiteSpace($blockedTerm)) {
