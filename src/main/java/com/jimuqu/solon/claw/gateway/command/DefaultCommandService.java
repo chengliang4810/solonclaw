@@ -760,7 +760,7 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_YOLO.equals(command)) {
-            return handleYolo(message);
+            return handleYolo(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_PERSONALITY.equals(command)) {
@@ -1113,10 +1113,27 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
-    private GatewayReply handleYolo(GatewayMessage message) throws Exception {
+    private GatewayReply handleYolo(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        boolean enabled = dangerousCommandApprovalService.toggleSessionYolo(agentSession);
+        String action = StrUtil.nullToEmpty(args).trim().toLowerCase(java.util.Locale.ROOT);
+        boolean enabled;
+        if (StrUtil.isBlank(action)) {
+            enabled = dangerousCommandApprovalService.toggleSessionYolo(agentSession);
+        } else if ("status".equals(action) || "state".equals(action)) {
+            enabled = dangerousCommandApprovalService.isSessionYoloEnabled(agentSession);
+        } else if ("on".equals(action) || "enable".equals(action) || "enabled".equals(action)) {
+            dangerousCommandApprovalService.enableSessionYolo(agentSession);
+            enabled = true;
+        } else if ("off".equals(action) || "disable".equals(action) || "disabled".equals(action)) {
+            dangerousCommandApprovalService.disableSessionYolo(agentSession);
+            enabled = false;
+        } else {
+            GatewayReply reply = GatewayReply.error("用法：/yolo [status|on|off]");
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
         GatewayReply reply =
                 GatewayReply.ok(
                         enabled
@@ -3248,7 +3265,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(GatewayCommandConstants.SLASH_STEER + " <prompt>", "向运行中任务注入修正；空闲时按普通提示执行"),
                         helpLine(GatewayCommandConstants.SLASH_RESTART, "等待运行中任务 drain 后重启网关"),
                         helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"),
-                        helpLine(GatewayCommandConstants.SLASH_YOLO, "切换当前会话的危险命令自动批准模式"),
+                        helpLine(GatewayCommandConstants.SLASH_YOLO + " [status|on|off]", "查询或设置当前会话的危险命令自动批准模式"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_PERSONALITY + " [name|none]",
                                 "查看或切换人格"),

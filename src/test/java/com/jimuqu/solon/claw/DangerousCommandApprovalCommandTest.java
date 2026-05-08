@@ -327,4 +327,64 @@ public class DangerousCommandApprovalCommandTest {
                                 new SqliteAgentSession(disabledA, env.sessionRepository)))
                 .isFalse();
     }
+
+    @Test
+    void shouldSupportExplicitYoloStatusOnOffForCurrentSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-yolo-explicit-a", "user-yolo", "hello"));
+        env.gatewayService.handle(env.message("room-yolo-explicit-b", "user-yolo", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-yolo-explicit-a", "user-yolo", "/pairing claim-admin"));
+
+        SessionRecord sessionA =
+                env.sessionRepository.bindNewSession("MEMORY:room-yolo-explicit-a:user-yolo");
+        SessionRecord sessionB =
+                env.sessionRepository.bindNewSession("MEMORY:room-yolo-explicit-b:user-yolo");
+        SqliteAgentSession agentSessionA =
+                new SqliteAgentSession(sessionA, env.sessionRepository);
+        SqliteAgentSession agentSessionB =
+                new SqliteAgentSession(sessionB, env.sessionRepository);
+
+        GatewayReply initialStatus = env.send("room-yolo-explicit-a", "user-yolo", "/yolo status");
+        assertThat(initialStatus.getContent()).contains("YOLO 已关闭");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isFalse();
+
+        GatewayReply enabled = env.send("room-yolo-explicit-a", "user-yolo", "/yolo on");
+        GatewayReply enabledAgain = env.send("room-yolo-explicit-a", "user-yolo", "/yolo enable");
+        assertThat(enabled.getContent()).contains("YOLO 已开启");
+        assertThat(enabledAgain.getContent()).contains("YOLO 已开启");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+                .isFalse();
+
+        GatewayReply status = env.send("room-yolo-explicit-a", "user-yolo", "/yolo status");
+        assertThat(status.getContent()).contains("YOLO 已开启");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isTrue();
+
+        GatewayReply disabled = env.send("room-yolo-explicit-a", "user-yolo", "/yolo off");
+        GatewayReply disabledAgain = env.send("room-yolo-explicit-a", "user-yolo", "/yolo disable");
+        assertThat(disabled.getContent()).contains("YOLO 已关闭");
+        assertThat(disabledAgain.getContent()).contains("YOLO 已关闭");
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        yoloSession(env, "room-yolo-explicit-a")))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+                .isFalse();
+
+        GatewayReply invalid = env.send("room-yolo-explicit-a", "user-yolo", "/yolo maybe");
+        assertThat(invalid.isError()).isTrue();
+        assertThat(invalid.getContent()).contains("用法：/yolo [status|on|off]");
+    }
+
+    private SqliteAgentSession yoloSession(TestEnvironment env, String chatId) throws Exception {
+        SessionRecord session =
+                env.sessionRepository.getBoundSession("MEMORY:" + chatId + ":user-yolo");
+        return new SqliteAgentSession(session, env.sessionRepository);
+    }
 }
