@@ -4077,6 +4077,32 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
     }
 
+    @Test
+    void shouldBlockHostTargetArgumentsThroughApprovalGatewaySecurityPolicy() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(false);
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new FixedDnsSecurityPolicyService(env.appConfig, "10.0.0.5"));
+        Map<String, Object> transport = new LinkedHashMap<String, Object>();
+        transport.put("server", "internal.example");
+        transport.put("proxyHost", "proxy.example:8080");
+        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
+        toolArgs.put("transport", transport);
+        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
+        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_args", toolArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayArgs);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("URL 安全策略").contains("内网");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
     private static void assertMalformedGatewayAliasFailsClosed(
             DangerousCommandApprovalService service, String alias, String canonicalTool) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
