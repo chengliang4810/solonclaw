@@ -70,6 +70,33 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRedactSecretsFromTerminalSystemErrors() throws Exception {
+        AppConfig config = new AppConfig();
+        String leakedToken = "sk-1234567890abcdef";
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(),
+                        "missing-shell-" + leakedToken,
+                        ".sh",
+                        config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo should-not-run",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                null,
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("error").getString())
+                .contains("***")
+                .doesNotContain(leakedToken)
+                .doesNotContain("1234567890abcdef");
+    }
+
+    @Test
     void shouldHandleNullSudoTransformLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("secret");

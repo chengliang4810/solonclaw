@@ -36,9 +36,9 @@ public final class SecretRedactor {
     private static final Pattern SENSITIVE_PATH =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_])("
-                            + "(?:[A-Za-z]:)?(?:[\\\\/][^\\s\"'<>|;]+)*[\\\\/](?:\\.env(?:\\.[^\\s\"'<>|;]+)?|\\.ssh|\\.gnupg|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\s\"'<>|;]*(?:credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;]*)(?:[\\\\/][^\\s\"'<>|;]+)*"
-                            + "|~[\\\\/][^\\s\"'<>|;]*(?:\\.ssh|\\.gnupg|credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;]*(?:[\\\\/][^\\s\"'<>|;]+)*"
-                            + "|(?:^|(?<=[\\s\"'=:]))(?:\\.env(?:\\.[^\\s\"'<>|;]+)?|\\.ssh[\\\\/][^\\s\"'<>|;]+|credentials|secrets|credentials?[\\\\/][^\\s\"'<>|;]+|secrets?[\\\\/][^\\s\"'<>|;]+|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
+                            + "(?:[A-Za-z]:)?(?:[\\\\/][^\\s\"'<>|;?#]+)*[\\\\/](?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh|\\.gnupg|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\s\"'<>|;?#]*(?:credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;?#]*)(?:[\\\\/][^\\s\"'<>|;?#]+)*"
+                            + "|~[\\\\/][^\\s\"'<>|;?#]*(?:\\.ssh|\\.gnupg|credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;?#]*(?:[\\\\/][^\\s\"'<>|;?#]+)*"
+                            + "|(?:^|(?<=[\\s\"'=:]))(?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh[\\\\/][^\\s\"'<>|;?#]+|credentials|secrets|credentials?[\\\\/][^\\s\"'<>|;?#]+|secrets?[\\\\/][^\\s\"'<>|;?#]+|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
                             + ")");
     private static final Pattern PREFIX_SECRET =
             Pattern.compile(

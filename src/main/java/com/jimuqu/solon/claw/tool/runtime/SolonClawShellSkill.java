@@ -236,8 +236,7 @@ public class SolonClawShellSkill extends ShellSkill {
             }
             return runForegroundTerminal(command, timeoutSeconds, workdir);
         } catch (Exception e) {
-            return terminalError(
-                    e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            return terminalError(safeError(e));
         }
     }
 
@@ -297,10 +296,21 @@ public class SolonClawShellSkill extends ShellSkill {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("output", "");
         map.put("exit_code", Integer.valueOf(-1));
-        map.put("error", StrUtil.blankToDefault(message, "Failed to execute command"));
+        map.put(
+                "error",
+                SecretRedactor.redact(
+                        StrUtil.blankToDefault(message, "Failed to execute command"), 1000));
         map.put("status", "error");
         map.put("success", Boolean.FALSE);
         return ONode.serialize(map);
+    }
+
+    private String safeError(Exception e) {
+        if (e == null) {
+            return "Exception";
+        }
+        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return SecretRedactor.redact(message, 1000);
     }
 
     private String startBackground(
@@ -911,7 +921,7 @@ public class SolonClawShellSkill extends ShellSkill {
                                 try {
                                     readOutput(process, outputBuffer);
                                 } catch (Exception e) {
-                                    appendOutput(outputBuffer, "系统失败: " + e.getMessage());
+                                    appendOutput(outputBuffer, "系统失败: " + safeError(e));
                                 }
                             });
             if (stdin != null) {
@@ -935,7 +945,7 @@ public class SolonClawShellSkill extends ShellSkill {
             String output = bufferedOutput(outputBuffer);
             return new ForegroundResult(output, Integer.valueOf(process.exitValue()), null);
         } catch (Exception e) {
-            return new ForegroundResult("", Integer.valueOf(-1), "系统失败: " + e.getMessage());
+            return new ForegroundResult("", Integer.valueOf(-1), "系统失败: " + safeError(e));
         } finally {
             if (tempScript != null) {
                 try {
