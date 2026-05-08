@@ -318,6 +318,33 @@ try {
         Pop-Location
     }
 
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
+    $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value ($blockedFixture + " in object text only") -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean subject with blocked object / Clean subject with blocked object" | Out-Null
+
+        $releaseObjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+            -OutputPath $releaseNotesPath `
+            -Tag "v2099.01.02-abcdef0" `
+            -Version "0.0.0-test" `
+            -CommitRange "HEAD" `
+            -DisplayRange "HEAD" `
+            -ExtraBlockedTerms $blockedFixture 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            throw "Release notes generation should fail when extended blocked naming exists only in git object text."
+        }
+        Assert-NoRawBlockedOutput ($releaseObjectOutput | Out-String) @($blockedFixture) "release notes git object text generation"
+    } finally {
+        Pop-Location
+    }
+
 } finally {
     Pop-Location
     if (Test-Path -LiteralPath $sandbox) {

@@ -31,7 +31,8 @@ function Invoke-ProjectNamingGuard {
         -RootPath $rootPath `
         -CheckGitCommitSubjects `
         -CheckGitObjectText `
-        -GitCommitRange $Range 2>&1
+        -GitCommitRange $Range `
+        -ExtraBlockedTerms $ExtraBlockedTerms 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw ("Release naming guard failed for commit range: {0}`n{1}" -f $Range, ($guardOutput | Out-String))
     }
