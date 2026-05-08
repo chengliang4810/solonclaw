@@ -1128,7 +1128,7 @@ public class DashboardControllerHttpTest {
         bean(SlashConfirmService.class)
                 .register(
                         "MEMORY:dashboard-secret-confirm:user",
-                        "reload-mcp",
+                        "reload-mcp --token=ghp_slashcommandsecret12345",
                         "确认刷新 Authorization: Bearer ghp_slashsecret12345");
 
         HttpResult confirms =
@@ -1137,7 +1137,9 @@ public class DashboardControllerHttpTest {
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
                 .contains("Authorization: Bearer ***")
-                .doesNotContain("ghp_slashsecret12345");
+                .contains("reload-mcp --token=***")
+                .doesNotContain("ghp_slashsecret12345")
+                .doesNotContain("ghp_slashcommandsecret12345");
         ONode items = ONode.ofJson(confirms.body).get("data").get("items");
         String confirmId = "";
         for (int i = 0; i < items.size(); i++) {

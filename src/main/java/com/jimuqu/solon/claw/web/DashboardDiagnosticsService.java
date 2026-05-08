@@ -542,7 +542,7 @@ public class DashboardDiagnosticsService {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("confirm_id", pending.getConfirmId());
         item.put("source_key", pending.getSourceKey());
-        item.put("command", pending.getCommand());
+        item.put("command", SecretRedactor.redact(pending.getCommand(), 1000));
         item.put("prompt", SecretRedactor.redact(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
