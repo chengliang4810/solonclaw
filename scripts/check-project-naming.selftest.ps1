@@ -30,6 +30,29 @@ function Reset-Sandbox {
     New-Item -ItemType Directory -Path $sandbox | Out-Null
 }
 
+function Invoke-GitNamingCheck {
+    param([string] $Range)
+
+    $args = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $scriptPath,
+        "-RootPath",
+        $sandbox,
+        "-CheckGitCommitSubjects"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($Range)) {
+        $args += @("-GitCommitRange", $Range)
+    }
+    $output = & pwsh @args 2>&1
+    return @{
+        ExitCode = $LASTEXITCODE
+        Output = ($output | Out-String)
+    }
+}
+
 Push-Location $repoRoot
 try {
     Reset-Sandbox
@@ -62,6 +85,26 @@ try {
     $legacyProductBlocked = Invoke-NamingCheck
     if ($legacyProductBlocked.ExitCode -eq 0) {
         throw "Naming check did not block a legacy product keyword."
+    }
+
+    Reset-Sandbox
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "feat: clean fixture / Clean fixture" | Out-Null
+        Add-Content -Path (Join-Path $sandbox "README.md") -Value "Second fixture"
+        & git add README.md | Out-Null
+        & git commit -m ("feat: " + $legacyEnv + " fixture") | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $legacyCommitBlocked = Invoke-GitNamingCheck -Range "HEAD"
+    if ($legacyCommitBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block legacy naming in git commit subjects."
     }
 } finally {
     Pop-Location

@@ -1,6 +1,8 @@
 param(
     [string] $RootPath = (Join-Path $PSScriptRoot ".."),
-    [string[]] $ExtraBlockedTerms = @()
+    [string[]] $ExtraBlockedTerms = @(),
+    [string] $GitCommitRange = "",
+    [switch] $CheckGitCommitSubjects
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +150,43 @@ try {
         Write-Host "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, and generated source." -ForegroundColor Red
         $matches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
         exit 1
+    }
+
+    if ($CheckGitCommitSubjects) {
+        $git = Get-Command git -ErrorAction SilentlyContinue
+        if ($null -eq $git) {
+            Write-Host "git was not found, cannot check commit subjects." -ForegroundColor Red
+            exit 1
+        }
+
+        $insideWorkTree = (& git rev-parse --is-inside-work-tree 2>$null)
+        if ($LASTEXITCODE -ne 0 -or $insideWorkTree -ne "true") {
+            Write-Host "Current path is not a git work tree, cannot check commit subjects." -ForegroundColor Red
+            exit 1
+        }
+
+        $range = $GitCommitRange
+        if ([string]::IsNullOrWhiteSpace($range)) {
+            $range = "HEAD"
+        }
+
+        $subjectMatches = New-Object System.Collections.Generic.List[string]
+        $subjects = & git log --format="%h %s" $range 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ("Failed to read git commit subjects for range: {0}" -f $range) -ForegroundColor Red
+            exit 1
+        }
+        foreach ($subject in $subjects) {
+            if ($regex.IsMatch($subject)) {
+                $subjectMatches.Add($subject)
+            }
+        }
+
+        if ($subjectMatches) {
+            Write-Host "Blocked legacy project naming in git commit subjects. Rewrite or replace the commit subject before publishing release notes." -ForegroundColor Red
+            $subjectMatches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            exit 1
+        }
     }
 } finally {
     Pop-Location

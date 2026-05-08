@@ -35,6 +35,7 @@ jobs:
         run: |
           ./scripts/check-project-naming.selftest.ps1
           ./scripts/check-project-naming.ps1
+          ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -GitCommitRange "${{ github.sha }}^..${{ github.sha }}"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -200,6 +201,10 @@ jobs:
           echo "jar_path=$RELEASE_JAR" >> "$GITHUB_OUTPUT"
           echo "sha_path=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
           echo "body_path=dist/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Check release naming
+        shell: pwsh
+        run: ./scripts/check-project-naming.ps1 -RootPath dist
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
