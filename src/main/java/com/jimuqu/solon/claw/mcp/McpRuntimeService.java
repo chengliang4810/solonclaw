@@ -309,6 +309,7 @@ public class McpRuntimeService implements Closeable {
                 serverId,
                 nextHash,
                 toolsChanged,
+                previousTools.size(),
                 countTools(toolsJson),
                 difference(nextTools, previousTools),
                 difference(previousTools, nextTools),
@@ -926,6 +927,7 @@ public class McpRuntimeService implements Closeable {
         private final String serverId;
         private final String nextHash;
         private final boolean toolsChanged;
+        private final int previousToolCount;
         private final int toolCount;
         private final List<String> addedTools;
         private final List<String> removedTools;
@@ -936,6 +938,7 @@ public class McpRuntimeService implements Closeable {
                 String serverId,
                 String nextHash,
                 boolean toolsChanged,
+                int previousToolCount,
                 int toolCount,
                 List<String> addedTools,
                 List<String> removedTools,
@@ -944,6 +947,7 @@ public class McpRuntimeService implements Closeable {
             this.serverId = serverId;
             this.nextHash = nextHash;
             this.toolsChanged = toolsChanged;
+            this.previousToolCount = previousToolCount;
             this.toolCount = toolCount;
             this.addedTools =
                     addedTools == null
@@ -967,6 +971,10 @@ public class McpRuntimeService implements Closeable {
 
         public boolean isToolsChanged() {
             return toolsChanged;
+        }
+
+        public int getPreviousToolCount() {
+            return previousToolCount;
         }
 
         public int getToolCount() {

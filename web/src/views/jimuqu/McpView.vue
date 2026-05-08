@@ -473,7 +473,7 @@ async function copy(text: string) {
             <div class="result-meta">
               <span>schema sanitizer: {{ lastAction.schema_sanitizer || '-' }}</span>
               <span>hash: {{ lastAction.tools_hash || '-' }}</span>
-              <span>tool count: {{ lastAction.tool_count ?? '-' }}</span>
+              <span>工具数: {{ lastAction.previous_tool_count ?? '-' }} -> {{ lastAction.current_tool_count ?? lastAction.tool_count ?? '-' }}</span>
             </div>
             <div v-if="lastAction.added_tools?.length || lastAction.removed_tools?.length" class="tool-diff">
               <span v-if="lastAction.added_tools?.length">新增：{{ lastAction.added_tools.join(', ') }}</span>

@@ -26,6 +26,8 @@ export interface McpActionResult {
   action?: string
   status?: string
   tools_hash?: string
+  previous_tool_count?: number
+  current_tool_count?: number
   tool_count?: number
   tool_changed_notification?: boolean
   added_tools?: string[]

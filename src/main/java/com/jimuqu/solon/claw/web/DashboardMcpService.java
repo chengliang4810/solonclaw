@@ -1086,6 +1086,8 @@ public class DashboardMcpService {
         result.put("action", action);
         result.put("status", state.getStatus());
         result.put("tools_hash", state.getNextHash());
+        result.put("previous_tool_count", Integer.valueOf(state.getPreviousToolCount()));
+        result.put("current_tool_count", Integer.valueOf(state.getToolCount()));
         result.put("tool_count", Integer.valueOf(state.getToolCount()));
         result.put("tool_changed_notification", Boolean.valueOf(state.isToolsChanged()));
         result.put("added_tools", state.getAddedTools());

@@ -122,6 +122,8 @@ public class McpRuntimeServiceTest {
                 .containsExactly("mcp_local-docs_docs_fetch", "mcp_local-docs_docs_search");
         assertThat(first.getRemovedTools()).isEmpty();
         assertThat(second.isToolsChanged()).isTrue();
+        assertThat(second.getPreviousToolCount()).isEqualTo(2);
+        assertThat(second.getToolCount()).isEqualTo(2);
         assertThat(second.getAddedTools()).containsExactly("mcp_local-docs_docs_new");
         assertThat(second.getRemovedTools()).containsExactly("mcp_local-docs_docs_search");
     }
