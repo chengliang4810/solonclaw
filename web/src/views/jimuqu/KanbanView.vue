@@ -398,12 +398,83 @@ function eventSummary(event: KanbanEvent): string {
 }
 
 function runSummary(run: KanbanRun): string {
-  const outcome = run.outcome || run.status
-  const worker = run.worker_id || run.profile || '-'
-  const state = run.timed_out ? '已超时' : run.running ? '运行中' : run.finished ? '已结束' : '未结束'
+  if (run.summary) return run.summary
+  if (run.error) return run.error
+  return run.outcome || run.status || '-'
+}
+
+function runStatusLabel(run: KanbanRun): string {
+  if (run.timed_out) return '已超时'
+  const value = run.outcome || run.status
+  const labels: Record<string, string> = {
+    running: '运行中',
+    ok: '成功',
+    success: '成功',
+    done: '完成',
+    failed: '失败',
+    error: '错误',
+    cancelled: '已取消',
+    timeout: '超时',
+    timed_out: '超时',
+    pending: '等待',
+  }
+  return value ? labels[value] || value : '-'
+}
+
+function runStateLabel(run: KanbanRun): string {
+  if (run.timed_out) return '超时'
+  if (run.running) return '运行中'
+  if (run.finished) return '已结束'
+  return '未结束'
+}
+
+function runTone(run: KanbanRun): Record<string, boolean> {
+  const value = `${run.outcome || ''} ${run.status || ''}`.toLowerCase()
+  return {
+    active: Boolean(run.running),
+    timeout: Boolean(run.timed_out || value.includes('timeout')),
+    failed: Boolean(value.includes('fail') || value.includes('error')),
+    success: Boolean(value.includes('ok') || value.includes('success') || value.includes('done')),
+  }
+}
+
+function runMetadata(run: KanbanRun): Record<string, unknown> | null {
+  if (run.metadata && typeof run.metadata === 'object' && !Array.isArray(run.metadata)) {
+    return run.metadata as Record<string, unknown>
+  }
+  return null
+}
+
+function compactValue(value: unknown): string {
+  if (value === null || value === undefined) return '-'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function runMetadataSummary(run: KanbanRun): string {
+  const metadata = runMetadata(run)
+  if (!metadata) return ''
+  const entries = Object.entries(metadata).filter(([, value]) => value !== null && value !== undefined)
+  if (!entries.length) return ''
+  return entries
+    .slice(0, 6)
+    .map(([key, value]) => `${key}=${compactValue(value)}`)
+    .join(' / ')
+}
+
+function runTimingSummary(run: KanbanRun): string {
+  const parts = []
+  if (run.started_at) parts.push(`开始 ${run.started_at}`)
+  if (run.ended_at) parts.push(`结束 ${run.ended_at}`)
+  if (run.last_heartbeat_at) parts.push(`心跳 ${run.last_heartbeat_at}`)
   const duration = formatDuration(run.duration_ms)
-  const summary = run.summary ? `：${run.summary}` : ''
-  return `${outcome} / ${worker} / ${state}${duration ? ` / ${duration}` : ''}${summary}`
+  if (duration) parts.push(`耗时 ${duration}`)
+  return parts.join(' / ')
 }
 
 function formatDuration(durationMs?: number | null): string {
@@ -743,11 +814,40 @@ function hasWarnings(task: KanbanTask): boolean {
           <div v-if="(selectedTask.runs || []).length" class="runs">
             <div class="comments-title">运行历史</div>
             <div v-for="run in selectedTask.runs || []" :key="run.id" class="run-row">
-              <span class="run-status" :class="{ active: run.running, timeout: run.timed_out }">
-                {{ run.timed_out ? 'timeout' : run.status }}
-              </span>
-              <span>{{ runSummary(run) }}</span>
-              <span class="run-time">{{ run.started_at || '-' }}</span>
+              <div class="run-head">
+                <span class="run-status" :class="runTone(run)">{{ runStatusLabel(run) }}</span>
+                <strong>{{ runSummary(run) }}</strong>
+                <span class="run-time">{{ run.run_id || run.id }}</span>
+              </div>
+              <div class="run-grid">
+                <div>
+                  <span>Profile</span>
+                  <strong>{{ run.profile || '-' }}</strong>
+                </div>
+                <div>
+                  <span>步骤</span>
+                  <strong>{{ run.step_key || '-' }}</strong>
+                </div>
+                <div>
+                  <span>Worker</span>
+                  <strong>{{ run.worker_id || '-' }}</strong>
+                </div>
+                <div>
+                  <span>PID</span>
+                  <strong>{{ run.worker_pid || '-' }}</strong>
+                </div>
+                <div>
+                  <span>状态</span>
+                  <strong>{{ runStateLabel(run) }}</strong>
+                </div>
+                <div>
+                  <span>最大运行</span>
+                  <strong>{{ run.max_runtime_seconds ? `${run.max_runtime_seconds}s` : '-' }}</strong>
+                </div>
+              </div>
+              <div v-if="runTimingSummary(run)" class="run-line">{{ runTimingSummary(run) }}</div>
+              <div v-if="run.error" class="run-error">{{ run.error }}</div>
+              <div v-if="runMetadataSummary(run)" class="run-metadata">{{ runMetadataSummary(run) }}</div>
             </div>
           </div>
 
@@ -1217,13 +1317,6 @@ function hasWarnings(task: KanbanTask): boolean {
   padding: 5px 0;
 }
 
-.run-row {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 150px;
-  gap: 8px;
-  padding: 5px 0;
-}
-
 .worker-context pre,
 .task-log pre {
   max-height: 220px;
@@ -1249,12 +1342,104 @@ function hasWarnings(task: KanbanTask): boolean {
   font-size: 11px;
 }
 
+.run-row {
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: $bg-card-hover;
+}
+
+.run-head {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) minmax(120px, auto);
+  gap: 8px;
+  align-items: center;
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
+
+.run-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+
+  div {
+    min-width: 0;
+  }
+
+  span,
+  strong {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 11px;
+  }
+
+  strong {
+    color: $text-secondary;
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
+.run-line,
+.run-metadata,
+.run-error {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.run-metadata {
+  color: $text-muted;
+  font-family: $font-code;
+  font-size: 11px;
+}
+
+.run-error {
+  color: #b91c1c;
+  font-family: $font-code;
+  font-size: 11px;
+}
+
+.run-status {
+  border: 1px solid $border-color;
+  border-radius: 999px;
+  padding: 2px 7px;
+  text-align: center;
+}
+
 .run-status.active {
   color: #1d4ed8;
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .run-status.timeout {
   color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.run-status.failed {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.run-status.success {
+  color: #047857;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
 }
 
 .comment {
