@@ -3315,6 +3315,46 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockMalformedGatewayToolArgsForSecurityTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> malformedArgs = new LinkedHashMap<String, Object>();
+        malformedArgs.put("tool_name", "web_extract");
+        malformedArgs.put(
+                "tool_args",
+                "{\"url\":\"http://169.254.169.254/latest/meta-data/?token=secret123\"");
+        TestTrace malformedTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(malformedTrace, "call_tool", malformedArgs);
+
+        assertThat(malformedTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(malformedTrace.getFinalAnswer())
+                .contains("工具网关参数格式无效")
+                .contains("tool_args 不是合法 JSON")
+                .contains("工具：webfetch")
+                .doesNotContain("secret123");
+        assertThat(service.getPendingApproval(malformedTrace.session)).isNull();
+
+        Map<String, Object> arrayArgs = new LinkedHashMap<String, Object>();
+        arrayArgs.put("tool_name", "terminal_run");
+        arrayArgs.put("tool_args", "[]");
+        TestTrace arrayTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(arrayTrace, "call_tool", arrayArgs);
+
+        assertThat(arrayTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(arrayTrace.getFinalAnswer())
+                .contains("工具网关参数格式无效")
+                .contains("tool_args 必须是 JSON 对象")
+                .contains("工具：terminal");
+        assertThat(service.getPendingApproval(arrayTrace.session)).isNull();
+    }
+
+    @Test
     void shouldLetApprovedGatewayTerminalCommandPassFallbackOnce() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);

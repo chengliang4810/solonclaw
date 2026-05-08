@@ -1193,7 +1193,12 @@ public class DangerousCommandApprovalService {
             return null;
         }
         String normalized = canonicalGatewayToolName(toolName);
-        Map<String, Object> toolArgs = gatewayToolArgs(args);
+        GatewayToolArgsResult parsedArgs = gatewayToolArgs(args);
+        if (isGatewaySecurityTool(normalized) && !parsedArgs.isValid()) {
+            blockMalformedGatewayToolArgs(trace, normalized, parsedArgs);
+            return null;
+        }
+        Map<String, Object> toolArgs = parsedArgs.getArgs();
         boolean hadInnerDecision =
                 trace != null
                         && trace.getContext() != null
@@ -1283,9 +1288,9 @@ public class DangerousCommandApprovalService {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> gatewayToolArgs(Map<String, Object> args) {
+    private GatewayToolArgsResult gatewayToolArgs(Map<String, Object> args) {
         if (args == null) {
-            return new LinkedHashMap<String, Object>();
+            return GatewayToolArgsResult.valid(new LinkedHashMap<String, Object>());
         }
         Object raw = args.get("tool_args");
         if (raw == null) {
@@ -1298,11 +1303,11 @@ public class DangerousCommandApprovalService {
                     result.put(String.valueOf(entry.getKey()), entry.getValue());
                 }
             }
-            return result;
+            return GatewayToolArgsResult.valid(result);
         }
         String text = raw == null ? "" : String.valueOf(raw).trim();
         if (text.length() == 0) {
-            return new LinkedHashMap<String, Object>();
+            return GatewayToolArgsResult.valid(new LinkedHashMap<String, Object>());
         }
         try {
             Object parsed = ONode.deserialize(text, Object.class);
@@ -1313,11 +1318,42 @@ public class DangerousCommandApprovalService {
                         result.put(String.valueOf(entry.getKey()), entry.getValue());
                     }
                 }
-                return result;
+                return GatewayToolArgsResult.valid(result);
             }
+            return GatewayToolArgsResult.invalid("tool_args 必须是 JSON 对象。", text);
         } catch (Exception ignored) {
+            return GatewayToolArgsResult.invalid("tool_args 不是合法 JSON。", text);
         }
-        return new LinkedHashMap<String, Object>();
+    }
+
+    private boolean isGatewaySecurityTool(String toolName) {
+        return ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                || ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
+                || ToolNameConstants.EXECUTE_JS.equals(toolName)
+                || ToolNameConstants.EXECUTE_CODE.equals(toolName)
+                || ToolNameConstants.TERMINAL.equals(toolName)
+                || ToolNameConstants.PROCESS.equals(toolName)
+                || isFileSecurityTool(toolName)
+                || isUrlSecurityTool(toolName);
+    }
+
+    private void blockMalformedGatewayToolArgs(
+            ReActTrace trace, String toolName, GatewayToolArgsResult parsedArgs) {
+        if (trace == null) {
+            return;
+        }
+        StringBuilder message = new StringBuilder();
+        message.append("BLOCKED: 工具网关参数格式无效，无法安全检查内层工具调用。");
+        message.append("\n工具：").append(toolLabel(toolName));
+        message.append("\n原因：").append(parsedArgs.getMessage());
+        if (StrUtil.isNotBlank(parsedArgs.getRawText())) {
+            message.append("\n参数预览：")
+                    .append(SecretRedactor.redact(parsedArgs.getRawText(), 400));
+        }
+        message.append("\n请把 tool_args 改为 JSON 对象后再重试。");
+        trace.setFinalAnswer(message.toString());
+        trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+        persistTraceSnapshot(trace);
     }
 
     private boolean isFileSecurityTool(String toolName) {
@@ -3061,6 +3097,46 @@ public class DangerousCommandApprovalService {
     private static class SecretPreview {
         private static String safeUrl(String url) {
             return com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(url);
+        }
+    }
+
+    private static class GatewayToolArgsResult {
+        private final Map<String, Object> args;
+        private final boolean valid;
+        private final String message;
+        private final String rawText;
+
+        private GatewayToolArgsResult(
+                Map<String, Object> args, boolean valid, String message, String rawText) {
+            this.args = args == null ? new LinkedHashMap<String, Object>() : args;
+            this.valid = valid;
+            this.message = StrUtil.nullToEmpty(message);
+            this.rawText = StrUtil.nullToEmpty(rawText);
+        }
+
+        static GatewayToolArgsResult valid(Map<String, Object> args) {
+            return new GatewayToolArgsResult(args, true, "", "");
+        }
+
+        static GatewayToolArgsResult invalid(String message, String rawText) {
+            return new GatewayToolArgsResult(
+                    new LinkedHashMap<String, Object>(), false, message, rawText);
+        }
+
+        Map<String, Object> getArgs() {
+            return args;
+        }
+
+        boolean isValid() {
+            return valid;
+        }
+
+        String getMessage() {
+            return message;
+        }
+
+        String getRawText() {
+            return rawText;
         }
     }
 
