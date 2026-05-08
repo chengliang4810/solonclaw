@@ -1154,7 +1154,12 @@ public class DashboardControllerHttpTest {
                 .contains("\"action_options\":[\"approve\",\"deny\",\"always\"]")
                 .contains("\"expires_in_seconds\"")
                 .contains("\"expired\":false");
-        ONode confirm = ONode.ofJson(confirms.body).get("data").get("items").get(0);
+        ONode confirm =
+                findItemByStringField(
+                        ONode.ofJson(confirms.body).get("data").get("items"),
+                        "source_key",
+                        "MEMORY:dashboard-confirm-chat:dashboard-confirm-user");
+        assertThat(confirm).isNotNull();
         String confirmId = confirm.get("confirm_id").getString();
         assertThat(confirmId).isNotBlank();
 
@@ -1175,6 +1180,51 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body).doesNotContain("dashboard-confirm-chat");
+    }
+
+    @Test
+    void shouldRejectDisallowedAlwaysSlashConfirmFromDashboard() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        bean(SlashConfirmService.class)
+                .register(
+                        "MEMORY:dashboard-confirm-once:dashboard-user",
+                        "rollback",
+                        "确认回滚？",
+                        false);
+
+        HttpResult confirms =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        assertThat(confirms.status).isEqualTo(200);
+        assertThat(confirms.body)
+                .contains("\"command\":\"rollback\"")
+                .contains("\"allow_always\":false")
+                .contains("\"action_options\":[\"approve\",\"deny\"]")
+                .doesNotContain("\"action_options\":[\"approve\",\"deny\",\"always\"]");
+        ONode confirm =
+                findItemByStringField(
+                        ONode.ofJson(confirms.body).get("data").get("items"),
+                        "source_key",
+                        "MEMORY:dashboard-confirm-once:dashboard-user");
+        assertThat(confirm).isNotNull();
+        String confirmId = confirm.get("confirm_id").getString();
+
+        HttpResult rejected =
+                request(
+                        "POST",
+                        "/api/diagnostics/slash-confirms/resolve",
+                        "{\"sourceKey\":\"MEMORY:dashboard-confirm-once:dashboard-user\",\"confirmId\":\""
+                                + jsonEscape(confirmId)
+                                + "\",\"action\":\"always\"}",
+                        token);
+        assertThat(rejected.status).isEqualTo(200);
+        assertThat(rejected.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"always_not_allowed\"");
+
+        HttpResult after =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        assertThat(after.status).isEqualTo(200);
+        assertThat(after.body).contains("dashboard-confirm-once");
     }
 
     @Test
@@ -1801,6 +1851,16 @@ public class DashboardControllerHttpTest {
 
     private static String jsonEscape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static ONode findItemByStringField(ONode items, String field, String value) {
+        for (int i = 0; i < items.size(); i++) {
+            ONode item = items.get(i);
+            if (value.equals(item.get(field).getString())) {
+                return item;
+            }
+        }
+        return null;
     }
 
     private static List<String> stringsAt(String body, String field) {

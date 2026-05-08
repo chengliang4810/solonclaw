@@ -269,6 +269,9 @@ public class DashboardDiagnosticsService {
         if (StrUtil.isNotBlank(confirmId) && !StrUtil.equals(confirmId, pending.getConfirmId())) {
             return resolveResult(false, "confirm_id_mismatch", "确认编号不匹配。", null);
         }
+        if ("always".equals(action) && !pending.isAllowAlways()) {
+            return resolveResult(false, "always_not_allowed", "该 Slash 命令不允许永久确认。", null);
+        }
 
         String commandLine = slashConfirmCommandLine(action, pending.getConfirmId());
         GatewayReply reply = commandService.handle(dashboardMessage(sourceKey, commandLine), commandLine);

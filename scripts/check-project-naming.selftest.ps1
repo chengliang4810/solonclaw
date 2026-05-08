@@ -154,6 +154,20 @@ try {
 
     Push-Location $sandbox
     try {
+        Add-Content -Path (Join-Path $sandbox "README.md") -Value "Legacy environment fixture"
+        & git add README.md | Out-Null
+        & git commit -m ("fix: " + $legacyEnvFixture + " fixture") | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $legacyCommitSubjectBlocked = Invoke-GitNamingCheck -Range "HEAD"
+    if ($legacyCommitSubjectBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block concrete legacy environment naming in git commit subjects."
+    }
+    Assert-NoRawBlockedOutput $legacyCommitSubjectBlocked.Output @($legacyEnvFixture) "concrete legacy git commit subject scan"
+
+    Push-Location $sandbox
+    try {
         Set-Content -Path (Join-Path $sandbox "README.md") -Value ($blockedFixture + " removed later") -Encoding UTF8
         & git add README.md | Out-Null
         & git commit -m "fix: temporary polluted file / Temporary polluted file" | Out-Null
@@ -168,6 +182,23 @@ try {
         throw "Naming check did not block forbidden naming in git object text inside a release range."
     }
     Assert-NoRawBlockedOutput $blockedObjectText.Output @($blockedFixture) "git object text scan"
+
+    Push-Location $sandbox
+    try {
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value ($legacyEnvFixture + " removed later") -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: temporary legacy env file / Temporary legacy env file" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean after legacy environment fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean legacy env file / Clean legacy env file" | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $legacyObjectTextBlocked = Invoke-GitNamingCheck -Range "HEAD~2..HEAD" -CheckObjectText
+    if ($legacyObjectTextBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block concrete legacy environment naming in git object text inside a release range."
+    }
+    Assert-NoRawBlockedOutput $legacyObjectTextBlocked.Output @($legacyEnvFixture) "concrete legacy git object text scan"
 
     Push-Location $sandbox
     try {
