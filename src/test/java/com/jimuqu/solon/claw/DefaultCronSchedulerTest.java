@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
+import com.jimuqu.solon.claw.web.DashboardCronService;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -2715,6 +2716,30 @@ public class DefaultCronSchedulerTest {
                 service.rewriteSkillRefs(null, java.util.Collections.singletonList("missing"));
         assertThat(noop.get("jobs_updated")).isEqualTo(Integer.valueOf(0));
         assertThat(noop.get("jobs_scanned")).isEqualTo(Integer.valueOf(3));
+    }
+
+    @Test
+    void shouldFallbackToTriggerWhenDashboardCronSchedulerIsMissing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        DashboardCronService dashboardCronService = new DashboardCronService(service, null);
+        CronJobRecord dashboardJob =
+                service.create("MEMORY:cron:user", cronBody("dashboard-trigger", ""));
+        CronJobRecord apiJob = service.create("MEMORY:cron:user", cronBody("api-run", ""));
+
+        Map<String, Object> dashboardView = dashboardCronService.trigger(dashboardJob.getJobId());
+        Map<String, Object> apiView = dashboardCronService.apiRun(apiJob.getJobId());
+
+        assertThat(dashboardView.get("id")).isEqualTo(dashboardJob.getJobId());
+        assertThat(apiView.get("id")).isEqualTo(apiJob.getJobId());
+        assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getStatus())
+                .isEqualTo("ACTIVE");
+        assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getStatus())
+                .isEqualTo("ACTIVE");
+        assertThat(env.cronJobRepository.findById(dashboardJob.getJobId()).getNextRunAt())
+                .isLessThanOrEqualTo(System.currentTimeMillis());
+        assertThat(env.cronJobRepository.findById(apiJob.getJobId()).getNextRunAt())
+                .isLessThanOrEqualTo(System.currentTimeMillis());
     }
 
     @Test
