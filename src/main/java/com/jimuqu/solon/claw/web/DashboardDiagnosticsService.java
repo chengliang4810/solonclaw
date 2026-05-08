@@ -437,9 +437,35 @@ public class DashboardDiagnosticsService {
         item.put("approval_key", pending.approvalKey());
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
+        item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
+        item.put("expired", Boolean.valueOf(isExpired(pending.getExpiresAt())));
         item.put("scopes", pending.isPermanentApprovalAllowed() ? "once,session,always" : "once,session");
+        item.put("scope_options", approvalScopeOptions(pending));
         item.put("permanent_allowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
         return item;
+    }
+
+    private List<String> approvalScopeOptions(
+            DangerousCommandApprovalService.PendingApproval pending) {
+        List<String> scopes = new ArrayList<String>();
+        scopes.add("once");
+        scopes.add("session");
+        if (pending != null && pending.isPermanentApprovalAllowed()) {
+            scopes.add("always");
+        }
+        return scopes;
+    }
+
+    private long expiresInSeconds(long expiresAt) {
+        if (expiresAt <= 0L) {
+            return 0L;
+        }
+        long remaining = expiresAt - System.currentTimeMillis();
+        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
+    }
+
+    private boolean isExpired(long expiresAt) {
+        return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
     }
 
     private DangerousCommandApprovalService.ApprovalScope parseApprovalScope(String value) {

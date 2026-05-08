@@ -111,7 +111,9 @@ public class DangerousCommandApprovalCommandTest {
                 .contains("pending=2")
                 .contains("#1")
                 .contains("#2")
-                .contains("scopes=once,session,always");
+                .contains("scopes=once,session,always")
+                .contains("expires_in=")
+                .contains("expired=false");
 
         GatewayReply approved = env.send("room-queue", "user-queue", "/approve #2 session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
@@ -189,6 +191,8 @@ public class DangerousCommandApprovalCommandTest {
                 .contains("pending=1")
                 .contains("tirith:shortened_url")
                 .contains("scopes=once,session")
+                .contains("expires_in=")
+                .contains("expired=false")
                 .doesNotContain("scopes=once,session,always");
     }
 

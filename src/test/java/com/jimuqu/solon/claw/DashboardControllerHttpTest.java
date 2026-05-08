@@ -1003,6 +1003,10 @@ public class DashboardControllerHttpTest {
                 .contains("\"session_id\":\"dashboard-approval-chat\"")
                 .contains("\"tool_name\":\"execute_shell\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
+                .contains("\"expires_in_seconds\"")
+                .contains("\"expired\":false")
+                .contains("\"scope_options\":[\"once\",\"session\",\"always\"]")
+                .contains("\"permanent_allowed\":true")
                 .doesNotContain("sk-test-secret-token-value")
                 .doesNotContain("ghp_dashboardsecret12345")
                 .contains("Authorization: Bearer ***");

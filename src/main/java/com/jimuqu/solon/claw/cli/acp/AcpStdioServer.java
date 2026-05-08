@@ -730,10 +730,41 @@ public class AcpStdioServer {
         item.put("patternKeys", pending.effectivePatternKeys());
         item.put("approval_key", pending.approvalKey());
         item.put("approvalKey", pending.approvalKey());
+        item.put("created_at", Long.valueOf(pending.getCreatedAt()));
+        item.put("createdAt", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
         item.put("expiresAt", Long.valueOf(pending.getExpiresAt()));
+        item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
+        item.put("expiresInSeconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
+        item.put("expired", Boolean.valueOf(isExpired(pending.getExpiresAt())));
+        item.put("scope_options", scopeOptions(pending));
+        item.put("scopeOptions", scopeOptions(pending));
+        item.put("permanent_allowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
+        item.put("permanentAllowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
         item.put("options", permissionOptions(pending));
         return item;
+    }
+
+    private long expiresInSeconds(long expiresAt) {
+        if (expiresAt <= 0L) {
+            return 0L;
+        }
+        long remaining = expiresAt - System.currentTimeMillis();
+        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
+    }
+
+    private boolean isExpired(long expiresAt) {
+        return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
+    }
+
+    private List<String> scopeOptions(DangerousCommandApprovalService.PendingApproval pending) {
+        List<String> scopes = new ArrayList<String>();
+        scopes.add("once");
+        scopes.add("session");
+        if (pending == null || pending.isPermanentApprovalAllowed()) {
+            scopes.add("always");
+        }
+        return scopes;
     }
 
     private List<Map<String, Object>> permissionOptions(

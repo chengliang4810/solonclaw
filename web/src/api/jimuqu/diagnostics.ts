@@ -56,7 +56,10 @@ export interface PendingApproval {
   approval_key?: string
   created_at?: number
   expires_at?: number
+  expires_in_seconds?: number
+  expired?: boolean
   scopes?: string
+  scope_options?: string[]
   permanent_allowed?: boolean
 }
 

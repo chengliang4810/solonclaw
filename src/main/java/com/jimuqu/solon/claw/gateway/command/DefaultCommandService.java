@@ -2892,6 +2892,10 @@ public class DefaultCommandService implements CommandService {
                     .append(pending.getDescription())
                     .append(" scopes=")
                     .append(approvalScopes(pending))
+                    .append(" expires_in=")
+                    .append(expiresInSeconds(pending.getExpiresAt()))
+                    .append("s expired=")
+                    .append(isExpired(pending.getExpiresAt()))
                     .append(" key=")
                     .append(pending.approvalKey())
                     .append('\n');
@@ -2909,6 +2913,18 @@ public class DefaultCommandService implements CommandService {
             return "once,session,always";
         }
         return "once,session";
+    }
+
+    private long expiresInSeconds(long expiresAt) {
+        if (expiresAt <= 0L) {
+            return 0L;
+        }
+        long remaining = expiresAt - System.currentTimeMillis();
+        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
+    }
+
+    private boolean isExpired(long expiresAt) {
+        return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
     }
 
     private GatewayReply clearApprovals(SqliteAgentSession agentSession, String normalizedArgs)
