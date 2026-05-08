@@ -5,7 +5,8 @@ param(
     [switch] $CheckGitCommitSubjects,
     [switch] $CheckGitObjectText,
     [switch] $CheckAllGitRefs,
-    [switch] $CheckCurrentBranchRange
+    [switch] $CheckCurrentBranchRange,
+    [switch] $CheckBinaryText
 )
 
 # Normal validation should use the working tree plus an explicit commit range, or
@@ -179,6 +180,27 @@ try {
         }
     }
 
+    function Search-BinaryFile {
+        param(
+            [System.IO.FileInfo] $File,
+            [string] $RelativePath
+        )
+
+        if ($File.Length -gt 100MB) {
+            return
+        }
+
+        $bytes = [System.IO.File]::ReadAllBytes($File.FullName)
+        if ($bytes.Length -eq 0) {
+            return
+        }
+
+        $latin1 = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)
+        if ($regex.IsMatch($latin1)) {
+            $findings.Add(("{0}:0:<binary>" -f (Hide-BlockedText $RelativePath)))
+        }
+    }
+
     function Hide-BlockedText {
         param([string] $Text)
 
@@ -204,6 +226,9 @@ try {
                 return
             }
             if (-not (Test-ProbablyTextFile $_)) {
+                if ($CheckBinaryText) {
+                    Search-BinaryFile $_ $relativePath
+                }
                 return
             }
 

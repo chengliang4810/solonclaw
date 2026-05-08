@@ -5,6 +5,7 @@ $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
 $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1"
 $publishedReleaseScriptPath = Join-Path $repoRoot "scripts\check-release-naming.ps1"
+$archiveNamingScriptPath = Join-Path $repoRoot "scripts\check-archive-naming.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
@@ -481,6 +482,34 @@ try {
         -LocalJsonPath $cleanPublishedReleaseFixturePath 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Published release naming check should pass for clean release metadata: $($cleanPublishedReleaseOutput | Out-String)"
+    }
+
+    Reset-Sandbox
+    $archiveRoot = Join-Path $sandbox "archive-root"
+    $archivePath = Join-Path $sandbox "fixture.jar"
+    New-Item -ItemType Directory -Path $archiveRoot | Out-Null
+    [System.IO.File]::WriteAllBytes(
+        (Join-Path $archiveRoot "Binary.class"),
+        [System.Text.Encoding]::ASCII.GetBytes("constant-pool " + $blockedDefaultEnvFixture + " value"))
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($archiveRoot, $archivePath)
+    $archiveOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $archiveNamingScriptPath `
+        -ArchivePath $archivePath 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        throw "Archive naming check should fail when blocked naming exists inside packaged binary constants."
+    }
+    Assert-NoRawBlockedOutput ($archiveOutput | Out-String) @($blockedDefaultEnvFixture) "archive binary constant scan"
+
+    Reset-Sandbox
+    $cleanArchiveRoot = Join-Path $sandbox "clean-archive-root"
+    $cleanArchivePath = Join-Path $sandbox "clean-fixture.jar"
+    New-Item -ItemType Directory -Path $cleanArchiveRoot | Out-Null
+    Set-Content -Path (Join-Path $cleanArchiveRoot "app.properties") -Value "app.name=jimuqu-agent" -Encoding UTF8
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($cleanArchiveRoot, $cleanArchivePath)
+    $cleanArchiveOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $archiveNamingScriptPath `
+        -ArchivePath $cleanArchivePath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Archive naming check should pass for clean packaged content: $($cleanArchiveOutput | Out-String)"
     }
 
 } finally {
