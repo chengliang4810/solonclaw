@@ -3312,6 +3312,33 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(urlTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(urlTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
+
+        Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
+        patchArgs.put(
+                "patch",
+                "*** Begin Patch\n"
+                        + "*** Add File: .env\n"
+                        + "+TOKEN=secret\n"
+                        + "*** End Patch\n");
+        Map<String, Object> gatewayPatch = new LinkedHashMap<String, Object>();
+        gatewayPatch.put("tool_name", "apply_patch");
+        gatewayPatch.put("tool_args", patchArgs);
+        TestTrace patchTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(patchTrace, "call_tool", gatewayPatch);
+
+        assertThat(patchTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(patchTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
+        Map<String, Object> gatewayPatchApply = new LinkedHashMap<String, Object>();
+        gatewayPatchApply.put("tool_name", "patch_apply");
+        gatewayPatchApply.put("tool_args", patchArgs);
+        TestTrace patchApplyTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(patchApplyTrace, "call_tool", gatewayPatchApply);
+
+        assertThat(patchApplyTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(patchApplyTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
     }
 
     @Test

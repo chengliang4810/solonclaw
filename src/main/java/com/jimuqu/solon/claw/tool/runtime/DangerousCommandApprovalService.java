@@ -1261,6 +1261,16 @@ public class DangerousCommandApprovalService {
         if ("web_search".equals(lower) || "search_web".equals(lower)) {
             return ToolNameConstants.WEBSEARCH;
         }
+        if ("apply_patch".equals(lower)
+                || "apply-patch".equals(lower)
+                || "patch_apply".equals(lower)
+                || "patch-apply".equals(lower)
+                || "diff_apply".equals(lower)
+                || "diff-apply".equals(lower)
+                || "apply_diff".equals(lower)
+                || "apply-diff".equals(lower)) {
+            return ToolNameConstants.PATCH;
+        }
         if ("config_read".equals(lower)) {
             return ToolNameConstants.CONFIG_GET;
         }
