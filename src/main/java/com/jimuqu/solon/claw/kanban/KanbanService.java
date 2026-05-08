@@ -752,6 +752,9 @@ public class KanbanService {
         if ("create".equals(action) || "new".equals(action)) {
             return createCommand(rest, author);
         }
+        if ("schema".equals(action) || "schema-create".equals(action) || "create-json".equals(action)) {
+            return schemaCreateCommand(rest, author);
+        }
         if ("list".equals(action) || "ls".equals(action)) {
             return listCommand(rest, author);
         }
@@ -986,6 +989,31 @@ public class KanbanService {
             return ONode.serialize(created);
         }
         return "已创建看板任务："
+                + taskId(created)
+                + "  ("
+                + created.get("status")
+                + ", assignee="
+                + StrUtil.blankToDefault((String) created.get("assignee"), "-")
+                + ")";
+    }
+
+    private String schemaCreateCommand(String rest, String author) throws Exception {
+        String usage = "/kanban schema <task-json> [--json]";
+        String raw = requireArg(rest, usage);
+        ParsedKanbanOptions parsed = parseCommandOptions(raw);
+        String json = parsed.positionalText();
+        if (StrUtil.isBlank(json)) {
+            return "用法：" + usage;
+        }
+        Map<String, Object> body = parseJsonObject(json, "kanban schema task");
+        if (!body.containsKey("created_by")) {
+            body.put("created_by", StrUtil.blankToDefault(author, "user"));
+        }
+        Map<String, Object> created = createTask(body);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(created);
+        }
+        return "已创建结构化看板任务："
                 + taskId(created)
                 + "  ("
                 + created.get("status")
@@ -1948,6 +1976,7 @@ public class KanbanService {
                 Arrays.asList(
                         "/kanban list - 查看当前看板任务",
                         "/kanban create <title> - 创建任务",
+                        "/kanban schema <task-json> - 用 JSON 创建结构化任务",
                         "/kanban show <task-id> - 查看任务详情",
                         "/kanban move <task-id> <status> - 移动任务状态",
                         "/kanban assign <task-id> <assignee> - 分配执行人",
@@ -2751,6 +2780,20 @@ public class KanbanService {
             throw new IllegalArgumentException("kanban edit --metadata must be a JSON object");
         }
         return ONode.serialize(parsed);
+    }
+
+    private Map<String, Object> parseJsonObject(String json, String label) {
+        Object parsed = ONode.deserialize(json, Object.class);
+        if (!(parsed instanceof Map<?, ?>)) {
+            throw new IllegalArgumentException(label + " must be a JSON object");
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) parsed).entrySet()) {
+            if (entry.getKey() != null) {
+                result.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return result;
     }
 
     private Map<String, Object> assigneeEntry(String name) {

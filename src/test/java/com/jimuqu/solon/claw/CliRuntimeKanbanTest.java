@@ -22,6 +22,32 @@ public class CliRuntimeKanbanTest {
     }
 
     @Test
+    void shouldRouteKanbanSchemaCommandThroughCliRuntime() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime = new CliRuntime(env.commandService, env.conversationOrchestrator);
+
+        GatewayReply created =
+                runtime.send(
+                        "cli-test",
+                        "/kanban schema {\"title\":\"Schema CLI task\",\"assignee\":\"schema-worker\",\"skills\":[\"review\"],\"workflow_template_id\":\"delivery\",\"current_step_key\":\"draft\"}",
+                        null);
+
+        assertThat(created.isError()).isFalse();
+        assertThat(created.getContent()).contains("已创建结构化看板任务");
+
+        GatewayReply list = runtime.send("cli-test", "/kanban list", null);
+        assertThat(list.getContent()).contains("Schema CLI task").contains("@schema-worker");
+
+        String taskId = String.valueOf(env.kanbanService.tasks(null, null, false).get(0).get("id"));
+        GatewayReply detail = runtime.send("cli-test", "/kanban show " + taskId + " --json", null);
+        assertThat(detail.getContent())
+                .contains("Schema CLI task")
+                .contains("workflow_template_id")
+                .contains("current_step_key")
+                .contains("review");
+    }
+
+    @Test
     void shouldSendUnknownSlashCommandToModel() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime = new CliRuntime(env.commandService, env.conversationOrchestrator);
