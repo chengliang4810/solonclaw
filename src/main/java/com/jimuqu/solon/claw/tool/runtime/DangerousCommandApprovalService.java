@@ -86,7 +86,7 @@ public class DangerousCommandApprovalService {
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
     private static final String HARDLINE_COMMAND_POSITION =
-            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");

@@ -1336,6 +1336,8 @@ public class DangerousCommandApprovalServiceTest {
                     "`shutdown now`",
                     "sudo -E shutdown now",
                     "env FOO=1 reboot",
+                    "env -i reboot",
+                    "env --ignore-environment FOO=1 shutdown now",
                     "exec shutdown",
                     "nohup reboot",
                     "setsid poweroff",
