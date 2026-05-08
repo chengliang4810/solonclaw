@@ -586,6 +586,7 @@ public class DefaultCommandService implements CommandService {
                         GatewayCommandConstants.COMMAND_DENY,
                         GatewayCommandConstants.COMMAND_ALWAYS,
                         GatewayCommandConstants.COMMAND_CANCEL,
+                        GatewayCommandConstants.COMMAND_CONFIRM,
                         GatewayCommandConstants.COMMAND_AGENT,
                         GatewayCommandConstants.COMMAND_HELP)
                 .contains(commandName);
@@ -883,6 +884,10 @@ public class DefaultCommandService implements CommandService {
                 return handleDangerousDeny(message, args);
             }
             return handleSlashConfirmChoice(message, args, SlashConfirmService.CHOICE_CANCEL);
+        }
+
+        if (GatewayCommandConstants.COMMAND_CONFIRM.equals(command)) {
+            return handleSlashConfirmStatus(message);
         }
 
         if (GatewayCommandConstants.COMMAND_CRON.equals(command)) {
@@ -1521,6 +1526,15 @@ public class DefaultCommandService implements CommandService {
 
     private boolean hasPendingSlashConfirm(GatewayMessage message) {
         return message != null && slashConfirmService.getPending(message.sourceKey()) != null;
+    }
+
+    private GatewayReply handleSlashConfirmStatus(GatewayMessage message) {
+        SlashConfirmService.PendingConfirm pending =
+                message == null ? null : slashConfirmService.getPending(message.sourceKey());
+        if (pending == null) {
+            return GatewayReply.ok("当前没有待确认的 slash 命令。");
+        }
+        return GatewayReply.ok("当前待确认 slash 命令：/" + pending.getCommand() + "\n" + formatSlashConfirmPrompt(pending));
     }
 
     private boolean hasPendingDangerousApproval(GatewayMessage message) {
@@ -3370,6 +3384,7 @@ public class DefaultCommandService implements CommandService {
                                 GatewayCommandConstants.SLASH_RELOAD_MCP
                                         + " [now|always]；确认：/approve [确认编号]|/always|/cancel",
                                 "重新加载 MCP 工具并刷新工具变更基线"),
+                        helpLine(GatewayCommandConstants.SLASH_CONFIRM, "查看当前待确认 slash 命令"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_AGENT
                                         + " [name|list|create|show|model|tools|skills|memory]",

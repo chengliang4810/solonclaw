@@ -735,8 +735,17 @@ public class CommandEnhancementTest {
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(prompt.getContent()).contains("确认编号").contains("/approve [确认编号]");
 
+        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
+        assertThat(status.getContent())
+                .contains("当前待确认 slash 命令：/reload-mcp")
+                .contains(extractSlashConfirmId(prompt))
+                .contains("/approve [确认编号]");
+
         GatewayReply cancelled = env.send("admin-chat", "admin-user", "/cancel");
         assertThat(cancelled.getContent()).contains("已取消 /reload-mcp");
+
+        GatewayReply emptyStatus = env.send("admin-chat", "admin-user", "/confirm");
+        assertThat(emptyStatus.getContent()).contains("当前没有待确认的 slash 命令");
 
         GatewayReply promptAgain = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(promptAgain.getContent()).contains("/approve");
