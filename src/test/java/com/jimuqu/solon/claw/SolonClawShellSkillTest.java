@@ -199,6 +199,10 @@ public class SolonClawShellSkillTest {
                 SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project$(whoami)");
         SecurityPolicyService.FileVerdict newline =
                 SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project\nwhoami");
+        SecurityPolicyService.FileVerdict tab =
+                SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project\tchild");
+        SecurityPolicyService.FileVerdict nullByte =
+                SecurityPolicyService.checkWorkdirText("C:\\Users\\Alice\\project\u0000child");
 
         assertThat(semicolon.isAllowed()).isFalse();
         assertThat(semicolon.getMessage()).contains(";");
@@ -206,6 +210,10 @@ public class SolonClawShellSkillTest {
         assertThat(subshell.getMessage()).contains("$");
         assertThat(newline.isAllowed()).isFalse();
         assertThat(newline.getMessage()).contains("\\n");
+        assertThat(tab.isAllowed()).isFalse();
+        assertThat(tab.getMessage()).contains("\\t");
+        assertThat(nullByte.isAllowed()).isFalse();
+        assertThat(nullByte.getMessage()).contains("\\u0000");
     }
 
     @Test

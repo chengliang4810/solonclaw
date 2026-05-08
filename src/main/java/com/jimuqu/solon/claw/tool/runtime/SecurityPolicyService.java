@@ -798,6 +798,9 @@ public class SecurityPolicyService {
         if ("\t".equals(ch)) {
             return "\\t";
         }
+        if (ch.length() == 1 && Character.isISOControl(ch.charAt(0))) {
+            return String.format(Locale.ROOT, "\\u%04x", Integer.valueOf(ch.charAt(0)));
+        }
         return ch;
     }
 
