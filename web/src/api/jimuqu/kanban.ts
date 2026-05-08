@@ -10,6 +10,7 @@ export interface KanbanBoard {
   description?: string | null
   color?: string | null
   current: boolean
+  archived?: boolean
   counts?: Record<string, number>
 }
 
@@ -206,6 +207,11 @@ export async function fetchKanbanBoards(): Promise<KanbanBoard[]> {
   return request<KanbanBoard[]>('/api/kanban/boards')
 }
 
+export async function fetchKanbanBoardsWithArchived(includeArchived = false): Promise<KanbanBoard[]> {
+  const suffix = includeArchived ? '?archived=true' : ''
+  return request<KanbanBoard[]>(`/api/kanban/boards${suffix}`)
+}
+
 export async function createKanbanBoard(data: { slug: string; name?: string; description?: string; switch?: boolean }) {
   return request<KanbanBoard>('/api/kanban/boards', {
     method: 'POST',
@@ -216,6 +222,20 @@ export async function createKanbanBoard(data: { slug: string; name?: string; des
 export async function switchKanbanBoard(slug: string) {
   return request<KanbanBoard>(`/api/kanban/boards/${encodeURIComponent(slug)}/switch`, {
     method: 'POST',
+  })
+}
+
+export async function renameKanbanBoard(slug: string, name: string): Promise<KanbanBoard> {
+  return request<KanbanBoard>(`/api/kanban/boards/${encodeURIComponent(slug)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function removeKanbanBoard(slug: string, hardDelete = false): Promise<{ slug: string; action: string; current: KanbanBoard }> {
+  const suffix = hardDelete ? '?delete=true' : ''
+  return request<{ slug: string; action: string; current: KanbanBoard }>(`/api/kanban/boards/${encodeURIComponent(slug)}${suffix}`, {
+    method: 'DELETE',
   })
 }
 

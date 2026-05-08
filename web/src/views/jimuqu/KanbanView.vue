@@ -6,13 +6,15 @@ import {
   createKanbanBoard,
   createKanbanTask,
   dispatchKanban,
-  fetchKanbanBoards,
+  fetchKanbanBoardsWithArchived,
   fetchKanbanDaemon,
   fetchKanbanTaskDrawer,
   fetchKanbanTasks,
   kanbanStatuses,
   moveKanbanTask,
   reclaimKanbanTask,
+  removeKanbanBoard,
+  renameKanbanBoard,
   reassignKanbanTask,
   retryKanbanTask,
   startKanbanDaemon,
@@ -36,6 +38,7 @@ const tasks = ref<KanbanTask[]>([])
 const activeBoard = ref('')
 const showTaskModal = ref(false)
 const showBoardModal = ref(false)
+const showBoardManager = ref(false)
 const selectedTask = ref<KanbanTask | null>(null)
 const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
 const commentText = ref('')
@@ -49,6 +52,9 @@ const daemonMaxSpawn = ref(3)
 const tenantFilter = ref<string | null>('')
 const assigneeFilter = ref<string | null>('')
 const search = ref('')
+const showArchivedBoards = ref(false)
+const boardRenames = ref<Record<string, string>>({})
+const boardBusy = ref('')
 const taskForm = ref({
   title: '',
   body: '',
@@ -74,7 +80,7 @@ const statusOptions = kanbanStatuses.map(status => ({ label: statusLabels[status
 const visibleStatuses = kanbanStatuses.filter(status => status !== 'archived')
 
 const boardOptions = computed(() => boards.value.map(board => ({
-  label: board.current ? `${board.name}（当前）` : board.name,
+  label: boardLabel(board),
   value: board.slug,
 })))
 
@@ -131,7 +137,8 @@ onMounted(loadKanban)
 async function loadKanban() {
   loading.value = true
   try {
-    boards.value = await fetchKanbanBoards()
+    boards.value = await fetchKanbanBoardsWithArchived(showArchivedBoards.value)
+    syncBoardRenames()
     activeBoard.value = boards.value.find(board => board.current)?.slug || boards.value[0]?.slug || ''
     tasks.value = await fetchKanbanTasks(taskQuery())
     daemon.value = await fetchKanbanDaemon()
@@ -141,8 +148,14 @@ async function loadKanban() {
 }
 
 async function reloadTasks() {
-  tasks.value = await fetchKanbanTasks(taskQuery())
-  boards.value = await fetchKanbanBoards()
+  boards.value = await fetchKanbanBoardsWithArchived(showArchivedBoards.value)
+  syncBoardRenames()
+  if (!boards.value.some(board => board.slug === activeBoard.value && !isArchivedBoard(board))) {
+    activeBoard.value = boards.value.find(board => board.current && !isArchivedBoard(board))?.slug
+      || boards.value.find(board => !isArchivedBoard(board))?.slug
+      || ''
+  }
+  tasks.value = activeBoard.value ? await fetchKanbanTasks(taskQuery()) : []
   daemon.value = await fetchKanbanDaemon()
 }
 
@@ -396,6 +409,76 @@ function notificationSummary(notification: KanbanNotification): string {
   return `${notification.platform} / ${notification.chat_id}${thread}`
 }
 
+async function toggleArchivedBoards() {
+  showArchivedBoards.value = !showArchivedBoards.value
+  await reloadTasks()
+}
+
+function syncBoardRenames() {
+  const next: Record<string, string> = {}
+  boards.value.forEach(board => {
+    next[board.slug] = boardRenames.value[board.slug] || board.name || board.slug
+  })
+  boardRenames.value = next
+}
+
+function boardLabel(board: KanbanBoard): string {
+  const flags = []
+  if (board.current) flags.push('当前')
+  if (isArchivedBoard(board)) flags.push('已归档')
+  return flags.length ? `${board.name}（${flags.join(' / ')}）` : board.name
+}
+
+function isArchivedBoard(board: KanbanBoard): boolean {
+  return Boolean(board.archived)
+}
+
+async function renameBoard(board: KanbanBoard) {
+  const nextName = (boardRenames.value[board.slug] || '').trim()
+  if (!nextName) {
+    message.error('看板名称不能为空')
+    return
+  }
+  boardBusy.value = `rename:${board.slug}`
+  try {
+    await renameKanbanBoard(board.slug, nextName)
+    message.success('看板已重命名')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '重命名看板失败')
+  } finally {
+    boardBusy.value = ''
+  }
+}
+
+async function archiveBoard(board: KanbanBoard) {
+  boardBusy.value = `archive:${board.slug}`
+  try {
+    const result = await removeKanbanBoard(board.slug, false)
+    activeBoard.value = result.current?.slug || activeBoard.value
+    message.success('看板已归档')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '归档看板失败')
+  } finally {
+    boardBusy.value = ''
+  }
+}
+
+async function deleteBoard(board: KanbanBoard) {
+  boardBusy.value = `delete:${board.slug}`
+  try {
+    const result = await removeKanbanBoard(board.slug, true)
+    activeBoard.value = result.current?.slug || activeBoard.value
+    message.success('看板已删除')
+    await reloadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '删除看板失败')
+  } finally {
+    boardBusy.value = ''
+  }
+}
+
 function executionStageLabel(stage?: string | null): string {
   const labels: Record<string, string> = {
     needs_review: '需要复核',
@@ -479,6 +562,7 @@ function hasWarnings(task: KanbanTask): boolean {
           placeholder="搜索任务"
         />
         <NButton size="small" @click="showBoardModal = true">新建看板</NButton>
+        <NButton size="small" @click="showBoardManager = true">管理看板</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(true)">预检派发</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(false)">派发执行</NButton>
         <span class="daemon-status" :class="{ active: daemon?.running }">
@@ -707,6 +791,63 @@ function hasWarnings(task: KanbanTask): boolean {
         </div>
       </template>
     </NModal>
+
+    <NModal v-model:show="showBoardManager" preset="card" class="board-manager-modal" title="管理看板">
+      <div class="board-manager-toolbar">
+        <NButton size="small" @click="toggleArchivedBoards">
+          {{ showArchivedBoards ? '隐藏已归档' : '显示已归档' }}
+        </NButton>
+        <span>当前共 {{ boards.length }} 个看板</span>
+      </div>
+      <div class="board-manager-list">
+        <div v-for="board in boards" :key="board.slug" class="board-manager-row">
+          <div class="board-main">
+            <div class="board-title">
+              <span>{{ boardLabel(board) }}</span>
+              <small>{{ board.slug }}</small>
+            </div>
+            <div class="board-counts">
+              <span v-for="status in visibleStatuses" :key="status">
+                {{ statusLabels[status] }} {{ board.counts?.[status] || 0 }}
+              </span>
+            </div>
+          </div>
+          <NInput
+            v-model:value="boardRenames[board.slug]"
+            size="small"
+            class="board-name-input"
+            :disabled="isArchivedBoard(board)"
+          />
+          <div class="board-row-actions">
+            <NButton size="small" :disabled="isArchivedBoard(board)" :loading="boardBusy === `rename:${board.slug}`" @click="renameBoard(board)">
+              重命名
+            </NButton>
+            <NButton
+              size="small"
+              :disabled="board.current || isArchivedBoard(board)"
+              :loading="boardBusy === `archive:${board.slug}`"
+              @click="archiveBoard(board)"
+            >
+              归档
+            </NButton>
+            <NButton
+              size="small"
+              type="error"
+              :disabled="board.current || board.slug === 'default'"
+              :loading="boardBusy === `delete:${board.slug}`"
+              @click="deleteBoard(board)"
+            >
+              删除
+            </NButton>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="modal-actions">
+          <NButton @click="showBoardManager = false">关闭</NButton>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -905,8 +1046,13 @@ function hasWarnings(task: KanbanTask): boolean {
 }
 
 .task-modal,
-.board-modal {
+.board-modal,
+.board-manager-modal {
   width: min(720px, calc(100vw - 32px));
+}
+
+.board-manager-modal {
+  width: min(960px, calc(100vw - 32px));
 }
 
 .modal-form {
@@ -1101,6 +1247,76 @@ function hasWarnings(task: KanbanTask): boolean {
   gap: 8px;
 }
 
+.board-manager-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: $text-muted;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.board-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(580px, calc(100vh - 220px));
+  overflow: auto;
+}
+
+.board-manager-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 260px) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 10px;
+  background: $bg-card;
+}
+
+.board-main {
+  min-width: 0;
+}
+
+.board-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  color: $text-primary;
+  font-size: 13px;
+  font-weight: 600;
+
+  small {
+    color: $text-muted;
+    font-family: $font-code;
+    font-size: 11px;
+    font-weight: 400;
+  }
+}
+
+.board-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  color: $text-muted;
+  font-size: 11px;
+}
+
+.board-name-input {
+  min-width: 0;
+}
+
+.board-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 @media (max-width: $breakpoint-mobile) {
   .page-header {
     align-items: stretch;
@@ -1140,6 +1356,19 @@ function hasWarnings(task: KanbanTask): boolean {
   .notification-row,
   .log-meta {
     grid-template-columns: 1fr;
+  }
+
+  .board-manager-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .board-manager-row {
+    grid-template-columns: 1fr;
+  }
+
+  .board-row-actions {
+    justify-content: flex-start;
   }
 }
 </style>
