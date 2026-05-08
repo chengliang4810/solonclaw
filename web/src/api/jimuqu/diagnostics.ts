@@ -47,7 +47,7 @@ export interface SecurityAuditResult {
 
 export interface PendingApproval {
   session_id: string
-  source_key?: string
+  source_ref?: string
   title?: string
   branch_name?: string
   updated_at?: number

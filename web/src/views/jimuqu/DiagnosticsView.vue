@@ -591,7 +591,7 @@ onMounted(load)
                 <div class="approval-head">
                   <div>
                     <strong>{{ item.title || item.session_id }}</strong>
-                    <span>{{ item.tool_name || '-' }}</span>
+                    <span>{{ item.tool_name || '-' }} · {{ item.source_ref || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.permanent_allowed ? 'default' : 'warning'">
                     {{ item.permanent_allowed ? '可长期授权' : '仅本次/本会话' }}

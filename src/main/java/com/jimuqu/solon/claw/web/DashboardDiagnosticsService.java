@@ -427,7 +427,7 @@ public class DashboardDiagnosticsService {
             SessionRecord session, DangerousCommandApprovalService.PendingApproval pending) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("session_id", session.getSessionId());
-        item.put("source_key", session.getSourceKey());
+        item.put("source_ref", sourceRef(session.getSourceKey()));
         item.put("title", StrUtil.blankToDefault(session.getTitle(), session.getSessionId()));
         item.put("branch_name", session.getBranchName());
         item.put("updated_at", Long.valueOf(session.getUpdatedAt()));
