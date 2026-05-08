@@ -71,6 +71,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult lowercaseBranchDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git branch -d old-feature");
+        DangerousCommandApprovalService.DetectionResult chmodSetuid =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod u+s /usr/local/bin/helper");
+        DangerousCommandApprovalService.DetectionResult chmodNumericSetuid =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chmod 4755 ./helper");
+        DangerousCommandApprovalService.DetectionResult setcap =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setcap cap_net_bind_service+ep ./server");
 
         assertThat(recursiveLong).isNotNull();
         assertThat(recursiveLong.getPatternKey()).isEqualTo("recursive_delete_long_flag");
@@ -90,6 +99,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(branchDelete.getPatternKey()).isEqualTo("git_branch_delete");
         assertThat(lowercaseBranchDelete).isNotNull();
         assertThat(lowercaseBranchDelete.getPatternKey()).isEqualTo("git_branch_delete");
+        assertThat(chmodSetuid).isNotNull();
+        assertThat(chmodSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
+        assertThat(chmodNumericSetuid).isNotNull();
+        assertThat(chmodNumericSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
+        assertThat(setcap).isNotNull();
+        assertThat(setcap.getPatternKey()).isEqualTo("setcap_privilege");
     }
 
     @Test

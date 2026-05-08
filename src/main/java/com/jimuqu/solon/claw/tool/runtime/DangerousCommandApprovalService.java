@@ -159,6 +159,17 @@ public class DangerousCommandApprovalService {
                                             "\\bchmod\\s+--recursive\\b.*(777|666|o\\+[rwx]*w|a\\+[rwx]*w)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "chmod_setuid_setgid",
+                                    "setuid/setgid permission change",
+                                    pattern(
+                                            "\\bchmod\\s+(-[^\\s]*\\s+)*(?:[ug]\\+s|[2467][0-7]{3})\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "setcap_privilege",
+                                    "Linux capability grant",
+                                    pattern("\\bsetcap\\b[^\\n]*\\bcap_[a-z0-9_,+-]+\\+ep\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "chown_root",
                                     "recursive chown to root",
                                     pattern("\\bchown\\s+(-[^\\s]*)?R\\s+root"),
