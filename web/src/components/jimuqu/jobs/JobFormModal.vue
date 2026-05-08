@@ -42,8 +42,23 @@ const formData = ref({
 })
 
 const presetValue = ref<string | null>(null)
+const scheduleKind = ref<'cron' | 'interval' | 'once'>('cron')
+const intervalAmount = ref<number | null>(30)
+const intervalUnit = ref<'m' | 'h' | 'd'>('m')
 
 const isEdit = computed(() => !!props.jobId)
+
+const scheduleKindOptions = computed(() => [
+  { label: t('jobs.scheduleKindCron'), value: 'cron' },
+  { label: t('jobs.scheduleKindInterval'), value: 'interval' },
+  { label: t('jobs.scheduleKindOnce'), value: 'once' },
+])
+
+const intervalUnitOptions = computed(() => [
+  { label: t('jobs.intervalMinutes'), value: 'm' },
+  { label: t('jobs.intervalHours'), value: 'h' },
+  { label: t('jobs.intervalDays'), value: 'd' },
+])
 
 const schedulePresets = computed(() => [
   { label: t('jobs.presetEveryMinute'), value: '* * * * *' },
@@ -55,11 +70,78 @@ const schedulePresets = computed(() => [
   { label: t('jobs.presetEveryMonth'), value: '0 9 1 * *' },
 ])
 
-const originalSchedule = ref<{ kind: string; raw?: string; expr?: string; display: string } | null>(null)
-
 function editableScheduleValue(schedule: any, fallback: string) {
   if (!schedule || typeof schedule === 'string') return schedule || fallback
+  if (schedule.run_at && !schedule.raw && !schedule.expr) {
+    return typeof schedule.run_at === 'number' ? new Date(schedule.run_at).toISOString() : String(schedule.run_at)
+  }
   return schedule.raw || schedule.expr || schedule.display || fallback
+}
+
+function parseIntervalSchedule(value: string) {
+  const match = value.trim().match(/^every\s+(\d+)\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i)
+  if (!match) return null
+  const unit = match[2].toLowerCase()
+  return {
+    amount: Number(match[1]),
+    unit: unit.startsWith('h') ? 'h' as const : unit.startsWith('d') ? 'd' as const : 'm' as const,
+  }
+}
+
+function looksLikeOneShot(value: string) {
+  const trimmed = value.trim()
+  return /^\d+\s*(m|min|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.test(trimmed)
+    || /^\d{4}-\d{2}-\d{2}T/.test(trimmed)
+}
+
+function applyIntervalMinutes(minutes?: number | null) {
+  if (!minutes || minutes < 1) return
+  if (minutes % 1440 === 0) {
+    intervalAmount.value = minutes / 1440
+    intervalUnit.value = 'd'
+  } else if (minutes % 60 === 0) {
+    intervalAmount.value = minutes / 60
+    intervalUnit.value = 'h'
+  } else {
+    intervalAmount.value = minutes
+    intervalUnit.value = 'm'
+  }
+}
+
+function inferScheduleControls(schedule: any, fallback: string) {
+  const value = editableScheduleValue(schedule, fallback)
+  const kind = typeof schedule === 'object' && schedule?.kind ? schedule.kind : ''
+  if (kind === 'interval' || parseIntervalSchedule(value)) {
+    scheduleKind.value = 'interval'
+    const parsed = parseIntervalSchedule(value)
+    if (parsed) {
+      intervalAmount.value = parsed.amount
+      intervalUnit.value = parsed.unit
+    } else if (typeof schedule?.minutes === 'number') {
+      applyIntervalMinutes(schedule.minutes)
+    }
+    formData.value.schedule = buildIntervalSchedule()
+    return
+  }
+  if (kind === 'once' || looksLikeOneShot(value)) {
+    scheduleKind.value = 'once'
+    formData.value.schedule = value
+    return
+  }
+  scheduleKind.value = 'cron'
+  formData.value.schedule = value
+}
+
+function buildIntervalSchedule() {
+  const amount = Math.max(1, Math.floor(intervalAmount.value || 1))
+  return `every ${amount}${intervalUnit.value}`
+}
+
+function buildScheduleValue() {
+  if (scheduleKind.value === 'interval') {
+    return buildIntervalSchedule()
+  }
+  return formData.value.schedule.trim()
 }
 
 function splitCsv(value: string) {
@@ -77,7 +159,7 @@ onMounted(async () => {
       const job = await getJob(props.jobId)
       formData.value = {
         name: job.name,
-        schedule: editableScheduleValue(job.schedule, job.schedule_display || ''),
+        schedule: '',
         prompt: job.prompt,
         deliver: job.deliver || 'origin',
         deliver_chat_id: job.deliver_chat_id || '',
@@ -94,9 +176,7 @@ onMounted(async () => {
         model: job.model || '',
         base_url: job.base_url || '',
       }
-      if (typeof job.schedule === 'object' && job.schedule) {
-        originalSchedule.value = job.schedule
-      }
+      inferScheduleControls(job.schedule, job.schedule_display || '')
     } catch (e: any) {
       message.error(t('jobs.loadFailed') + ': ' + e.message)
     }
@@ -108,7 +188,8 @@ async function handleSave() {
     message.warning(t('jobs.nameRequired'))
     return
   }
-  if (!formData.value.schedule.trim()) {
+  const scheduleValue = buildScheduleValue()
+  if (!scheduleValue) {
     message.warning(t('jobs.scheduleRequired'))
     return
   }
@@ -128,7 +209,7 @@ async function handleSave() {
     const enabledToolsets = splitCsv(formData.value.enabled_toolsets_text)
     const payload: any = {
       name: formData.value.name,
-      schedule: formData.value.schedule,
+      schedule: scheduleValue,
       prompt: formData.value.prompt,
       deliver: formData.value.deliver,
       deliver_chat_id: formData.value.deliver_chat_id.trim() || undefined,
@@ -155,14 +236,6 @@ async function handleSave() {
       else if (isEdit.value) payload[key] = null
     }
 
-    if (isEdit.value && originalSchedule.value) {
-      payload.schedule = {
-        kind: originalSchedule.value.kind,
-        expr: formData.value.schedule,
-        display: formData.value.schedule,
-      }
-    }
-
     if (isEdit.value) {
       await jobsStore.updateJob(props.jobId!, payload)
       message.success(t('jobs.jobUpdated'))
@@ -181,6 +254,11 @@ async function handleSave() {
 function handleClose() {
   showModal.value = false
   setTimeout(() => emit('close'), 200)
+}
+
+function handlePresetChange(value: string) {
+  scheduleKind.value = 'cron'
+  formData.value.schedule = value
 }
 </script>
 
@@ -203,21 +281,68 @@ function handleClose() {
         />
       </NFormItem>
 
-      <NFormItem :label="t('jobs.schedule')" required>
-        <NInput
-          v-model:value="formData.schedule"
-          :placeholder="t('jobs.schedulePlaceholder')"
-        />
-      </NFormItem>
+      <div class="schedule-panel">
+        <div class="form-grid">
+          <NFormItem :label="t('jobs.scheduleKind')" required>
+            <NSelect
+              v-model:value="scheduleKind"
+              :options="scheduleKindOptions"
+            />
+          </NFormItem>
 
-      <NFormItem :label="t('jobs.quickPresets')">
-        <NSelect
-          v-model:value="presetValue"
-          :options="schedulePresets"
-          :placeholder="t('jobs.selectPreset')"
-          @update:value="v => formData.schedule = v"
-        />
-      </NFormItem>
+          <NFormItem
+            v-if="scheduleKind === 'cron'"
+            :label="t('jobs.quickPresets')"
+          >
+            <NSelect
+              v-model:value="presetValue"
+              :options="schedulePresets"
+              :placeholder="t('jobs.selectPreset')"
+              @update:value="handlePresetChange"
+            />
+          </NFormItem>
+        </div>
+
+        <NFormItem
+          v-if="scheduleKind === 'cron'"
+          :label="t('jobs.scheduleCron')"
+          required
+        >
+          <NInput
+            v-model:value="formData.schedule"
+            :placeholder="t('jobs.schedulePlaceholder')"
+          />
+        </NFormItem>
+
+        <div v-else-if="scheduleKind === 'interval'" class="form-grid">
+          <NFormItem :label="t('jobs.intervalAmount')" required>
+            <NInputNumber
+              v-model:value="intervalAmount"
+              :min="1"
+              :precision="0"
+              style="width: 100%"
+            />
+          </NFormItem>
+
+          <NFormItem :label="t('jobs.intervalUnit')" required>
+            <NSelect
+              v-model:value="intervalUnit"
+              :options="intervalUnitOptions"
+            />
+          </NFormItem>
+        </div>
+
+        <NFormItem
+          v-else
+          :label="t('jobs.scheduleOnce')"
+          required
+        >
+          <NInput
+            v-model:value="formData.schedule"
+            :placeholder="t('jobs.scheduleOncePlaceholder')"
+          />
+        </NFormItem>
+      </div>
 
       <div class="form-grid">
         <NFormItem :label="t('jobs.skills')">
