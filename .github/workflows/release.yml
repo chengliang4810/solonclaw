@@ -127,9 +127,25 @@ jobs:
             COMMIT_RANGE="${GITHUB_SHA::7}"
           fi
 
-          FEATURES="$(printf '%s\n' "$COMMITS" | grep -Ei '^(feat|feature)(\(.+\))?:' || true)"
-          FIXES="$(printf '%s\n' "$COMMITS" | grep -Ei '^(fix|bugfix)(\(.+\))?:' || true)"
-          OTHERS="$(printf '%s\n' "$COMMITS" | grep -Eiv '^(feat|feature|fix|bugfix)(\(.+\))?:' || true)"
+          classify_commits() {
+            local pattern="$1"
+            printf '%s\n' "$COMMITS" | grep -Ei "$pattern" || true
+          }
+
+          FEATURES="$(classify_commits '(^|\b)(feat|feature)(\(.+\))?:|功能|新增|支持|对齐|补齐|完善|实现|add|implement|support|align|complete|improve')"
+          FIXES="$(classify_commits '(^|\b)(fix|bugfix)(\(.+\))?:|修复|缺陷|问题|异常|错误|失败|回归|bug|fix|bugfix|resolve|repair')"
+          CLASSIFIED="$(printf '%s\n%s\n' "$FEATURES" "$FIXES" | sed '/^$/d' | sort -u)"
+          OTHERS="$(
+            printf '%s\n' "$COMMITS" | while IFS= read -r commit; do
+              if [ -z "$commit" ]; then
+                continue
+              fi
+              if printf '%s\n' "$CLASSIFIED" | grep -Fxq "$commit"; then
+                continue
+              fi
+              printf '%s\n' "$commit"
+            done
+          )"
 
           write_items() {
             local items="$1"
