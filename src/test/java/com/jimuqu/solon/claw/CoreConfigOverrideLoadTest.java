@@ -47,12 +47,6 @@ public class CoreConfigOverrideLoadTest {
                         + "    toolOutputMaxLineLength: 3000\n"
                         + "    mediaCacheTtlHours: 72\n"
                         + "  terminal:\n"
-                        + "    credentialFiles:\n"
-                        + "      - credentials/oauth.json\n"
-                        + "    envPassthrough:\n"
-                        + "      - TENOR_API_KEY\n"
-                        + "    sudoPassword: runtime-pass\n"
-                        + "    writeSafeRoot: D:/workspace/runtime\n"
                         + "    foregroundMaxRetries: 4\n"
                         + "    foregroundRetryBaseDelaySeconds: 1\n"
                         + "    processWaitTimeoutSeconds: 11\n"
@@ -105,6 +99,13 @@ public class CoreConfigOverrideLoadTest {
                         + "    timeoutSeconds: 45\n"
                         + "    gatewayTimeoutSeconds: 120\n"
                         + "    mcpReloadConfirm: false\n"
+                        + "  terminal:\n"
+                        + "    credentialFiles:\n"
+                        + "      - credentials/oauth.json\n"
+                        + "    envPassthrough:\n"
+                        + "      - TENOR_API_KEY\n"
+                        + "    sudoPassword: runtime-pass\n"
+                        + "    writeSafeRoot: D:/workspace/runtime\n"
                         + "  security:\n"
                         + "    allowPrivateUrls: true\n",
                 configFile);
@@ -319,6 +320,59 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTerminal().getCredentialFiles())
                 .containsExactly("credentials/jimuqu-token.json");
         assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
+    }
+
+    @Test
+    void shouldLoadScopedJimuquTerminalAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-terminal-config").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "jimuqu:\n"
+                        + "  terminal:\n"
+                        + "    credential_files:\n"
+                        + "      - credentials/jimuqu-token.json\n"
+                        + "    env_passthrough:\n"
+                        + "      - TENOR_API_KEY\n"
+                        + "    sudo_password: Jimuqu-pass\n"
+                        + "    write_safe_root: D:/workspace/jimuqu-safe\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTerminal().getCredentialFiles())
+                .containsExactly("credentials/jimuqu-token.json");
+        assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
+        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("Jimuqu-pass");
+        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/jimuqu-safe");
+    }
+
+    @Test
+    void shouldIgnoreLegacyScopedTerminalAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-terminal-config").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  terminal:\n"
+                        + "    credentialFiles:\n"
+                        + "      - credentials/legacy-token.json\n"
+                        + "    envPassthrough:\n"
+                        + "      - LEGACY_API_KEY\n"
+                        + "    sudoPassword: legacy-pass\n"
+                        + "    writeSafeRoot: D:/workspace/legacy-safe\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTerminal().getCredentialFiles()).isEmpty();
+        assertThat(config.getTerminal().getEnvPassthrough()).isEmpty();
+        assertThat(config.getTerminal().getSudoPassword()).isBlank();
+        assertThat(config.getTerminal().getWriteSafeRoot()).isBlank();
     }
 
     @Test

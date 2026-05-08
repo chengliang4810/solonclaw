@@ -81,9 +81,9 @@ solonclaw.task.toolOutputInlineLimit: 4000
 solonclaw.task.toolOutputTurnBudget: 200000
 
 # 终端/沙箱执行
-solonclaw.terminal.credentialFiles:
-solonclaw.terminal.sudoPassword:
-solonclaw.terminal.writeSafeRoot:
+jimuqu.terminal.credentialFiles:
+jimuqu.terminal.sudoPassword:
+jimuqu.terminal.writeSafeRoot:
 solonclaw.terminal.maxForegroundTimeoutSeconds: 600
 solonclaw.terminal.foregroundMaxRetries: 3
 solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2

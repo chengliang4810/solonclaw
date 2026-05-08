@@ -146,13 +146,33 @@ public class RuntimeRefreshBehaviorTest {
         configService.savePartialFlat(updates, false);
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
                 .contains("credentialFiles:")
-                .contains("credentials/oauth.json");
+                .contains("credentials/oauth.json")
+                .doesNotContain("solonclaw:\n  terminal:");
 
         assertCredentialPathRejected(configService, "../secret.json", "path traversal");
         assertCredentialPathRejected(configService, "/tmp/secret.json", "runtime-relative");
         assertCredentialPathRejected(configService, "C:\\Users\\secret.json", "runtime-relative");
         assertCredentialPathRejected(configService, "~/.ssh/id_rsa", "runtime-relative");
         assertCredentialPathRejected(configService, "credentials/\u0000secret.json", "control");
+    }
+
+    @Test
+    void shouldWriteTerminalRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("terminal.writeSafeRoot", "D:/workspace/jimuqu-safe");
+
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(env.appConfig.getTerminal().getWriteSafeRoot())
+                .isEqualTo("D:/workspace/jimuqu-safe");
+        assertThat(config)
+                .contains("terminal:")
+                .contains("writeSafeRoot: D:/workspace/jimuqu-safe")
+                .doesNotContain("solonclaw:\n  terminal:");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
     }
 
     @Test

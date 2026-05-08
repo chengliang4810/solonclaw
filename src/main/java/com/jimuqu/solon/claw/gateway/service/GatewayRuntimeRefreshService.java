@@ -546,9 +546,13 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.security.website_blocklist.shared_files",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
-                    "solonclaw.terminal.credentialFiles",
+                    "jimuqu.terminal.credentialFiles",
+                    "jimuqu.terminal.credential_files",
+                    "terminal.credentialFiles",
                     "terminal.credential_files",
-                    "solonclaw.terminal.writeSafeRoot",
+                    "jimuqu.terminal.writeSafeRoot",
+                    "jimuqu.terminal.write_safe_root",
+                    "terminal.writeSafeRoot",
                     "terminal.write_safe_root");
 
     private static final Set<String> INT_SUFFIXES =

@@ -1580,24 +1580,40 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.terminal.credentialFiles",
+                                        "jimuqu.terminal.credentialFiles",
                                         readRaw(
                                                 props,
                                                 overrides,
-                                                "terminal.credential_files",
-                                                ""))));
+                                                "jimuqu.terminal.credential_files",
+                                                readRaw(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.credentialFiles",
+                                                        readRaw(
+                                                                props,
+                                                                overrides,
+                                                                "terminal.credential_files",
+                                                                ""))))));
         config.getTerminal()
                 .setEnvPassthrough(
                         resolveList(
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.terminal.envPassthrough",
+                                        "jimuqu.terminal.envPassthrough",
                                         readRaw(
                                                 props,
                                                 overrides,
-                                                "terminal.env_passthrough",
-                                                ""))));
+                                                "jimuqu.terminal.env_passthrough",
+                                                readRaw(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.envPassthrough",
+                                                        readRaw(
+                                                                props,
+                                                                overrides,
+                                                                "terminal.env_passthrough",
+                                                                ""))))));
         config.getTerminal()
                 .setShellInitFiles(
                         resolveList(
@@ -1628,24 +1644,40 @@ public class AppConfig {
                                 readString(
                                         props,
                                         overrides,
-                                        "solonclaw.terminal.sudoPassword",
+                                        "jimuqu.terminal.sudoPassword",
                                         readString(
                                                 props,
                                                 overrides,
-                                                "terminal.sudo_password",
-                                                null))));
+                                                "jimuqu.terminal.sudo_password",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.sudoPassword",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "terminal.sudo_password",
+                                                                null))))));
         config.getTerminal()
                 .setWriteSafeRoot(
                         resolveConfigString(
                                 readString(
                                         props,
                                         overrides,
-                                        "solonclaw.terminal.writeSafeRoot",
+                                        "jimuqu.terminal.writeSafeRoot",
                                         readString(
                                                 props,
                                                 overrides,
-                                                "terminal.write_safe_root",
-                                                null))));
+                                                "jimuqu.terminal.write_safe_root",
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "terminal.writeSafeRoot",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "terminal.write_safe_root",
+                                                                null))))));
         config.getTerminal()
                 .setMaxForegroundTimeoutSeconds(
                         positiveInt(
