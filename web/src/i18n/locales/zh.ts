@@ -252,6 +252,9 @@ export default {
     noHistory: '暂无运行历史',
     historyTrigger: '触发',
     historyAttempt: '尝试',
+    historyFinished: '已结束',
+    historyUnfinished: '未结束',
+    historyDuration: '耗时',
     status: {
       running: '运行中',
       paused: '已暂停',

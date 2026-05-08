@@ -50,6 +50,8 @@ export interface JobRun {
   attempt: number
   started_at: string | null
   finished_at: string | null
+  finished?: boolean
+  duration_ms?: number | null
   status: string | null
   output: string | null
   error: string | null

@@ -62,6 +62,20 @@ const formatTime = (t?: string | null) => {
   return new Date(t).toLocaleString()
 }
 
+function formatDuration(durationMs?: number | null) {
+  if (durationMs === null || durationMs === undefined) return '—'
+  const ms = Math.max(0, Number(durationMs) || 0)
+  if (ms < 1000) return `${ms}ms`
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainSeconds = seconds % 60
+  if (minutes < 60) return remainSeconds > 0 ? `${minutes}m ${remainSeconds}s` : `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remainMinutes = minutes % 60
+  return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`
+}
+
 const jobBadges = computed(() => {
   const badges: string[] = []
   if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
@@ -291,6 +305,12 @@ async function handleDelete() {
               <div class="run-meta">
                 {{ t('jobs.historyTrigger') }} {{ run.trigger || 'scheduled' }}
                 <template v-if="run.attempt"> · {{ t('jobs.historyAttempt') }} {{ run.attempt }}</template>
+                <template v-if="run.finished !== undefined">
+                  · {{ run.finished ? t('jobs.historyFinished') : t('jobs.historyUnfinished') }}
+                </template>
+                <template v-if="run.duration_ms !== undefined && run.duration_ms !== null">
+                  · {{ t('jobs.historyDuration') }} {{ formatDuration(run.duration_ms) }}
+                </template>
               </div>
               <pre v-if="run.summary || run.output" class="run-output">{{ run.summary || run.output }}</pre>
               <div v-if="run.error || run.delivery_error" class="error-line">

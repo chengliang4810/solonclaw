@@ -249,6 +249,9 @@ export default {
     noHistory: 'No run history yet',
     historyTrigger: 'Trigger',
     historyAttempt: 'Attempt',
+    historyFinished: 'Finished',
+    historyUnfinished: 'Unfinished',
+    historyDuration: 'Duration',
     status: {
       running: 'Running',
       paused: 'Paused',
