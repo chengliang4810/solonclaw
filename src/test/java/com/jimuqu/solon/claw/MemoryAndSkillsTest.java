@@ -254,13 +254,23 @@ public class MemoryAndSkillsTest {
                         "MEMORY:room:user");
 
         String missingSkill = tools.skillView("missing-skill", null);
+        String missingSecretSkill = tools.skillView("missing-ghp_1234567890abcdef", null);
         String invalidPath = tools.skillView("demo-skill", "../outside.txt");
+        String invalidSecretPath = tools.skillView("demo-skill", "references/ghp_1234567890abcdef/../../outside.txt");
         String nestedTraversal = tools.skillView("demo-skill", "references/../../../.env");
 
         assertThat(missingSkill).contains("\"success\":false");
         assertThat(missingSkill).contains("Skill not found");
+        assertThat(missingSecretSkill)
+                .contains("\"success\":false")
+                .contains("missing-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
         assertThat(invalidPath).contains("\"success\":false");
         assertThat(invalidPath).contains("Invalid skill file path");
+        assertThat(invalidSecretPath)
+                .contains("\"success\":false")
+                .contains("references/***/../../outside.txt")
+                .doesNotContain("ghp_1234567890abcdef");
         assertThat(nestedTraversal).contains("\"success\":false");
         assertThat(nestedTraversal).contains("Invalid skill file path");
         assertThat(nestedTraversal).doesNotContain("SECRET_API_KEY");

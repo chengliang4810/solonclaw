@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import java.io.File;
 import java.util.ArrayList;
@@ -222,8 +223,12 @@ public class SkillTools {
     private String toolError(String message) {
         return new ONode()
                 .set("success", false)
-                .set("error", StrUtil.nullToDefault(message, "unknown error"))
+                .set("error", safeError(message))
                 .toJson();
+    }
+
+    private String safeError(String message) {
+        return SecretRedactor.redact(StrUtil.nullToDefault(message, "unknown error"), 1000);
     }
 
     /** `skills_list` 单工具暴露对象。 */
@@ -311,7 +316,7 @@ public class SkillTools {
             Map<String, Object> report = cronJobService.rewriteSkillRefs(consolidated, pruned);
             return "\nCron skill refs rewritten: " + report.get("jobs_updated");
         } catch (Exception e) {
-            return "\nCron skill refs rewrite failed: " + StrUtil.nullToDefault(e.getMessage(), "unknown error");
+            return "\nCron skill refs rewrite failed: " + safeError(e.getMessage());
         }
     }
 }
