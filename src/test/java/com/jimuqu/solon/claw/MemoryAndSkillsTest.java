@@ -657,7 +657,10 @@ public class MemoryAndSkillsTest {
                 .contains("credential_files")
                 .contains("skills_directories")
                 .contains("cache_directories")
-                .doesNotContain(credentialFile.getAbsolutePath());
+                .doesNotContain(credentialFile.getAbsolutePath())
+                .doesNotContain(new File(env.appConfig.getRuntime().getSkillsDir()).getAbsolutePath())
+                .doesNotContain(new File(env.appConfig.getRuntime().getCacheDir()).getAbsolutePath())
+                .doesNotContain("host_path");
         assertThat(new File(plan.getCredentialFiles().get(0).getHostPath()).getCanonicalFile())
                 .isEqualTo(credentialFile.getCanonicalFile());
     }
