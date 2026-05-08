@@ -247,6 +247,30 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"credential_files\"")
                 .doesNotContain("\"env_passthrough\"");
 
+        HttpResult commandAudit =
+                request(
+                        "POST",
+                        "/api/diagnostics/security-audit",
+                        "{\"action\":\"command\",\"toolName\":\"execute_shell\",\"command\":\"rm -rf /\"}",
+                        token);
+        assertThat(commandAudit.status).isEqualTo(200);
+        assertThat(commandAudit.body)
+                .contains("\"action\":\"command\"")
+                .contains("\"decision\":\"block\"")
+                .contains("\"hardline\"");
+
+        HttpResult urlAudit =
+                request(
+                        "POST",
+                        "/api/diagnostics/security-audit",
+                        "{\"action\":\"url\",\"url\":\"http://169.254.169.254/latest/meta-data/\"}",
+                        token);
+        assertThat(urlAudit.status).isEqualTo(200);
+        assertThat(urlAudit.body)
+                .contains("\"action\":\"url\"")
+                .contains("\"decision\":\"block\"")
+                .contains("\"url_policy\"");
+
         HttpResult skills = request("GET", "/api/skills", null, token);
         assertThat(skills.status).isEqualTo(200);
         assertThat(skills.body).contains("sample-skill");

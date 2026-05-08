@@ -7,11 +7,16 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.noear.snack4.ONode;
 
 /** Dashboard 统一诊断服务。 */
 public class DashboardDiagnosticsService {
@@ -20,18 +25,24 @@ public class DashboardDiagnosticsService {
     private final LlmProviderService llmProviderService;
     private final ToolRegistry toolRegistry;
     private final DangerousCommandApprovalService approvalService;
+    private final SecurityPolicyService securityPolicyService;
+    private final TirithSecurityService tirithSecurityService;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
             DeliveryService deliveryService,
             LlmProviderService llmProviderService,
             ToolRegistry toolRegistry,
-            DangerousCommandApprovalService approvalService) {
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
         this.toolRegistry = toolRegistry;
         this.approvalService = approvalService;
+        this.securityPolicyService = securityPolicyService;
+        this.tirithSecurityService = tirithSecurityService;
     }
 
     public Map<String, Object> diagnostics() {
@@ -43,6 +54,32 @@ public class DashboardDiagnosticsService {
         result.put("mcp", mcp());
         result.put("security", security());
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> securityAudit(Map<String, Object> body) {
+        Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        securityPolicyService, approvalService, tirithSecurityService, appConfig);
+        String result =
+                tools.audit(
+                        text(input, "action"),
+                        text(input, "toolName"),
+                        text(input, "command"),
+                        text(input, "url"),
+                        text(input, "path"),
+                        bool(input, "writeLike"),
+                        text(input, "argsJson"));
+        Object data = ONode.ofJson(result).toData();
+        if (data instanceof Map) {
+            return (Map<String, Object>) data;
+        }
+        Map<String, Object> fallback = new LinkedHashMap<String, Object>();
+        fallback.put("success", Boolean.FALSE);
+        fallback.put("decision", "error");
+        fallback.put("summary", "security audit result was not a JSON object");
+        return fallback;
     }
 
     private Map<String, Object> runtime() {
@@ -191,5 +228,21 @@ public class DashboardDiagnosticsService {
 
     private int size(List<?> values) {
         return values == null ? 0 : values.size();
+    }
+
+    private String text(Map<String, Object> body, String key) {
+        Object value = body.get(key);
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Boolean bool(Map<String, Object> body, String key) {
+        Object value = body.get(key);
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        if (value == null) {
+            return null;
+        }
+        return Boolean.valueOf(String.valueOf(value));
     }
 }

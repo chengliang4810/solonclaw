@@ -1,13 +1,37 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NSpin, NTag } from 'naive-ui'
-import { fetchDiagnostics, type Diagnostics } from '@/api/jimuqu/diagnostics'
+import { NButton, NInput, NSelect, NSpin, NSwitch, NTag } from 'naive-ui'
+import {
+  auditSecurity,
+  fetchDiagnostics,
+  type Diagnostics,
+  type SecurityAuditFinding,
+  type SecurityAuditResult,
+} from '@/api/jimuqu/diagnostics'
 
 const diagnostics = ref<Diagnostics | null>(null)
 const loading = ref(false)
+const auditLoading = ref(false)
+const auditResult = ref<SecurityAuditResult | null>(null)
+const auditForm = ref({
+  action: 'command',
+  toolName: 'execute_shell',
+  command: '',
+  url: '',
+  path: '',
+  writeLike: false,
+  argsJson: '',
+})
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
+const auditActionOptions = [
+  { label: '命令', value: 'command' },
+  { label: 'URL', value: 'url' },
+  { label: '路径', value: 'path' },
+  { label: '工具参数', value: 'tool_args' },
+]
+const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -24,12 +48,36 @@ function booleanText(value: unknown) {
   return value === true ? '是' : '否'
 }
 
+function decisionType(decision: unknown) {
+  if (decision === 'allow') return 'success'
+  if (decision === 'warn') return 'warning'
+  if (decision === 'block') return 'error'
+  return 'default'
+}
+
 async function load() {
   loading.value = true
   try {
     diagnostics.value = await fetchDiagnostics()
   } finally {
     loading.value = false
+  }
+}
+
+async function runAudit() {
+  auditLoading.value = true
+  try {
+    auditResult.value = await auditSecurity({
+      action: auditForm.value.action,
+      toolName: auditForm.value.toolName,
+      command: auditForm.value.command,
+      url: auditForm.value.url,
+      path: auditForm.value.path,
+      writeLike: auditForm.value.writeLike,
+      argsJson: auditForm.value.argsJson,
+    })
+  } finally {
+    auditLoading.value = false
   }
 }
 
@@ -181,6 +229,71 @@ onMounted(load)
             </div>
           </div>
         </section>
+        <section class="panel audit-panel">
+          <h3>安全审计</h3>
+          <div class="audit-layout">
+            <div class="audit-form">
+              <label>
+                <span>类型</span>
+                <NSelect v-model:value="auditForm.action" :options="auditActionOptions" size="small" />
+              </label>
+              <label v-if="auditForm.action === 'command' || auditForm.action === 'tool_args'">
+                <span>工具名</span>
+                <NInput v-model:value="auditForm.toolName" size="small" placeholder="execute_shell" />
+              </label>
+              <label v-if="auditForm.action === 'command'">
+                <span>命令</span>
+                <NInput
+                  v-model:value="auditForm.command"
+                  type="textarea"
+                  :autosize="{ minRows: 3, maxRows: 8 }"
+                  placeholder="输入待审计命令"
+                />
+              </label>
+              <label v-if="auditForm.action === 'url'">
+                <span>URL</span>
+                <NInput v-model:value="auditForm.url" size="small" placeholder="https://example.com" />
+              </label>
+              <label v-if="auditForm.action === 'path'">
+                <span>路径</span>
+                <NInput v-model:value="auditForm.path" size="small" placeholder="runtime/config.yml" />
+              </label>
+              <label v-if="auditForm.action === 'path'" class="switch-row">
+                <span>按写入检查</span>
+                <NSwitch v-model:value="auditForm.writeLike" size="small" />
+              </label>
+              <label v-if="auditForm.action === 'tool_args'">
+                <span>参数 JSON</span>
+                <NInput
+                  v-model:value="auditForm.argsJson"
+                  type="textarea"
+                  :autosize="{ minRows: 3, maxRows: 8 }"
+                  placeholder="{&quot;url&quot;:&quot;https://example.com&quot;}"
+                />
+              </label>
+              <NButton size="small" type="primary" :loading="auditLoading" @click="runAudit">审计</NButton>
+            </div>
+            <div class="audit-result">
+              <div class="audit-summary">
+                <NTag size="small" :type="decisionType(auditResult?.decision)">
+                  {{ auditResult?.decision || '未审计' }}
+                </NTag>
+                <span>{{ auditResult?.summary || '等待输入待审计内容' }}</span>
+              </div>
+              <div v-if="auditFindings.length" class="finding-list">
+                <div v-for="(finding, index) in auditFindings" :key="index" class="finding-item">
+                  <div class="finding-meta">
+                    <NTag size="small" :bordered="false">{{ finding.source || 'policy' }}</NTag>
+                    <span>{{ finding.ruleId || '-' }}</span>
+                    <span>{{ finding.severity || '-' }}</span>
+                  </div>
+                  <p>{{ finding.message }}</p>
+                </div>
+              </div>
+              <pre v-else>{{ auditResult }}</pre>
+            </div>
+          </div>
+        </section>
       </main>
     </NSpin>
   </div>
@@ -211,6 +324,10 @@ onMounted(load)
 }
 
 .security-panel {
+  grid-column: 1 / -1;
+}
+
+.audit-panel {
   grid-column: 1 / -1;
 }
 
@@ -267,6 +384,74 @@ dd {
   text-align: right;
 }
 
+.audit-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 16px;
+}
+
+.audit-form {
+  display: grid;
+  gap: 12px;
+}
+
+.audit-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.switch-row {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.audit-result {
+  min-height: 220px;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 12px;
+}
+
+.audit-summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.finding-list {
+  display: grid;
+  gap: 10px;
+}
+
+.finding-item {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+  padding: 10px;
+}
+
+.finding-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.finding-item p {
+  margin: 0;
+  font-size: 12px;
+  color: $text-primary;
+  word-break: break-word;
+}
+
 pre {
   margin: 0;
   white-space: pre-wrap;
@@ -282,6 +467,10 @@ pre {
   }
 
   .security-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-layout {
     grid-template-columns: 1fr;
   }
 }
