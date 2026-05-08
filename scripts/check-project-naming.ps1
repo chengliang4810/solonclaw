@@ -4,7 +4,8 @@ param(
     [string] $GitCommitRange = "",
     [switch] $CheckGitCommitSubjects,
     [switch] $CheckGitObjectText,
-    [switch] $CheckAllGitRefs
+    [switch] $CheckAllGitRefs,
+    [switch] $CheckCurrentBranchRange
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,6 +37,46 @@ try {
             }
         }
         return $patterns
+    }
+
+    function Get-DefaultBranchRange {
+        $git = Get-Command git -ErrorAction SilentlyContinue
+        if ($null -eq $git) {
+            Write-Host "git was not found, cannot resolve the current branch range." -ForegroundColor Red
+            exit 1
+        }
+
+        $insideWorkTree = (& git rev-parse --is-inside-work-tree 2>$null)
+        if ($LASTEXITCODE -ne 0 -or $insideWorkTree -ne "true") {
+            Write-Host "Current path is not a git work tree, cannot resolve the current branch range." -ForegroundColor Red
+            exit 1
+        }
+
+        $head = ((& git rev-parse HEAD 2>$null) | Select-Object -First 1)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($head)) {
+            Write-Host "Cannot resolve HEAD for current branch range." -ForegroundColor Red
+            exit 1
+        }
+        $head = ($head -as [string]).Trim()
+
+        $baseCandidates = @("origin/main", "main", "origin/master", "master")
+        foreach ($candidate in $baseCandidates) {
+            & git rev-parse -q --verify $candidate 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                continue
+            }
+            $mergeBase = ((& git merge-base $candidate HEAD 2>$null) | Select-Object -First 1)
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($mergeBase)) {
+                $mergeBase = ($mergeBase -as [string]).Trim()
+                if ($mergeBase -eq $head) {
+                    return $head
+                }
+                return ("{0}..{1}" -f $mergeBase, $head)
+            }
+        }
+
+        Write-Host "Cannot resolve a default branch base for current branch range." -ForegroundColor Red
+        exit 1
     }
 
     $blockedPatterns = Get-BlockedPatterns
@@ -189,6 +230,8 @@ try {
         $range = $GitCommitRange
         if ($CheckAllGitRefs) {
             $range = "--all"
+        } elseif ($CheckCurrentBranchRange) {
+            $range = Get-DefaultBranchRange
         } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
@@ -232,6 +275,8 @@ try {
         $range = $GitCommitRange
         if ($CheckAllGitRefs) {
             $range = "--all"
+        } elseif ($CheckCurrentBranchRange) {
+            $range = Get-DefaultBranchRange
         } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
