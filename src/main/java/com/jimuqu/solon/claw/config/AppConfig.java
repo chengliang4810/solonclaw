@@ -1322,16 +1322,20 @@ public class AppConfig {
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.security.websiteBlocklist.enabled",
+                                        "security.websiteBlocklist.enabled",
                                         readBoolean(
                                                 props,
                                                 overrides,
-                                                "solonclaw.security.website_blocklist.enabled",
+                                                "security.website_blocklist.enabled",
                                                 readBoolean(
                                                         props,
                                                         overrides,
-                                                        "security.website_blocklist.enabled",
-                                                        false)))));
+                                                        "jimuqu.security.websiteBlocklist.enabled",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.website_blocklist.enabled",
+                                                                false))))));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setDomains(
@@ -1339,16 +1343,20 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.security.websiteBlocklist.domains",
+                                        "security.websiteBlocklist.domains",
                                         readRaw(
                                                 props,
                                                 overrides,
-                                                "solonclaw.security.website_blocklist.domains",
+                                                "security.website_blocklist.domains",
                                                 readRaw(
                                                         props,
                                                         overrides,
-                                                        "security.website_blocklist.domains",
-                                                        "")))));
+                                                        "jimuqu.security.websiteBlocklist.domains",
+                                                        readRaw(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.website_blocklist.domains",
+                                                                ""))))));
         config.getSecurity()
                 .getWebsiteBlocklist()
                 .setSharedFiles(
@@ -1356,40 +1364,60 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.security.websiteBlocklist.sharedFiles",
+                                        "security.websiteBlocklist.sharedFiles",
                                         readRaw(
                                                 props,
                                                 overrides,
-                                                "solonclaw.security.website_blocklist.shared_files",
+                                                "security.website_blocklist.shared_files",
                                                 readRaw(
                                                         props,
                                                         overrides,
-                                                        "security.website_blocklist.shared_files",
-                                                        "")))));
+                                                        "jimuqu.security.websiteBlocklist.sharedFiles",
+                                                        readRaw(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.website_blocklist.shared_files",
+                                                                ""))))));
         config.getSecurity()
                 .setTirithEnabled(
                         resolveBoolean(
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.security.tirithEnabled",
+                                        "security.tirithEnabled",
                                         readBoolean(
                                                 props,
                                                 overrides,
                                                 "security.tirith_enabled",
-                                                true))));
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "jimuqu.security.tirithEnabled",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.tirith_enabled",
+                                                                true))))));
         config.getSecurity()
                 .setTirithPath(
                         resolveConfigString(
                                 readString(
                                         props,
                                         overrides,
-                                        "solonclaw.security.tirithPath",
+                                        "security.tirithPath",
                                         readString(
                                                 props,
                                                 overrides,
                                                 "security.tirith_path",
-                                                "tirith"))));
+                                                readString(
+                                                        props,
+                                                        overrides,
+                                                        "jimuqu.security.tirithPath",
+                                                        readString(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.tirith_path",
+                                                                "tirith"))))));
         config.getSecurity()
                 .setTirithTimeoutSeconds(
                         positiveInt(
@@ -1397,12 +1425,20 @@ public class AppConfig {
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "solonclaw.security.tirithTimeoutSeconds",
+                                                "security.tirithTimeoutSeconds",
                                                 readInt(
                                                         props,
                                                         overrides,
                                                         "security.tirith_timeout",
-                                                        5))),
+                                                        readInt(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.tirithTimeoutSeconds",
+                                                                readInt(
+                                                                        props,
+                                                                        overrides,
+                                                                        "jimuqu.security.tirith_timeout",
+                                                                        5))))),
                                 5));
         config.getSecurity()
                 .setTirithFailOpen(
@@ -1410,12 +1446,20 @@ public class AppConfig {
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.security.tirithFailOpen",
+                                        "security.tirithFailOpen",
                                         readBoolean(
                                                 props,
                                                 overrides,
                                                 "security.tirith_fail_open",
-                                                true))));
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "jimuqu.security.tirithFailOpen",
+                                                        readBoolean(
+                                                                props,
+                                                                overrides,
+                                                                "jimuqu.security.tirith_fail_open",
+                                                                true))))));
         config.getApprovals()
                 .setMode(
                         normalizeApprovalMode(

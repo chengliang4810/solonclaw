@@ -498,7 +498,10 @@ public class GatewayRuntimeRefreshService {
                     "tool_output.max_lines",
                     "tool_output.max_line_length",
                     "solonclaw.task.mediaCacheTtlHours",
-                    "solonclaw.security.tirithTimeoutSeconds");
+                    "jimuqu.security.tirithTimeoutSeconds",
+                    "jimuqu.security.tirith_timeout",
+                    "security.tirithTimeoutSeconds",
+                    "security.tirith_timeout");
 
     private static final Set<String> DOUBLE_KEYS =
             setOf(
@@ -528,13 +531,21 @@ public class GatewayRuntimeRefreshService {
                     "security.allow_private_urls",
                     "jimuqu.browser.allow_private_urls",
                     "browser.allow_private_urls",
-                    "solonclaw.security.tirithEnabled",
-                    "solonclaw.security.tirithFailOpen",
+                    "jimuqu.security.tirithEnabled",
+                    "jimuqu.security.tirith_enabled",
+                    "security.tirithEnabled",
+                    "security.tirith_enabled",
+                    "jimuqu.security.tirithFailOpen",
+                    "jimuqu.security.tirith_fail_open",
+                    "security.tirithFailOpen",
+                    "security.tirith_fail_open",
                     "jimuqu.approvals.mcpReloadConfirm",
                     "jimuqu.approvals.mcp_reload_confirm",
                     "approvals.mcpReloadConfirm",
                     "approvals.mcp_reload_confirm",
-                    "solonclaw.security.website_blocklist.enabled",
+                    "jimuqu.security.websiteBlocklist.enabled",
+                    "jimuqu.security.website_blocklist.enabled",
+                    "security.websiteBlocklist.enabled",
                     "security.website_blocklist.enabled",
                     "solonclaw.mcp.enabled");
 
@@ -542,8 +553,12 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "solonclaw.display.runtimeFooter.fields",
                     "solonclaw.gateway.allowedUsers",
-                    "solonclaw.security.website_blocklist.domains",
-                    "solonclaw.security.website_blocklist.shared_files",
+                    "jimuqu.security.websiteBlocklist.domains",
+                    "jimuqu.security.websiteBlocklist.sharedFiles",
+                    "jimuqu.security.website_blocklist.domains",
+                    "jimuqu.security.website_blocklist.shared_files",
+                    "security.websiteBlocklist.domains",
+                    "security.websiteBlocklist.sharedFiles",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
                     "jimuqu.terminal.credentialFiles",

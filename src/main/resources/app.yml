@@ -89,13 +89,13 @@ solonclaw.terminal.foregroundMaxRetries: 3
 solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2
 
 # 安全策略
-solonclaw.security.websiteBlocklist.enabled: false
-solonclaw.security.websiteBlocklist.domains:
-solonclaw.security.websiteBlocklist.sharedFiles:
-solonclaw.security.tirithEnabled: true
-solonclaw.security.tirithPath: tirith
-solonclaw.security.tirithTimeoutSeconds: 5
-solonclaw.security.tirithFailOpen: true
+security.websiteBlocklist.enabled: false
+security.websiteBlocklist.domains:
+security.websiteBlocklist.sharedFiles:
+security.tirithEnabled: true
+security.tirithPath: tirith
+security.tirithTimeoutSeconds: 5
+security.tirithFailOpen: true
 
 # 审批/确认策略
 jimuqu.approvals.mode: on

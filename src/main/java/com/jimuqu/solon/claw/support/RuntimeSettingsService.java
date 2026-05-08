@@ -105,6 +105,9 @@ public class RuntimeSettingsService {
                     "security.tirithPath",
                     "security.tirithTimeoutSeconds",
                     "security.tirithFailOpen",
+                    "security.websiteBlocklist.enabled",
+                    "security.websiteBlocklist.domains",
+                    "security.websiteBlocklist.sharedFiles",
                     "security.website_blocklist.enabled",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
@@ -441,6 +444,7 @@ public class RuntimeSettingsService {
                 || "browser.allow_private_urls".equals(key)
                 || "security.tirithEnabled".equals(key)
                 || "security.tirithFailOpen".equals(key)
+                || "security.websiteBlocklist.enabled".equals(key)
                 || "security.website_blocklist.enabled".equals(key)
                 || "approvals.subagentAutoApprove".equals(key)
                 || "approvals.mcpReloadConfirm".equals(key)) {
@@ -506,6 +510,8 @@ public class RuntimeSettingsService {
                 || key.endsWith("groupAllowedUsers")
                 || "display.runtimeFooter.fields".equals(key)
                 || "gateway.allowedUsers".equals(key)
+                || "security.websiteBlocklist.domains".equals(key)
+                || "security.websiteBlocklist.sharedFiles".equals(key)
                 || "security.website_blocklist.domains".equals(key)
                 || "security.website_blocklist.shared_files".equals(key)
                 || "terminal.credentialFiles".equals(key)

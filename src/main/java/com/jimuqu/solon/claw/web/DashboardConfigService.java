@@ -26,7 +26,7 @@ public class DashboardConfigService {
             Arrays.asList(
                     "approvals.",
                     "channels.wecom.groups.",
-                    "security.website_blocklist.",
+                    "security.",
                     "terminal.");
     private static final List<String> PASSTHROUGH_KEYS =
             Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");

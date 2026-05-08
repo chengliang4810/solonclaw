@@ -86,16 +86,24 @@ public class RuntimeRefreshBehaviorTest {
         runtimeSettingsService.setConfigValue(
                 "security.website_blocklist.shared_files",
                 "community-blocklist.txt");
+        runtimeSettingsService.setConfigValue("security.tirithEnabled", "false");
+        runtimeSettingsService.setConfigValue("security.tirithTimeoutSeconds", "9");
 
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getDomains())
                 .containsExactly("blocked.example", "*.tracking.example");
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())
                 .containsExactly("community-blocklist.txt");
-        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+        assertThat(env.appConfig.getSecurity().isTirithEnabled()).isFalse();
+        assertThat(env.appConfig.getSecurity().getTirithTimeoutSeconds()).isEqualTo(9);
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(config)
                 .contains("website_blocklist:")
                 .contains("blocked.example")
-                .contains("community-blocklist.txt");
+                .contains("community-blocklist.txt")
+                .contains("tirithEnabled: false")
+                .contains("tirithTimeoutSeconds: 9")
+                .doesNotContain("solonclaw:\n  security:");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -189,7 +197,8 @@ public class RuntimeRefreshBehaviorTest {
         configService.savePartialFlat(updates, false);
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
                 .contains("sharedFiles:")
-                .contains("blocklists/sites.txt");
+                .contains("blocklists/sites.txt")
+                .doesNotContain("solonclaw:\n  security:");
 
         assertWebsiteSharedFileRejected(configService, "../blocklists/sites.txt", "path traversal");
         assertWebsiteSharedFileRejected(configService, "blocklists/\u0000sites.txt", "control");

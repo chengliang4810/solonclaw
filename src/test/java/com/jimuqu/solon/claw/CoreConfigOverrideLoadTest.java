@@ -58,13 +58,6 @@ public class CoreConfigOverrideLoadTest {
                         + "  web:\n"
                         + "    searchBackend: brave-free\n"
                         + "    braveSearchApiKey: brv-test-key\n"
-                        + "  security:\n"
-                        + "    websiteBlocklist:\n"
-                        + "      enabled: true\n"
-                        + "      domains:\n"
-                        + "        - blocked.example\n"
-                        + "      sharedFiles:\n"
-                        + "        - shared-blocklist.txt\n"
                         + "  compression:\n"
                         + "    enabled: false\n"
                         + "    thresholdPercent: 0.75\n"
@@ -107,7 +100,14 @@ public class CoreConfigOverrideLoadTest {
                         + "    sudoPassword: runtime-pass\n"
                         + "    writeSafeRoot: D:/workspace/runtime\n"
                         + "  security:\n"
-                        + "    allowPrivateUrls: true\n",
+                        + "    allowPrivateUrls: true\n"
+                        + "security:\n"
+                        + "  websiteBlocklist:\n"
+                        + "    enabled: true\n"
+                        + "    domains:\n"
+                        + "      - blocked.example\n"
+                        + "    sharedFiles:\n"
+                        + "      - shared-blocklist.txt\n",
                 configFile);
 
         Props props = new Props();
@@ -566,6 +566,74 @@ public class CoreConfigOverrideLoadTest {
                 .containsExactly("blocked.example", "*.tracking.example");
         assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
                 .containsExactly("community-blocklist.txt");
+    }
+
+    @Test
+    void shouldLoadScopedJimuquSecurityPolicyAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-security-policy").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "jimuqu:\n"
+                        + "  security:\n"
+                        + "    tirith_enabled: false\n"
+                        + "    tirith_path: D:/tools/tirith.exe\n"
+                        + "    tirith_timeout: 9\n"
+                        + "    tirith_fail_open: false\n"
+                        + "    website_blocklist:\n"
+                        + "      enabled: true\n"
+                        + "      domains:\n"
+                        + "        - blocked.example\n"
+                        + "      shared_files:\n"
+                        + "        - team-blocklist.txt\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isTirithEnabled()).isFalse();
+        assertThat(config.getSecurity().getTirithPath()).isEqualTo("D:/tools/tirith.exe");
+        assertThat(config.getSecurity().getTirithTimeoutSeconds()).isEqualTo(9);
+        assertThat(config.getSecurity().isTirithFailOpen()).isFalse();
+        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
+        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
+                .containsExactly("blocked.example");
+        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
+                .containsExactly("team-blocklist.txt");
+    }
+
+    @Test
+    void shouldIgnoreLegacyScopedSecurityPolicyAliases() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-security-policy").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  security:\n"
+                        + "    tirithEnabled: false\n"
+                        + "    tirithPath: D:/tools/legacy-tirith.exe\n"
+                        + "    tirithTimeoutSeconds: 9\n"
+                        + "    tirithFailOpen: false\n"
+                        + "    websiteBlocklist:\n"
+                        + "      enabled: true\n"
+                        + "      domains:\n"
+                        + "        - legacy.example\n"
+                        + "      sharedFiles:\n"
+                        + "        - legacy-blocklist.txt\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getSecurity().isTirithEnabled()).isTrue();
+        assertThat(config.getSecurity().getTirithPath()).isEqualTo("tirith");
+        assertThat(config.getSecurity().getTirithTimeoutSeconds()).isEqualTo(5);
+        assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
+        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isFalse();
+        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains()).isEmpty();
+        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles()).isEmpty();
     }
 
     @Test
