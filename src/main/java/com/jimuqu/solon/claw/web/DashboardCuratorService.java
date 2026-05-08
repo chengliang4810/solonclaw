@@ -27,7 +27,7 @@ public class DashboardCuratorService {
     public Map<String, Object> run(boolean force) throws Exception {
         Map<String, Object> report = skillCuratorService.runOnce(force);
         saveReport(report);
-        return report;
+        return sanitizeReport(report);
     }
 
     public Map<String, Object> list(int limit) throws Exception {
@@ -150,13 +150,79 @@ public class DashboardCuratorService {
         map.put("report_id", resultSet.getString("report_id"));
         map.put("status", resultSet.getString("status"));
         map.put("summary", resultSet.getString("summary"));
-        map.put("report_path", resultSet.getString("report_path"));
+        map.put("report_path", curatorReference(resultSet.getString("report_path")));
         map.put("started_at", resultSet.getLong("started_at"));
         map.put("finished_at", resultSet.getLong("finished_at"));
         if (includeJson) {
-            map.put("report", ONode.deserialize(resultSet.getString("report_json"), Object.class));
+            Object parsed = ONode.deserialize(resultSet.getString("report_json"), Object.class);
+            map.put(
+                    "report",
+                    parsed instanceof Map
+                            ? sanitizeReport((Map<String, Object>) parsed)
+                            : sanitizeObject(parsed));
         }
         return map;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> sanitizeReport(Map<String, Object> report) {
+        Map<String, Object> sanitized = new LinkedHashMap<String, Object>();
+        if (report == null) {
+            return sanitized;
+        }
+        for (Map.Entry<String, Object> entry : report.entrySet()) {
+            sanitized.put(entry.getKey(), sanitizeObject(entry.getValue()));
+        }
+        if (sanitized.containsKey("stateFile")) {
+            sanitized.put("stateFile", curatorReference(String.valueOf(sanitized.get("stateFile"))));
+        }
+        Object items = sanitized.get("items");
+        if (items instanceof List) {
+            List<Object> sanitizedItems = new ArrayList<Object>();
+            for (Object item : (List<?>) items) {
+                if (item instanceof Map) {
+                    Map<String, Object> copy = new LinkedHashMap<String, Object>();
+                    for (Map.Entry<?, ?> entry : ((Map<?, ?>) item).entrySet()) {
+                        copy.put(String.valueOf(entry.getKey()), sanitizeObject(entry.getValue()));
+                    }
+                    if (copy.containsKey("path")) {
+                        copy.put("path", skillReference(String.valueOf(copy.get("name"))));
+                    }
+                    sanitizedItems.add(copy);
+                } else {
+                    sanitizedItems.add(sanitizeObject(item));
+                }
+            }
+            sanitized.put("items", sanitizedItems);
+        }
+        return sanitized;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object sanitizeObject(Object value) {
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                result.put(String.valueOf(entry.getKey()), sanitizeObject(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof List) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object item : (List<?>) value) {
+                result.add(sanitizeObject(item));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private String curatorReference(String value) {
+        return "curator://report";
+    }
+
+    private String skillReference(String name) {
+        return "skill://" + StrUtil.blankToDefault(name, "unknown");
     }
 
     private long asLong(Object value) {

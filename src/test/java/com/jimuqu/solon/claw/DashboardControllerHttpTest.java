@@ -1371,6 +1371,35 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldHideCuratorHostPaths() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult run = request("POST", "/api/jimuqu/curator/run?force=true", "{}", token);
+        assertThat(run.status).isEqualTo(200);
+        assertThat(run.body).contains("curator://report");
+        assertThat(run.body).contains("skill://sample-skill");
+        assertThat(run.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult list = request("GET", "/api/jimuqu/curator?limit=5", null, token);
+        assertThat(list.status).isEqualTo(200);
+        assertThat(list.body).contains("curator://report");
+        assertThat(list.body).doesNotContain(runtimeHome.getAbsolutePath());
+        String reportId =
+                ONode.ofJson(list.body)
+                        .get("data")
+                        .get("reports")
+                        .get(0)
+                        .get("report_id")
+                        .getString();
+
+        HttpResult detail = request("GET", "/api/jimuqu/curator/" + reportId, null, token);
+        assertThat(detail.status).isEqualTo(200);
+        assertThat(detail.body).contains("curator://report");
+        assertThat(detail.body).contains("skill://sample-skill");
+        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
     void shouldHideAgentHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
