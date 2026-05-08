@@ -215,8 +215,11 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "broken-watchdog.py");
+        String leakedToken = "sk-1234567890abcdef";
         FileUtil.writeString(
-                "import sys\nprint('partial output')\nprint('oops', file=sys.stderr)\nsys.exit(3)\n",
+                "import sys\nprint('partial output')\nprint('oops "
+                        + leakedToken
+                        + "', file=sys.stderr)\nsys.exit(3)\n",
                 script,
                 StandardCharsets.UTF_8);
 
@@ -247,14 +250,25 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getLastError())
                 .contains("Cron script exited 3")
                 .contains("partial output")
-                .contains("oops");
+                .contains("oops")
+                .contains("***")
+                .doesNotContain(leakedToken);
         assertThat(updated.getLastDeliveryError()).isNull();
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
                 .contains("Cron watchdog 'broken-watchdog' script failed")
                 .contains("Cron script exited 3")
                 .contains("partial output")
                 .contains("oops")
+                .contains("***")
+                .doesNotContain(leakedToken)
                 .contains("Time:");
+        assertThat(env.cronJobRepository.listRuns(job.getJobId(), 5)).hasSize(1);
+        assertThat(env.cronJobRepository.listRuns(job.getJobId(), 5).get(0).getError())
+                .contains("***")
+                .doesNotContain(leakedToken);
+        assertThat(env.cronJobRepository.listRuns(job.getJobId(), 5).get(0).getSummary())
+                .contains("***")
+                .doesNotContain(leakedToken);
     }
 
     @Test

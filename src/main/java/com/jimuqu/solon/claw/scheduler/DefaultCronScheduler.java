@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -333,10 +334,10 @@ public class DefaultCronScheduler {
             execute(job, System.currentTimeMillis());
         } catch (Exception e) {
             log.warn(
-                    "Cron job failed: jobId={}, sourceKey={}",
+                    "Cron job failed: jobId={}, sourceKey={}, error={}",
                     job.getJobId(),
                     job.getSourceKey(),
-                    e);
+                    safeError(e));
         }
     }
 
@@ -509,7 +510,7 @@ public class DefaultCronScheduler {
                         if (isCronScriptSecurityBlock(scriptError)) {
                             throw scriptError;
                         }
-                        prompt = withScriptError(prompt, scriptError.getMessage());
+                        prompt = withScriptError(prompt, safeError(scriptError));
                         scanAssembledPrompt(prompt, job);
                     }
                     if (scriptResult != null && !scriptResult.wakeAgent) {
@@ -591,7 +592,7 @@ public class DefaultCronScheduler {
             recordRun(job, now, runStatus, error, output, deliveryError, completed, triggerType);
         } catch (Exception e) {
             runStatus = "error";
-            error = e.getMessage();
+            error = safeError(e);
             cronJobRepository.markRunResult(
                     job.getJobId(),
                     now,
@@ -652,7 +653,7 @@ public class DefaultCronScheduler {
             log.warn(
                     "Cron job '{}' MCP initialization failed (non-fatal): {}",
                     job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId()),
-                    e.getMessage());
+                    safeError(e));
         }
     }
 
@@ -819,9 +820,10 @@ public class DefaultCronScheduler {
         try {
             return deliver(job, reply);
         } catch (Exception e) {
-            log.warn("Cron delivery failed: jobId={}", job.getJobId(), e);
-            markDeliveryErrorBestEffort(job.getJobId(), e.getMessage());
-            return e.getMessage();
+            String error = safeError(e);
+            log.warn("Cron delivery failed: jobId={}, error={}", job.getJobId(), error);
+            markDeliveryErrorBestEffort(job.getJobId(), error);
+            return error;
         }
     }
 
@@ -854,7 +856,7 @@ public class DefaultCronScheduler {
             try {
                 deliveryService.deliver(request);
             } catch (Exception e) {
-                cronJobRepository.markDeliveryError(job.getJobId(), e.getMessage());
+                cronJobRepository.markDeliveryError(job.getJobId(), safeError(e));
                 throw e;
             }
         }
@@ -1168,7 +1170,8 @@ public class DefaultCronScheduler {
         } catch (IllegalStateException e) {
             String jobLabel =
                     job == null ? "<unknown>" : StrUtil.blankToDefault(job.getName(), job.getJobId());
-            String reason = StrUtil.blankToDefault(e.getMessage(), "cron prompt injection scanner");
+            String reason =
+                    safeText(StrUtil.blankToDefault(e.getMessage(), "cron prompt injection scanner"));
             log.warn(
                     "Cron job '{}' blocked by assembled prompt scanner: {}",
                     jobLabel,
@@ -1214,7 +1217,7 @@ public class DefaultCronScheduler {
                         "Cron job '{}' referenced missing skill '{}': {}",
                         StrUtil.blankToDefault(job.getName(), job.getJobId()),
                         skill,
-                        e.getMessage());
+                        safeError(e));
             }
         }
         if (!skipped.isEmpty()) {
@@ -1415,16 +1418,18 @@ public class DefaultCronScheduler {
                 deliver(job, GatewayReply.error(blockedPromptFailureMessage(job, error)));
                 return null;
             } catch (Exception e) {
-                markDeliveryErrorBestEffort(job.getJobId(), e.getMessage());
-                return e.getMessage();
+                String deliveryError = safeError(e);
+                markDeliveryErrorBestEffort(job.getJobId(), deliveryError);
+                return deliveryError;
             }
         }
         try {
             deliver(job, GatewayReply.error(noAgentScriptFailureMessage(job, error)));
             return null;
         } catch (Exception e) {
-            markDeliveryErrorBestEffort(job.getJobId(), e.getMessage());
-            return e.getMessage();
+            String deliveryError = safeError(e);
+            markDeliveryErrorBestEffort(job.getJobId(), deliveryError);
+            return deliveryError;
         }
     }
 
@@ -1443,14 +1448,14 @@ public class DefaultCronScheduler {
                 + "**Status:** BLOCKED\n\n"
                 + "The assembled prompt, including loaded skill content and script context, matched the cron injection scanner and the agent was not run.\n\n"
                 + "**Scanner result:** "
-                + StrUtil.blankToDefault(error, "unknown scanner result")
+                + safeText(StrUtil.blankToDefault(error, "unknown scanner result"))
                 + "\n\n"
                 + "Audit the skill(s) or script output attached to this job before resuming it.";
     }
 
     private String noAgentScriptFailureMessage(CronJobRecord job, String error) {
         String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
-        String message = StrUtil.blankToDefault(error, "unknown error");
+        String message = safeText(StrUtil.blankToDefault(error, "unknown error"));
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
         return "⚠ Cron watchdog '"
                 + taskName
@@ -1465,7 +1470,7 @@ public class DefaultCronScheduler {
         return "⚠ Cron job '"
                 + taskName
                 + "' failed:\n"
-                + StrUtil.blankToDefault(error, "unknown error");
+                + safeText(StrUtil.blankToDefault(error, "unknown error"));
     }
 
     private void recordRun(
@@ -1512,9 +1517,21 @@ public class DefaultCronScheduler {
 
     private void markDeliveryErrorBestEffort(String jobId, String error) {
         try {
-            cronJobRepository.markDeliveryError(jobId, error);
+            cronJobRepository.markDeliveryError(jobId, safeText(error));
         } catch (Exception ignored) {
         }
+    }
+
+    private String safeError(Exception e) {
+        if (e == null) {
+            return "Exception";
+        }
+        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return safeText(message);
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
     }
 
     private byte[] readAll(java.io.InputStream inputStream) throws Exception {
