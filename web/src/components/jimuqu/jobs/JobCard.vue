@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 const props = defineProps<{ job: Job }>()
 const emit = defineEmits<{
   edit: [jobId: string]
+  changed: []
 }>()
 
 const { t } = useI18n()
@@ -114,6 +115,7 @@ async function handlePause() {
     await jobsStore.pauseJob(jobId.value, pauseReason.value)
     showPauseModal.value = false
     pauseReason.value = ''
+    emit('changed')
     message.success(t('jobs.jobPaused'))
   } catch (e: any) {
     message.error(e.message)
@@ -128,6 +130,7 @@ function openPauseModal() {
 async function handleResume() {
   try {
     await jobsStore.resumeJob(jobId.value)
+    emit('changed')
     message.success(t('jobs.jobResumed'))
   } catch (e: any) {
     message.error(e.message)
@@ -140,6 +143,7 @@ async function handleRun() {
     if (showRuns.value) {
       await refreshRuns()
     }
+    emit('changed')
     message.info(t('jobs.jobTriggered'))
   } catch (e: any) {
     message.error(e.message)
@@ -165,6 +169,7 @@ async function openRuns() {
 async function handleDelete() {
   try {
     await jobsStore.deleteJob(jobId.value)
+    emit('changed')
     message.success(t('jobs.jobDeleted'))
   } catch (e: any) {
     message.error(e.message)

@@ -189,10 +189,15 @@ export async function listJobs(): Promise<Job[]> {
 }
 
 export async function getJob(jobId: string): Promise<Job> {
-  const jobs = await listJobs()
-  const found = jobs.find((job) => job.id === jobId || job.job_id === jobId)
-  if (!found) throw new Error('Job not found')
-  return found
+  const job = await request<DashboardJob>(`/api/cron/jobs/${encodeURIComponent(jobId)}`)
+  return mapJob(job)
+}
+
+export async function listUpcomingJobs(limit = 5): Promise<Job[]> {
+  const result = await request<{ jobs: DashboardJob[]; count: number }>(
+    `/api/cron/jobs/next?limit=${encodeURIComponent(String(limit))}`,
+  )
+  return (result.jobs || []).map(mapJob)
 }
 
 export async function createJob(data: CreateJobRequest): Promise<Job> {

@@ -13,6 +13,7 @@ const editingJob = ref<string | null>(null)
 
 onMounted(() => {
   jobsStore.fetchJobs()
+  jobsStore.fetchUpcomingJobs()
 })
 
 function openCreateModal() {
@@ -32,7 +33,12 @@ function handleModalClose() {
 
 async function handleSave() {
   await jobsStore.fetchJobs()
+  await jobsStore.fetchUpcomingJobs()
   handleModalClose()
+}
+
+async function refreshSchedules() {
+  await jobsStore.fetchUpcomingJobs()
 }
 </script>
 
@@ -50,7 +56,7 @@ async function handleSave() {
 
     <div class="jobs-content">
       <NSpin :show="jobsStore.loading && jobsStore.jobs.length === 0">
-        <JobsPanel @edit="openEditModal" />
+        <JobsPanel @edit="openEditModal" @changed="refreshSchedules" />
       </NSpin>
     </div>
 

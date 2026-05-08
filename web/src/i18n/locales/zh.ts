@@ -255,6 +255,8 @@ export default {
     historyFinished: '已结束',
     historyUnfinished: '未结束',
     historyDuration: '耗时',
+    upcomingTitle: '即将运行',
+    upcomingCount: '{count} 个任务',
     status: {
       running: '运行中',
       paused: '已暂停',

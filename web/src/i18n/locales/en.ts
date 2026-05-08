@@ -252,6 +252,8 @@ export default {
     historyFinished: 'Finished',
     historyUnfinished: 'Unfinished',
     historyDuration: 'Duration',
+    upcomingTitle: 'Upcoming Runs',
+    upcomingCount: '{count} jobs',
     status: {
       running: 'Running',
       paused: 'Paused',

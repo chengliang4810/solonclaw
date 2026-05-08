@@ -9,7 +9,9 @@ function matchId(job: Job, id: string): boolean {
 
 export const useJobsStore = defineStore('jobs', () => {
   const jobs = ref<Job[]>([])
+  const upcomingJobs = ref<Job[]>([])
   const loading = ref(false)
+  const upcomingLoading = ref(false)
 
   async function fetchJobs() {
     loading.value = true
@@ -19,6 +21,17 @@ export const useJobsStore = defineStore('jobs', () => {
       console.error('Failed to fetch jobs:', err)
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchUpcomingJobs(limit = 5) {
+    upcomingLoading.value = true
+    try {
+      upcomingJobs.value = await jobsApi.listUpcomingJobs(limit)
+    } catch (err) {
+      console.error('Failed to fetch upcoming jobs:', err)
+    } finally {
+      upcomingLoading.value = false
     }
   }
 
@@ -64,8 +77,11 @@ export const useJobsStore = defineStore('jobs', () => {
 
   return {
     jobs,
+    upcomingJobs,
     loading,
+    upcomingLoading,
     fetchJobs,
+    fetchUpcomingJobs,
     createJob,
     updateJob,
     deleteJob,
