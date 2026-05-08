@@ -110,9 +110,9 @@ public class ProcessTools {
             if ("close".equals(normalized)) {
                 return close(sessionId);
             }
-            return ToolResultEnvelope.error("Unsupported process action: " + action).toJson();
+            return ToolResultEnvelope.error("Unsupported process action: " + safeText(action)).toJson();
         } catch (Exception e) {
-            String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            String message = safeError(e);
             ToolResultEnvelope envelope = ToolResultEnvelope.error(message);
             if (message.startsWith("Unknown process session_id:")) {
                 envelope.data("status", "not_found");
@@ -382,9 +382,21 @@ public class ProcessTools {
                     "BLOCKED: process stdin 会被 "
                             + executableLabel(managed.getCommand())
                             + " 当作命令或脚本执行，已套用同等终端安全策略。\n"
-                            + e.getMessage(),
+                            + safeError(e),
                     e);
         }
+    }
+
+    private String safeError(Exception e) {
+        String message = e == null ? "" : e.getMessage();
+        if (StrUtil.isBlank(message) && e != null) {
+            message = e.getClass().getSimpleName();
+        }
+        return safeText(message);
+    }
+
+    private String safeText(String text) {
+        return SecretRedactor.redact(text, 1000);
     }
 
     private String stdinExecutionToolName(String command) {

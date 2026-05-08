@@ -331,6 +331,46 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromProcessToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode unsupported =
+                ONode.ofJson(
+                        tools.process(
+                                "inspect --token=ghp_processaction12345",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode missing =
+                ONode.ofJson(
+                        tools.process(
+                                "poll",
+                                null,
+                                "proc_token=ghp_processsession12345",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+
+        assertThat(unsupported.get("error").getString())
+                .contains("token=***")
+                .doesNotContain("ghp_processaction12345");
+        assertThat(missing.get("error").getString())
+                .contains("token=***")
+                .doesNotContain("ghp_processsession12345");
+    }
+
+    @Test
     void shouldExposeTerminalNotificationMetadataThroughProcessTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry.ManagedProcess managed =
