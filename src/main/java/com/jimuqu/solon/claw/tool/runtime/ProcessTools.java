@@ -524,7 +524,7 @@ public class ProcessTools {
                         "BLOCKED: 文件安全策略阻止访问："
                                 + fileVerdict.getMessage()
                                 + "\n路径："
-                                + StrUtil.nullToEmpty(fileVerdict.getPath()));
+                                + SecretRedactor.redact(fileVerdict.getPath(), 400));
             }
             SecurityPolicyService.UrlVerdict urlVerdict =
                     securityPolicyService.checkCommandUrls(command);

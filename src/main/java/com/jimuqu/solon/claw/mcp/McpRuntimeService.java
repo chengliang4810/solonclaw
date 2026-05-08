@@ -1660,7 +1660,7 @@ public class McpRuntimeService implements Closeable {
                                     + " 文件安全策略阻止访问："
                                     + verdict.getMessage()
                                     + "\n路径："
-                                    + verdict.getPath());
+                                    + SecretRedactor.redact(verdict.getPath(), 400));
                 }
             }
         }

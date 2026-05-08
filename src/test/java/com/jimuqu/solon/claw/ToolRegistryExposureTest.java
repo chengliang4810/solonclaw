@@ -1443,7 +1443,8 @@ public class ToolRegistryExposureTest {
                                         Integer.valueOf(1000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(".env");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".env");
         assertThatThrownBy(
                         () ->
                                 nodejs.execute(
@@ -1665,7 +1666,10 @@ public class ToolRegistryExposureTest {
 
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("tool_calls_made").getInt()).isEqualTo(1);
-        assertThat(result.get("output").getString()).contains("文件安全策略").contains(".env");
+        assertThat(result.get("output").getString())
+                .contains("文件安全策略")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env");
     }
 
     @Test
@@ -1823,7 +1827,8 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(() -> fileSkill.read(".env"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(".env");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".env");
         assertThatThrownBy(() -> fileSkill.read("credentials.json"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
@@ -1837,7 +1842,10 @@ public class ToolRegistryExposureTest {
                 .hasMessageContaining("路径遍历");
         assertThatThrownBy(() -> fileSkill.delete("~/.ssh/id_rsa"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感");
+                .hasMessageContaining("敏感")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".ssh")
+                .hasMessageNotContaining("id_rsa");
     }
 
     @Test

@@ -2597,7 +2597,9 @@ public class DefaultCronSchedulerTest {
                             }
                         })
                 .hasMessageContaining("workdir blocked by security policy")
-                .hasMessageContaining(".ssh");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(sshDir.getAbsolutePath())
+                .hasMessageNotContaining(".ssh");
 
         Map<String, Object> metacharCreate = new LinkedHashMap<String, Object>();
         metacharCreate.put("name", "metachar-workdir");
@@ -2631,7 +2633,9 @@ public class DefaultCronSchedulerTest {
                             }
                         })
                 .hasMessageContaining("workdir blocked by security policy")
-                .hasMessageContaining(".ssh");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(sshDir.getAbsolutePath())
+                .hasMessageNotContaining(".ssh");
     }
 
     @Test

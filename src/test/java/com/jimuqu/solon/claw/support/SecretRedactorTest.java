@@ -70,4 +70,18 @@ class SecretRedactorTest {
                 .doesNotContain("ws-secret")
                 .doesNotContain("opaqueWsToken123");
     }
+
+    @Test
+    void shouldRedactSensitivePathFragments() {
+        String result =
+                SecretRedactor.redact(
+                        "blocked path C:\\Users\\dev\\.ssh\\id_ed25519 and ./credentials/oauth.json plus .env");
+
+        assertThat(result)
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".ssh")
+                .doesNotContain("id_ed25519")
+                .doesNotContain("credentials/oauth.json")
+                .doesNotContain(".env");
+    }
 }

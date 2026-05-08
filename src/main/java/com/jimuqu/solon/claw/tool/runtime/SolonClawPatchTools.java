@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -342,7 +343,7 @@ public class SolonClawPatchTools {
                 "BLOCKED: 文件安全策略阻止访问："
                         + verdict.getMessage()
                         + " path="
-                        + verdict.getPath());
+                        + SecretRedactor.redact(verdict.getPath(), 400));
     }
 
     private void applyOperation(PatchOperation operation, PatchResult result, StringBuilder diff)
