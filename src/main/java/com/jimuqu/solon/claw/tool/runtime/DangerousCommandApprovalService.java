@@ -500,6 +500,17 @@ public class DangerousCommandApprovalService {
                                     pattern("\\breg\\s+delete\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_take_ownership",
+                                    "Windows ownership takeover",
+                                    pattern("\\btakeown\\b(?=[^\\n]*(?:/r\\b|/f\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_acl_rewrite",
+                                    "Windows ACL rewrite",
+                                    pattern(
+                                            "\\bicacls\\b(?=[^\\n]*(?:/grant\\b|/deny\\b|/remove\\b|/reset\\b|/setowner\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_execution_policy_weaken",
                                     "PowerShell execution policy weakened",
                                     pattern(

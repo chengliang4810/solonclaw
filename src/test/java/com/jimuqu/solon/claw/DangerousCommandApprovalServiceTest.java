@@ -324,6 +324,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "takeown /f C:\\ProgramData\\app /r /d y",
+                "windows_take_ownership");
+        assertDangerPattern(
+                env,
+                "icacls C:\\ProgramData\\app /grant Everyone:F /t",
+                "windows_acl_rewrite");
+        assertDangerPattern(
+                env,
+                "icacls C:\\ProgramData\\app /reset /t",
+                "windows_acl_rewrite");
+        assertDangerPattern(
+                env,
                 "Get-Credential | Export-Clixml .\\credential.xml",
                 "windows_export_credentials");
         assertDangerPattern(
