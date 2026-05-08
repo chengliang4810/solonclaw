@@ -29,6 +29,7 @@ import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeFooterService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
@@ -325,9 +326,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             return StrUtil.blankToDefault(systemPrompt, "") + "\n\n" + note;
         } catch (Exception e) {
             log.debug(
-                    "skip resume pending system note: sessionId={}",
+                    "skip resume pending system note: sessionId={}, error={}",
                     session == null ? "" : session.getSessionId(),
-                    e);
+                    safeError(e));
             return systemPrompt;
         }
     }
@@ -344,7 +345,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 agentSession.updateSnapshot();
             }
         } catch (Exception e) {
-            log.warn("clear agent pending failed: sessionId={}", session.getSessionId(), e);
+            log.warn(
+                    "clear agent pending failed: sessionId={}, error={}",
+                    session.getSessionId(),
+                    safeError(e));
         }
     }
 
@@ -580,7 +584,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 reply.getRuntimeMetadata().put("goal_continuation_prompt", decision.getContinuationPrompt());
             }
         } catch (Exception e) {
-            log.warn("Goal continuation hook failed: sessionId={}", session.getSessionId(), e);
+            log.warn(
+                    "Goal continuation hook failed: sessionId={}, error={}",
+                    session.getSessionId(),
+                    safeError(e));
         }
     }
 
@@ -649,7 +656,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         try {
             memoryManager.syncTurn(sourceKey, userMessage, finalReply);
         } catch (Exception e) {
-            log.warn("Memory sync failed: sourceKey={}", sourceKey, e);
+            log.warn("Memory sync failed: sourceKey={}, error={}", sourceKey, safeError(e));
         }
     }
 
@@ -820,5 +827,14 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         + Math.max(0L, base.getCacheWriteTokens()));
         extra.setTotalTokens(
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 }
