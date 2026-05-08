@@ -23,6 +23,7 @@ public final class LocalTerminalHelp {
                 + "/tips - 查看终端提示\n"
                 + "/queue <提示> - 将新输入排到当前任务之后执行\n"
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
+                + "/acp status - 查看 ACP 本地适配器能力快照\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
                 + TerminalShortcuts.helpLine() + "\n"
                 + "/exit 或 /quit - 退出当前终端会话；有后台任务时先显示退出保护\n"

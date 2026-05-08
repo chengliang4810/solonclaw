@@ -22,7 +22,7 @@ public class TuiShell {
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/title", "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve",
-                "/deny", "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress",
+                "/deny", "/queue", "/steer", "/kanban", "/acp", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/copy", "/models", "/sessions", "/session", "/history",
                 "/events", "/tasks", "/attachments", "/transcript", "/tips", "/skin", "/exit",
                 "/exit!", "/quit!"
