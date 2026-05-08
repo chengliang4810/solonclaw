@@ -187,6 +187,9 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandAlwaysBlockedUrls("curl 2852039166");
         SecurityPolicyService.UrlVerdict hex =
                 policy.checkCommandAlwaysBlockedUrls("curl 0xa9fea9fe");
+        SecurityPolicyService.UrlVerdict bits =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "Start-BitsTransfer -Source 0xa9fea9fe -Destination out.txt");
         SecurityPolicyService.UrlVerdict safeNumber =
                 policy.checkCommandAlwaysBlockedUrls("printf 12345");
 
@@ -194,6 +197,8 @@ public class SecurityPolicyServiceTest {
         assertThat(decimal.getMessage()).contains("元数据");
         assertThat(hex.isAllowed()).isFalse();
         assertThat(hex.getMessage()).contains("元数据");
+        assertThat(bits.isAllowed()).isFalse();
+        assertThat(bits.getMessage()).contains("元数据");
         assertThat(safeNumber.isAllowed()).isTrue();
     }
 
@@ -205,11 +210,16 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandAlwaysBlockedUrls("curl [::ffff:169.254.169.254]");
         SecurityPolicyService.UrlVerdict expanded =
                 policy.checkCommandAlwaysBlockedUrls("curl [0:0:0:0:0:ffff:a9fe:a9fe]");
+        SecurityPolicyService.UrlVerdict bitsAdmin =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "bitsadmin /transfer job /download [::ffff:169.254.169.254] out.txt");
 
         assertThat(mapped.isAllowed()).isFalse();
         assertThat(mapped.getMessage()).contains("元数据");
         assertThat(expanded.isAllowed()).isFalse();
         assertThat(expanded.getMessage()).contains("元数据");
+        assertThat(bitsAdmin.isAllowed()).isFalse();
+        assertThat(bitsAdmin.getMessage()).contains("元数据");
     }
 
     @Test

@@ -1229,6 +1229,7 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "curl http://169.254.169.254",
                         "Invoke-WebRequest http://169.254.169.254",
+                        "Start-BitsTransfer -Source 169.254.169.254 -Destination out.txt",
                         "python -c \"import requests; requests.get('http://169.254.169.254/latest/meta-data/')\"");
 
         for (String command : commands) {
