@@ -25,6 +25,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -216,6 +217,57 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
     }
 
+    @Test
+    void shouldRedactAlwaysApprovalRevokeAuditApprover() throws Exception {
+        AppConfig config = new AppConfig();
+        FixedApprovalAuditRepository auditRepository =
+                new FixedApprovalAuditRepository(Collections.<ApprovalAuditEvent>emptyList());
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-revoke");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(
+                        approvalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
+                                "setup"))
+                .isTrue();
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        auditRepository,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("approval", "execute_shell:recursive_delete");
+        body.put("approver", "dashboard token=ghp_revokeapprover123");
+
+        Map<String, Object> result = diagnosticsService.revokeAlwaysApproval(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(auditRepository.events).hasSize(1);
+        ApprovalAuditEvent event = auditRepository.events.get(0);
+        assertThat(event.getChoice()).isEqualTo("revoke");
+        assertThat(event.getApprover()).doesNotContain("ghp_revokeapprover123");
+        assertThat(event.getApprover()).contains("token=***");
+    }
+
     private static Map<String, Object> findApprovalItem(
             List<Map<String, Object>> items, String sessionId) {
         for (Map<String, Object> item : items) {
@@ -348,11 +400,33 @@ public class DashboardDiagnosticOutputTest {
         }
 
         @Override
-        public void append(ApprovalAuditEvent event) {}
+        public void append(ApprovalAuditEvent event) {
+            events.add(event);
+        }
 
         @Override
         public List<ApprovalAuditEvent> listRecent(int limit) {
             return events;
+        }
+    }
+
+    private static class MemoryGlobalSettingRepository
+            implements com.jimuqu.solon.claw.core.repository.GlobalSettingRepository {
+        private final Map<String, String> values = new LinkedHashMap<String, String>();
+
+        @Override
+        public String get(String key) {
+            return values.get(key);
+        }
+
+        @Override
+        public void set(String key, String value) {
+            values.put(key, value);
+        }
+
+        @Override
+        public void remove(String key) {
+            values.remove(key);
         }
     }
 

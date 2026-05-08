@@ -582,7 +582,7 @@ public class DashboardDiagnosticsService {
         audit.setSessionId("");
         audit.setEventType("response");
         audit.setChoice("revoke");
-        audit.setApprover(StrUtil.nullToEmpty(approver));
+        audit.setApprover(SecretRedactor.redact(approver, 200));
         audit.setToolName(StrUtil.nullToEmpty(String.valueOf(item.get("tool_name"))));
         audit.setApprovalId("");
         audit.setApprovalKey(StrUtil.nullToEmpty(approval));
