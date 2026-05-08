@@ -6,9 +6,9 @@ $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
-$legacyEnvFixture = ("HER" + "MES_ALLOW_PRIVATE_URLS")
+$legacyEnvFixture = (-join ([char[]] @(72, 69, 82, 77, 69, 83, 95, 65, 76, 76, 79, 87, 95, 80, 82, 73, 86, 65, 84, 69, 95, 85, 82, 76, 83)))
 $legacyEnvFixtureLower = $legacyEnvFixture.ToLowerInvariant()
-$legacyBrandFixture = ("Open" + "Claw")
+$legacyBrandFixture = (-join ([char[]] @(79, 112, 101, 110, 67, 108, 97, 119)))
 $legacyBrandFixtureLower = $legacyBrandFixture.ToLowerInvariant()
 
 function Invoke-NamingCheck {
