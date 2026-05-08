@@ -596,6 +596,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldTreatPrivilegeEscalationWrappersAsHardlineCommandPrefixes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String[] commands =
+                new String[] {
+                    "doas reboot",
+                    "pkexec shutdown now",
+                    "doas rm -rf /etc",
+                    "pkexec rm -rf /usr",
+                    "runas /user:Administrator reboot"
+                };
+
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detectHardline("execute_shell", command);
+
+            assertThat(result)
+                    .as("expected privilege wrapper hardline block for %s", command)
+                    .isNotNull();
+            assertThat(result.isHardline()).isTrue();
+        }
+    }
+
+    @Test
     void shouldExposeJimuquApprovalModeConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -837,8 +860,11 @@ public class DangerousCommandApprovalServiceTest {
                     "shutdown -h now",
                     "shutdown -r now",
                     "sudo shutdown now",
+                    "doas shutdown now",
+                    "pkexec reboot",
                     "reboot",
                     "sudo reboot",
+                    "runas /user:Administrator reboot",
                     "halt",
                     "poweroff",
                     "init 0",
@@ -3874,8 +3900,11 @@ public class DangerousCommandApprovalServiceTest {
                     "shutdown -h now",
                     "shutdown -r now",
                     "sudo shutdown now",
+                    "doas shutdown now",
+                    "pkexec reboot",
                     "reboot",
                     "sudo reboot",
+                    "runas /user:Administrator reboot",
                     "halt",
                     "poweroff",
                     "init 0",
