@@ -82,6 +82,8 @@ public class DangerousCommandApprovalService {
             "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
+    private static final String SENSITIVE_ENV_NAME =
+            "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
@@ -251,6 +253,20 @@ public class DangerousCommandApprovalService {
                                                     + PROJECT_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"
                                                     + COMMAND_TAIL),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "environment_dump",
+                                    "dump environment variables to terminal output",
+                                    pattern(
+                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c\\s+)?set\\s*(?:$|[|>&;])|(?:env|printenv)\\s*(?:$|[|>&;])|(?:Get-ChildItem|gci|dir|ls)\\s+Env:|Get-Item\\s+Env:\\*)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sensitive_environment_read",
+                                    "print sensitive environment variable",
+                                    pattern(
+                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%)(?:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + ")%?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_firewall",

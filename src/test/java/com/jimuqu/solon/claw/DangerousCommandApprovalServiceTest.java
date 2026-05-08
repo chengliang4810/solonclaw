@@ -522,6 +522,50 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectEnvironmentCredentialDisclosureCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> dumps =
+                Arrays.asList(
+                        "printenv",
+                        "env | grep TOKEN",
+                        "cmd /c set",
+                        "set > env.txt",
+                        "Get-ChildItem Env:",
+                        "gci Env:",
+                        "Get-Item Env:*");
+        for (String command : dumps) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("environment_dump");
+        }
+
+        List<String> sensitiveReads =
+                Arrays.asList(
+                        "printenv OPENAI_API_KEY",
+                        "echo $JIMUQU_ACCESS_TOKEN",
+                        "echo %OPENAI_API_KEY%",
+                        "Get-Item Env:OPENAI_API_KEY",
+                        "$env:ANTHROPIC_API_KEY");
+        for (String command : sensitiveReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_environment_read");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "env FOO=1 git status"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "printenv PATH"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "echo $HOME"))
+                .isNull();
+    }
+
+    @Test
     void shouldNormalizeTerminalControlSequencesBeforeDangerDetection() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
