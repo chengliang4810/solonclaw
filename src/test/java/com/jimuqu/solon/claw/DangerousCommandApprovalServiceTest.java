@@ -201,6 +201,27 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult redisPing =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli ping");
+        DangerousCommandApprovalService.DetectionResult lvremove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "lvremove -y vg0/prod-data");
+        DangerousCommandApprovalService.DetectionResult zfsDestroy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "zfs destroy tank/prod@snap1");
+        DangerousCommandApprovalService.DetectionResult btrfsDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "btrfs subvolume delete /srv/snapshots/old");
+        DangerousCommandApprovalService.DetectionResult resticForget =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "restic forget --prune --keep-last 1");
+        DangerousCommandApprovalService.DetectionResult borgDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "borg delete repo::old-backup");
+        DangerousCommandApprovalService.DetectionResult snapperDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "snapper delete 10-20");
+        DangerousCommandApprovalService.DetectionResult resticSnapshots =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "restic snapshots");
 
         assertThat(spacedForkBomb).isNotNull();
         assertThat(spacedForkBomb.getPatternKey()).isEqualTo("fork_bomb");
@@ -246,6 +267,19 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(redisFlush).isNotNull();
         assertThat(redisFlush.getPatternKey()).isEqualTo("database_flush");
         assertThat(redisPing).isNull();
+        assertThat(lvremove).isNotNull();
+        assertThat(lvremove.getPatternKey()).isEqualTo("volume_delete");
+        assertThat(zfsDestroy).isNotNull();
+        assertThat(zfsDestroy.getPatternKey()).isEqualTo("volume_delete");
+        assertThat(btrfsDelete).isNotNull();
+        assertThat(btrfsDelete.getPatternKey()).isEqualTo("volume_delete");
+        assertThat(resticForget).isNotNull();
+        assertThat(resticForget.getPatternKey()).isEqualTo("backup_prune_delete");
+        assertThat(borgDelete).isNotNull();
+        assertThat(borgDelete.getPatternKey()).isEqualTo("backup_prune_delete");
+        assertThat(snapperDelete).isNotNull();
+        assertThat(snapperDelete.getPatternKey()).isEqualTo("snapshot_delete");
+        assertThat(resticSnapshots).isNull();
     }
 
     @Test

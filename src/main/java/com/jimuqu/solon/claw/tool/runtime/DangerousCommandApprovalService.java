@@ -431,6 +431,24 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "volume_delete",
+                                    "storage volume or filesystem deletion",
+                                    pattern(
+                                            "\\b(?:lvremove|vgremove|pvremove|zfs\\s+destroy|btrfs\\s+subvolume\\s+delete|wipefs\\b(?=[^\\n]*(?:-a|--all)\\b)|cryptsetup\\s+(?:luksErase|erase|remove))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "snapshot_delete",
+                                    "local filesystem snapshot deletion",
+                                    pattern(
+                                            "\\b(?:snapper\\s+delete|tmutil\\s+delete|diskutil\\s+apfs\\s+deleteSnapshot)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "backup_prune_delete",
+                                    "backup repository prune or deletion",
+                                    pattern(
+                                            "\\b(?:restic\\s+(?:forget|prune)|borg\\s+(?:delete|prune)|duplicity\\s+(?:remove|cleanup))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_remove_item",
                                     "PowerShell recursive delete",
                                     pattern(
