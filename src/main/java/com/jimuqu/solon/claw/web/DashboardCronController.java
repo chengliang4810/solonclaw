@@ -120,6 +120,49 @@ public class DashboardCronController {
         }
     }
 
+    @Mapping(value = "/api/cron/jobs/{id}/inspect", method = MethodType.GET)
+    public Map<String, Object> inspect(String id, @Param(defaultValue = "5") Integer limit, Context context)
+            throws Exception {
+        try {
+            return DashboardResponse.ok(cronService.inspect(id, limit == null ? 5 : limit.intValue()));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
+    }
+
+    @Mapping(value = "/api/jobs/{id}/inspect", method = MethodType.GET)
+    public Map<String, Object> apiInspect(String id, @Param(defaultValue = "5") Integer limit, Context context)
+            throws Exception {
+        return apiInspectData(id, limit, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/show", method = MethodType.GET)
+    public Map<String, Object> apiShow(String id, @Param(defaultValue = "5") Integer limit, Context context)
+            throws Exception {
+        return apiInspectData(id, limit, context);
+    }
+
+    private Map<String, Object> apiInspectData(String id, Integer limit, Context context) throws Exception {
+        try {
+            validateApiJobId(id);
+            return cronService.inspect(id, limit == null ? 5 : limit.intValue());
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        } catch (IllegalStateException e) {
+            if (isNotFound(e)) {
+                context.status(404);
+            } else {
+                context.status(400);
+            }
+            return apiError(e.getMessage());
+        }
+    }
+
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.PUT)
     public Map<String, Object> update(String id, Context context) throws Exception {
         try {

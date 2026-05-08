@@ -43,6 +43,17 @@ public class DashboardCronService {
         return toDashboardView(cronJobService.require(id));
     }
 
+    public Map<String, Object> inspect(String id, int limit) throws Exception {
+        int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("job", get(id));
+        List<Map<String, Object>> runs = history(id, safeLimit);
+        result.put("runs", runs);
+        result.put("run_count", Integer.valueOf(runs.size()));
+        result.put("limit", Integer.valueOf(safeLimit));
+        return result;
+    }
+
     public List<Map<String, Object>> nextJobs(int limit) throws Exception {
         return nextJobs(limit, true);
     }

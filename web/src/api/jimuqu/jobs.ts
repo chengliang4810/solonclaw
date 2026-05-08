@@ -78,6 +78,13 @@ export interface JobRunDeliveryResult {
   targets?: JobRunDeliveryResultTarget[]
 }
 
+export interface JobInspectResult {
+  job: Job
+  runs: JobRun[]
+  run_count: number
+  limit: number
+}
+
 export interface CreateJobRequest {
   name: string
   schedule: string
@@ -210,6 +217,23 @@ export async function listJobs(): Promise<Job[]> {
 export async function getJob(jobId: string): Promise<Job> {
   const job = await request<DashboardJob>(`/api/cron/jobs/${encodeURIComponent(jobId)}`)
   return mapJob(job)
+}
+
+export async function inspectJob(jobId: string, limit = 5): Promise<JobInspectResult> {
+  const result = await request<{
+    job: DashboardJob
+    runs: JobRun[]
+    run_count: number
+    limit: number
+  }>(
+    `/api/cron/jobs/${encodeURIComponent(jobId)}/inspect?limit=${encodeURIComponent(String(limit))}`,
+  )
+  return {
+    job: mapJob(result.job),
+    runs: result.runs || [],
+    run_count: result.run_count || 0,
+    limit: result.limit || limit,
+  }
 }
 
 export async function listUpcomingJobs(limit = 5): Promise<Job[]> {

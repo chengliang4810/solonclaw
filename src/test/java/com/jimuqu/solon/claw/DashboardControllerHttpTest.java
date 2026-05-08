@@ -468,6 +468,31 @@ public class DashboardControllerHttpTest {
         assertThat(apiCronHistoryData.get("count").getInt()).isGreaterThanOrEqualTo(1);
         assertThat(apiCronHistoryData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
 
+        HttpResult cronInspect =
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+        assertThat(cronInspect.status).isEqualTo(200);
+        ONode cronInspectData = ONode.ofJson(cronInspect.body).get("data");
+        assertThat(cronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(cronInspectData.get("run_count").getInt()).isEqualTo(1);
+        assertThat(cronInspectData.get("limit").getInt()).isEqualTo(1);
+        assertThat(cronInspectData.get("runs").get(0).get("output").getString())
+                .contains("dashboard trigger ok: daily summary");
+
+        HttpResult apiCronInspect =
+                request("GET", "/api/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+        assertThat(apiCronInspect.status).isEqualTo(200);
+        ONode apiCronInspectData = ONode.ofJson(apiCronInspect.body);
+        assertThat(apiCronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronInspectData.get("run_count").getInt()).isEqualTo(1);
+        assertThat(apiCronInspectData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
+
+        HttpResult apiCronShow =
+                request("GET", "/api/jobs/" + dashboardCronId + "/show?limit=1", null, token);
+        assertThat(apiCronShow.status).isEqualTo(200);
+        ONode apiCronShowData = ONode.ofJson(apiCronShow.body);
+        assertThat(apiCronShowData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronShowData.get("run_count").getInt()).isEqualTo(1);
+
         HttpResult cronStatus = request("GET", "/api/cron/jobs/status?limit=2", null, token);
         assertThat(cronStatus.status).isEqualTo(200);
         ONode cronStatusData = ONode.ofJson(cronStatus.body).get("data");
