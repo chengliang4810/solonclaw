@@ -427,7 +427,7 @@ public class DashboardDiagnosticsService {
         item.put("approval_id", pending.getApprovalId());
         item.put("selector", StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()));
         item.put("tool_name", pending.getToolName());
-        item.put("description", pending.getDescription());
+        item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
         item.put("pattern_key", pending.getPatternKey());
         item.put("pattern_keys", pending.effectivePatternKeys());
         item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
@@ -484,7 +484,7 @@ public class DashboardDiagnosticsService {
         item.put("approval_key", event.getApprovalKey());
         item.put("command_hash", event.getCommandHash());
         item.put("command_preview", event.getCommandPreview());
-        item.put("description", event.getDescription());
+        item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
         item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
         item.put("created_at", Long.valueOf(event.getCreatedAt()));
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
@@ -541,7 +541,7 @@ public class DashboardDiagnosticsService {
         item.put("confirm_id", pending.getConfirmId());
         item.put("source_key", pending.getSourceKey());
         item.put("command", pending.getCommand());
-        item.put("prompt", pending.getPrompt());
+        item.put("prompt", SecretRedactor.redact(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getCreatedAt() + 300000L));

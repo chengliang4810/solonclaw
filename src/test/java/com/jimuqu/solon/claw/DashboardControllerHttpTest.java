@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -929,7 +930,8 @@ public class DashboardControllerHttpTest {
                 "dashboard-approval-chat",
                 "MEMORY:dashboard-approval-chat:dashboard-user",
                 "Dashboard approval session",
-                "printf api_key=sk-test-secret-token-value");
+                "printf api_key=sk-test-secret-token-value",
+                "需要确认危险命令 Authorization: Bearer ghp_dashboardsecret12345");
 
         HttpResult pending =
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);
@@ -939,7 +941,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"session_id\":\"dashboard-approval-chat\"")
                 .contains("\"tool_name\":\"execute_shell\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
-                .doesNotContain("sk-test-secret-token-value");
+                .doesNotContain("sk-test-secret-token-value")
+                .doesNotContain("ghp_dashboardsecret12345")
+                .contains("Authorization: Bearer ***");
 
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
@@ -951,7 +955,9 @@ public class DashboardControllerHttpTest {
         assertThat(historyBefore.body)
                 .contains("\"event_type\":\"request\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
-                .doesNotContain("sk-test-secret-token-value");
+                .doesNotContain("sk-test-secret-token-value")
+                .doesNotContain("ghp_dashboardsecret12345")
+                .contains("Authorization: Bearer ***");
 
         HttpResult resolve =
                 request(
@@ -975,7 +981,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"choice\":\"deny\"")
                 .contains("\"approver\":\"dashboard\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
-                .doesNotContain("sk-test-secret-token-value");
+                .doesNotContain("sk-test-secret-token-value")
+                .doesNotContain("ghp_dashboardsecret12345")
+                .contains("Authorization: Bearer ***");
 
         HttpResult after =
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);
@@ -1092,6 +1100,40 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body).doesNotContain("dashboard-confirm-chat");
+    }
+
+    @Test
+    void shouldRedactSlashConfirmPromptFromDashboard() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        bean(SlashConfirmService.class)
+                .register(
+                        "MEMORY:dashboard-secret-confirm:user",
+                        "reload-mcp",
+                        "确认刷新 Authorization: Bearer ghp_slashsecret12345");
+
+        HttpResult confirms =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+
+        assertThat(confirms.status).isEqualTo(200);
+        assertThat(confirms.body)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_slashsecret12345");
+        ONode items = ONode.ofJson(confirms.body).get("data").get("items");
+        String confirmId = "";
+        for (int i = 0; i < items.size(); i++) {
+            ONode item = items.get(i);
+            if ("MEMORY:dashboard-secret-confirm:user".equals(item.get("source_key").getString())) {
+                confirmId = item.get("confirm_id").getString();
+            }
+        }
+        assertThat(confirmId).isNotBlank();
+        request(
+                "POST",
+                "/api/diagnostics/slash-confirms/resolve",
+                "{\"sourceKey\":\"MEMORY:dashboard-secret-confirm:user\",\"confirmId\":\""
+                        + jsonEscape(confirmId)
+                        + "\",\"action\":\"deny\"}",
+                token);
     }
 
     @Test
@@ -1414,6 +1456,12 @@ public class DashboardControllerHttpTest {
 
     private static void seedPendingApproval(
             String sessionId, String sourceKey, String title, String command) throws Exception {
+        seedPendingApproval(sessionId, sourceKey, title, command, "需要确认危险命令");
+    }
+
+    private static void seedPendingApproval(
+            String sessionId, String sourceKey, String title, String command, String description)
+            throws Exception {
         SessionRepository repository = bean(SessionRepository.class);
         DangerousCommandApprovalService approvalService =
                 bean(DangerousCommandApprovalService.class);
@@ -1436,7 +1484,7 @@ public class DashboardControllerHttpTest {
                 agentSession,
                 "execute_shell",
                 "rm_recursive_root",
-                "需要确认危险命令",
+                description,
                 command);
     }
 
