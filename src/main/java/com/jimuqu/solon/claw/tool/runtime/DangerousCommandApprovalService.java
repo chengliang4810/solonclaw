@@ -1189,11 +1189,34 @@ public class DangerousCommandApprovalService {
     }
 
     public String foregroundBackgroundGuidance(String toolName, String code) {
-        if (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
-            return null;
-        }
         String normalized = normalize(code);
         if (StrUtil.isBlank(normalized) || looksLikeHelpOrVersionCommand(normalized)) {
+            return null;
+        }
+        if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
+            for (String shellCommand : extractPythonShellCommands(normalized)) {
+                String guidance =
+                        foregroundBackgroundGuidance(ToolNameConstants.EXECUTE_SHELL, shellCommand);
+                if (guidance != null) {
+                    return "BLOCKED: Python 脚本中的 shell 调用需要改用受管后台进程能力。\n" + guidance;
+                }
+            }
+            return null;
+        }
+        if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
+            String childProcessCommand = extractJavaScriptChildProcessCommand(normalized);
+            if (StrUtil.isNotBlank(childProcessCommand)) {
+                String guidance =
+                        foregroundBackgroundGuidance(
+                                ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
+                if (guidance != null) {
+                    return "BLOCKED: Node 脚本中的 child_process 调用需要改用受管后台进程能力。\n"
+                            + guidance;
+                }
+            }
+            return null;
+        }
+        if (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
             return null;
         }
 
@@ -3028,6 +3051,87 @@ public class DangerousCommandApprovalService {
             }
         }
         return commands;
+    }
+
+    private static String extractJavaScriptChildProcessCommand(String code) {
+        if (StrUtil.isBlank(code)) {
+            return null;
+        }
+        Pattern callPattern =
+                Pattern.compile(
+                        "\\b(?:child_process\\.)?(?:exec|execSync|spawn|spawnSync|execFile|execFileSync)\\s*\\(",
+                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        Matcher matcher = callPattern.matcher(code);
+        if (!matcher.find()) {
+            return null;
+        }
+        String firstArgument = readFirstShellCommandArgument(code, matcher.end());
+        if (StrUtil.isBlank(firstArgument)) {
+            return null;
+        }
+        String listArguments = readSecondJavaScriptArgumentList(code, matcher.end());
+        if (StrUtil.isBlank(listArguments)) {
+            return firstArgument;
+        }
+        return firstArgument + " " + listArguments;
+    }
+
+    private static String readSecondJavaScriptArgumentList(String code, int offset) {
+        int index = skipWhitespace(code, offset);
+        if (index < 0 || index >= code.length()) {
+            return null;
+        }
+        index = skipFirstArgument(code, index);
+        index = skipWhitespace(code, index);
+        if (index < 0 || index >= code.length() || code.charAt(index) != ',') {
+            return null;
+        }
+        index = skipWhitespace(code, index + 1);
+        if (index < 0 || index >= code.length() || code.charAt(index) != '[') {
+            return null;
+        }
+        return readQuotedStringListCommand(code, index + 1);
+    }
+
+    private static int skipFirstArgument(String code, int offset) {
+        int index = skipWhitespace(code, offset);
+        if (index < 0 || index >= code.length()) {
+            return -1;
+        }
+        char current = code.charAt(index);
+        if (current == '\'' || current == '"') {
+            return skipQuotedString(code, index);
+        }
+        if (current == '[') {
+            return skipBracketedList(code, index);
+        }
+        return -1;
+    }
+
+    private static int skipBracketedList(String code, int offset) {
+        if (code == null || offset < 0 || offset >= code.length() || code.charAt(offset) != '[') {
+            return -1;
+        }
+        int depth = 0;
+        for (int i = offset; i < code.length(); i++) {
+            char current = code.charAt(i);
+            if (current == '\'' || current == '"') {
+                i = skipQuotedString(code, i) - 1;
+                if (i < 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (current == '[') {
+                depth++;
+            } else if (current == ']') {
+                depth--;
+                if (depth == 0) {
+                    return i + 1;
+                }
+            }
+        }
+        return -1;
     }
 
     private static String readFirstShellCommandArgument(String code, int offset) {

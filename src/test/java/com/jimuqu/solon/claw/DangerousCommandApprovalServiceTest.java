@@ -967,6 +967,38 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldWarnForForegroundBackgroundShellPatternsInsideScripts() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        String pythonNohup =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_python",
+                        "import os\nos.system('nohup npm run dev > app.log 2>&1')");
+        String pythonSpawn =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_python",
+                        "import subprocess\nsubprocess.Popen(['npm', 'run', 'dev'])");
+        String jsExec =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_js",
+                        "child_process.exec('python -m http.server 8000')");
+        String jsSpawn =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_js",
+                        "child_process.spawn('npm', ['run', 'dev'])");
+        String jsSpawnSafe =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_js",
+                        "child_process.spawn('git', ['status'])");
+
+        assertThat(pythonNohup).contains("Python").contains("nohup");
+        assertThat(pythonSpawn).contains("Python").contains("长驻服务");
+        assertThat(jsExec).contains("Node").contains("长驻服务");
+        assertThat(jsSpawn).contains("Node").contains("长驻服务");
+        assertThat(jsSpawnSafe).isNull();
+    }
+
+    @Test
     void shouldIgnoreSafeShellCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
