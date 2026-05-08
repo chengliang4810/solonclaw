@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -188,17 +189,18 @@ public class DashboardRunService {
         map.put("agent_name", record.getAgentName());
         map.put(
                 "agent_snapshot",
-                parseJsonField(
-                        record.getAgentSnapshotJson(),
-                        "agent_snapshot",
-                        record.getRunId(),
-                        null));
+                redactParsed(
+                        parseJsonField(
+                                record.getAgentSnapshotJson(),
+                                "agent_snapshot",
+                                record.getRunId(),
+                                null)));
         map.put("status", record.getStatus());
         map.put("phase", record.getPhase());
         map.put("busy_policy", record.getBusyPolicy());
         map.put("backgrounded", record.isBackgrounded());
-        map.put("input_preview", record.getInputPreview());
-        map.put("final_reply_preview", record.getFinalReplyPreview());
+        map.put("input_preview", redact(record.getInputPreview(), 8000));
+        map.put("final_reply_preview", redact(record.getFinalReplyPreview(), 8000));
         map.put("provider", record.getProvider());
         map.put("model", record.getModel());
         map.put("attempts", record.getAttempts());
@@ -218,8 +220,8 @@ public class DashboardRunService {
         map.put("finished_at", record.getFinishedAt());
         map.put("exit_reason", record.getExitReason());
         map.put("recoverable", record.isRecoverable());
-        map.put("recovery_hint", record.getRecoveryHint());
-        map.put("error", record.getError());
+        map.put("recovery_hint", redact(record.getRecoveryHint(), 2000));
+        map.put("error", redact(record.getError(), 2000));
         return map;
     }
 
@@ -235,15 +237,16 @@ public class DashboardRunService {
         map.put("attempt_no", record.getAttemptNo());
         map.put("provider", record.getProvider());
         map.put("model", record.getModel());
-        map.put("summary", record.getSummary());
+        map.put("summary", redact(record.getSummary(), 2000));
         map.put("created_at", record.getCreatedAt());
         map.put(
                 "metadata",
-                parseJsonField(
-                        record.getMetadataJson(),
-                        "metadata",
-                        record.getRunId(),
-                        record.getEventId()));
+                redactParsed(
+                        parseJsonField(
+                                record.getMetadataJson(),
+                                "metadata",
+                                record.getRunId(),
+                                record.getEventId())));
         return map;
     }
 
@@ -255,10 +258,10 @@ public class DashboardRunService {
         map.put("source_key", record.getSourceKey());
         map.put("tool_name", record.getToolName());
         map.put("status", record.getStatus());
-        map.put("args_preview", record.getArgsPreview());
-        map.put("result_preview", record.getResultPreview());
+        map.put("args_preview", redact(record.getArgsPreview(), 8000));
+        map.put("result_preview", redact(record.getResultPreview(), 8000));
         map.put("result_ref", record.getResultRef());
-        map.put("error", record.getError());
+        map.put("error", redact(record.getError(), 2000));
         map.put("read_only", record.isReadOnly());
         map.put("interruptible", record.isInterruptible());
         map.put("side_effecting", record.isSideEffecting());
@@ -281,7 +284,7 @@ public class DashboardRunService {
         map.put("child_source_key", record.getChildSourceKey());
         map.put("session_id", record.getSessionId());
         map.put("name", record.getName());
-        map.put("goal_preview", record.getGoalPreview());
+        map.put("goal_preview", redact(record.getGoalPreview(), 8000));
         map.put("status", record.getStatus());
         map.put("active", record.isActive());
         map.put("interrupt_requested", record.isInterruptRequested());
@@ -289,9 +292,13 @@ public class DashboardRunService {
         map.put("task_index", record.getTaskIndex());
         map.put(
                 "output_tail",
-                parseJsonField(
-                        record.getOutputTailJson(), "output_tail", record.getParentRunId(), null));
-        map.put("error", record.getError());
+                redactParsed(
+                        parseJsonField(
+                                record.getOutputTailJson(),
+                                "output_tail",
+                                record.getParentRunId(),
+                                null)));
+        map.put("error", redact(record.getError(), 2000));
         map.put("started_at", record.getStartedAt());
         map.put("finished_at", record.getFinishedAt());
         map.put("heartbeat_at", record.getHeartbeatAt());
@@ -303,11 +310,15 @@ public class DashboardRunService {
         map.put("command_id", record.getCommandId());
         map.put("run_id", record.getRunId());
         map.put("source_key", record.getSourceKey());
-        map.put("command", record.getCommand());
+        map.put("command", redact(record.getCommand(), 400));
         map.put("status", record.getStatus());
         map.put("created_at", record.getCreatedAt());
         map.put("handled_at", record.getHandledAt());
-        map.put("payload", parseJsonField(record.getPayloadJson(), "payload", record.getRunId(), null));
+        map.put(
+                "payload",
+                redactParsed(
+                        parseJsonField(
+                                record.getPayloadJson(), "payload", record.getRunId(), null)));
         return map;
     }
 
@@ -319,10 +330,12 @@ public class DashboardRunService {
         map.put("source_key", record.getSourceKey());
         map.put("recovery_type", record.getRecoveryType());
         map.put("status", record.getStatus());
-        map.put("summary", record.getSummary());
+        map.put("summary", redact(record.getSummary(), 2000));
         map.put(
                 "payload",
-                parseJsonField(record.getPayloadJson(), "payload", record.getRunId(), null));
+                redactParsed(
+                        parseJsonField(
+                                record.getPayloadJson(), "payload", record.getRunId(), null)));
         map.put("created_at", record.getCreatedAt());
         map.put("resolved_at", record.getResolvedAt());
         return map;
@@ -338,8 +351,8 @@ public class DashboardRunService {
             Map<String, Object> fallback = new LinkedHashMap<String, Object>();
             fallback.put("parse_error", true);
             fallback.put("field", field);
-            fallback.put("message", e.getMessage());
-            fallback.put("raw", truncate(json, 4000));
+            fallback.put("message", redact(e.getMessage(), 1000));
+            fallback.put("raw", redact(truncate(json, 4000), 4000));
             if (runId != null) {
                 fallback.put("run_id", runId);
             }
@@ -348,6 +361,32 @@ public class DashboardRunService {
             }
             return fallback;
         }
+    }
+
+    private Object redactParsed(Object value) {
+        if (value instanceof String) {
+            return redact((String) value, 8000);
+        }
+        if (value instanceof Map) {
+            Map<?, ?> source = (Map<?, ?>) value;
+            Map<String, Object> redacted = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : source.entrySet()) {
+                redacted.put(String.valueOf(entry.getKey()), redactParsed(entry.getValue()));
+            }
+            return redacted;
+        }
+        if (value instanceof Iterable) {
+            List<Object> redacted = new ArrayList<Object>();
+            for (Object item : (Iterable<?>) value) {
+                redacted.add(redactParsed(item));
+            }
+            return redacted;
+        }
+        return value;
+    }
+
+    private String redact(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private String truncate(String value, int maxLength) {
