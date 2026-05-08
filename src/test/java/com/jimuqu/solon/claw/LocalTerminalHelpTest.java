@@ -23,6 +23,8 @@ public class LocalTerminalHelpTest {
                 .contains("/session pick")
                 .contains("/history")
                 .contains("/events")
+                .contains("/queue")
+                .contains("/steer")
                 .contains("/skin")
                 .contains("/exit")
                 .contains("/quit")

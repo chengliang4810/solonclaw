@@ -24,6 +24,8 @@ public class ShellCompletionGenerator {
                             "/session",
                             "/history",
                             "/events",
+                            "/queue",
+                            "/steer",
                             "/skin",
                             "/copy",
                             "/exit",
