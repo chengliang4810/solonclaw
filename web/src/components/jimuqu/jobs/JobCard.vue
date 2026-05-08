@@ -84,14 +84,16 @@ async function handleResume() {
 async function handleRun() {
   try {
     await jobsStore.runJob(jobId.value)
+    if (showRuns.value) {
+      await refreshRuns()
+    }
     message.info(t('jobs.jobTriggered'))
   } catch (e: any) {
     message.error(e.message)
   }
 }
 
-async function openRuns() {
-  showRuns.value = true
+async function refreshRuns() {
   runsLoading.value = true
   try {
     runs.value = await jobsStore.fetchJobRuns(jobId.value, 20)
@@ -100,6 +102,11 @@ async function openRuns() {
   } finally {
     runsLoading.value = false
   }
+}
+
+async function openRuns() {
+  showRuns.value = true
+  await refreshRuns()
 }
 
 async function handleDelete() {
