@@ -84,10 +84,15 @@ function Write-Items {
 }
 
 $script:BlockedReleaseRegex = Get-BlockedReleaseRegex
+Assert-CleanReleaseText $Tag
+Assert-CleanReleaseText $Version
+Assert-CleanReleaseText $CommitRange
+Assert-CleanReleaseText $DisplayRange
 $commits = Get-CommitSubjects $CommitRange
 if ($commits.Length -eq 0) {
     $commits = Get-CommitSubjects "HEAD"
     $DisplayRange = (& git rev-parse --short HEAD).Trim()
+    Assert-CleanReleaseText $DisplayRange
 }
 foreach ($commit in $commits) {
     Assert-CleanReleaseText $commit
@@ -144,5 +149,6 @@ java -jar jimuqu-agent-$Version.jar
 The service listens on ``http://127.0.0.1:8080`` by default and writes runtime data to ``runtime/`` in the current directory.
 "@
 
+Assert-CleanReleaseText $body
 $outputFile = New-Item -ItemType File -Path $OutputPath -Force
 [System.IO.File]::WriteAllText($outputFile.FullName, $body, [System.Text.Encoding]::UTF8)
