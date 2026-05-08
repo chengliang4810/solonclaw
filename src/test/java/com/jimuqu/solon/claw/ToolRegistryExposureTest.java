@@ -1873,10 +1873,25 @@ public class ToolRegistryExposureTest {
         assertThat(content)
                 .contains("public=true")
                 .contains("api_key=***")
-                .contains("token=***")
+                .contains("[REDACTED_PATH]")
                 .doesNotContain("sk-test-secret")
                 .doesNotContain("secret123")
                 .doesNotContain("user:pass");
+    }
+
+    @Test
+    void shouldRedactSecretsFromFileReadErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        String result = fileSkill.read("logs/token=ghp_filereaderror12345.txt");
+
+        assertThat(result)
+                .contains("token=***")
+                .doesNotContain("ghp_filereaderror12345");
     }
 
     @Test

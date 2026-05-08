@@ -163,18 +163,20 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         try {
             target = resolvePath(fileName);
         } catch (Exception e) {
-            return ToolResultEnvelope.error("读取失败: " + e.getMessage()).toJson();
+            return ToolResultEnvelope.error("读取失败: " + safeToolError(e)).toJson();
         }
         File targetFile = target.toFile();
         if (!targetFile.exists()) {
-            return ToolResultEnvelope.error("文件不存在: " + fileName)
-                    .data("path", fileName)
+            String displayPath = safeDisplayPath(fileName);
+            return ToolResultEnvelope.error("文件不存在: " + displayPath)
+                    .data("path", displayPath)
                     .toJson();
         }
         if (targetFile.isDirectory()) {
+            String displayPath = safeDisplayPath(fileName);
             return ToolResultEnvelope.error(
-                            "读取失败：'" + fileName + "' 是一个目录。请使用 file_list 查看其内容。")
-                    .data("path", fileName)
+                            "读取失败：'" + displayPath + "' 是一个目录。请使用 file_list 查看其内容。")
+                    .data("path", displayPath)
                     .toJson();
         }
         ReadKey readKey = new ReadKey(target.toAbsolutePath().normalize().toString(), safeOffset, safeLimit);
@@ -232,10 +234,22 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             }
             return envelope.toJson();
         } catch (Exception e) {
-            return ToolResultEnvelope.error("读取失败: " + e.getMessage())
-                    .data("path", fileName)
+            return ToolResultEnvelope.error("读取失败: " + safeToolError(e))
+                    .data("path", safeDisplayPath(fileName))
                     .toJson();
         }
+    }
+
+    private String safeDisplayPath(String path) {
+        return SecretRedactor.redact(path, 400);
+    }
+
+    private String safeToolError(Exception e) {
+        String message = e == null ? "" : e.getMessage();
+        if (StrUtil.isBlank(message) && e != null) {
+            message = e.getClass().getSimpleName();
+        }
+        return SecretRedactor.redact(message, 1000);
     }
 
     private String numberedLine(int lineNumber, String line) {
