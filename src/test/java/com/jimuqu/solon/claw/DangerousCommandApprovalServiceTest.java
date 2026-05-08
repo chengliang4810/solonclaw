@@ -757,6 +757,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult killByPgrep =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kill -9 $(pgrep -f jimuqu-agent)");
+        DangerousCommandApprovalService.DetectionResult killByPidof =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kill -TERM $(pidof jimuqu-agent)");
+        DangerousCommandApprovalService.DetectionResult killByBacktickPidof =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kill -9 `pidof jimuqu-agent`");
         DangerousCommandApprovalService.DetectionResult removeItemReordered =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "Remove-Item .\\runtime\\cache -Force -Recurse");
@@ -786,6 +792,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(killByName.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(killByPgrep).isNotNull();
         assertThat(killByPgrep.getPatternKey()).isEqualTo("kill_pgrep_expansion");
+        assertThat(killByPidof).isNotNull();
+        assertThat(killByPidof.getPatternKey()).isEqualTo("kill_pgrep_expansion");
+        assertThat(killByBacktickPidof).isNotNull();
+        assertThat(killByBacktickPidof.getPatternKey()).isEqualTo("kill_pgrep_expansion");
         assertThat(removeItemReordered).isNotNull();
         assertThat(removeItemReordered.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(removeItemLiteralPathShortFlags).isNotNull();

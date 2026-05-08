@@ -337,8 +337,9 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
-                                    "kill process via pgrep expansion (self-termination)",
-                                    pattern("\\bkill\\b.*\\$\\(\\s*pgrep\\b|\\bkill\\b.*`\\s*pgrep\\b"),
+                                    "kill process via process lookup expansion (self-termination)",
+                                    pattern(
+                                            "\\bkill\\b.*\\$\\(\\s*(?:pgrep|pidof)\\b|\\bkill\\b.*`\\s*(?:pgrep|pidof)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "copy_into_etc",
