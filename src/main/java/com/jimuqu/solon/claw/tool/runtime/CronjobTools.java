@@ -165,6 +165,18 @@ public class CronjobTools {
                     .toJson();
         } else if ("run".equals(normalized)) {
             job = cronJobService.trigger(jobId);
+            Map<String, Object> view = formattedView(job);
+            return ToolResultEnvelope.ok("Cron job queued for immediate run: " + job.getName())
+                    .data("job", view)
+                    .data("triggered", Boolean.TRUE)
+                    .data("next_run_at", view.get("next_run_at"))
+                    .data(
+                            "trigger_message",
+                            "Cron job '"
+                                    + job.getName()
+                                    + "' will run on the next scheduler tick.")
+                    .preview(job.getJobId() + " " + job.getName() + " TRIGGERED")
+                    .toJson();
         } else {
             return ToolResultEnvelope.error("Unsupported cronjob action: " + safeText(action)).toJson();
         }

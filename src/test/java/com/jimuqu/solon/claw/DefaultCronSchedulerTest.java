@@ -1707,6 +1707,35 @@ public class DefaultCronSchedulerTest {
         assertThat(listedJob.get("repeat")).isEqualTo("forever");
         assertThat(listedJob.get("schedule")).isEqualTo("30m");
 
+        Map<?, ?> triggered =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "run",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(triggered.get("triggered")).isEqualTo(Boolean.TRUE);
+        assertThat(triggered.get("trigger_message").toString()).contains("next scheduler tick");
+        assertThat(triggered.get("next_run_at")).isNotNull();
+        assertThat(triggered.get("summary").toString()).contains("queued for immediate run");
+
         Map<?, ?> removed =
                 (Map<?, ?>)
                         ONode.ofJson(
