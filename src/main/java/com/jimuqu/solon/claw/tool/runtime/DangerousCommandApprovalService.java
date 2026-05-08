@@ -202,6 +202,14 @@ public class DangerousCommandApprovalService {
                                     pattern(">\\s*[\"']?/dev/sd"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "remote_script_shell_substitution",
+                                    "execute remote content through shell command substitution",
+                                    pattern(
+                                            "\\b(?:bash|sh|zsh|ksh)\\s+-[^\\s]*c\\s+['\"]?\\$\\([^\\n)]*\\b(?:curl|wget)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "shell_command_flag",
                                     "shell command via -c/-lc flag",
                                     pattern("\\b(bash|sh|zsh|ksh)\\s+-[^\\s]*c(\\s+|$)"),
