@@ -44,4 +44,4 @@ jobs:
             $range = "$($env:BEFORE_SHA)..$($env:HEAD_SHA)"
           }
 
-          ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -GitCommitRange $range
+          ./scripts/check-project-naming.ps1 -CheckGitCommitSubjects -CheckGitObjectText -GitCommitRange $range
