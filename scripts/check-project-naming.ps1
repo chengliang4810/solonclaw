@@ -20,7 +20,8 @@ try {
         )
         $patterns = @(
             "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?"
+            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?",
+            "[Bb][Aa][Dd][_\-.]?[Ll][Ee][Gg][Aa][Cc][Yy][_\-.]?[Pp][Rr][Ee][Ff][Ii][Xx](?:[_\-.])"
         ) + $legacyConfigKeyPrefixes
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
@@ -37,7 +38,8 @@ try {
         )
         $patterns = @(
             "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww][_ -]?"
+            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww][_ -]?",
+            "[Bb][Aa][Dd][_.-]?[Ll][Ee][Gg][Aa][Cc][Yy][_.-]?[Pp][Rr][Ee][Ff][Ii][Xx]([_.-])"
         ) + $legacyConfigKeyPrefixes
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {

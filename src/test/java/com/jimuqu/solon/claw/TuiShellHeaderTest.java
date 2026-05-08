@@ -4,11 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.ConsoleEventSink;
+import com.jimuqu.solon.claw.cli.LocalTerminalTaskRunner;
 import com.jimuqu.solon.claw.cli.TuiShell;
 import com.jimuqu.solon.claw.config.AppConfig;
+import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 public class TuiShellHeaderTest {
@@ -93,6 +97,47 @@ public class TuiShellHeaderTest {
         assertThat(renderEvents(shell)).isEqualTo("暂无终端事件。");
     }
 
+    @Test
+    void shouldRenderFooterStatusSummary() throws Exception {
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
+        LocalTerminalTaskRunner runner = new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
+
+        String footer = footerLine(shell, "tui", runner);
+
+        assertThat(footer)
+                .contains("footer:")
+                .contains("session=tui")
+                .contains("tasks=0/0")
+                .contains("events=0 tools=0 failures=0")
+                .contains("copy=empty");
+        runner.close();
+    }
+
+    @Test
+    void shouldRenderFooterWithRecentRuntimeState() throws Exception {
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
+        setField(shell, "lastReply", "可复制回复");
+        setField(shell, "lastEventSnapshot", eventSnapshot(4, 2, 1, Arrays.asList("tool.start shell")));
+        LocalTerminalTaskRunner runner = new LocalTerminalTaskRunner(new PrintWriter(new java.io.StringWriter()));
+        runner.submit(
+                        "finished task",
+                        new Callable<Integer>() {
+                            @Override
+                            public Integer call() {
+                                return Integer.valueOf(0);
+                            }
+                        })
+                .get(1, TimeUnit.SECONDS);
+
+        String footer = footerLine(shell, "tui", runner);
+
+        assertThat(footer)
+                .contains("tasks=0/1")
+                .contains("events=4 tools=2 failures=1")
+                .contains("copy=ready");
+        runner.close();
+    }
+
     private String statusLine(TuiShell shell, String sessionId) throws Exception {
         Method method = TuiShell.class.getDeclaredMethod("statusLine", String.class);
         method.setAccessible(true);
@@ -112,6 +157,21 @@ public class TuiShellHeaderTest {
         method.setAccessible(true);
         method.invoke(shell, writer, sessionId);
         return buffer.toString();
+    }
+
+    private String footerLine(TuiShell shell, String sessionId, LocalTerminalTaskRunner runner)
+            throws Exception {
+        Method method =
+                TuiShell.class.getDeclaredMethod(
+                        "footerLine", String.class, LocalTerminalTaskRunner.class);
+        method.setAccessible(true);
+        return (String) method.invoke(shell, sessionId, runner);
+    }
+
+    private void setField(TuiShell shell, String name, Object value) throws Exception {
+        Field field = TuiShell.class.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(shell, value);
     }
 
     private Object eventSnapshot(int total, int tools, int failures, java.util.List<String> events)

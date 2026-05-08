@@ -136,6 +136,7 @@ public class TuiShell {
                 }
                 dispatchInteractive(taskRunner, writer, sessionId, input);
                 writer.println();
+                renderFooter(writer, sessionId, taskRunner);
                 writer.println(skin.dim(skin.border()));
                 writer.flush();
             }
@@ -328,6 +329,33 @@ public class TuiShell {
         writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
         writer.flush();
+    }
+
+    private void renderFooter(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
+        writer.println(skin.dim(footerLine(sessionId, taskRunner)));
+    }
+
+    private String footerLine(String sessionId, LocalTerminalTaskRunner taskRunner) {
+        int running = taskRunner == null ? 0 : taskRunner.runningCount();
+        int recentTasks = taskRunner == null ? 0 : taskRunner.snapshots().size();
+        int events = lastEventSnapshot == null ? 0 : lastEventSnapshot.getEventCount();
+        int tools = lastEventSnapshot == null ? 0 : lastEventSnapshot.getToolCount();
+        int failures = lastEventSnapshot == null ? 0 : lastEventSnapshot.getFailureCount();
+        String copy = StrUtil.isBlank(lastReply) ? "empty" : "ready";
+        return "footer: "
+                + statusLine(sessionId)
+                + "  tasks="
+                + running
+                + "/"
+                + recentTasks
+                + "  events="
+                + events
+                + " tools="
+                + tools
+                + " failures="
+                + failures
+                + "  copy="
+                + copy;
     }
 
     private String statusLine(String sessionId) {
