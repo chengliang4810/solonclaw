@@ -2,15 +2,19 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -35,6 +39,8 @@ public class DashboardDiagnosticsService {
     private final SessionRepository sessionRepository;
     private final ConversationOrchestrator conversationOrchestrator;
     private final ApprovalAuditRepository approvalAuditRepository;
+    private final SlashConfirmService slashConfirmService;
+    private final CommandService commandService;
     private final DangerousCommandApprovalService approvalService;
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
@@ -47,6 +53,8 @@ public class DashboardDiagnosticsService {
             SessionRepository sessionRepository,
             ConversationOrchestrator conversationOrchestrator,
             ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
             DangerousCommandApprovalService approvalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
@@ -57,6 +65,8 @@ public class DashboardDiagnosticsService {
         this.sessionRepository = sessionRepository;
         this.conversationOrchestrator = conversationOrchestrator;
         this.approvalAuditRepository = approvalAuditRepository;
+        this.slashConfirmService = slashConfirmService;
+        this.commandService = commandService;
         this.approvalService = approvalService;
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
@@ -185,6 +195,53 @@ public class DashboardDiagnosticsService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("count", Integer.valueOf(items.size()));
         result.put("items", items);
+        return result;
+    }
+
+    public Map<String, Object> pendingSlashConfirms(int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        if (slashConfirmService != null) {
+            for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
+                items.add(slashConfirmItem(pending));
+                if (items.size() >= effectiveLimit) {
+                    break;
+                }
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("count", Integer.valueOf(items.size()));
+        result.put("items", items);
+        return result;
+    }
+
+    public Map<String, Object> resolveSlashConfirm(Map<String, Object> body) throws Exception {
+        Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
+        String sourceKey = text(input, "sourceKey");
+        String confirmId = text(input, "confirmId");
+        String action = StrUtil.nullToEmpty(text(input, "action")).trim().toLowerCase();
+        if (StrUtil.isBlank(sourceKey)) {
+            return resolveResult(false, "missing_source", "缺少来源键。", null);
+        }
+        if (!"approve".equals(action) && !"deny".equals(action) && !"always".equals(action)) {
+            return resolveResult(false, "invalid_action", "确认动作必须是 approve、always 或 deny。", null);
+        }
+        SlashConfirmService.PendingConfirm pending =
+                slashConfirmService == null ? null : slashConfirmService.getPending(sourceKey);
+        if (pending == null) {
+            return resolveResult(false, "confirm_not_found", "待确认 slash 命令不存在或已过期。", null);
+        }
+        if (StrUtil.isNotBlank(confirmId) && !StrUtil.equals(confirmId, pending.getConfirmId())) {
+            return resolveResult(false, "confirm_id_mismatch", "确认编号不匹配。", null);
+        }
+
+        String commandLine = slashConfirmCommandLine(action, pending.getConfirmId());
+        GatewayReply reply = commandService.handle(dashboardMessage(sourceKey, commandLine), commandLine);
+        Map<String, Object> result =
+                resolveResult(!reply.isError(), reply.isError() ? "error" : "ok", reply.getContent(), replyMap(reply));
+        result.put("action", action);
+        result.put("source_key", sourceKey);
+        result.put("confirm_id", pending.getConfirmId());
         return result;
     }
 
@@ -398,6 +455,35 @@ public class DashboardDiagnosticsService {
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
         item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
         return item;
+    }
+
+    private Map<String, Object> slashConfirmItem(SlashConfirmService.PendingConfirm pending) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("confirm_id", pending.getConfirmId());
+        item.put("source_key", pending.getSourceKey());
+        item.put("command", pending.getCommand());
+        item.put("prompt", pending.getPrompt());
+        item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
+        item.put("created_at", Long.valueOf(pending.getCreatedAt()));
+        item.put("expires_at", Long.valueOf(pending.getCreatedAt() + 300000L));
+        return item;
+    }
+
+    private String slashConfirmCommandLine(String action, String confirmId) {
+        if ("deny".equals(action)) {
+            return "/deny " + StrUtil.nullToEmpty(confirmId);
+        }
+        if ("always".equals(action)) {
+            return "/approve always " + StrUtil.nullToEmpty(confirmId);
+        }
+        return "/approve " + StrUtil.nullToEmpty(confirmId);
+    }
+
+    private GatewayMessage dashboardMessage(String sourceKey, String text) {
+        GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "dashboard", "dashboard", text);
+        message.setSourceKeyOverride(sourceKey);
+        message.setUserName("dashboard");
+        return message;
     }
 
     @SuppressWarnings("unchecked")

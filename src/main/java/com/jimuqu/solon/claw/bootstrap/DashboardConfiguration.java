@@ -11,11 +11,13 @@ import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.kanban.ConversationKanbanWorkerSpawner;
 import com.jimuqu.solon.claw.kanban.KanbanDispatcherService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
@@ -133,6 +135,8 @@ public class DashboardConfiguration {
             SessionRepository sessionRepository,
             ConversationOrchestrator conversationOrchestrator,
             ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
@@ -144,6 +148,8 @@ public class DashboardConfiguration {
                 sessionRepository,
                 conversationOrchestrator,
                 approvalAuditRepository,
+                slashConfirmService,
+                commandService,
                 dangerousCommandApprovalService,
                 securityPolicyService,
                 tirithSecurityService);

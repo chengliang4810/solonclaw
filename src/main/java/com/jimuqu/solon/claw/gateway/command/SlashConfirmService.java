@@ -57,6 +57,23 @@ public class SlashConfirmService {
         return confirm.copy();
     }
 
+    public synchronized List<PendingConfirm> listPending() {
+        List<String> expired = new ArrayList<String>();
+        List<PendingConfirm> values = new ArrayList<PendingConfirm>();
+        for (Map.Entry<String, PendingConfirm> entry : pendingBySource.entrySet()) {
+            PendingConfirm confirm = entry.getValue();
+            if (isExpired(confirm)) {
+                expired.add(entry.getKey());
+                continue;
+            }
+            values.add(confirm.copy());
+        }
+        for (String key : expired) {
+            pendingBySource.remove(key);
+        }
+        return values;
+    }
+
     public synchronized PendingConfirm resolve(String sourceKey) {
         return resolve(sourceKey, null, false);
     }

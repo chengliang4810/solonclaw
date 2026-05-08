@@ -5,11 +5,14 @@ import {
   auditSecurity,
   fetchApprovalHistory,
   fetchPendingApprovals,
+  fetchPendingSlashConfirms,
   fetchDiagnostics,
   resolveApproval,
+  resolveSlashConfirm,
   type ApprovalAuditEvent,
   type Diagnostics,
   type PendingApproval,
+  type PendingSlashConfirm,
   type SecurityAuditFinding,
   type SecurityAuditResult,
 } from '@/api/jimuqu/diagnostics'
@@ -20,9 +23,11 @@ const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
 const historyLoading = ref(false)
+const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
+const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
 const auditForm = ref({
   action: 'command',
   toolName: 'execute_shell',
@@ -33,6 +38,7 @@ const auditForm = ref({
   argsJson: '',
 })
 const resolvingKey = ref('')
+const resolvingConfirmKey = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
@@ -45,6 +51,7 @@ const auditActionOptions = [
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 const pendingCount = computed(() => pendingApprovals.value.length)
 const historyCount = computed(() => approvalHistory.value.length)
+const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -71,7 +78,7 @@ function decisionType(decision: unknown) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadApprovals(), loadHistory()])
+    const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadApprovals(), loadHistory(), loadSlashConfirms()])
     diagnostics.value = diagnosticsData
   } finally {
     loading.value = false
@@ -95,6 +102,16 @@ async function loadHistory() {
     approvalHistory.value = result.items || []
   } finally {
     historyLoading.value = false
+  }
+}
+
+async function loadSlashConfirms() {
+  confirmsLoading.value = true
+  try {
+    const result = await fetchPendingSlashConfirms(100)
+    pendingSlashConfirms.value = result.items || []
+  } finally {
+    confirmsLoading.value = false
   }
 }
 
@@ -140,6 +157,30 @@ async function handleApproval(item: PendingApproval, action: 'approve' | 'deny',
 
 function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
   return resolvingKey.value === `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+}
+
+async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' | 'always' | 'deny') {
+  const key = `${item.source_key}:${item.confirm_id}:${action}`
+  resolvingConfirmKey.value = key
+  try {
+    const result = await resolveSlashConfirm({
+      sourceKey: item.source_key || '',
+      confirmId: item.confirm_id,
+      action,
+    })
+    if (result.success) {
+      message.success(result.message || '确认状态已更新')
+      await loadSlashConfirms()
+      return
+    }
+    message.error(result.message || '确认状态更新失败')
+  } finally {
+    resolvingConfirmKey.value = ''
+  }
+}
+
+function slashConfirmBusy(item: PendingSlashConfirm, action: string) {
+  return resolvingConfirmKey.value === `${item.source_key}:${item.confirm_id}:${action}`
 }
 
 function timeText(value?: number) {
@@ -471,6 +512,64 @@ onMounted(load)
               </article>
             </div>
             <div v-else class="empty-state">暂无审批历史</div>
+          </NSpin>
+        </section>
+        <section class="panel approvals-panel">
+          <div class="panel-title-row">
+            <h3>待确认 Slash 命令</h3>
+            <div class="panel-actions">
+              <NTag size="small" :type="slashConfirmCount ? 'warning' : 'success'">{{ slashConfirmCount }}</NTag>
+              <NButton size="small" :loading="confirmsLoading" @click="loadSlashConfirms">刷新</NButton>
+            </div>
+          </div>
+          <NSpin :show="confirmsLoading">
+            <div v-if="pendingSlashConfirms.length" class="approval-list">
+              <article v-for="item in pendingSlashConfirms" :key="item.confirm_id" class="approval-item">
+                <div class="approval-head">
+                  <div>
+                    <strong>/{{ item.command || '-' }}</strong>
+                    <span>{{ item.source_key || '-' }}</span>
+                  </div>
+                  <NTag size="small" :type="item.allow_always ? 'default' : 'warning'">
+                    {{ item.allow_always ? '可永久确认' : '仅本次' }}
+                  </NTag>
+                </div>
+                <p class="approval-desc">{{ item.prompt || '-' }}</p>
+                <div class="approval-meta">
+                  <span>{{ item.confirm_id }}</span>
+                  <span>创建：{{ timeText(item.created_at) }}</span>
+                  <span>过期：{{ timeText(item.expires_at) }}</span>
+                </div>
+                <div class="approval-actions">
+                  <NButtonGroup size="small">
+                    <NButton
+                      type="primary"
+                      :loading="slashConfirmBusy(item, 'approve')"
+                      @click="handleSlashConfirm(item, 'approve')"
+                    >
+                      执行一次
+                    </NButton>
+                    <NButton
+                      :disabled="!item.allow_always"
+                      :loading="slashConfirmBusy(item, 'always')"
+                      @click="handleSlashConfirm(item, 'always')"
+                    >
+                      永久确认
+                    </NButton>
+                  </NButtonGroup>
+                  <NButton
+                    size="small"
+                    type="error"
+                    ghost
+                    :loading="slashConfirmBusy(item, 'deny')"
+                    @click="handleSlashConfirm(item, 'deny')"
+                  >
+                    取消
+                  </NButton>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state">暂无待确认 Slash 命令</div>
           </NSpin>
         </section>
       </main>

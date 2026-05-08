@@ -88,6 +88,27 @@ export interface ApprovalHistoryResult {
   items: ApprovalAuditEvent[]
 }
 
+export interface PendingSlashConfirm {
+  confirm_id: string
+  source_key?: string
+  command?: string
+  prompt?: string
+  allow_always?: boolean
+  created_at?: number
+  expires_at?: number
+}
+
+export interface PendingSlashConfirmsResult {
+  count: number
+  items: PendingSlashConfirm[]
+}
+
+export interface ResolveSlashConfirmRequest {
+  sourceKey: string
+  confirmId?: string
+  action: 'approve' | 'always' | 'deny'
+}
+
 export interface ResolveApprovalRequest {
   sessionId: string
   approvalId?: string
@@ -126,8 +147,19 @@ export async function fetchApprovalHistory(limit = 100): Promise<ApprovalHistory
   return request<ApprovalHistoryResult>(`/api/diagnostics/approvals/history?limit=${limit}`)
 }
 
+export async function fetchPendingSlashConfirms(limit = 100): Promise<PendingSlashConfirmsResult> {
+  return request<PendingSlashConfirmsResult>(`/api/diagnostics/slash-confirms?limit=${limit}`)
+}
+
 export async function resolveApproval(payload: ResolveApprovalRequest): Promise<ResolveApprovalResult> {
   return request<ResolveApprovalResult>('/api/diagnostics/approvals/resolve', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function resolveSlashConfirm(payload: ResolveSlashConfirmRequest): Promise<ResolveApprovalResult> {
+  return request<ResolveApprovalResult>('/api/diagnostics/slash-confirms/resolve', {
     method: 'POST',
     body: JSON.stringify(payload),
   })

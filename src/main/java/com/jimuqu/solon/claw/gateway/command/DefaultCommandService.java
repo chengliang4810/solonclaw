@@ -513,6 +513,66 @@ public class DefaultCommandService implements CommandService {
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler cronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator) {
+        this(
+                sessionRepository,
+                toolRegistry,
+                localSkillService,
+                cronJobRepository,
+                conversationOrchestrator,
+                contextService,
+                contextCompressionService,
+                deliveryService,
+                gatewayAuthorizationService,
+                checkpointService,
+                skillHubService,
+                appConfig,
+                globalSettingRepository,
+                processRegistry,
+                runtimeSettingsService,
+                displaySettingsService,
+                appUpdateService,
+                dangerousCommandApprovalService,
+                agentRunControlService,
+                agentProfileService,
+                agentRunRepository,
+                kanbanService,
+                dashboardMcpService,
+                goalService,
+                sessionArtifactService,
+                cronScheduler,
+                gatewayRestartCoordinator,
+                null);
+    }
+
+    public DefaultCommandService(
+            SessionRepository sessionRepository,
+            ToolRegistry toolRegistry,
+            LocalSkillService localSkillService,
+            CronJobRepository cronJobRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ContextService contextService,
+            ContextCompressionService contextCompressionService,
+            DeliveryService deliveryService,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            CheckpointService checkpointService,
+            SkillHubService skillHubService,
+            AppConfig appConfig,
+            GlobalSettingRepository globalSettingRepository,
+            ProcessRegistry processRegistry,
+            RuntimeSettingsService runtimeSettingsService,
+            DisplaySettingsService displaySettingsService,
+            AppUpdateService appUpdateService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            AgentRunControlService agentRunControlService,
+            AgentProfileService agentProfileService,
+            AgentRunRepository agentRunRepository,
+            KanbanService kanbanService,
+            DashboardMcpService dashboardMcpService,
+            GoalService goalService,
+            SessionArtifactService sessionArtifactService,
+            DefaultCronScheduler cronScheduler,
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -540,7 +600,10 @@ public class DefaultCommandService implements CommandService {
         this.goalService = goalService == null ? new GoalService(sessionRepository) : goalService;
         this.sessionArtifactService =
                 sessionArtifactService == null ? new SessionArtifactService() : sessionArtifactService;
-        this.slashConfirmService = new SlashConfirmService(globalSettingRepository);
+        this.slashConfirmService =
+                slashConfirmService == null
+                        ? new SlashConfirmService(globalSettingRepository)
+                        : slashConfirmService;
         this.cronScheduler = cronScheduler;
         this.gatewayRestartCoordinator =
                 gatewayRestartCoordinator == null ? new GatewayRestartCoordinator() : gatewayRestartCoordinator;

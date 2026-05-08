@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
@@ -169,6 +170,11 @@ public class GatewayConfiguration {
     }
 
     @Bean
+    public SlashConfirmService slashConfirmService(GlobalSettingRepository globalSettingRepository) {
+        return new SlashConfirmService(globalSettingRepository);
+    }
+
+    @Bean
     public CommandService commandService(
             SessionRepository sessionRepository,
             ToolRegistry toolRegistry,
@@ -196,7 +202,8 @@ public class GatewayConfiguration {
             GoalService goalService,
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler defaultCronScheduler,
-            GatewayRestartCoordinator gatewayRestartCoordinator) {
+            GatewayRestartCoordinator gatewayRestartCoordinator,
+            SlashConfirmService slashConfirmService) {
         return new DefaultCommandService(
                 sessionRepository,
                 toolRegistry,
@@ -224,7 +231,8 @@ public class GatewayConfiguration {
                 goalService,
                 sessionArtifactService,
                 defaultCronScheduler,
-                gatewayRestartCoordinator);
+                gatewayRestartCoordinator,
+                slashConfirmService);
     }
 
     @Bean

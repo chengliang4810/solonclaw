@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -977,6 +981,49 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
         assertThat(after.body).doesNotContain("\"session_id\":\"dashboard-approval-chat\"");
+    }
+
+    @Test
+    void shouldListAndResolvePendingSlashConfirmsFromDashboard() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        GatewayMessage commandMessage =
+                new GatewayMessage(
+                        PlatformType.MEMORY,
+                        "dashboard-confirm-chat",
+                        "dashboard-confirm-user",
+                        "/reload-mcp");
+        GatewayReply prompt = bean(CommandService.class).handle(commandMessage, "/reload-mcp");
+        assertThat(prompt.getContent()).contains("确认编号");
+
+        HttpResult confirms =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        assertThat(confirms.status).isEqualTo(200);
+        assertThat(confirms.body)
+                .contains("\"command\":\"reload-mcp\"")
+                .contains("\"source_key\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\"")
+                .contains("\"allow_always\":true");
+        ONode confirm = ONode.ofJson(confirms.body).get("data").get("items").get(0);
+        String confirmId = confirm.get("confirm_id").getString();
+        assertThat(confirmId).isNotBlank();
+
+        HttpResult resolve =
+                request(
+                        "POST",
+                        "/api/diagnostics/slash-confirms/resolve",
+                        "{\"sourceKey\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\",\"confirmId\":\""
+                                + jsonEscape(confirmId)
+                                + "\",\"action\":\"deny\"}",
+                        token);
+        assertThat(resolve.status).isEqualTo(200);
+        assertThat(resolve.body)
+                .contains("\"success\":true")
+                .contains("已取消 /reload-mcp");
+
+        HttpResult after =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        assertThat(after.status).isEqualTo(200);
+        assertThat(after.body).doesNotContain("dashboard-confirm-chat");
     }
 
     @Test
