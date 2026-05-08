@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
@@ -68,6 +69,9 @@ import org.noear.solon.ai.chat.dialect.ChatDialectManager;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.skill.Skill;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.HarnessProperties;
 import org.noear.solon.ai.harness.agent.AgentDefinition;
@@ -1076,10 +1080,79 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         for (Object toolObject : toolObjects) {
-            builder.defaultToolAdd(toolObject);
+            builder.defaultToolAdd(sanitizeToolObject(toolObject));
         }
-        builder.defaultSkillAdd(pdfSkill());
+        builder.defaultToolAdd(sanitizeToolObject(pdfSkill()));
         return builder.build();
+    }
+
+    private Object sanitizeToolObject(Object toolObject) {
+        if (toolObject instanceof FunctionTool) {
+            return SanitizedFunctionTool.wrap((FunctionTool) toolObject);
+        }
+        if (toolObject instanceof ToolProvider) {
+            final ToolProvider provider = (ToolProvider) toolObject;
+            return new ToolProvider() {
+                @Override
+                public java.util.Collection<FunctionTool> getTools() {
+                    java.util.List<FunctionTool> result = new java.util.ArrayList<FunctionTool>();
+                    java.util.Collection<FunctionTool> tools = provider.getTools();
+                    if (tools != null) {
+                        for (FunctionTool tool : tools) {
+                            result.add(SanitizedFunctionTool.wrap(tool));
+                        }
+                    }
+                    return result;
+                }
+            };
+        }
+        if (toolObject instanceof Skill) {
+            final Skill skill = (Skill) toolObject;
+            return new Skill() {
+                @Override
+                public String name() {
+                    return skill.name();
+                }
+
+                @Override
+                public String description() {
+                    return skill.description();
+                }
+
+                @Override
+                public org.noear.solon.ai.chat.skill.SkillMetadata metadata() {
+                    return skill.metadata();
+                }
+
+                @Override
+                public boolean isSupported(Prompt prompt) {
+                    return skill.isSupported(prompt);
+                }
+
+                @Override
+                public void onAttach(Prompt prompt) {
+                    skill.onAttach(prompt);
+                }
+
+                @Override
+                public String getInstruction(Prompt prompt) {
+                    return skill.getInstruction(prompt);
+                }
+
+                @Override
+                public java.util.Collection<FunctionTool> getTools(Prompt prompt) {
+                    java.util.List<FunctionTool> result = new java.util.ArrayList<FunctionTool>();
+                    java.util.Collection<FunctionTool> tools = skill.getTools(prompt);
+                    if (tools != null) {
+                        for (FunctionTool tool : tools) {
+                            result.add(SanitizedFunctionTool.wrap(tool));
+                        }
+                    }
+                    return result;
+                }
+            };
+        }
+        return toolObject;
     }
 
     private SummarizationInterceptor buildHarnessSummarizationInterceptor(

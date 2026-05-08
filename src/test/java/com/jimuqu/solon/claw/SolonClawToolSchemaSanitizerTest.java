@@ -3,8 +3,10 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
+import com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -235,6 +237,65 @@ public class SolonClawToolSchemaSanitizerTest {
         assertThat(attrs.hasKey("unevaluatedProperties")).isFalse();
         assertThat(attrs.get("required").size()).isEqualTo(1);
         assertThat(attrs.get("required").get(0).getString()).isEqualTo("mode");
+    }
+
+    @Test
+    void shouldExposeSanitizedSchemasWithoutChangingToolExecution() throws Throwable {
+        FunctionTool raw =
+                new FunctionTool() {
+                    @Override
+                    public String name() {
+                        return "fixture_tool";
+                    }
+
+                    @Override
+                    public String title() {
+                        return "Fixture";
+                    }
+
+                    @Override
+                    public String description() {
+                        return "Fixture tool";
+                    }
+
+                    @Override
+                    public boolean returnDirect() {
+                        return false;
+                    }
+
+                    @Override
+                    public String inputSchema() {
+                        return "{"
+                                + "\"type\":\"object\","
+                                + "\"properties\":{\"when\":{\"type\":\"string\",\"format\":\"date-time\",\"default\":\"now\"}},"
+                                + "\"if\":{\"required\":[\"when\"]},"
+                                + "\"then\":{\"required\":[\"other\"]},"
+                                + "\"required\":[\"when\",\"other\"]"
+                                + "}";
+                    }
+
+                    @Override
+                    public java.lang.reflect.Type returnType() {
+                        return String.class;
+                    }
+
+                    @Override
+                    public Object handle(Map<String, Object> args) {
+                        return "handled:" + args.get("when");
+                    }
+                };
+
+        FunctionTool wrapped = SanitizedFunctionTool.wrap(raw);
+        ONode schema = ONode.ofJson(wrapped.inputSchema());
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("when", "today");
+
+        assertThat(schema.get("properties").get("when").hasKey("format")).isFalse();
+        assertThat(schema.hasKey("if")).isFalse();
+        assertThat(schema.hasKey("then")).isFalse();
+        assertThat(schema.get("required").size()).isEqualTo(1);
+        assertThat(schema.get("required").get(0).getString()).isEqualTo("when");
+        assertThat(wrapped.handle(args)).isEqualTo("handled:today");
     }
 
     @Test
