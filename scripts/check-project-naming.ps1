@@ -18,15 +18,14 @@ $scanRoot = Resolve-Path $RootPath
 Push-Location $scanRoot
 try {
     function Get-BlockedPatterns {
-        $legacyConfigKeyPrefixes = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss](?:[_\-.])",
-            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww](?:[_\-.])"
-        )
-        $patterns = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?",
-            "[Bb][Aa][Dd][_\-.]?[Ll][Ee][Gg][Aa][Cc][Yy][_\-.]?[Pp][Rr][Ee][Ff][Ii][Xx](?:[_\-.])"
-        ) + $legacyConfigKeyPrefixes
+        $firstExternalName = "[Hh][Ee][Rr][Mm][Ee][Ss]"
+        $secondExternalName = "[Oo][Pp][Ee][Nn](?:[_\-\.\s])?[Cc][Ll][Aa][Ww]"
+        $patterns = @()
+        $patterns += ($firstExternalName + "_?")
+        $patterns += ($secondExternalName + "[_\-]?")
+        $patterns += "[Bb][Aa][Dd][_\-.]?[Ll][Ee][Gg][Aa][Cc][Yy][_\-.]?[Pp][Rr][Ee][Ff][Ii][Xx](?:[_\-.])"
+        $patterns += ($firstExternalName + "(?:[_\-.])")
+        $patterns += ($secondExternalName + "(?:[_\-.])")
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
                 $patterns += [Regex]::Escape($term)
@@ -36,15 +35,14 @@ try {
     }
 
     function Get-GitGrepBlockedPatterns {
-        $legacyConfigKeyPrefixes = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss]([_.-])",
-            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww]([_.-])"
-        )
-        $patterns = @(
-            "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
-            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww][_ -]?",
-            "[Bb][Aa][Dd][_.-]?[Ll][Ee][Gg][Aa][Cc][Yy][_.-]?[Pp][Rr][Ee][Ff][Ii][Xx]([_.-])"
-        ) + $legacyConfigKeyPrefixes
+        $firstExternalName = "[Hh][Ee][Rr][Mm][Ee][Ss]"
+        $secondExternalName = "[Oo][Pp][Ee][Nn]([_[:space:].-])?[Cc][Ll][Aa][Ww]"
+        $patterns = @()
+        $patterns += ($firstExternalName + "_?")
+        $patterns += ($secondExternalName + "[_ -]?")
+        $patterns += "[Bb][Aa][Dd][_.-]?[Ll][Ee][Gg][Aa][Cc][Yy][_.-]?[Pp][Rr][Ee][Ff][Ii][Xx]([_.-])"
+        $patterns += ($firstExternalName + "([_.-])")
+        $patterns += ($secondExternalName + "([_.-])")
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
                 $patterns += [Regex]::Escape($term)

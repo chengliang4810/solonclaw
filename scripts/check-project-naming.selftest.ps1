@@ -8,13 +8,8 @@ $publishedReleaseScriptPath = Join-Path $repoRoot "scripts\check-release-naming.
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
 $blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
-$blockedLegacyEnvFixture =
-    (([string][char]66) + ([string][char]65) + ([string][char]68) + "_" `
-        + ([string][char]76) + ([string][char]69) + ([string][char]71) `
-        + ([string][char]65) + ([string][char]67) + ([string][char]89) + "_" `
-        + ([string][char]80) + ([string][char]82) + ([string][char]69) `
-        + ([string][char]70) + ([string][char]73) + ([string][char]88) `
-        + "_ALLOW_PRIVATE_URLS")
+$blockedEnvFixture = $blockedFixture + "_ALLOW_PRIVATE_URLS"
+$blockedDefaultEnvFixture = "BAD_" + "LEGACY_" + "PREFIX_ALLOW_PRIVATE_URLS"
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -105,48 +100,66 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\legacy-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
-    $blockedLegacyEnv = Invoke-NamingCheck
+    Set-Content -Path (Join-Path $sandbox "src\external-env.txt") -Value ($blockedEnvFixture + "=true") -Encoding UTF8
+    $blockedExternalEnv = Invoke-NamingCheck -WithExtraFixture
+    if ($blockedExternalEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden external-name environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedExternalEnv.Output @($blockedEnvFixture) "external-name environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "docs\external-name.md") -Value ("Old upstream name: " + $blockedEnvFixture) -Encoding UTF8
+    $blockedExternalName = Invoke-NamingCheck -WithExtraFixture
+    if ($blockedExternalName.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden external project name."
+    }
+    Assert-NoRawBlockedOutput $blockedExternalName.Output @($blockedEnvFixture) "external project name scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-env.txt") -Value ($blockedEnvFixture + "=true") -Encoding UTF8
+    $blockedLegacyEnv = Invoke-NamingCheck -WithExtraFixture
     if ($blockedLegacyEnv.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
-    Assert-NoRawBlockedOutput $blockedLegacyEnv.Output @($blockedLegacyEnvFixture) "legacy environment variable scan"
+    Assert-NoRawBlockedOutput $blockedLegacyEnv.Output @($blockedEnvFixture) "legacy environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\private-url-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
-    $blockedPrivateUrlEnv = Invoke-NamingCheck
+    Set-Content -Path (Join-Path $sandbox "src\private-url-env.txt") -Value ($blockedEnvFixture + "=true") -Encoding UTF8
+    $blockedPrivateUrlEnv = Invoke-NamingCheck -WithExtraFixture
     if ($blockedPrivateUrlEnv.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden private URL environment variable."
     }
-    Assert-NoRawBlockedOutput $blockedPrivateUrlEnv.Output @($blockedLegacyEnvFixture) "legacy private URL environment variable scan"
+    Assert-NoRawBlockedOutput $blockedPrivateUrlEnv.Output @($blockedEnvFixture) "legacy private URL environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\default-private-url-env.txt") -Value ($blockedLegacyEnvFixture + "=true") -Encoding UTF8
-    $blockedDefaultPrivateUrlEnv = Invoke-NamingCheck
+    Set-Content -Path (Join-Path $sandbox "src\default-private-url-env.txt") -Value ($blockedEnvFixture + "=true") -Encoding UTF8
+    $blockedDefaultPrivateUrlEnv = Invoke-NamingCheck -WithExtraFixture
     if ($blockedDefaultPrivateUrlEnv.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden default private URL environment variable."
     }
-    Assert-NoRawBlockedOutput $blockedDefaultPrivateUrlEnv.Output @($blockedLegacyEnvFixture) "default private URL environment variable scan"
+    Assert-NoRawBlockedOutput $blockedDefaultPrivateUrlEnv.Output @($blockedEnvFixture) "default private URL environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyEnvFixture) -Encoding UTF8
-    $blockedLegacyName = Invoke-NamingCheck
+    Set-Content -Path (Join-Path $sandbox "docs\legacy-name.md") -Value ("Old upstream name: " + $blockedEnvFixture) -Encoding UTF8
+    $blockedLegacyName = Invoke-NamingCheck -WithExtraFixture
     if ($blockedLegacyName.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden legacy project name."
     }
-    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedLegacyEnvFixture) "legacy project name scan"
+    Assert-NoRawBlockedOutput $blockedLegacyName.Output @($blockedEnvFixture) "legacy project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\default-legacy-name.md") -Value ("Old upstream name: " + $blockedLegacyEnvFixture) -Encoding UTF8
-    $blockedDefaultLegacyName = Invoke-NamingCheck
+    Set-Content -Path (Join-Path $sandbox "docs\default-legacy-name.md") -Value ("Old upstream name: " + $blockedEnvFixture) -Encoding UTF8
+    $blockedDefaultLegacyName = Invoke-NamingCheck -WithExtraFixture
     if ($blockedDefaultLegacyName.ExitCode -eq 0) {
         throw "Naming check did not block a forbidden default legacy project name."
     }
-    Assert-NoRawBlockedOutput $blockedDefaultLegacyName.Output @($blockedLegacyEnvFixture) "default legacy project name scan"
+    Assert-NoRawBlockedOutput $blockedDefaultLegacyName.Output @($blockedEnvFixture) "default legacy project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null
@@ -191,7 +204,7 @@ try {
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean body fixture" -Encoding UTF8
         & git add README.md | Out-Null
         & git commit -m "fix: clean subject with polluted body / Clean subject with polluted body" `
-            -m ("body uses " + $blockedLegacyEnvFixture) | Out-Null
+            -m ("body uses " + $blockedDefaultEnvFixture) | Out-Null
     } finally {
         Pop-Location
     }
@@ -199,7 +212,7 @@ try {
     if ($blockedCommitBody.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in git commit messages."
     }
-    Assert-NoRawBlockedOutput $blockedCommitBody.Output @($blockedLegacyEnvFixture) "git commit body scan"
+    Assert-NoRawBlockedOutput $blockedCommitBody.Output @($blockedDefaultEnvFixture) "git commit body scan"
 
     Push-Location $sandbox
     try {
@@ -329,7 +342,7 @@ try {
         & git config user.email "naming-check@example.invalid" | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean file for release private URL fixture" -Encoding UTF8
         & git add README.md | Out-Null
-        & git commit -m ("fix: block " + $blockedLegacyEnvFixture + " release leak") | Out-Null
+        & git commit -m ("fix: block " + $blockedDefaultEnvFixture + " release leak") | Out-Null
 
         $releaseDefaultSubjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
@@ -340,7 +353,7 @@ try {
         if ($LASTEXITCODE -eq 0) {
             throw "Release notes generation should fail when forbidden default private URL naming exists in a commit subject."
         }
-        Assert-NoRawBlockedOutput ($releaseDefaultSubjectOutput | Out-String) @($blockedLegacyEnvFixture) "release notes default private URL subject generation"
+        Assert-NoRawBlockedOutput ($releaseDefaultSubjectOutput | Out-String) @($blockedDefaultEnvFixture) "release notes default private URL subject generation"
     } finally {
         Pop-Location
     }
@@ -355,7 +368,7 @@ try {
         & git config user.email "naming-check@example.invalid" | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean file for release subject fixture" -Encoding UTF8
         & git add README.md | Out-Null
-        & git commit -m ("fix: block " + $blockedLegacyEnvFixture + " release leak") | Out-Null
+        & git commit -m ("fix: block " + $blockedDefaultEnvFixture + " release leak") | Out-Null
 
         $releaseSubjectOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
@@ -366,7 +379,7 @@ try {
         if ($LASTEXITCODE -eq 0) {
             throw "Release notes generation should fail when blocked default naming exists in a commit subject."
         }
-        Assert-NoRawBlockedOutput ($releaseSubjectOutput | Out-String) @($blockedLegacyEnvFixture) "release notes default subject generation"
+        Assert-NoRawBlockedOutput ($releaseSubjectOutput | Out-String) @($blockedDefaultEnvFixture) "release notes default subject generation"
     } finally {
         Pop-Location
     }
@@ -432,7 +445,7 @@ try {
     $publishedReleaseFixture = [PSCustomObject]@{
         name = "jimuqu-agent v2099.01.04-def0123"
         tag_name = "v2099.01.04-def0123"
-        body = "Published release body mentions $blockedLegacyEnvFixture"
+        body = "Published release body mentions $blockedDefaultEnvFixture"
         assets = @(
             [PSCustomObject]@{
                 name = "jimuqu-agent-0.0.0-test.jar"
@@ -447,7 +460,7 @@ try {
     if ($LASTEXITCODE -eq 0) {
         throw "Published release naming check should fail when blocked naming exists in release metadata."
     }
-    Assert-NoRawBlockedOutput ($publishedReleaseOutput | Out-String) @($blockedLegacyEnvFixture) "published release metadata scan"
+    Assert-NoRawBlockedOutput ($publishedReleaseOutput | Out-String) @($blockedDefaultEnvFixture) "published release metadata scan"
 
     Reset-Sandbox
     $cleanPublishedReleaseFixturePath = Join-Path $sandbox "published-release-clean.json"

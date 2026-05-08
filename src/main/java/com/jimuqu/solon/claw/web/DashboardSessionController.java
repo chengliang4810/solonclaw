@@ -67,6 +67,11 @@ public class DashboardSessionController {
         return DashboardResponse.ok(sessionService.latestDescendant(id));
     }
 
+    @Mapping(value = "/api/sessions/{id}", method = MethodType.PUT)
+    public Map<String, Object> update(String id, Context context) throws Exception {
+        return DashboardResponse.ok(sessionService.updateSession(id, body(context)));
+    }
+
     @Mapping(value = "/api/sessions/{id}/checkpoints", method = MethodType.GET)
     public Map<String, Object> checkpoints(String id) throws Exception {
         return DashboardResponse.ok(sessionService.checkpoints(id));
@@ -85,5 +90,18 @@ public class DashboardSessionController {
     @Mapping(value = "/api/sessions/{id}", method = MethodType.DELETE)
     public Map<String, Object> delete(String id) throws Exception {
         return DashboardResponse.ok(sessionService.deleteSession(id));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> body(Context context) {
+        try {
+            String raw = context.body();
+            if (raw == null || raw.trim().length() == 0) {
+                return java.util.Collections.emptyMap();
+            }
+            return org.noear.snack4.ONode.deserialize(raw, java.util.LinkedHashMap.class);
+        } catch (Exception e) {
+            return java.util.Collections.emptyMap();
+        }
     }
 }

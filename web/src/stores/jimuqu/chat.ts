@@ -1071,6 +1071,13 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function sendSlashCommand(command: string) {
+    const text = command.trim()
+    if (!text.startsWith('/') || isStreaming.value) return false
+    await sendMessage(text)
+    return true
+  }
+
   async function stopStreaming() {
     const sid = activeSessionId.value
     if (!sid) return
@@ -1127,6 +1134,7 @@ export const useChatStore = defineStore('chat', () => {
     switchSessionModel,
     deleteSession,
     sendMessage,
+    sendSlashCommand,
     stopStreaming,
     loadSessions,
     refreshActiveSession,

@@ -220,6 +220,27 @@ public class DashboardControllerHttpTest {
                 .contains("\"goal_state\"")
                 .contains("完成 dashboard 会话目标展示");
 
+        HttpResult renameSession =
+                request(
+                        "PUT",
+                        "/api/sessions/dashboard-chat",
+                        "{\"title\":\"Dashboard renamed session\"}",
+                        token);
+        assertThat(renameSession.status).isEqualTo(200);
+        assertThat(renameSession.body).contains("\"title\":\"Dashboard renamed session\"");
+
+        HttpResult renamedSessions =
+                request("GET", "/api/sessions?limit=20&offset=0", null, token);
+        assertThat(renamedSessions.status).isEqualTo(200);
+        assertThat(renamedSessions.body).contains("\"title\":\"Dashboard renamed session\"");
+
+        HttpResult renamedMessages =
+                request("GET", "/api/sessions/dashboard-chat/messages", null, token);
+        assertThat(renamedMessages.status).isEqualTo(200);
+        assertThat(renamedMessages.body)
+                .contains("\"goal_state\"")
+                .contains("完成 dashboard 会话目标展示");
+
         HttpResult runs = request("GET", "/api/sessions/dashboard-chat/runs", null, token);
         assertThat(runs.status).isEqualTo(200);
         assertThat(runs.body).contains("\"runs\"");
@@ -379,7 +400,15 @@ public class DashboardControllerHttpTest {
         assertThat(cronNext.status).isEqualTo(200);
         ONode cronNextData = ONode.ofJson(cronNext.body).get("data");
         assertThat(cronNextData.get("count").getInt()).isEqualTo(1);
+        assertThat(cronNextData.get("include_disabled").getBoolean()).isFalse();
         assertThat(cronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+        HttpResult apiCronNext =
+                request("GET", "/api/jobs/next?include_disabled=true&limit=1", null, token);
+        assertThat(apiCronNext.status).isEqualTo(200);
+        ONode apiCronNextData = ONode.ofJson(apiCronNext.body);
+        assertThat(apiCronNextData.get("count").getInt()).isEqualTo(1);
+        assertThat(apiCronNextData.get("include_disabled").getBoolean()).isTrue();
+        assertThat(apiCronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
 
         HttpResult triggerCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
@@ -404,6 +433,81 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
         assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
+        HttpResult apiCronRuns =
+                request("GET", "/api/jobs/" + dashboardCronId + "/runs?limit=5", null, token);
+        assertThat(apiCronRuns.status).isEqualTo(200);
+        ONode apiCronRunsData = ONode.ofJson(apiCronRuns.body);
+        assertThat(apiCronRunsData.get("job_id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronRunsData.get("count").getInt()).isGreaterThanOrEqualTo(1);
+        assertThat(apiCronRunsData.get("runs").get(0).get("run_id").getString()).isNotBlank();
+        assertThat(apiCronRunsData.get("runs").get(0).get("output").getString())
+                .contains("dashboard trigger ok: daily summary");
+
+        HttpResult apiPutCron =
+                request(
+                        "PUT",
+                        "/api/jobs/" + dashboardCronId,
+                        "{\"name\":\"Daily summary via API\",\"schedule\":\"0 10 * * *\"}",
+                        token);
+        assertThat(apiPutCron.status).isEqualTo(200);
+        assertThat(apiPutCron.body)
+                .contains("\"job\"")
+                .contains("\"name\":\"Daily summary via API\"")
+                .contains("\"schedule_display\":\"0 10 * * *\"");
+
+        HttpResult apiTriggerCron =
+                request("POST", "/api/jobs/" + dashboardCronId + "/trigger", "{}", token);
+        assertThat(apiTriggerCron.status).isEqualTo(200);
+        assertThat(apiTriggerCron.body).contains("\"job\"").contains("\"last_status\":\"ok\"");
+
+        HttpResult apiCronHistory =
+                request("GET", "/api/jobs/" + dashboardCronId + "/history?limit=2", null, token);
+        assertThat(apiCronHistory.status).isEqualTo(200);
+        ONode apiCronHistoryData = ONode.ofJson(apiCronHistory.body);
+        assertThat(apiCronHistoryData.get("job_id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronHistoryData.get("count").getInt()).isGreaterThanOrEqualTo(1);
+        assertThat(apiCronHistoryData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
+
+        HttpResult cronInspect =
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+        assertThat(cronInspect.status).isEqualTo(200);
+        ONode cronInspectData = ONode.ofJson(cronInspect.body).get("data");
+        assertThat(cronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(cronInspectData.get("run_count").getInt()).isEqualTo(1);
+        assertThat(cronInspectData.get("limit").getInt()).isEqualTo(1);
+        assertThat(cronInspectData.get("runs").get(0).get("output").getString())
+                .contains("dashboard trigger ok: daily summary");
+
+        HttpResult apiCronInspect =
+                request("GET", "/api/jobs/" + dashboardCronId + "/inspect?limit=1", null, token);
+        assertThat(apiCronInspect.status).isEqualTo(200);
+        ONode apiCronInspectData = ONode.ofJson(apiCronInspect.body);
+        assertThat(apiCronInspectData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronInspectData.get("run_count").getInt()).isEqualTo(1);
+        assertThat(apiCronInspectData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
+
+        HttpResult apiCronShow =
+                request("GET", "/api/jobs/" + dashboardCronId + "/show?limit=1", null, token);
+        assertThat(apiCronShow.status).isEqualTo(200);
+        ONode apiCronShowData = ONode.ofJson(apiCronShow.body);
+        assertThat(apiCronShowData.get("job").get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronShowData.get("run_count").getInt()).isEqualTo(1);
+
+        HttpResult cronStatus = request("GET", "/api/cron/jobs/status?limit=2", null, token);
+        assertThat(cronStatus.status).isEqualTo(200);
+        ONode cronStatusData = ONode.ofJson(cronStatus.body).get("data");
+        assertThat(cronStatusData.get("total").getInt()).isEqualTo(1);
+        assertThat(cronStatusData.get("active").getInt()).isEqualTo(1);
+        assertThat(cronStatusData.get("due").getInt()).isGreaterThanOrEqualTo(0);
+        assertThat(cronStatusData.get("next").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+
+        HttpResult apiJobsStatus = request("GET", "/api/jobs/status?limit=2", null, token);
+        assertThat(apiJobsStatus.status).isEqualTo(200);
+        ONode apiJobsStatusData = ONode.ofJson(apiJobsStatus.body);
+        assertThat(apiJobsStatusData.get("total").getInt()).isEqualTo(1);
+        assertThat(apiJobsStatusData.get("active").getInt()).isEqualTo(1);
+        assertThat(apiJobsStatusData.get("next").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+
         HttpResult pauseCron =
                 request(
                         "POST",
@@ -413,6 +517,13 @@ public class DashboardControllerHttpTest {
         assertThat(pauseCron.status).isEqualTo(200);
         assertThat(ONode.ofJson(pauseCron.body).get("data").get("paused_reason").getString())
                 .isEqualTo("dashboard maintenance");
+        HttpResult apiJobsStatusWithPaused =
+                request("GET", "/api/jobs/status?include_disabled=true&limit=2", null, token);
+        assertThat(apiJobsStatusWithPaused.status).isEqualTo(200);
+        ONode apiJobsStatusWithPausedData = ONode.ofJson(apiJobsStatusWithPaused.body);
+        assertThat(apiJobsStatusWithPausedData.get("total").getInt()).isEqualTo(1);
+        assertThat(apiJobsStatusWithPausedData.get("active").getInt()).isEqualTo(0);
+        assertThat(apiJobsStatusWithPausedData.get("paused").getInt()).isEqualTo(1);
 
         HttpResult acpStatus = request("GET", "/api/jimuqu/acp/status", null, token);
         assertThat(acpStatus.status).isEqualTo(200);

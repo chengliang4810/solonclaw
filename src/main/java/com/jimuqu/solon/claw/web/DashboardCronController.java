@@ -32,18 +32,39 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/next", method = MethodType.GET)
-    public Map<String, Object> next(@Param(defaultValue = "5") Integer limit) throws Exception {
-        List<Map<String, Object>> jobs = cronService.nextJobs(limit == null ? 5 : limit.intValue());
+    public Map<String, Object> next(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        List<Map<String, Object>> jobs = cronService.nextJobs(limit == null ? 5 : limit.intValue(), includeDisabled);
         Map<String, Object> data = new LinkedHashMap<String, Object>();
         data.put("jobs", jobs);
         data.put("count", Integer.valueOf(jobs.size()));
         data.put("limit", Integer.valueOf(limit == null ? 5 : limit.intValue()));
+        data.put("include_disabled", Boolean.valueOf(includeDisabled));
         return DashboardResponse.ok(data);
     }
 
     @Mapping(value = "/api/jobs/next", method = MethodType.GET)
-    public Map<String, Object> apiNext(@Param(defaultValue = "5") Integer limit) throws Exception {
-        return apiJobsResponse(cronService.nextJobs(limit == null ? 5 : limit.intValue()));
+    public Map<String, Object> apiNext(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        List<Map<String, Object>> jobs = cronService.nextJobs(limit == null ? 5 : limit.intValue(), includeDisabled);
+        Map<String, Object> data = new LinkedHashMap<String, Object>();
+        data.put("jobs", jobs);
+        data.put("count", Integer.valueOf(jobs.size()));
+        data.put("limit", Integer.valueOf(limit == null ? 5 : limit.intValue()));
+        data.put("include_disabled", Boolean.valueOf(includeDisabled));
+        return data;
+    }
+
+    @Mapping(value = "/api/cron/jobs/status", method = MethodType.GET)
+    public Map<String, Object> status(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        return DashboardResponse.ok(cronService.status(includeDisabled, limit == null ? 5 : limit.intValue()));
+    }
+
+    @Mapping(value = "/api/jobs/status", method = MethodType.GET)
+    public Map<String, Object> apiStatus(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
+        boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));
+        return cronService.status(includeDisabled, limit == null ? 5 : limit.intValue());
     }
 
     @Mapping(value = "/api/cron/jobs", method = MethodType.POST)
@@ -99,6 +120,49 @@ public class DashboardCronController {
         }
     }
 
+    @Mapping(value = "/api/cron/jobs/{id}/inspect", method = MethodType.GET)
+    public Map<String, Object> inspect(String id, @Param(defaultValue = "5") Integer limit, Context context)
+            throws Exception {
+        try {
+            return DashboardResponse.ok(cronService.inspect(id, limit == null ? 5 : limit.intValue()));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
+    }
+
+    @Mapping(value = "/api/jobs/{id}/inspect", method = MethodType.GET)
+    public Map<String, Object> apiInspect(String id, @Param(defaultValue = "5") Integer limit, Context context)
+            throws Exception {
+        return apiInspectData(id, limit, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/show", method = MethodType.GET)
+    public Map<String, Object> apiShow(String id, @Param(defaultValue = "5") Integer limit, Context context)
+            throws Exception {
+        return apiInspectData(id, limit, context);
+    }
+
+    private Map<String, Object> apiInspectData(String id, Integer limit, Context context) throws Exception {
+        try {
+            validateApiJobId(id);
+            return cronService.inspect(id, limit == null ? 5 : limit.intValue());
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        } catch (IllegalStateException e) {
+            if (isNotFound(e)) {
+                context.status(404);
+            } else {
+                context.status(400);
+            }
+            return apiError(e.getMessage());
+        }
+    }
+
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.PUT)
     public Map<String, Object> update(String id, Context context) throws Exception {
         try {
@@ -114,6 +178,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}", method = MethodType.PATCH)
     public Map<String, Object> apiPatch(String id, Context context) throws Exception {
+        return apiUpdate(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}", method = MethodType.PUT)
+    public Map<String, Object> apiPut(String id, Context context) throws Exception {
+        return apiUpdate(id, context);
+    }
+
+    private Map<String, Object> apiUpdate(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.apiPatch(id, body(context)));
@@ -199,6 +272,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}/run", method = MethodType.POST)
     public Map<String, Object> apiRun(String id, Context context) throws Exception {
+        return apiRunJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/trigger", method = MethodType.POST)
+    public Map<String, Object> apiTrigger(String id, Context context) throws Exception {
+        return apiRunJob(id, context);
+    }
+
+    private Map<String, Object> apiRunJob(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.apiRun(id));
@@ -227,6 +309,40 @@ public class DashboardCronController {
         } catch (IllegalStateException e) {
             context.status(isNotFound(e) ? 404 : 400);
             return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
+    }
+
+    @Mapping(value = "/api/jobs/{id}/runs", method = MethodType.GET)
+    public Map<String, Object> apiHistory(String id, @Param(defaultValue = "20") Integer limit, Context context)
+            throws Exception {
+        return apiHistoryData(id, limit, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/history", method = MethodType.GET)
+    public Map<String, Object> apiHistoryAlias(String id, @Param(defaultValue = "20") Integer limit, Context context)
+            throws Exception {
+        return apiHistoryData(id, limit, context);
+    }
+
+    private Map<String, Object> apiHistoryData(String id, Integer limit, Context context) throws Exception {
+        try {
+            validateApiJobId(id);
+            List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("job_id", id);
+            data.put("runs", runs);
+            data.put("count", Integer.valueOf(runs.size()));
+            return data;
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        } catch (IllegalStateException e) {
+            if (isNotFound(e)) {
+                context.status(404);
+            } else {
+                context.status(400);
+            }
+            return apiError(e.getMessage());
         }
     }
 

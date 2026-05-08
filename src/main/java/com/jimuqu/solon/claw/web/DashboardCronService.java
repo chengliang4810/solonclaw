@@ -43,10 +43,25 @@ public class DashboardCronService {
         return toDashboardView(cronJobService.require(id));
     }
 
+    public Map<String, Object> inspect(String id, int limit) throws Exception {
+        int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("job", get(id));
+        List<Map<String, Object>> runs = history(id, safeLimit);
+        result.put("runs", runs);
+        result.put("run_count", Integer.valueOf(runs.size()));
+        result.put("limit", Integer.valueOf(safeLimit));
+        return result;
+    }
+
     public List<Map<String, Object>> nextJobs(int limit) throws Exception {
+        return nextJobs(limit, true);
+    }
+
+    public List<Map<String, Object>> nextJobs(int limit, boolean includeDisabled) throws Exception {
         int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
         List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
-        for (CronJobRecord record : cronJobService.listAll(true)) {
+        for (CronJobRecord record : cronJobService.listAll(includeDisabled)) {
             if (record.getNextRunAt() <= 0L) {
                 continue;
             }
@@ -77,6 +92,70 @@ public class DashboardCronService {
         for (int i = 0; i < count; i++) {
             result.add(toDashboardView(jobs.get(i)));
         }
+        return result;
+    }
+
+    public Map<String, Object> status(boolean includeDisabled, int limit) throws Exception {
+        int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
+        long now = System.currentTimeMillis();
+        int total = 0;
+        int active = 0;
+        int paused = 0;
+        int completed = 0;
+        int due = 0;
+        List<CronJobRecord> next = new ArrayList<CronJobRecord>();
+        List<Map<String, Object>> recentFailures = new ArrayList<Map<String, Object>>();
+        for (CronJobRecord record : cronJobService.listAll(true)) {
+            String status = record.getStatus() == null ? "" : record.getStatus();
+            boolean isPaused = "PAUSED".equalsIgnoreCase(status);
+            boolean isCompleted = "COMPLETED".equalsIgnoreCase(status);
+            if (!includeDisabled && (isPaused || isCompleted)) {
+                continue;
+            }
+            total++;
+            if (isPaused) {
+                paused++;
+            } else if (isCompleted) {
+                completed++;
+            } else {
+                active++;
+                if (record.getNextRunAt() > 0L) {
+                    next.add(record);
+                    if (record.getNextRunAt() <= now) {
+                        due++;
+                    }
+                }
+            }
+            if (isFailed(record)) {
+                recentFailures.add(failureView(record));
+            }
+        }
+        Collections.sort(
+                next,
+                new Comparator<CronJobRecord>() {
+                    @Override
+                    public int compare(CronJobRecord left, CronJobRecord right) {
+                        long delta = left.getNextRunAt() - right.getNextRunAt();
+                        if (delta < 0L) {
+                            return -1;
+                        }
+                        if (delta > 0L) {
+                            return 1;
+                        }
+                        return safeId(left).compareTo(safeId(right));
+                    }
+                });
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("total", Integer.valueOf(total));
+        result.put("active", Integer.valueOf(active));
+        result.put("paused", Integer.valueOf(paused));
+        result.put("completed", Integer.valueOf(completed));
+        result.put("due", Integer.valueOf(due));
+        result.put("include_disabled", Boolean.valueOf(includeDisabled));
+        result.put("limit", Integer.valueOf(safeLimit));
+        result.put("next", limitedViews(next, safeLimit));
+        result.put("recent_failures", limitedMaps(recentFailures, safeLimit));
         return result;
     }
 
@@ -169,6 +248,47 @@ public class DashboardCronService {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         format.setTimeZone(TimeZone.getDefault());
         return format.format(new Date(epochMillis));
+    }
+
+    private boolean isFailed(CronJobRecord record) {
+        String lastStatus = record.getLastStatus() == null ? "" : record.getLastStatus();
+        return "error".equalsIgnoreCase(lastStatus)
+                || (record.getLastError() != null && record.getLastError().trim().length() > 0)
+                || (record.getLastDeliveryError() != null && record.getLastDeliveryError().trim().length() > 0);
+    }
+
+    private Map<String, Object> failureView(CronJobRecord record) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("id", record.getJobId());
+        result.put("job_id", record.getJobId());
+        result.put("name", record.getName());
+        result.put("last_status", record.getLastStatus());
+        result.put("last_error", record.getLastError());
+        result.put("last_delivery_error", record.getLastDeliveryError());
+        result.put("last_run_at", record.getLastRunAt() <= 0L ? null : iso(record.getLastRunAt()));
+        return result;
+    }
+
+    private List<Map<String, Object>> limitedViews(List<CronJobRecord> records, int limit) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        int count = Math.min(limit, records.size());
+        for (int i = 0; i < count; i++) {
+            result.add(toDashboardView(records.get(i)));
+        }
+        return result;
+    }
+
+    private List<Map<String, Object>> limitedMaps(List<Map<String, Object>> records, int limit) {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        int count = Math.min(limit, records.size());
+        for (int i = 0; i < count; i++) {
+            result.add(records.get(i));
+        }
+        return result;
+    }
+
+    private String safeId(CronJobRecord record) {
+        return record.getJobId() == null ? "" : record.getJobId();
     }
 
     private void validateApiCreate(Map<String, Object> body) {

@@ -220,6 +220,25 @@ public class DashboardSessionService {
         return Collections.singletonMap("ok", true);
     }
 
+    public Map<String, Object> updateSession(String sessionId, Map<String, Object> body)
+            throws Exception {
+        SessionRecord record = sessionRepository.findById(sessionId);
+        if (record == null) {
+            throw new IllegalArgumentException("session not found: " + sessionId);
+        }
+        if (body == null || !body.containsKey("title")) {
+            throw new IllegalArgumentException("title is required");
+        }
+        String title = StrUtil.nullToEmpty(String.valueOf(body.get("title"))).trim();
+        if (title.length() > 120) {
+            title = title.substring(0, 120);
+        }
+        record.setTitle(title);
+        record.setUpdatedAt(System.currentTimeMillis());
+        sessionRepository.save(record);
+        return toSessionInfo(sessionRepository.findById(sessionId));
+    }
+
     public Map<String, Object> sessionTree(String sessionId) throws Exception {
         SessionRecord root = sessionRepository.findById(sessionId);
         if (root == null) {

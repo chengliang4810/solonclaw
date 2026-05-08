@@ -157,9 +157,14 @@ public class CronjobTools {
         if ("inspect".equals(normalized)) {
             CronJobRecord job = cronJobService.require(jobId);
             Map<String, Object> view = formattedView(job);
+            int historyLimit = safeLimit(limit == null ? 5 : limit.intValue());
+            List<CronJobRunRecord> runs = cronJobService.history(jobId, historyLimit);
             return ToolResultEnvelope.ok("Cron job details: " + job.getJobId())
                     .data("job_id", job.getJobId())
                     .data("job", view)
+                    .data("runs", runViews(runs))
+                    .data("run_count", Integer.valueOf(runs.size()))
+                    .data("limit", Integer.valueOf(historyLimit))
                     .data("message", "Cron job '" + job.getName() + "' details.")
                     .preview(job.getJobId() + " " + job.getName() + " " + job.getStatus())
                     .toJson();
