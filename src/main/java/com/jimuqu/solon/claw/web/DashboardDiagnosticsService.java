@@ -650,9 +650,10 @@ public class DashboardDiagnosticsService {
             }
         }
         item.put("confirm_id", pending.getConfirmId());
+        item.put("confirm_ref", shortId(pending.getConfirmId()));
         item.put("source_key", pending.getSourceKey());
-        item.put("command", SecretRedactor.redact(pending.getCommand(), 1000));
-        item.put("prompt", SecretRedactor.redact(pending.getPrompt(), 1000));
+        item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 1000));
+        item.put("prompt_preview", SecretRedactor.redact(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
         item.put("action_options", actionOptions);
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
@@ -660,6 +661,11 @@ public class DashboardDiagnosticsService {
         item.put("expires_in_seconds", Long.valueOf(Math.max(0L, remainingMillis / 1000L)));
         item.put("expired", Boolean.valueOf(expired));
         return item;
+    }
+
+    private String shortId(String value) {
+        String safe = StrUtil.nullToEmpty(value).trim();
+        return safe.length() <= 8 ? safe : safe.substring(0, 8);
     }
 
     private String slashConfirmCommandLine(String action, String confirmId) {

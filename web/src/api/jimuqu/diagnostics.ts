@@ -113,9 +113,10 @@ export interface AlwaysApprovalsResult {
 
 export interface PendingSlashConfirm {
   confirm_id: string
+  confirm_ref?: string
   source_key?: string
-  command?: string
-  prompt?: string
+  command_preview?: string
+  prompt_preview?: string
   allow_always?: boolean
   action_options?: string[]
   created_at?: number

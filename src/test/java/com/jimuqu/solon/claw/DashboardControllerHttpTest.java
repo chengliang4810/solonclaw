@@ -1347,12 +1347,15 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
-                .contains("\"command\":\"reload-mcp\"")
+                .contains("\"command_preview\":\"reload-mcp\"")
+                .contains("\"confirm_ref\"")
                 .contains("\"source_key\":\"MEMORY:dashboard-confirm-chat:dashboard-confirm-user\"")
                 .contains("\"allow_always\":true")
                 .contains("\"action_options\":[\"approve\",\"deny\",\"always\"]")
                 .contains("\"expires_in_seconds\"")
-                .contains("\"expired\":false");
+                .contains("\"expired\":false")
+                .doesNotContain("\"command\":\"reload-mcp\"")
+                .doesNotContain("\"prompt\":");
         ONode confirm =
                 findItemByStringField(
                         ONode.ofJson(confirms.body).get("data").get("items"),
@@ -1395,9 +1398,10 @@ public class DashboardControllerHttpTest {
                 request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
-                .contains("\"command\":\"rollback\"")
+                .contains("\"command_preview\":\"rollback\"")
                 .contains("\"allow_always\":false")
                 .contains("\"action_options\":[\"approve\",\"deny\"]")
+                .doesNotContain("\"command\":\"rollback\"")
                 .doesNotContain("\"action_options\":[\"approve\",\"deny\",\"always\"]");
         ONode confirm =
                 findItemByStringField(
@@ -1440,8 +1444,12 @@ public class DashboardControllerHttpTest {
 
         assertThat(confirms.status).isEqualTo(200);
         assertThat(confirms.body)
+                .contains("\"prompt_preview\":\"确认刷新 Authorization: Bearer ***\"")
+                .contains("\"command_preview\":\"reload-mcp --token=***\"")
                 .contains("Authorization: Bearer ***")
                 .contains("reload-mcp --token=***")
+                .doesNotContain("\"prompt\":")
+                .doesNotContain("\"command\":")
                 .doesNotContain("ghp_slashsecret12345")
                 .doesNotContain("ghp_slashcommandsecret12345");
         ONode items = ONode.ofJson(confirms.body).get("data").get("items");

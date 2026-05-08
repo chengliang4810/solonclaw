@@ -985,6 +985,24 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldRedactSlashConfirmStatusText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        env.slashConfirmService.register(
+                "MEMORY:admin-chat:admin-user",
+                "reload-mcp --token=ghp_slashstatuscommand12345",
+                "确认刷新 Authorization: Bearer ghp_slashstatusprompt12345");
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
+
+        assertThat(status.getContent())
+                .contains("reload-mcp --token=***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_slashstatuscommand12345")
+                .doesNotContain("ghp_slashstatusprompt12345");
+    }
+
+    @Test
     void shouldSupersedePendingReloadMcpSlashConfirm() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

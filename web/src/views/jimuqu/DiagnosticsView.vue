@@ -739,16 +739,16 @@ onMounted(load)
               <article v-for="item in pendingSlashConfirms" :key="item.confirm_id" class="approval-item">
                 <div class="approval-head">
                   <div>
-                    <strong>/{{ item.command || '-' }}</strong>
+                    <strong>/{{ item.command_preview || '-' }}</strong>
                     <span>{{ item.source_key || '-' }}</span>
                   </div>
                   <NTag size="small" :type="item.allow_always ? 'default' : 'warning'">
                     {{ item.allow_always ? '可永久确认' : '仅本次' }}
                   </NTag>
                 </div>
-                <p class="approval-desc">{{ item.prompt || '-' }}</p>
+                <p class="approval-desc">{{ item.prompt_preview || '-' }}</p>
                 <div class="approval-meta">
-                  <span>{{ item.confirm_id }}</span>
+                  <span>{{ item.confirm_ref || '-' }}</span>
                   <span>创建：{{ timeText(item.created_at) }}</span>
                   <span>过期：{{ timeText(item.expires_at) }}</span>
                   <span :class="{ 'approval-expired': item.expired }">剩余：{{ expiresText(item) }}</span>

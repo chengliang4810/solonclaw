@@ -49,6 +49,7 @@ import com.jimuqu.solon.claw.engine.DefaultDelegationService;
 import com.jimuqu.solon.claw.engine.DefaultSessionSearchService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
@@ -127,6 +128,7 @@ public class TestEnvironment {
     public final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
     public final SqliteDatabase sqliteDatabase;
     public final CommandService commandService;
+    public final SlashConfirmService slashConfirmService;
     public final KanbanService kanbanService;
     public final GatewayRestartCoordinator gatewayRestartCoordinator;
 
@@ -348,6 +350,7 @@ public class TestEnvironment {
                                 // Tests assert coordinator state without exiting the JVM.
                             }
                         });
+        SlashConfirmService slashConfirmService = new SlashConfirmService(globalSettingRepository);
         CommandService commandService =
                 new DefaultCommandService(
                         sessionRepository,
@@ -376,7 +379,8 @@ public class TestEnvironment {
                         goalService,
                         new SessionArtifactService(config),
                         null,
-                        gatewayRestartCoordinator);
+                        gatewayRestartCoordinator,
+                        slashConfirmService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,
@@ -415,6 +419,7 @@ public class TestEnvironment {
                 refreshService,
                 database,
                 commandService,
+                slashConfirmService,
                 kanbanService,
                 gatewayRestartCoordinator);
     }
