@@ -420,6 +420,21 @@ public class DashboardControllerHttpTest {
         assertThat(mcpList.body).contains("\"capabilities\"");
         assertThat(mcpList.body).contains("\"last_tools_hash\"");
 
+        HttpResult secretMcp =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"stdio\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"]}",
+                        token);
+        assertThat(secretMcp.status).isEqualTo(200);
+        HttpResult secretMcpList = request("GET", "/api/jimuqu/mcp", null, token);
+        assertThat(secretMcpList.status).isEqualTo(200);
+        assertThat(secretMcpList.body)
+                .contains("OPENAI_API_KEY=***")
+                .contains("--token=***")
+                .doesNotContain("sk-test-dashboard-secret")
+                .doesNotContain("secret-arg-value");
+
         HttpResult updateMcpOAuth =
                 request(
                         "POST",

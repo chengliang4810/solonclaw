@@ -653,8 +653,8 @@ public class DashboardMcpService {
         map.put("name", resultSet.getString("name"));
         map.put("transport", resultSet.getString("transport"));
         map.put("endpoint", resultSet.getString("endpoint"));
-        map.put("command", resultSet.getString("command"));
-        map.put("args", parse(resultSet.getString("args_json")));
+        map.put("command", SecretRedactor.redact(resultSet.getString("command"), 800));
+        map.put("args", redactParsed(parse(resultSet.getString("args_json"))));
         map.put("auth", parse(resultSet.getString("auth_json")));
         map.put("oauth", sanitizeOAuth(parseMap(resultSet.getString("oauth_json"))));
         map.put("capabilities", parse(resultSet.getString("capabilities_json")));
@@ -688,6 +688,28 @@ public class DashboardMcpService {
         } catch (Exception e) {
             return json;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object redactParsed(Object value) {
+        if (value instanceof String) {
+            return SecretRedactor.redact((String) value, 800);
+        }
+        if (value instanceof Map) {
+            Map<String, Object> redacted = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                redacted.put(String.valueOf(entry.getKey()), redactParsed(entry.getValue()));
+            }
+            return redacted;
+        }
+        if (value instanceof List) {
+            List<Object> redacted = new ArrayList<Object>();
+            for (Object item : (List<Object>) value) {
+                redacted.add(redactParsed(item));
+            }
+            return redacted;
+        }
+        return value;
     }
 
     private boolean asBoolean(Object value, boolean fallback) {
