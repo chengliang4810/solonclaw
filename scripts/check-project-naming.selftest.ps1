@@ -38,7 +38,8 @@ function Invoke-GitNamingCheck {
     param(
         [string] $Range,
         [switch] $WithExtraFixture,
-        [switch] $CheckObjectText
+        [switch] $CheckObjectText,
+        [switch] $CheckAllGitRefs
     )
 
     $args = @(
@@ -53,6 +54,9 @@ function Invoke-GitNamingCheck {
     )
     if ($CheckObjectText) {
         $args += @("-CheckGitObjectText")
+    }
+    if ($CheckAllGitRefs) {
+        $args += @("-CheckAllGitRefs")
     }
     if (-not [string]::IsNullOrWhiteSpace($Range)) {
         $args += @("-GitCommitRange", $Range)
@@ -144,6 +148,28 @@ try {
     $blockedObjectText = Invoke-GitNamingCheck -Range "HEAD~2..HEAD" -WithExtraFixture -CheckObjectText
     if ($blockedObjectText.ExitCode -eq 0) {
         throw "Naming check did not block forbidden naming in git object text inside a release range."
+    }
+
+    Push-Location $sandbox
+    try {
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean default branch again" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean default branch again / Clean default branch again" | Out-Null
+        & git checkout -b polluted-history-fixture HEAD~1 | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value ($blockedFixture + " only on another ref") -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: polluted all-ref fixture / Polluted all-ref fixture" | Out-Null
+        & git checkout main | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $defaultRangeClean = Invoke-GitNamingCheck -Range "HEAD^..HEAD" -WithExtraFixture -CheckObjectText
+    if ($defaultRangeClean.ExitCode -ne 0) {
+        throw "Naming check should keep explicit clean ranges independent from other refs, but failed: $($defaultRangeClean.Output)"
+    }
+    $allRefsBlocked = Invoke-GitNamingCheck -WithExtraFixture -CheckObjectText -CheckAllGitRefs
+    if ($allRefsBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block forbidden naming in all reachable git refs."
     }
 
     $releaseDir = Join-Path $sandbox "dist"

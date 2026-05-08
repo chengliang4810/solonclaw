@@ -3,7 +3,8 @@ param(
     [string[]] $ExtraBlockedTerms = @(),
     [string] $GitCommitRange = "",
     [switch] $CheckGitCommitSubjects,
-    [switch] $CheckGitObjectText
+    [switch] $CheckGitObjectText,
+    [switch] $CheckAllGitRefs
 )
 
 $ErrorActionPreference = "Stop"
@@ -167,12 +168,18 @@ try {
         }
 
         $range = $GitCommitRange
-        if ([string]::IsNullOrWhiteSpace($range)) {
+        if ($CheckAllGitRefs) {
+            $range = "--all"
+        } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
 
         $subjectMatches = New-Object System.Collections.Generic.List[string]
-        $subjects = & git log --format="%h %s" $range 2>$null
+        if ($CheckAllGitRefs) {
+            $subjects = & git log --all --format="%h %s" 2>$null
+        } else {
+            $subjects = & git log --format="%h %s" $range 2>$null
+        }
         if ($LASTEXITCODE -ne 0) {
             Write-Host ("Failed to read git commit subjects for range: {0}" -f $range) -ForegroundColor Red
             exit 1
@@ -204,11 +211,17 @@ try {
         }
 
         $range = $GitCommitRange
-        if ([string]::IsNullOrWhiteSpace($range)) {
+        if ($CheckAllGitRefs) {
+            $range = "--all"
+        } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
 
-        $commits = & git rev-list $range 2>$null
+        if ($CheckAllGitRefs) {
+            $commits = & git rev-list --all 2>$null
+        } else {
+            $commits = & git rev-list $range 2>$null
+        }
         if ($LASTEXITCODE -ne 0) {
             Write-Host ("Failed to read git commits for range: {0}" -f $range) -ForegroundColor Red
             exit 1
