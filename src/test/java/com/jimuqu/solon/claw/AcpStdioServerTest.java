@@ -21,12 +21,14 @@ import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.session.InMemoryChatSession;
@@ -945,6 +947,51 @@ public class AcpStdioServerTest {
                 .contains("\"id\":9")
                 .contains(record.getSessionId())
                 .doesNotContain("\"session_updates\"");
+    }
+
+    @Test
+    void shouldPageAcpSessionListWithCursorAndLimit() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String firstId = extractSessionId(newAcpSession(server, 70));
+        String secondId = extractSessionId(newAcpSession(server, 71));
+        String thirdId = extractSessionId(newAcpSession(server, 72));
+
+        String firstPage =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":73,\"method\":\"session/list\",\"params\":{\"limit\":2}}");
+        ONode firstPageResult = ONode.ofJson(firstPage).get("result");
+        String firstPageSessionId = firstPageResult.get("sessions").get(0).get("session_id").getString();
+        String nextCursor = firstPageResult.get("next_cursor").getString();
+        assertThat(firstPage)
+                .contains("\"id\":73")
+                .contains("\"next_cursor\":\"" + nextCursor + "\"")
+                .contains("\"nextCursor\":\"" + nextCursor + "\"");
+        assertThat(firstPageResult.get("sessions").size()).isEqualTo(2);
+        assertThat(nextCursor).isNotBlank();
+        assertThat(Arrays.asList(firstId, secondId, thirdId)).contains(firstPageSessionId, nextCursor);
+
+        String secondPage =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":74,\"method\":\"session/list\",\"params\":{\"limit\":2,\"cursor\":\""
+                                + nextCursor
+                                + "\"}}");
+        ONode secondPageResult = ONode.ofJson(secondPage).get("result");
+        String secondPageSessionId = secondPageResult.get("sessions").get(0).get("session_id").getString();
+        assertThat(secondPage)
+                .contains("\"id\":74")
+                .doesNotContain("\"next_cursor\":\"")
+                .doesNotContain("\"nextCursor\":\"");
+        assertThat(secondPageResult.get("sessions").size()).isEqualTo(1);
+        assertThat(secondPageSessionId)
+                .isIn(firstId, secondId, thirdId)
+                .isNotEqualTo(firstPageSessionId)
+                .isNotEqualTo(nextCursor);
     }
 
     @Test

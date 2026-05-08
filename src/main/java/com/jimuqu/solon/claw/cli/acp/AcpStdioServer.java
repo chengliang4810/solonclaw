@@ -398,8 +398,14 @@ public class AcpStdioServer {
     private Map<String, Object> listSessions(ONode params) throws Exception {
         String cursor = read(params, "cursor", null);
         String cwd = read(params, "cwd", read(params, "working_directory", null));
+        int limit = readInt(params, "limit", 50);
+        if (limit <= 0) {
+            limit = 50;
+        }
+        limit = Math.min(limit, 100);
         List<Map<String, Object>> sessions = new ArrayList<Map<String, Object>>();
         boolean afterCursor = StrUtil.isBlank(cursor);
+        String nextCursor = null;
         for (AcpSessionManager.AcpSessionState state : sessionManager.list()) {
             if (StrUtil.isNotBlank(cwd) && !cwd.equals(state.getCwd())) {
                 continue;
@@ -408,11 +414,18 @@ public class AcpStdioServer {
                 afterCursor = cursor.equals(state.getSessionId());
                 continue;
             }
+            if (sessions.size() >= limit) {
+                nextCursor = sessions.isEmpty()
+                        ? state.getSessionId()
+                        : String.valueOf(sessions.get(sessions.size() - 1).get("session_id"));
+                break;
+            }
             sessions.add(sessionResult(state));
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("sessions", sessions);
-        result.put("next_cursor", null);
+        result.put("next_cursor", nextCursor);
+        result.put("nextCursor", nextCursor);
         return result;
     }
 
@@ -1941,6 +1954,25 @@ public class AcpStdioServer {
             return fallback;
         }
         return StrUtil.blankToDefault(value.getString(), fallback);
+    }
+
+    private int readInt(ONode node, String key, int fallback) {
+        if (node == null || node.isNull() || !node.isObject()) {
+            return fallback;
+        }
+        ONode value = node.get(key);
+        if (value == null || value.isNull()) {
+            return fallback;
+        }
+        try {
+            return value.getInt();
+        } catch (Exception e) {
+            try {
+                return Integer.parseInt(value.getString());
+            } catch (Exception ignored) {
+                return fallback;
+            }
+        }
     }
 
     private String readFrame(BufferedInputStream in) throws IOException {
