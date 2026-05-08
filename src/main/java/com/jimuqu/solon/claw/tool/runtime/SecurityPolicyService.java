@@ -767,13 +767,49 @@ public class SecurityPolicyService {
             return paths;
         }
         collectPaths(args, paths);
-        if (ToolNameConstants.PATCH.equals(toolName)) {
-            extractPatchPaths(args.get("patch"), paths);
-            extractPatchPaths(args.get("diff"), paths);
-            extractPatchPaths(args.get("content"), paths);
-            extractPatchPaths(args.get("input"), paths);
+        if (ToolNameConstants.PATCH.equals(toolName) || hasPatchIntent(args)) {
+            collectPatchTexts(args, paths);
         }
         return paths;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectPatchTexts(Object raw, List<String> paths) {
+        if (raw == null) {
+            return;
+        }
+        if (raw instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                Object value = entry.getValue();
+                if (looksLikePatchTextKey(key)) {
+                    extractPatchPaths(value, paths);
+                } else {
+                    collectPatchTexts(value, paths);
+                }
+            }
+            return;
+        }
+        if (raw instanceof Collection) {
+            for (Object value : (Collection<Object>) raw) {
+                collectPatchTexts(value, paths);
+            }
+            return;
+        }
+        if (raw.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                collectPatchTexts(java.lang.reflect.Array.get(raw, i), paths);
+            }
+        }
+    }
+
+    private boolean looksLikePatchTextKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase(Locale.ROOT);
+        return "patch".equals(normalized)
+                || "diff".equals(normalized)
+                || "content".equals(normalized)
+                || "input".equals(normalized);
     }
 
     @SuppressWarnings("unchecked")
@@ -957,6 +993,52 @@ public class SecurityPolicyService {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
+    private boolean hasPatchIntent(Object raw) {
+        if (raw == null) {
+            return false;
+        }
+        if (raw instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                Object value = entry.getValue();
+                if ((looksLikeActionKey(key) || looksLikeToolNameKey(key))
+                        && isPatchIntentValue(value)) {
+                    return true;
+                }
+                if (hasPatchIntent(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (raw instanceof Collection) {
+            for (Object value : (Collection<Object>) raw) {
+                if (hasPatchIntent(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (raw.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                if (hasPatchIntent(java.lang.reflect.Array.get(raw, i))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean looksLikeToolNameKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase(Locale.ROOT);
+        return "tool".equals(normalized)
+                || "name".equals(normalized)
+                || "tool_name".equals(normalized)
+                || "toolname".equals(normalized);
+    }
+
     private boolean looksLikeActionKey(String key) {
         String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase(Locale.ROOT);
         return "action".equals(normalized)
@@ -964,6 +1046,19 @@ public class SecurityPolicyService {
                 || "op".equals(normalized)
                 || "mode".equals(normalized)
                 || "method".equals(normalized);
+    }
+
+    private boolean isPatchIntentValue(Object raw) {
+        String value = StrUtil.nullToEmpty(String.valueOf(raw)).trim().toLowerCase(Locale.ROOT);
+        return "patch".equals(value)
+                || "apply_patch".equals(value)
+                || "apply-patch".equals(value)
+                || "patch_apply".equals(value)
+                || "patch-apply".equals(value)
+                || "diff_apply".equals(value)
+                || "diff-apply".equals(value)
+                || "apply_diff".equals(value)
+                || "apply-diff".equals(value);
     }
 
     private boolean isWriteIntentValue(Object raw) {

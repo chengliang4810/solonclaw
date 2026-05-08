@@ -2214,6 +2214,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(nested.getPath()).isEqualTo(".env.local");
         assertThat(array.isAllowed()).isFalse();
         assertThat(array.getPath()).isEqualTo("~/.ssh/id_ed25519");
+
+        Map<String, Object> nestedPatchCall = new LinkedHashMap<String, Object>();
+        nestedPatchCall.put("tool_name", "apply_patch");
+        Map<String, Object> nestedPatchArgs = new LinkedHashMap<String, Object>();
+        nestedPatchArgs.put(
+                "patch",
+                "*** Begin Patch\n"
+                        + "*** Add File: .env\n"
+                        + "+TOKEN=secret\n"
+                        + "*** End Patch\n");
+        nestedPatchCall.put("tool_args", nestedPatchArgs);
+
+        SecurityPolicyService.FileVerdict nestedPatchVerdict =
+                securityPolicyService.checkFileToolArgs("tool_gateway", nestedPatchCall);
+
+        assertThat(nestedPatchVerdict.isAllowed()).isFalse();
+        assertThat(nestedPatchVerdict.getPath()).isEqualTo(".env");
+        assertThat(nestedPatchVerdict.getMessage()).contains("凭据");
     }
 
     @Test
