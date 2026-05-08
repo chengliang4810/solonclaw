@@ -114,6 +114,21 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldOnlyReadJimuquPrefixedAllowPrivateUrlEnvironmentToggle() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        Map<String, String> environment = new LinkedHashMap<String, String>();
+        environment.put("OTHER_ALLOW_PRIVATE_URLS", "true");
+        SecurityPolicyService policy =
+                new FixedDnsEnvSecurityPolicyService(config, "10.0.0.5", environment);
+
+        SecurityPolicyService.UrlVerdict verdict = policy.checkUrl("https://internal.example/");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldLetJimuquEnvironmentOverrideWinOverJimuquCompatibilityValue() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(true);
