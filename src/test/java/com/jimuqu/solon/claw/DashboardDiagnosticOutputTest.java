@@ -170,6 +170,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat((List<String>) localItem.get("rule_sources")).containsExactly("local_policy");
         assertThat(localItem.get("permanent_allowed")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(localItem.get("permanent_disabled_reason"))).isEmpty();
+        assertThat(String.valueOf(localItem.get("approval_key")))
+                .contains("execute_shell:recursive_delete:***")
+                .doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(localItem.get("command_hash")).isEqualTo("***");
     }
 
     @Test
@@ -214,6 +218,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("ghp_approversecret123");
         assertThat(json).doesNotContain("sk-history-secret");
         assertThat(json).doesNotContain("history-secret");
+        assertThat(json).doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
+        assertThat(json).contains("\"approval_key\":\"execute_shell:recursive_delete:***\"");
+        assertThat(json).contains("\"command_hash\":\"***\"");
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
     }
 

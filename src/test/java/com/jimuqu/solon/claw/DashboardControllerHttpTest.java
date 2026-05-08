@@ -1313,7 +1313,9 @@ public class DashboardControllerHttpTest {
         assertThat(history.body)
                 .contains("\"choice\":\"revoke\"")
                 .contains("\"approver\":\"dashboard\"")
-                .contains("\"approval_key\":\"" + jsonEscape(approval) + "\"")
+                .contains("\"approval_key\":\"execute_shell:")
+                .contains(":***\"")
+                .doesNotContain("\"approval_key\":\"" + jsonEscape(approval) + "\"")
                 .contains("撤销长期审批授权");
 
         HttpResult after =

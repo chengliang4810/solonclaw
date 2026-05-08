@@ -437,8 +437,8 @@ public class DashboardDiagnosticsService {
         item.put("pattern_keys", pending.effectivePatternKeys());
         item.put("rule_sources", approvalRuleSources(pending));
         item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
-        item.put("command_hash", pending.getCommandHash());
-        item.put("approval_key", pending.approvalKey());
+        item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
+        item.put("approval_key", redactedApprovalKey(pending.approvalKey()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
         item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
@@ -545,8 +545,8 @@ public class DashboardDiagnosticsService {
         item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
         item.put("tool_name", event.getToolName());
         item.put("approval_id", event.getApprovalId());
-        item.put("approval_key", event.getApprovalKey());
-        item.put("command_hash", event.getCommandHash());
+        item.put("approval_key", redactedApprovalKey(event.getApprovalKey()));
+        item.put("command_hash", redactedIdentifier(event.getCommandHash()));
         item.put("command_preview", SecretRedactor.redact(event.getCommandPreview(), 800));
         item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
         item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
@@ -554,6 +554,19 @@ public class DashboardDiagnosticsService {
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
         item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
         return item;
+    }
+
+    private String redactedApprovalKey(String approvalKey) {
+        String value = SecretRedactor.redact(StrUtil.nullToEmpty(approvalKey), 1000);
+        int split = value.lastIndexOf(':');
+        if (split >= 0 && split < value.length() - 1) {
+            return value.substring(0, split + 1) + "***";
+        }
+        return redactedIdentifier(value);
+    }
+
+    private String redactedIdentifier(String value) {
+        return StrUtil.isBlank(value) ? "" : "***";
     }
 
     private Map<String, Object> alwaysApprovalItem(String approval) {
