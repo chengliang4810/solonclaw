@@ -478,6 +478,23 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRedactChannelStatusDetailsAndErrors() {
+        AppConfig config = new AppConfig();
+        TestFeishuAdapter adapter = new TestFeishuAdapter(config);
+
+        adapter.exposeDetail("connect failed: token=sk-test1234567890abcdef");
+        adapter.exposeLastError(
+                "feishu_connect_failed",
+                "Authorization: Bearer sk-test1234567890abcdef");
+
+        ChannelStatus status = adapter.statusSnapshot();
+        assertThat(status.getDetail()).contains("token=***");
+        assertThat(status.getDetail()).doesNotContain("sk-test1234567890abcdef");
+        assertThat(status.getLastErrorMessage()).contains("Bearer ***");
+        assertThat(status.getLastErrorMessage()).doesNotContain("sk-test1234567890abcdef");
+    }
+
+    @Test
     void shouldRejectJimuquStyleWeakCredentialAliasesCaseInsensitively() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);
@@ -729,6 +746,14 @@ public class DomesticChannelEnhancementTest {
 
         private GatewayMessage parseComment(EventReq req) {
             return toCommentGatewayMessage(req);
+        }
+
+        private void exposeDetail(String detail) {
+            setDetail(detail);
+        }
+
+        private void exposeLastError(String code, String message) {
+            setLastError(code, message);
         }
     }
 

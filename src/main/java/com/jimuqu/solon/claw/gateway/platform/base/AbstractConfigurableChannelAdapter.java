@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import java.util.ArrayList;
@@ -144,7 +145,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
 
     /** 更新详情。 */
     protected void setDetail(String detail) {
-        this.detail = detail;
+        this.detail = safeStatusText(detail);
     }
 
     /** 标记渠道连接模式。 */
@@ -205,7 +206,11 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     /** 记录最近一次错误。 */
     protected void setLastError(String code, String message) {
         this.lastErrorCode = code;
-        this.lastErrorMessage = message;
+        this.lastErrorMessage = safeStatusText(message);
+    }
+
+    private String safeStatusText(String value) {
+        return value == null ? null : SecretRedactor.redact(value, 1000);
     }
 
     /** 拦截示例/占位凭据，避免已启用渠道带弱凭据反复连接外部平台。 */
