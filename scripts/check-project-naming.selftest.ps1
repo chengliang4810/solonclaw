@@ -14,6 +14,10 @@ $blockedLegacyEnvFixture =
         + ([string][char]80) + ([string][char]82) + ([string][char]69) `
         + ([string][char]70) + ([string][char]73) + ([string][char]88) `
         + "_ALLOW_PRIVATE_URLS")
+$blockedLegacyPrivateUrlEnvFixture =
+    (([string][char]72) + ([string][char]69) + ([string][char]82) `
+        + ([string][char]77) + ([string][char]69) + ([string][char]83) `
+        + "_ALLOW_PRIVATE_URLS")
 $blockedLegacyNameFixture = (([string][char]79) + ([string][char]112) + ([string][char]101) + ([string][char]110) + ([string][char]67) + ([string][char]108) + ([string][char]97) + ([string][char]119))
 
 function Invoke-NamingCheck {
@@ -111,6 +115,15 @@ try {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
     Assert-NoRawBlockedOutput $blockedLegacyEnv.Output @($blockedLegacyEnvFixture) "legacy environment variable scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\private-url-env.txt") -Value ($blockedLegacyPrivateUrlEnvFixture + "=true") -Encoding UTF8
+    $blockedPrivateUrlEnv = Invoke-NamingCheck
+    if ($blockedPrivateUrlEnv.ExitCode -eq 0) {
+        throw "Naming check did not block a forbidden private URL environment variable."
+    }
+    Assert-NoRawBlockedOutput $blockedPrivateUrlEnv.Output @($blockedLegacyPrivateUrlEnvFixture) "legacy private URL environment variable scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
