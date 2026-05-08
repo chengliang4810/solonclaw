@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.io.PrintWriter;
@@ -31,16 +32,26 @@ public class TuiShell {
     private final CliRuntime cliRuntime;
     private final CliMode mode;
     private final CliAttachmentResolver attachmentResolver;
+    private final AppConfig appConfig;
     private String lastReply;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
-        this(cliRuntime, mode, null);
+        this(cliRuntime, mode, null, null);
     }
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
+        this(cliRuntime, mode, attachmentResolver, null);
+    }
+
+    public TuiShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            AppConfig appConfig) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
+        this.appConfig = appConfig;
     }
 
     public int run() throws Exception {
@@ -142,8 +153,32 @@ public class TuiShell {
 
     private void renderHeader(PrintWriter writer, String sessionId) {
         writer.println(BOLD + "Jimuqu Agent TUI" + RESET);
-        writer.println(DIM + "session=" + sessionId + "  /help 命令  /exit 退出" + RESET);
+        writer.println(DIM + statusLine(sessionId) + RESET);
+        writer.println(DIM + "tips: /help 命令  /copy 复制上一条回复  粘贴本地文件路径可作为附件  /exit 退出" + RESET);
         writer.println(DIM + BORDER + RESET);
         writer.flush();
+    }
+
+    private String statusLine(String sessionId) {
+        String provider = "";
+        String model = "";
+        String reasoning = "";
+        if (appConfig != null) {
+            if (appConfig.getModel() != null) {
+                provider = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
+                model = StrUtil.nullToEmpty(appConfig.getModel().getDefaultModel()).trim();
+            }
+            if (appConfig.getLlm() != null) {
+                reasoning = StrUtil.nullToEmpty(appConfig.getLlm().getReasoningEffort()).trim();
+            }
+        }
+        return "session="
+                + sessionId
+                + "  provider="
+                + StrUtil.blankToDefault(provider, "default")
+                + "  model="
+                + StrUtil.blankToDefault(model, "-")
+                + "  reasoning="
+                + StrUtil.blankToDefault(reasoning, "-");
     }
 }

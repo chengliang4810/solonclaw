@@ -58,7 +58,7 @@ public class CliRunner {
                     .run();
         }
         if (mode.getKind() == CliMode.Kind.TUI) {
-            return new TuiShell(cliRuntime, mode, attachmentResolver).run();
+            return new TuiShell(cliRuntime, mode, attachmentResolver, appConfig).run();
         }
         return new CliShell(cliRuntime, mode, attachmentResolver).run();
     }
