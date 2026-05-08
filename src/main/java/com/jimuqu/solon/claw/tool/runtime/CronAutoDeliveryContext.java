@@ -18,7 +18,8 @@ public final class CronAutoDeliveryContext {
             clear();
             return;
         }
-        CURRENT.set(Collections.singletonList(new Target(platform, chatId.trim(), normalizeBlank(threadId))));
+        CURRENT.set(
+                Collections.singletonList(new Target(platform, chatId.trim(), normalizeBlank(threadId))));
     }
 
     public static void setAll(List<Target> targets) {
@@ -54,12 +55,16 @@ public final class CronAutoDeliveryContext {
     }
 
     public static boolean isDuplicateTarget(PlatformType platform, String chatId, String threadId) {
+        return matchingTarget(platform, chatId, threadId) != null;
+    }
+
+    public static Target matchingTarget(PlatformType platform, String chatId, String threadId) {
         if (platform == null || StrUtil.isBlank(chatId)) {
-            return false;
+            return null;
         }
         List<Target> targets = CURRENT.get();
         if (targets == null || targets.isEmpty()) {
-            return false;
+            return null;
         }
         String normalizedChatId = chatId.trim();
         String normalizedThreadId = normalizeBlank(threadId);
@@ -67,10 +72,10 @@ public final class CronAutoDeliveryContext {
             if (target.platform == platform
                     && StrUtil.equals(target.chatId, normalizedChatId)
                     && StrUtil.equals(target.threadId, normalizedThreadId)) {
-                return true;
+                return target;
             }
         }
-        return false;
+        return null;
     }
 
     private static String normalizeBlank(String value) {

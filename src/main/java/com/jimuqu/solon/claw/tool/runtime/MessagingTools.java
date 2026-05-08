@@ -62,12 +62,13 @@ public class MessagingTools {
             return error("invalid target platform: " + platform);
         }
         String targetChatId = StrUtil.isBlank(chatId) ? parts[1] : chatId;
-        if (CronAutoDeliveryContext.isDuplicateTarget(targetPlatform, targetChatId, threadId)) {
-            CronAutoDeliveryContext.Target autoTarget = CronAutoDeliveryContext.current();
+        CronAutoDeliveryContext.Target autoTarget =
+                CronAutoDeliveryContext.matchingTarget(targetPlatform, targetChatId, threadId);
+        if (autoTarget != null) {
             return ToolResultEnvelope.ok("Skipped duplicate cron auto-delivery target")
                     .data("skipped", Boolean.TRUE)
                     .data("reason", "cron_auto_delivery_duplicate_target")
-                    .data("target", autoTarget == null ? null : autoTarget.label())
+                    .data("target", autoTarget.label())
                     .data(
                             "note",
                             "This cron job will already auto-deliver its final response to that same target.")

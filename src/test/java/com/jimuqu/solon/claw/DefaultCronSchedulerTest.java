@@ -673,6 +673,8 @@ public class DefaultCronSchedulerTest {
         scheduler.runNow(job.getJobId());
 
         assertThat(orchestrator.toolResult).contains("cron_auto_delivery_duplicate_target");
+        assertThat(orchestrator.toolResult).contains("MEMORY:second-room");
+        assertThat(orchestrator.toolResult).doesNotContain("MEMORY:first-room");
         assertThat(deliveryService.requests).hasSize(2);
         assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("first-room");
         assertThat(deliveryService.requests.get(1).getChatId()).isEqualTo("second-room");
