@@ -55,6 +55,25 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldRedactPersistedPreviewButKeepFullOutputOnDisk() throws Exception {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 40, 200000, 300);
+        String large =
+                "first line\nOPENAI_API_KEY=sk-proj-secretvalue1234567890\n"
+                        + repeat("tail\n", 80);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", large, "run-secret", "call-secret");
+
+        assertThat(result.getPreview()).contains("OPENAI_API_KEY=***");
+        assertThat(result.getPreview()).doesNotContain("sk-proj-secretvalue1234567890");
+        assertThat(result.getObservation()).contains("OPENAI_API_KEY=***");
+        assertThat(result.getObservation()).doesNotContain("sk-proj-secretvalue1234567890");
+        assertThat(new String(Files.readAllBytes(new File(result.getResultRef()).toPath()), StandardCharsets.UTF_8))
+                .contains("sk-proj-secretvalue1234567890");
+    }
+
+    @Test
     void shouldDescribeLegacyJsonEnvelope() {
         String json =
                 "{\"status\":\"success\",\"success\":true,\"preview\":\"old preview\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -56,7 +57,7 @@ public class ToolResultStorageService {
         byte[] bytes = raw.getBytes(StandardCharsets.UTF_8);
         StoredResult stored = new StoredResult();
         stored.setObservation(raw);
-        stored.setPreview(preview(raw, previewLength));
+        stored.setPreview(safePreview(raw));
         stored.setSizeBytes(bytes.length);
         stored.setTruncated(false);
         if (isPinnedInline(toolName)) {
@@ -132,7 +133,7 @@ public class ToolResultStorageService {
     }
 
     private String buildEnvelope(String toolName, String raw, String ref, long sizeBytes) {
-        String preview = preview(raw, previewLength);
+        String preview = safePreview(raw);
         StringBuilder message = new StringBuilder();
         message.append(PERSISTED_OUTPUT_TAG).append('\n');
         message.append("This tool result was too large (")
@@ -308,6 +309,10 @@ public class ToolResultStorageService {
             truncated = truncated.substring(0, lastNewline + 1);
         }
         return truncated;
+    }
+
+    private String safePreview(String content) {
+        return SecretRedactor.redact(preview(content, previewLength), previewLength);
     }
 
     public static class StoredResult {
