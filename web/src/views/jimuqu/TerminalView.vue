@@ -241,6 +241,10 @@ const showSessions = ref(true);
 const sessions = ref<SessionInfo[]>([]);
 const activeSessionId = ref<string | null>(null);
 const selectedTheme = ref(localStorage.getItem(STORAGE_KEY_THEME) || "default");
+const connectionState = ref<"connecting" | "connected" | "reconnecting" | "closed">("connecting");
+const reconnectAttempt = ref(0);
+const terminalCols = ref(0);
+const terminalRows = ref(0);
 
 let ws: WebSocket | null = null;
 // Keep all terminal instances alive, only dispose on close
@@ -278,6 +282,18 @@ const shortcutHint = computed(() =>
   }),
 );
 
+const connectionStatusText = computed(() => {
+  if (connectionState.value === "reconnecting") {
+    return t("terminal.statusReconnecting", { count: reconnectAttempt.value });
+  }
+  return t(`terminal.status${capitalize(connectionState.value)}`);
+});
+
+const terminalSizeText = computed(() => {
+  if (!terminalCols.value || !terminalRows.value) return "-";
+  return `${terminalCols.value}x${terminalRows.value}`;
+});
+
 // ─── WebSocket ──────────────────────────────────────────────────
 
 function buildWsUrl(): string {
@@ -303,11 +319,15 @@ function buildWsUrl(): string {
 }
 
 function connect() {
+  connectionState.value =
+    reconnectAttempt.value > 0 ? "reconnecting" : "connecting";
   const url = buildWsUrl();
   ws = new WebSocket(url);
 
   ws.onopen = () => {
-    // Server auto-creates the first session and sends 'created'
+    connectionState.value = "connected";
+    reconnectAttempt.value = 0;
+    sendResize();
   };
 
   ws.onmessage = (event) => {
@@ -321,17 +341,19 @@ function connect() {
     }
   };
 
-  // On reconnect, recreate all terminals for existing sessions
-  ws.onopen = () => {
-    // Server will auto-create the first session again
-  };
-
   ws.onclose = () => {
+    if (ws) {
+      connectionState.value = "reconnecting";
+      reconnectAttempt.value += 1;
+    } else {
+      connectionState.value = "closed";
+    }
     // Reconnect after delay
     setTimeout(connect, 3000);
   };
 
   ws.onerror = () => {
+    connectionState.value = "reconnecting";
     // let onclose handle reconnect
   };
 }
@@ -662,18 +684,30 @@ function tryFit() {
   if (!activeFitAddon) return;
   try {
     activeFitAddon.fit();
+    updateTerminalSize();
   } catch {}
 }
 
 function sendResize() {
   if (!activeTerm || !ws || ws.readyState !== WebSocket.OPEN) return;
   try {
+    updateTerminalSize();
     send({
       type: "resize",
       cols: activeTerm.cols,
       rows: activeTerm.rows,
     });
   } catch {}
+}
+
+function updateTerminalSize() {
+  if (!activeTerm) {
+    terminalCols.value = 0;
+    terminalRows.value = 0;
+    return;
+  }
+  terminalCols.value = activeTerm.cols;
+  terminalRows.value = activeTerm.rows;
 }
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -693,6 +727,10 @@ function applyTheme(themeName: string) {
 function formatTime(ts: number) {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
@@ -720,6 +758,7 @@ onUnmounted(() => {
   activeFitAddon = null;
   ws?.close();
   ws = null;
+  connectionState.value = "closed";
 });
 </script>
 
@@ -883,6 +922,18 @@ onUnmounted(() => {
           @drop="handleTerminalDrop"
           tabindex="0"
         />
+        <footer class="terminal-statusbar">
+          <span
+            class="status-dot"
+            :class="connectionState"
+            aria-hidden="true"
+          />
+          <span>{{ connectionStatusText }}</span>
+          <span v-if="activeSession">{{ activeSession.shell }}</span>
+          <span v-if="activeSession">PID {{ activeSession.pid }}</span>
+          <span>{{ terminalSizeText }}</span>
+          <span>{{ t("terminal.sessionCount", { count: sessions.length }) }}</span>
+        </footer>
       </div>
     </div>
   </div>
@@ -1142,7 +1193,7 @@ onUnmounted(() => {
 
 .terminal-xterm {
   flex: 1;
-  border-radius: $radius-md;
+  border-radius: $radius-md $radius-md 0 0;
   overflow: hidden;
   border: 1px solid $border-color;
 
@@ -1173,6 +1224,45 @@ onUnmounted(() => {
 
   :deep(.xterm-scrollable-element::-webkit-scrollbar) {
     display: none !important;
+  }
+}
+
+.terminal-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 8px;
+  color: $text-muted;
+  font-size: 12px;
+  border: 1px solid $border-color;
+  border-top: none;
+  border-radius: 0 0 $radius-md $radius-md;
+  overflow: hidden;
+  white-space: nowrap;
+
+  span {
+    flex-shrink: 0;
+  }
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $text-muted;
+
+  &.connected {
+    background: $success;
+  }
+
+  &.connecting,
+  &.reconnecting {
+    background: $warning;
+  }
+
+  &.closed {
+    background: $error;
   }
 }
 

@@ -609,6 +609,11 @@ export default {
     filePathUnavailable: '浏览器未提供完整本地路径，已写入可用文件名',
     selectionCopied: '终端选区已复制',
     shortcuts: '{modifier}+N 新建 · {modifier}+W 关闭 · {modifier}+L 清屏 · {modifier}+Alt+数字 切换',
+    statusConnecting: '连接中',
+    statusConnected: '已连接',
+    statusReconnecting: '重连中 #{count}',
+    statusClosed: '已关闭',
+    sessionCount: '{count} 个会话',
   },
 
   // 用量统计

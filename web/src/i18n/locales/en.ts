@@ -573,6 +573,11 @@ export default {
     filePathUnavailable: 'Browser did not expose the full local path, inserted the available file name',
     selectionCopied: 'Terminal selection copied',
     shortcuts: '{modifier}+N new · {modifier}+W close · {modifier}+L clear · {modifier}+Alt+number switch',
+    statusConnecting: 'Connecting',
+    statusConnected: 'Connected',
+    statusReconnecting: 'Reconnecting #{count}',
+    statusClosed: 'Closed',
+    sessionCount: '{count} sessions',
   },
 
   // Usage
