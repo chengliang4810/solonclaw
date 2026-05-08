@@ -27,6 +27,10 @@ export interface SecurityAuditFinding {
   source?: string
   ruleId?: string
   severity?: string
+  decision?: string
+  blocking?: boolean
+  approval_required?: boolean
+  suggested_action?: string
   message?: string
 }
 
@@ -34,6 +38,8 @@ export interface SecurityAuditResult {
   success?: boolean
   action?: string
   decision?: 'allow' | 'warn' | 'block' | 'error' | string
+  blocking?: boolean
+  approval_required?: boolean
   summary?: string
   findings?: SecurityAuditFinding[]
   [key: string]: unknown

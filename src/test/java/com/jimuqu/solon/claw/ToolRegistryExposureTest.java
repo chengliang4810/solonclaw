@@ -197,12 +197,43 @@ public class ToolRegistryExposureTest {
 
         assertThat(hardline.get("success").getBoolean()).isTrue();
         assertThat(hardline.get("decision").getString()).isEqualTo("block");
+        assertThat(hardline.get("blocking").getBoolean()).isTrue();
+        assertThat(hardline.get("approval_required").getBoolean()).isFalse();
         assertThat(hardline.get("commandPreview").getString()).contains("sudo reboot");
-        assertThat(String.valueOf(hardline.get("findings"))).contains("hardline").contains("shutdown");
+        assertThat(String.valueOf(hardline.get("findings")))
+                .contains("hardline")
+                .contains("shutdown")
+                .contains("change_command")
+                .contains("blocking")
+                .contains("approval_required");
         assertThat(path.get("decision").getString()).isEqualTo("block");
-        assertThat(String.valueOf(path.get("findings"))).contains("file_policy").contains("凭据");
+        assertThat(path.get("blocking").getBoolean()).isTrue();
+        assertThat(path.get("approval_required").getBoolean()).isFalse();
+        assertThat(String.valueOf(path.get("findings")))
+                .contains("file_policy")
+                .contains("凭据")
+                .contains("change_path");
         assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
-        assertThat(String.valueOf(toolArgs.get("findings"))).contains("路径遍历");
+        assertThat(toolArgs.get("blocking").getBoolean()).isTrue();
+        assertThat(String.valueOf(toolArgs.get("findings")))
+                .contains("路径遍历")
+                .contains("change_path");
+
+        ONode dangerous =
+                ONode.ofJson(
+                        tools.audit(
+                                "command",
+                                "execute_shell",
+                                "rm -rf runtime/cache",
+                                null,
+                                null,
+                                null,
+                                null));
+        assertThat(dangerous.get("decision").getString()).isEqualTo("warn");
+        assertThat(dangerous.get("blocking").getBoolean()).isFalse();
+        assertThat(dangerous.get("approval_required").getBoolean()).isTrue();
+        assertThat(String.valueOf(dangerous.get("findings"))).contains("request_approval");
+
         assertThat(policyStatus.get("success").getBoolean()).isTrue();
         assertThat(policyStatus.get("summary").getString()).contains("without exposing secret values");
         assertThat(policyStatus.get("policy").get("security").get("allowPrivateUrls").getBoolean())

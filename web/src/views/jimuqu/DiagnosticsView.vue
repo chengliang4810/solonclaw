@@ -82,6 +82,15 @@ function decisionType(decision: unknown) {
   return 'default'
 }
 
+function findingActionText(action?: string) {
+  if (action === 'request_approval') return '需要审批'
+  if (action === 'change_command') return '修改命令'
+  if (action === 'change_path') return '修改路径'
+  if (action === 'change_url_or_policy') return '修改 URL 或策略'
+  if (action === 'use_managed_background_process') return '使用受管后台进程'
+  return action || ''
+}
+
 async function load() {
   loading.value = true
   try {
@@ -459,14 +468,21 @@ onMounted(load)
                 <NTag size="small" :type="decisionType(auditResult?.decision)">
                   {{ auditResult?.decision || '未审计' }}
                 </NTag>
+                <NTag v-if="auditResult?.blocking" size="small" type="error" :bordered="false">已阻断</NTag>
+                <NTag v-if="auditResult?.approval_required" size="small" type="warning" :bordered="false">需要审批</NTag>
                 <span>{{ auditResult?.summary || '等待输入待审计内容' }}</span>
               </div>
               <div v-if="auditFindings.length" class="finding-list">
                 <div v-for="(finding, index) in auditFindings" :key="index" class="finding-item">
                   <div class="finding-meta">
                     <NTag size="small" :bordered="false">{{ finding.source || 'policy' }}</NTag>
+                    <NTag v-if="finding.blocking" size="small" type="error" :bordered="false">阻断</NTag>
+                    <NTag v-else-if="finding.approval_required" size="small" type="warning" :bordered="false">
+                      审批
+                    </NTag>
                     <span>{{ finding.ruleId || '-' }}</span>
                     <span>{{ finding.severity || '-' }}</span>
+                    <span v-if="finding.suggested_action">{{ findingActionText(finding.suggested_action) }}</span>
                   </div>
                   <p>{{ finding.message }}</p>
                 </div>

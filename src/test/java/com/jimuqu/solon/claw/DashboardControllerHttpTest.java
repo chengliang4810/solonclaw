@@ -266,6 +266,9 @@ public class DashboardControllerHttpTest {
         assertThat(commandAudit.body)
                 .contains("\"action\":\"command\"")
                 .contains("\"decision\":\"block\"")
+                .contains("\"blocking\":true")
+                .contains("\"approval_required\":false")
+                .contains("\"suggested_action\":\"change_command\"")
                 .contains("\"hardline\"");
 
         HttpResult urlAudit =
@@ -278,6 +281,9 @@ public class DashboardControllerHttpTest {
         assertThat(urlAudit.body)
                 .contains("\"action\":\"url\"")
                 .contains("\"decision\":\"block\"")
+                .contains("\"blocking\":true")
+                .contains("\"approval_required\":false")
+                .contains("\"suggested_action\":\"change_url_or_policy\"")
                 .contains("\"url_policy\"");
 
         HttpResult skills = request("GET", "/api/skills", null, token);

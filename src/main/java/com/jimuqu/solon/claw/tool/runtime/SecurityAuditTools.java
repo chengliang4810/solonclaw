@@ -155,14 +155,26 @@ public class SecurityAuditTools {
                         "hardline",
                         hardline.getPatternKey(),
                         "critical",
-                        hardline.getDescription());
+                        hardline.getDescription(),
+                        "block",
+                        true,
+                        false,
+                        "change_command");
                 result.escalate("block");
             }
 
             String backgroundGuidance =
                     approvalService.foregroundBackgroundGuidance(effectiveTool, command);
             if (StrUtil.isNotBlank(backgroundGuidance)) {
-                result.addFinding("terminal_guardrail", "background_process", "high", backgroundGuidance);
+                result.addFinding(
+                        "terminal_guardrail",
+                        "background_process",
+                        "high",
+                        backgroundGuidance,
+                        "block",
+                        true,
+                        false,
+                        "use_managed_background_process");
                 result.escalate("block");
             }
 
@@ -173,7 +185,11 @@ public class SecurityAuditTools {
                         "dangerous_command",
                         local.getPatternKey(),
                         "medium",
-                        local.getDescription());
+                        local.getDescription(),
+                        "warn",
+                        false,
+                        true,
+                        "request_approval");
                 result.escalate("warn");
             }
         }
@@ -188,7 +204,11 @@ public class SecurityAuditTools {
                         "critical",
                         fileVerdict.getMessage()
                                 + ": "
-                                + SecretRedactor.redact(fileVerdict.getPath(), 400));
+                                + SecretRedactor.redact(fileVerdict.getPath(), 400),
+                        "block",
+                        true,
+                        false,
+                        "change_path");
                 result.escalate("block");
             }
 
@@ -201,7 +221,11 @@ public class SecurityAuditTools {
                         "critical",
                         urlVerdict.getMessage()
                                 + ": "
-                                + SecretRedactor.maskUrl(urlVerdict.getUrl()));
+                                + SecretRedactor.maskUrl(urlVerdict.getUrl()),
+                        "block",
+                        true,
+                        false,
+                        "change_url_or_policy");
                 result.escalate("block");
             }
         }
@@ -225,7 +249,15 @@ public class SecurityAuditTools {
         }
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
         if (!verdict.isAllowed()) {
-            result.addFinding("url_policy", "blocked_url", "critical", verdict.getMessage());
+            result.addFinding(
+                    "url_policy",
+                    "blocked_url",
+                    "critical",
+                    verdict.getMessage(),
+                    "block",
+                    true,
+                    false,
+                    "change_url_or_policy");
             result.escalate("block");
         }
         result.finish();
@@ -243,7 +275,15 @@ public class SecurityAuditTools {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkPath(path, writeLike);
         if (!verdict.isAllowed()) {
-            result.addFinding("file_policy", "blocked_path", "critical", verdict.getMessage());
+            result.addFinding(
+                    "file_policy",
+                    "blocked_path",
+                    "critical",
+                    verdict.getMessage(),
+                    "block",
+                    true,
+                    false,
+                    "change_path");
             result.escalate("block");
         }
         result.finish();
@@ -292,7 +332,11 @@ public class SecurityAuditTools {
                         "critical",
                         fileVerdict.getMessage()
                                 + ": "
-                                + SecretRedactor.redact(fileVerdict.getPath(), 400));
+                                + SecretRedactor.redact(fileVerdict.getPath(), 400),
+                        "block",
+                        true,
+                        false,
+                        "change_path");
                 result.escalate("block");
             }
             SecurityPolicyService.UrlVerdict urlVerdict =
@@ -304,7 +348,11 @@ public class SecurityAuditTools {
                         "critical",
                         urlVerdict.getMessage()
                                 + ": "
-                                + SecretRedactor.maskUrl(urlVerdict.getUrl()));
+                                + SecretRedactor.maskUrl(urlVerdict.getUrl()),
+                        "block",
+                        true,
+                        false,
+                        "change_url_or_policy");
                 result.escalate("block");
             }
         }
@@ -323,16 +371,29 @@ public class SecurityAuditTools {
             result.escalate("warn");
         }
         if (StrUtil.isNotBlank(scan.getSummary())) {
-            result.addFinding("tirith", "security_scan", scan.getAction(), scan.getSummary());
+            result.addFinding(
+                    "tirith",
+                    "security_scan",
+                    scan.getAction(),
+                    scan.getSummary(),
+                    scan.getAction(),
+                    "block".equals(scan.getAction()),
+                    "warn".equals(scan.getAction()),
+                    "warn".equals(scan.getAction()) ? "request_approval" : "change_command");
         }
         for (TirithSecurityService.Finding finding : scan.getFindings()) {
+            String action = StrUtil.blankToDefault(scan.getAction(), "warn");
             result.addFinding(
                     "tirith",
                     StrUtil.blankToDefault(finding.getRuleId(), "security_scan"),
-                    StrUtil.blankToDefault(finding.getSeverity(), scan.getAction()),
+                    StrUtil.blankToDefault(finding.getSeverity(), action),
                     StrUtil.blankToDefault(
                             finding.getTitle(),
-                            StrUtil.blankToDefault(finding.getDescription(), scan.getSummary())));
+                            StrUtil.blankToDefault(finding.getDescription(), scan.getSummary())),
+                    action,
+                    "block".equals(action),
+                    "warn".equals(action),
+                    "warn".equals(action) ? "request_approval" : "change_command");
         }
     }
 
@@ -349,17 +410,43 @@ public class SecurityAuditTools {
         private String tirithAction;
         private Map<String, Object> policy;
         private final List<Map<String, Object>> findings = new ArrayList<Map<String, Object>>();
+        private boolean blocking;
+        private boolean approvalRequired;
 
         private AuditResult(String action) {
             this.action = action;
         }
 
         private void addFinding(String source, String ruleId, String severity, String message) {
+            addFinding(source, ruleId, severity, message, severity, false, false, "");
+        }
+
+        private void addFinding(
+                String source,
+                String ruleId,
+                String severity,
+                String message,
+                String findingDecision,
+                boolean findingBlocking,
+                boolean findingApprovalRequired,
+                String suggestedAction) {
             Map<String, Object> finding = new LinkedHashMap<String, Object>();
             finding.put("source", StrUtil.nullToEmpty(source));
             finding.put("ruleId", StrUtil.nullToEmpty(ruleId));
             finding.put("severity", StrUtil.nullToEmpty(severity));
             finding.put("message", SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000));
+            finding.put("decision", StrUtil.blankToDefault(findingDecision, severity));
+            finding.put("blocking", Boolean.valueOf(findingBlocking));
+            finding.put("approval_required", Boolean.valueOf(findingApprovalRequired));
+            if (StrUtil.isNotBlank(suggestedAction)) {
+                finding.put("suggested_action", suggestedAction);
+            }
+            if (findingBlocking) {
+                blocking = true;
+            }
+            if (findingApprovalRequired) {
+                approvalRequired = true;
+            }
             findings.add(finding);
         }
 
@@ -386,6 +473,8 @@ public class SecurityAuditTools {
             map.put("success", Boolean.valueOf(success));
             map.put("action", action);
             map.put("decision", decision);
+            map.put("blocking", Boolean.valueOf(blocking));
+            map.put("approval_required", Boolean.valueOf(approvalRequired));
             map.put("summary", summary);
             if (StrUtil.isNotBlank(toolName)) {
                 map.put("toolName", toolName);
