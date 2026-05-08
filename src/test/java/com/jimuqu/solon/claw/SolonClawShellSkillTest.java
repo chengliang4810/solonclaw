@@ -812,6 +812,33 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRedactSensitiveWatchPatternsInTerminalResponsesLikeJimuqu()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+        String sensitivePattern = "token=secret123";
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                Collections.singletonList(sensitivePattern)));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(result.get("watch_patterns").get(0).getString()).isEqualTo("token=***");
+        assertThat(registry.get(sessionId).getWatchPatterns()).containsExactly(sensitivePattern);
+
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldDropWatchPatternsWhenNotifyOnCompleteIsSetLikeJimuqu() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
@@ -868,6 +895,36 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRedactSensitiveWatchPatternsInProcessSnapshotLikeJimuqu()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry();
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+        String sensitivePattern = "https://example.com/callback?token=secret123";
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                javaSleepCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                Collections.singletonList(sensitivePattern)));
+
+        String sessionId = result.get("session_id").getString();
+        ONode process = ONode.ofJson(ONode.serialize(registry.get(sessionId).toRedactedMap()));
+        assertThat(process.get("watch_patterns").get(0).getString())
+                .contains("token=***")
+                .doesNotContain("secret123");
+        assertThat(registry.get(sessionId).getWatchPatterns()).containsExactly(sensitivePattern);
+
+        assertThat(registry.stop(sessionId)).isTrue();
+    }
+
+    @Test
     void shouldQueueWatchMatchEventsForManagedBackgroundProcesses() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
@@ -896,6 +953,38 @@ public class SolonClawShellSkillTest {
         assertThat(events.get(0).get("pattern")).isEqualTo("ready");
         assertThat(String.valueOf(events.get(0).get("output"))).contains("ready");
         assertThat(registry.get(sessionId).getWatchHits()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldRedactSensitiveWatchPatternInEventsLikeJimuqu() throws Exception {
+        AppConfig config = new AppConfig();
+        ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
+        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
+        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+        String sensitivePattern = "token=secret123";
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                printTokenCommand(),
+                                Boolean.TRUE,
+                                Integer.valueOf(1),
+                                workdir,
+                                Boolean.FALSE,
+                                Boolean.FALSE,
+                                Collections.singletonList(sensitivePattern)));
+
+        String sessionId = result.get("session_id").getString();
+        assertThat(registry.waitFor(sessionId, 5000L)).isTrue();
+
+        List<Map<String, Object>> events = registry.drainEvents();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).get("type")).isEqualTo("watch_match");
+        assertThat(events.get(0).get("pattern")).isEqualTo("token=***");
+        assertThat(String.valueOf(events.get(0).get("output"))).contains("token=***");
+        assertThat(String.valueOf(events.get(0).get("output"))).doesNotContain("secret123");
+        assertThat(registry.get(sessionId).getWatchPatterns()).containsExactly(sensitivePattern);
     }
 
     @Test
@@ -1594,6 +1683,13 @@ public class SolonClawShellSkillTest {
             return "echo ready";
         }
         return "printf 'ready\\n'";
+    }
+
+    private String printTokenCommand() {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return "echo token=secret123";
+        }
+        return "printf 'token=secret123\\n'";
     }
 
     private String repeatedReadyCommand() {

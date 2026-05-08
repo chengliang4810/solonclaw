@@ -364,13 +364,24 @@ public class SolonClawShellSkill extends ShellSkill {
             envelope.data("watch_patterns_ignored", conflictNote);
         }
         if (!normalizedWatchPatterns.isEmpty()) {
-            envelope.data("watch_patterns", normalizedWatchPatterns);
+            envelope.data("watch_patterns", redactedWatchPatterns(normalizedWatchPatterns));
         }
         if (ptyNote != null) {
             envelope.data("pty", Boolean.FALSE);
             envelope.data("pty_note", ptyNote);
         }
         return envelope.toJson();
+    }
+
+    private List<String> redactedWatchPatterns(List<String> watchPatterns) {
+        if (watchPatterns == null || watchPatterns.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> redacted = new ArrayList<String>();
+        for (String pattern : watchPatterns) {
+            redacted.add(SecretRedactor.redact(pattern));
+        }
+        return Collections.unmodifiableList(redacted);
     }
 
     private List<String> normalizeWatchPatterns(List<String> watchPatterns) {

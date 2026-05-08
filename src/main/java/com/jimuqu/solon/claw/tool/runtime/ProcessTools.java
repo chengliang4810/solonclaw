@@ -473,8 +473,19 @@ public class ProcessTools {
         envelope.data("notify_on_complete", Boolean.valueOf(managed.isNotifyOnComplete()));
         List<String> watchPatterns = managed.getWatchPatterns();
         if (!watchPatterns.isEmpty()) {
-            envelope.data("watch_patterns", watchPatterns);
+            envelope.data("watch_patterns", redactedWatchPatterns(watchPatterns));
         }
+    }
+
+    private List<String> redactedWatchPatterns(List<String> watchPatterns) {
+        if (watchPatterns == null || watchPatterns.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        List<String> redacted = new ArrayList<String>();
+        for (String pattern : watchPatterns) {
+            redacted.add(SecretRedactor.redact(pattern));
+        }
+        return redacted;
     }
 
     private ProcessRegistry.ManagedProcess requireProcess(String sessionId) {

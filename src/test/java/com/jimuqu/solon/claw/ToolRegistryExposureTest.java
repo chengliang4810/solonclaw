@@ -314,6 +314,39 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSensitiveWatchPatternsThroughProcessToolLikeJimuqu() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessRegistry.ManagedProcess managed =
+                env.processRegistry.start(javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
+        managed.setWatchPatterns(java.util.Collections.singletonList("token=secret123"));
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        ONode polled =
+                ONode.ofJson(
+                        tools.process(
+                                "poll",
+                                null,
+                                managed.getId(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode listed = ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
+
+        assertThat(polled.get("watch_patterns").get(0).getString()).isEqualTo("token=***");
+        assertThat(polled.toJson()).doesNotContain("secret123");
+        assertThat(listed.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(managed.getWatchPatterns()).containsExactly("token=secret123");
+
+        assertThat(env.processRegistry.stop(managed.getId())).isTrue();
+    }
+
+    @Test
     void shouldExposeManagedProcessEventsThroughProcessTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
