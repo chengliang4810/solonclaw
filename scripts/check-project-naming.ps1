@@ -15,9 +15,6 @@ try {
         ".git",
         ".idea",
         "node_modules",
-        "target",
-        "dist",
-        "build",
         ".gradle",
         ".mvn",
         ".turbo",
@@ -48,6 +45,36 @@ try {
     function Test-ProbablyTextFile {
         param([System.IO.FileInfo] $File)
 
+        $binaryExtensions = @(
+            ".7z",
+            ".avif",
+            ".bmp",
+            ".class",
+            ".db",
+            ".dll",
+            ".exe",
+            ".gif",
+            ".ico",
+            ".jar",
+            ".jpeg",
+            ".jpg",
+            ".mp3",
+            ".mp4",
+            ".pdf",
+            ".png",
+            ".so",
+            ".sqlite",
+            ".ttf",
+            ".wasm",
+            ".webm",
+            ".webp",
+            ".woff",
+            ".woff2",
+            ".zip"
+        )
+        if ($binaryExtensions -contains $File.Extension.ToLowerInvariant()) {
+            return $false
+        }
         if ($File.Length -gt 10MB) {
             return $false
         }
