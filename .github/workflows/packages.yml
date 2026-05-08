@@ -19,6 +19,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check project naming
+        shell: pwsh
+        run: ./scripts/check-project-naming.ps1
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
