@@ -44,7 +44,7 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
         audit.setApprovalKey(pending.approvalKey());
         audit.setCommandHash(pending.getCommandHash());
         audit.setCommandPreview(SecretRedactor.redact(event.getCommand(), 800));
-        audit.setDescription(event.getDescription());
+        audit.setDescription(SecretRedactor.redact(event.getDescription(), 1000));
         audit.setPatternKeysJson(ONode.serialize(event.getPatternKeys()));
         audit.setCreatedAt(System.currentTimeMillis());
         audit.setApprovalCreatedAt(pending.getCreatedAt());
