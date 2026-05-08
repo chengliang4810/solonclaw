@@ -502,6 +502,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult envWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat secrets > .env.production");
+        DangerousCommandApprovalService.DetectionResult envrcWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf layout > .envrc");
         DangerousCommandApprovalService.DetectionResult absoluteEnvWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat /opt/data/.env.local > /opt/data/.env");
@@ -523,6 +526,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult localDotenvTee =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printenv | tee .env.local");
+        DangerousCommandApprovalService.DetectionResult localEnvrcTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "direnv export bash | tee ./.envrc");
         DangerousCommandApprovalService.DetectionResult dotenvSourceRedirect =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat .env > backup.txt");
@@ -552,6 +558,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(quotedCustomHomeEnvTee.getPatternKey()).isEqualTo("sensitive_tee");
         assertThat(envWrite).isNotNull();
         assertThat(envWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(envrcWrite).isNotNull();
+        assertThat(envrcWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(absoluteEnvWrite).isNotNull();
         assertThat(absoluteEnvWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(absoluteEnvCopy).isNotNull();
@@ -565,6 +573,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(configSourceCopy).isNull();
         assertThat(localDotenvTee).isNotNull();
         assertThat(localDotenvTee.getPatternKey()).isEqualTo("project_sensitive_tee");
+        assertThat(localEnvrcTee).isNotNull();
+        assertThat(localEnvrcTee.getPatternKey()).isEqualTo("project_sensitive_tee");
         assertThat(dotenvSourceRedirect).isNull();
         assertThat(credentialsJsonRead).isNull();
         SecurityPolicyService.FileVerdict credentialsJsonReadVerdict =

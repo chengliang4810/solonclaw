@@ -79,7 +79,7 @@ public class DangerousCommandApprovalService {
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
-            "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
+            "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
