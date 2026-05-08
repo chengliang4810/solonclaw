@@ -435,6 +435,7 @@ public class DashboardDiagnosticsService {
         item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
         item.put("pattern_key", pending.getPatternKey());
         item.put("pattern_keys", pending.effectivePatternKeys());
+        item.put("rule_sources", approvalRuleSources(pending));
         item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
         item.put("command_hash", pending.getCommandHash());
         item.put("approval_key", pending.approvalKey());
@@ -445,7 +446,39 @@ public class DashboardDiagnosticsService {
         item.put("scopes", pending.isPermanentApprovalAllowed() ? "once,session,always" : "once,session");
         item.put("scope_options", approvalScopeOptions(pending));
         item.put("permanent_allowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
+        item.put("permanent_disabled_reason", permanentDisabledReason(pending));
         return item;
+    }
+
+    private List<String> approvalRuleSources(
+            DangerousCommandApprovalService.PendingApproval pending) {
+        List<String> sources = new ArrayList<String>();
+        if (pending == null) {
+            return sources;
+        }
+        for (String patternKey : pending.effectivePatternKeys()) {
+            String source =
+                    StrUtil.nullToEmpty(patternKey).startsWith("tirith:")
+                            ? "security_scan"
+                            : "local_policy";
+            if (!sources.contains(source)) {
+                sources.add(source);
+            }
+        }
+        return sources;
+    }
+
+    private String permanentDisabledReason(
+            DangerousCommandApprovalService.PendingApproval pending) {
+        if (pending == null || pending.isPermanentApprovalAllowed()) {
+            return "";
+        }
+        for (String patternKey : pending.effectivePatternKeys()) {
+            if (StrUtil.nullToEmpty(patternKey).startsWith("tirith:")) {
+                return "安全扫描命中项只能按本次或本会话审批，不能写入长期授权。";
+            }
+        }
+        return "该审批项不允许长期授权。";
     }
 
     private List<String> approvalScopeOptions(

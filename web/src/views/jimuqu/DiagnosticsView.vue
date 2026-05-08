@@ -304,6 +304,12 @@ function canApproveScope(item: PendingApproval, scope: string) {
   return true
 }
 
+function approvalSourceText(source: string) {
+  if (source === 'security_scan') return '安全扫描'
+  if (source === 'local_policy') return '本地规则'
+  return source || '-'
+}
+
 function canConfirmAction(item: PendingSlashConfirm, action: string) {
   if (item.expired) return false
   const actions = item.action_options || []
@@ -594,6 +600,11 @@ onMounted(load)
                 </div>
                 <p class="approval-desc">{{ item.description || '-' }}</p>
                 <pre class="approval-command">{{ item.command_preview || '-' }}</pre>
+                <div v-if="item.rule_sources?.length" class="approval-scopes">
+                  <NTag v-for="source in item.rule_sources" :key="source" size="small" :bordered="false">
+                    {{ approvalSourceText(source) }}
+                  </NTag>
+                </div>
                 <div class="approval-meta">
                   <span>{{ item.selector || item.approval_id || '-' }}</span>
                   <span>创建：{{ timeText(item.created_at) }}</span>
@@ -605,6 +616,9 @@ onMounted(load)
                     {{ scope === 'once' ? '本次' : scope === 'session' ? '本会话' : '长期' }}
                   </NTag>
                 </div>
+                <p v-if="item.permanent_disabled_reason" class="approval-note">
+                  {{ item.permanent_disabled_reason }}
+                </p>
                 <div class="approval-actions">
                   <NButtonGroup size="small">
                     <NButton
@@ -1056,6 +1070,12 @@ dd {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+}
+
+.approval-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: $warning;
 }
 
 .approval-expired {
