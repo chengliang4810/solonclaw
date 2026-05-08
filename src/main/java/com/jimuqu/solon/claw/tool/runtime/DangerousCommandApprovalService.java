@@ -261,6 +261,18 @@ public class DangerousCommandApprovalService {
                                             "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c\\s+)?set\\s*(?:$|[|>&;])|(?:env|printenv)\\s*(?:$|[|>&;])|(?:Get-ChildItem|gci|dir|ls)\\s+Env:|Get-Item\\s+Env:\\*)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sensitive_clipboard_export",
+                                    "copy sensitive environment values to clipboard",
+                                    pattern(
+                                            "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$|%)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "%?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel)\\b|\\bprintenv\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:\\$env:|%)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "%?)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(

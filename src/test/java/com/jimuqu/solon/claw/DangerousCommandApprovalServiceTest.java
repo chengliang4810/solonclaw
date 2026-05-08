@@ -566,6 +566,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectSensitiveClipboardExportCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "echo $OPENAI_API_KEY | pbcopy",
+                        "printf %s $JIMUQU_ACCESS_TOKEN | xclip -selection clipboard",
+                        "printenv ANTHROPIC_API_KEY | xsel --clipboard",
+                        "echo %OPENAI_API_KEY% | clip.exe",
+                        "Set-Clipboard $env:OPENAI_API_KEY",
+                        "scb %JIMUQU_ACCESS_TOKEN%");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_clipboard_export");
+        }
+
+        DangerousCommandApprovalService.DetectionResult fullEnvironmentClipboard =
+                env.dangerousCommandApprovalService.detect("execute_shell", "env | pbcopy");
+        assertThat(fullEnvironmentClipboard).isNotNull();
+        assertThat(fullEnvironmentClipboard.getPatternKey()).isEqualTo("environment_dump");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "echo hello | pbcopy"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "echo $HOME | pbcopy"))
+                .isNull();
+    }
+
+    @Test
     void shouldNormalizeTerminalControlSequencesBeforeDangerDetection() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
