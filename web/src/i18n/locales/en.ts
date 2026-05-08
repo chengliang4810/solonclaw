@@ -570,6 +570,7 @@ export default {
     clipboardCopied: 'Terminal content copied to clipboard',
     clipboardUnavailable: 'Browser denied clipboard access',
     clipboardTooLarge: 'Terminal clipboard content is too large and was not copied',
+    filePathUnavailable: 'Browser did not expose the full local path, inserted the available file name',
   },
 
   // Usage

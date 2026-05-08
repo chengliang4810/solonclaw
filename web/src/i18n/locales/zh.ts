@@ -606,6 +606,7 @@ export default {
     clipboardCopied: '终端内容已复制到剪贴板',
     clipboardUnavailable: '浏览器拒绝访问剪贴板',
     clipboardTooLarge: '终端剪贴板内容过大，已拒绝复制',
+    filePathUnavailable: '浏览器未提供完整本地路径，已写入可用文件名',
   },
 
   // 用量统计

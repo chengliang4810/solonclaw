@@ -229,6 +229,11 @@ interface SessionInfo {
   exited: boolean;
 }
 
+interface BrowserFileWithPath extends File {
+  path?: string;
+  mozFullPath?: string;
+}
+
 // ─── State ──────────────────────────────────────────────────────
 
 const terminalRef = ref<HTMLDivElement | null>(null);
@@ -431,6 +436,74 @@ function decodeOsc52Payload(data: string): string | null {
   } catch {
     return null;
   }
+}
+
+function handleTerminalPaste(event: ClipboardEvent) {
+  const clipboard = event.clipboardData;
+  if (!clipboard) return;
+  const files = Array.from(clipboard.files || []);
+  if (files.length > 0) {
+    event.preventDefault();
+    pasteFileReferences(files);
+    return;
+  }
+  const text = clipboard.getData("text/plain");
+  if (!text) return;
+  event.preventDefault();
+  pasteIntoTerminal(text);
+}
+
+function handleTerminalDrop(event: DragEvent) {
+  event.preventDefault();
+  const transfer = event.dataTransfer;
+  if (!transfer) return;
+  const files = Array.from(transfer.files || []);
+  if (files.length > 0) {
+    pasteFileReferences(files);
+    return;
+  }
+  const uriList = transfer.getData("text/uri-list");
+  const text = transfer.getData("text/plain");
+  pasteIntoTerminal(uriList || text);
+}
+
+function pasteFileReferences(files: File[]) {
+  const refs = files.map(fileToTerminalPath).filter(Boolean);
+  if (refs.length === 0) return;
+  pasteIntoTerminal(refs.map(quoteTerminalPath).join(" "));
+  if (refs.some((ref) => !isLikelyFilesystemPath(ref))) {
+    message.info(t("terminal.filePathUnavailable"));
+  }
+}
+
+function fileToTerminalPath(file: File): string {
+  const value = file as BrowserFileWithPath;
+  return value.path || value.mozFullPath || file.webkitRelativePath || file.name;
+}
+
+function isLikelyFilesystemPath(value: string): boolean {
+  return (
+    value.includes("/") ||
+    value.includes("\\") ||
+    /^[A-Za-z]:[\\/]/.test(value)
+  );
+}
+
+function quoteTerminalPath(value: string): string {
+  const shell = (activeSession.value?.shell || "").toLowerCase();
+  if (shell.includes("powershell") || shell.includes("pwsh")) {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+  if (shell.includes("cmd")) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function pasteIntoTerminal(text: string) {
+  if (!text || !activeTerm) return;
+  activeTerm.paste(text);
+  activeTerm.focus();
 }
 
 function switchSession(id: string) {
@@ -723,7 +796,14 @@ onUnmounted(() => {
         </div>
       </header>
       <div class="terminal-container">
-        <div ref="terminalRef" class="terminal-xterm" :style="{ backgroundColor: terminalBg }" />
+        <div
+          ref="terminalRef"
+          class="terminal-xterm"
+          :style="{ backgroundColor: terminalBg }"
+          @paste="handleTerminalPaste"
+          @dragover.prevent
+          @drop="handleTerminalDrop"
+        />
       </div>
     </div>
   </div>
