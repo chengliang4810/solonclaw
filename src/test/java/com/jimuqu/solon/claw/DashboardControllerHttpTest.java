@@ -425,6 +425,16 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
         assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
+        HttpResult apiCronRuns =
+                request("GET", "/api/jobs/" + dashboardCronId + "/runs?limit=5", null, token);
+        assertThat(apiCronRuns.status).isEqualTo(200);
+        ONode apiCronRunsData = ONode.ofJson(apiCronRuns.body);
+        assertThat(apiCronRunsData.get("job_id").getString()).isEqualTo(dashboardCronId);
+        assertThat(apiCronRunsData.get("count").getInt()).isGreaterThanOrEqualTo(1);
+        assertThat(apiCronRunsData.get("runs").get(0).get("run_id").getString()).isNotBlank();
+        assertThat(apiCronRunsData.get("runs").get(0).get("output").getString())
+                .contains("dashboard trigger ok: daily summary");
+
         HttpResult pauseCron =
                 request(
                         "POST",

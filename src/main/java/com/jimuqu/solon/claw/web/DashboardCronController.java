@@ -230,6 +230,30 @@ public class DashboardCronController {
         }
     }
 
+    @Mapping(value = "/api/jobs/{id}/runs", method = MethodType.GET)
+    public Map<String, Object> apiHistory(String id, @Param(defaultValue = "20") Integer limit, Context context)
+            throws Exception {
+        try {
+            validateApiJobId(id);
+            List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("job_id", id);
+            data.put("runs", runs);
+            data.put("count", Integer.valueOf(runs.size()));
+            return data;
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return apiError(e.getMessage());
+        } catch (IllegalStateException e) {
+            if (isNotFound(e)) {
+                context.status(404);
+            } else {
+                context.status(400);
+            }
+            return apiError(e.getMessage());
+        }
+    }
+
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.DELETE)
     public Map<String, Object> delete(String id, Context context) throws Exception {
         try {
