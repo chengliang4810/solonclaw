@@ -390,6 +390,98 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldRunForegroundTerminalInWorkdirWithSpacesLikeHermes() throws Exception {
+        AppConfig config = new AppConfig();
+        Path root = Files.createTempDirectory("jimuqu-shell-cwd");
+        Path spaced = root.resolve("project with spaces");
+        Files.createDirectories(spaced);
+        SolonClawShellSkill skill = new SolonClawShellSkill(root.toString(), config);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.terminal(
+                                printWorkingDirectoryCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                spaced.toString(),
+                                Boolean.FALSE));
+
+        assertThat(result.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(Paths.get(lastOutputLine(result.get("output").getString())).toRealPath())
+                .isEqualTo(spaced.toRealPath());
+    }
+
+    @Test
+    void shouldRejectForegroundAndBackgroundWorkdirsWithShellMetacharactersLikeHermes()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        Path root = Files.createTempDirectory("jimuqu-shell-cwd");
+        SolonClawShellSkill skill = new SolonClawShellSkill(root.toString(), config);
+        String unsafeWorkdir = root.toString() + "; rm -rf runtime";
+
+        ONode foreground =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo should-not-run",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                unsafeWorkdir,
+                                Boolean.FALSE));
+        ONode background =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo should-not-run",
+                                Boolean.TRUE,
+                                Integer.valueOf(5),
+                                unsafeWorkdir,
+                                Boolean.FALSE));
+
+        assertThat(foreground.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(foreground.get("error").getString())
+                .contains("Blocked")
+                .contains("disallowed character")
+                .contains("shell metacharacters");
+        assertThat(background.get("success").getBoolean()).isFalse();
+        assertThat(background.get("error").getString())
+                .contains("Blocked")
+                .contains("disallowed character")
+                .contains("shell metacharacters");
+    }
+
+    @Test
+    void shouldTreatUnreachableUncWorkdirAsRecoverablePathButStillRejectUncMetacharacters()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        Path fallback = Files.createTempDirectory("jimuqu-shell-cwd");
+        SolonClawShellSkill skill = new SolonClawShellSkill(fallback.toString(), config);
+
+        ONode unc =
+                ONode.ofJson(
+                        skill.terminal(
+                                printWorkingDirectoryCommand(),
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                "\\\\server\\share\\missing-project",
+                                Boolean.FALSE));
+        ONode unsafeUnc =
+                ONode.ofJson(
+                        skill.terminal(
+                                "echo should-not-run",
+                                Boolean.FALSE,
+                                Integer.valueOf(5),
+                                "\\\\server\\share\\project; rm -rf runtime",
+                                Boolean.FALSE));
+
+        assertThat(unc.get("exit_code").getInt()).isEqualTo(0);
+        assertThat(Paths.get(lastOutputLine(unc.get("output").getString())).toRealPath())
+                .isEqualTo(fallback.toRealPath());
+        assertThat(unsafeUnc.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(unsafeUnc.get("error").getString())
+                .contains("Blocked")
+                .contains("disallowed character");
+    }
+
+    @Test
     void shouldRejectForegroundTimeoutAboveHermesCap() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setMaxForegroundTimeoutSeconds(1);

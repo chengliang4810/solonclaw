@@ -938,7 +938,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
         }
-        return resolveSafeCwd(value);
+        return resolveSafeCwd(value, workPath.toFile());
     }
 
     private File resolveForegroundWorkdir(String workdir) {
