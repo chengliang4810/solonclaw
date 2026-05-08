@@ -5,6 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { getApiKey, getBaseUrlValue } from "@/api/client";
+import { copyToClipboard, readFromClipboard } from "@/utils/clipboard";
 import { NButton, NPopconfirm, NTooltip, NSelect, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import type { ITheme } from "@xterm/xterm";
@@ -215,6 +216,7 @@ const TERMINAL_THEMES: Record<string, { label: string; theme: ITheme }> = {
 };
 
 const STORAGE_KEY_THEME = "jimuqu_terminal_theme";
+const OSC52_MAX_CHARS = 100000;
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -227,6 +229,11 @@ interface SessionInfo {
   exited: boolean;
 }
 
+interface BrowserFileWithPath extends File {
+  path?: string;
+  mozFullPath?: string;
+}
+
 // ─── State ──────────────────────────────────────────────────────
 
 const terminalRef = ref<HTMLDivElement | null>(null);
@@ -234,6 +241,10 @@ const showSessions = ref(true);
 const sessions = ref<SessionInfo[]>([]);
 const activeSessionId = ref<string | null>(null);
 const selectedTheme = ref(localStorage.getItem(STORAGE_KEY_THEME) || "default");
+const connectionState = ref<"connecting" | "connected" | "reconnecting" | "closed">("connecting");
+const reconnectAttempt = ref(0);
+const terminalCols = ref(0);
+const terminalRows = ref(0);
 
 let ws: WebSocket | null = null;
 // Keep all terminal instances alive, only dispose on close
@@ -263,6 +274,26 @@ const terminalBg = computed(
   () => TERMINAL_THEMES[selectedTheme.value]?.theme.background ?? "#1a1a2e",
 );
 
+const shortcutHint = computed(() =>
+  t("terminal.shortcuts", {
+    modifier: navigator.platform.toLowerCase().includes("mac")
+      ? "Cmd"
+      : "Ctrl",
+  }),
+);
+
+const connectionStatusText = computed(() => {
+  if (connectionState.value === "reconnecting") {
+    return t("terminal.statusReconnecting", { count: reconnectAttempt.value });
+  }
+  return t(`terminal.status${capitalize(connectionState.value)}`);
+});
+
+const terminalSizeText = computed(() => {
+  if (!terminalCols.value || !terminalRows.value) return "-";
+  return `${terminalCols.value}x${terminalRows.value}`;
+});
+
 // ─── WebSocket ──────────────────────────────────────────────────
 
 function buildWsUrl(): string {
@@ -288,11 +319,15 @@ function buildWsUrl(): string {
 }
 
 function connect() {
+  connectionState.value =
+    reconnectAttempt.value > 0 ? "reconnecting" : "connecting";
   const url = buildWsUrl();
   ws = new WebSocket(url);
 
   ws.onopen = () => {
-    // Server auto-creates the first session and sends 'created'
+    connectionState.value = "connected";
+    reconnectAttempt.value = 0;
+    sendResize();
   };
 
   ws.onmessage = (event) => {
@@ -306,17 +341,19 @@ function connect() {
     }
   };
 
-  // On reconnect, recreate all terminals for existing sessions
-  ws.onopen = () => {
-    // Server will auto-create the first session again
-  };
-
   ws.onclose = () => {
+    if (ws) {
+      connectionState.value = "reconnecting";
+      reconnectAttempt.value += 1;
+    } else {
+      connectionState.value = "closed";
+    }
     // Reconnect after delay
     setTimeout(connect, 3000);
   };
 
   ws.onerror = () => {
+    connectionState.value = "reconnecting";
     // let onclose handle reconnect
   };
 }
@@ -383,6 +420,7 @@ function getOrCreateTerm(id: string): { term: Terminal; fitAddon: FitAddon } {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(new WebLinksAddon());
+    registerOsc52Clipboard(term);
     term.onData((data) => {
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(data);
@@ -392,6 +430,178 @@ function getOrCreateTerm(id: string): { term: Terminal; fitAddon: FitAddon } {
     termMap.set(id, entry);
   }
   return entry;
+}
+
+function registerOsc52Clipboard(term: Terminal) {
+  term.parser.registerOscHandler(52, async (data) => {
+    const text = decodeOsc52Payload(data);
+    if (text == null) return false;
+    if (text.length > OSC52_MAX_CHARS) {
+      message.warning(t("terminal.clipboardTooLarge"));
+      return true;
+    }
+    const copied = await copyToClipboard(text);
+    if (copied) {
+      message.success(t("terminal.clipboardCopied"));
+    } else {
+      message.warning(t("terminal.clipboardUnavailable"));
+    }
+    return true;
+  });
+}
+
+function decodeOsc52Payload(data: string): string | null {
+  const raw = String(data || "");
+  const separator = raw.indexOf(";");
+  if (separator < 0) return null;
+  const encoded = raw.slice(separator + 1).trim();
+  if (!encoded || encoded === "?") return null;
+  try {
+    const binary = atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function handleTerminalPaste(event: ClipboardEvent) {
+  const clipboard = event.clipboardData;
+  if (!clipboard) return;
+  const files = Array.from(clipboard.files || []);
+  if (files.length > 0) {
+    event.preventDefault();
+    pasteFileReferences(files);
+    return;
+  }
+  const text = clipboard.getData("text/plain");
+  if (!text) return;
+  event.preventDefault();
+  pasteIntoTerminal(text);
+}
+
+function handleTerminalDrop(event: DragEvent) {
+  event.preventDefault();
+  const transfer = event.dataTransfer;
+  if (!transfer) return;
+  const files = Array.from(transfer.files || []);
+  if (files.length > 0) {
+    pasteFileReferences(files);
+    return;
+  }
+  const uriList = transfer.getData("text/uri-list");
+  const text = transfer.getData("text/plain");
+  pasteIntoTerminal(uriList || text);
+}
+
+async function handleTerminalKeydown(event: KeyboardEvent) {
+  const modifier = event.ctrlKey || event.metaKey;
+  if (!modifier) return;
+
+  const key = event.key.toLowerCase();
+  if (event.altKey && /^[1-9]$/.test(key)) {
+    event.preventDefault();
+    switchSessionByIndex(Number.parseInt(key, 10) - 1);
+    return;
+  }
+
+  switch (key) {
+    case "n":
+      event.preventDefault();
+      createSession();
+      break;
+    case "w":
+      event.preventDefault();
+      closeActiveSession();
+      break;
+    case "l":
+      event.preventDefault();
+      activeTerm?.clear();
+      activeTerm?.focus();
+      break;
+    case "c":
+      await copySelectionToClipboard(event);
+      break;
+    case "v":
+      await pasteFromSystemClipboard(event);
+      break;
+  }
+}
+
+function pasteFileReferences(files: File[]) {
+  const refs = files.map(fileToTerminalPath).filter(Boolean);
+  if (refs.length === 0) return;
+  pasteIntoTerminal(refs.map(quoteTerminalPath).join(" "));
+  if (refs.some((ref) => !isLikelyFilesystemPath(ref))) {
+    message.info(t("terminal.filePathUnavailable"));
+  }
+}
+
+function fileToTerminalPath(file: File): string {
+  const value = file as BrowserFileWithPath;
+  return value.path || value.mozFullPath || file.webkitRelativePath || file.name;
+}
+
+function isLikelyFilesystemPath(value: string): boolean {
+  return (
+    value.includes("/") ||
+    value.includes("\\") ||
+    /^[A-Za-z]:[\\/]/.test(value)
+  );
+}
+
+function quoteTerminalPath(value: string): string {
+  const shell = (activeSession.value?.shell || "").toLowerCase();
+  if (shell.includes("powershell") || shell.includes("pwsh")) {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+  if (shell.includes("cmd")) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function pasteIntoTerminal(text: string) {
+  if (!text || !activeTerm) return;
+  activeTerm.paste(text);
+  activeTerm.focus();
+}
+
+function switchSessionByIndex(index: number) {
+  const session = sessions.value[index];
+  if (!session) return;
+  switchSession(session.id);
+}
+
+function closeActiveSession() {
+  if (!activeSessionId.value || sessions.value.length <= 1) return;
+  closeSession(activeSessionId.value);
+}
+
+async function copySelectionToClipboard(event: KeyboardEvent) {
+  const selection = activeTerm?.getSelection();
+  if (!selection) return;
+  event.preventDefault();
+  const copied = await copyToClipboard(selection);
+  if (copied) {
+    message.success(t("terminal.selectionCopied"));
+  } else {
+    message.warning(t("terminal.clipboardUnavailable"));
+  }
+  activeTerm?.focus();
+}
+
+async function pasteFromSystemClipboard(event: KeyboardEvent) {
+  event.preventDefault();
+  const text = await readFromClipboard();
+  if (text == null) {
+    message.warning(t("terminal.clipboardUnavailable"));
+    return;
+  }
+  pasteIntoTerminal(text);
 }
 
 function switchSession(id: string) {
@@ -474,18 +684,30 @@ function tryFit() {
   if (!activeFitAddon) return;
   try {
     activeFitAddon.fit();
+    updateTerminalSize();
   } catch {}
 }
 
 function sendResize() {
   if (!activeTerm || !ws || ws.readyState !== WebSocket.OPEN) return;
   try {
+    updateTerminalSize();
     send({
       type: "resize",
       cols: activeTerm.cols,
       rows: activeTerm.rows,
     });
   } catch {}
+}
+
+function updateTerminalSize() {
+  if (!activeTerm) {
+    terminalCols.value = 0;
+    terminalRows.value = 0;
+    return;
+  }
+  terminalCols.value = activeTerm.cols;
+  terminalRows.value = activeTerm.rows;
 }
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -505,6 +727,10 @@ function applyTheme(themeName: string) {
 function formatTime(ts: number) {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
@@ -532,6 +758,7 @@ onUnmounted(() => {
   activeFitAddon = null;
   ws?.close();
   ws = null;
+  connectionState.value = "closed";
 });
 </script>
 
@@ -655,6 +882,7 @@ onUnmounted(() => {
           <span v-if="activeSession" class="header-session-title">{{
             activeSession.title
           }}</span>
+          <span class="header-shortcuts">{{ shortcutHint }}</span>
         </div>
         <div class="header-actions">
           <NSelect
@@ -684,7 +912,28 @@ onUnmounted(() => {
         </div>
       </header>
       <div class="terminal-container">
-        <div ref="terminalRef" class="terminal-xterm" :style="{ backgroundColor: terminalBg }" />
+        <div
+          ref="terminalRef"
+          class="terminal-xterm"
+          :style="{ backgroundColor: terminalBg }"
+          @paste="handleTerminalPaste"
+          @keydown="handleTerminalKeydown"
+          @dragover.prevent
+          @drop="handleTerminalDrop"
+          tabindex="0"
+        />
+        <footer class="terminal-statusbar">
+          <span
+            class="status-dot"
+            :class="connectionState"
+            aria-hidden="true"
+          />
+          <span>{{ connectionStatusText }}</span>
+          <span v-if="activeSession">{{ activeSession.shell }}</span>
+          <span v-if="activeSession">PID {{ activeSession.pid }}</span>
+          <span>{{ terminalSizeText }}</span>
+          <span>{{ t("terminal.sessionCount", { count: sessions.length }) }}</span>
+        </footer>
       </div>
     </div>
   </div>
@@ -914,6 +1163,12 @@ onUnmounted(() => {
   text-overflow: ellipsis;
 }
 
+.header-shortcuts {
+  color: $text-muted;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -938,7 +1193,7 @@ onUnmounted(() => {
 
 .terminal-xterm {
   flex: 1;
-  border-radius: $radius-md;
+  border-radius: $radius-md $radius-md 0 0;
   overflow: hidden;
   border: 1px solid $border-color;
 
@@ -969,6 +1224,45 @@ onUnmounted(() => {
 
   :deep(.xterm-scrollable-element::-webkit-scrollbar) {
     display: none !important;
+  }
+}
+
+.terminal-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 8px;
+  color: $text-muted;
+  font-size: 12px;
+  border: 1px solid $border-color;
+  border-top: none;
+  border-radius: 0 0 $radius-md $radius-md;
+  overflow: hidden;
+  white-space: nowrap;
+
+  span {
+    flex-shrink: 0;
+  }
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $text-muted;
+
+  &.connected {
+    background: $success;
+  }
+
+  &.connecting,
+  &.reconnecting {
+    background: $warning;
+  }
+
+  &.closed {
+    background: $error;
   }
 }
 

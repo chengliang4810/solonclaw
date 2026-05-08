@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { NButton, NTooltip, useMessage } from 'naive-ui'
-import type { Job } from '@/api/jimuqu/jobs'
+import { computed, ref } from 'vue'
+import { NButton, NDrawer, NDrawerContent, NSpin, NTooltip, useMessage } from 'naive-ui'
+import type { Job, JobRun } from '@/api/jimuqu/jobs'
 import { useJobsStore } from '@/stores/jimuqu/jobs'
 import { useI18n } from 'vue-i18n'
 
@@ -13,6 +13,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const jobsStore = useJobsStore()
 const message = useMessage()
+const showRuns = ref(false)
+const runsLoading = ref(false)
+const runs = ref<JobRun[]>([])
 
 const jobId = computed(() => props.job.job_id || props.job.id)
 
@@ -52,6 +55,14 @@ const jobBadges = computed(() => {
   return badges
 })
 
+const deliverDetail = computed(() => {
+  const parts = [props.job.deliver || 'local']
+  if (props.job.origin?.platform) parts.push(props.job.origin.platform)
+  if (props.job.deliver_chat_id) parts.push(props.job.deliver_chat_id)
+  if (props.job.deliver_thread_id) parts.push(`#${props.job.deliver_thread_id}`)
+  return parts.join(' · ')
+})
+
 async function handlePause() {
   try {
     await jobsStore.pauseJob(jobId.value)
@@ -73,10 +84,29 @@ async function handleResume() {
 async function handleRun() {
   try {
     await jobsStore.runJob(jobId.value)
+    if (showRuns.value) {
+      await refreshRuns()
+    }
     message.info(t('jobs.jobTriggered'))
   } catch (e: any) {
     message.error(e.message)
   }
+}
+
+async function refreshRuns() {
+  runsLoading.value = true
+  try {
+    runs.value = await jobsStore.fetchJobRuns(jobId.value, 20)
+  } catch (e: any) {
+    message.error(e.message)
+  } finally {
+    runsLoading.value = false
+  }
+}
+
+async function openRuns() {
+  showRuns.value = true
+  await refreshRuns()
 }
 
 async function handleDelete() {
@@ -116,7 +146,7 @@ async function handleDelete() {
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.deliver') }}</span>
-        <span class="info-value">{{ job.deliver }}<template v-if="job.origin"> ({{ job.origin.platform }})</template></span>
+        <span class="info-value">{{ deliverDetail }}</span>
       </div>
       <div v-if="job.repeat" class="info-row">
         <span class="info-label">{{ t('jobs.info.repeat') }}</span>
@@ -130,6 +160,9 @@ async function handleDelete() {
       </div>
       <div v-if="job.last_error || job.last_delivery_error" class="error-line">
         {{ job.last_error || job.last_delivery_error }}
+      </div>
+      <div v-if="job.last_output" class="output-preview">
+        {{ job.last_output }}
       </div>
     </div>
 
@@ -152,9 +185,36 @@ async function handleDelete() {
         </template>
         {{ t('jobs.action.triggerImmediately') }}
       </NTooltip>
+      <NButton size="tiny" quaternary @click="openRuns">{{ t('jobs.action.history') }}</NButton>
       <NButton size="tiny" quaternary @click="emit('edit', jobId)">{{ t('common.edit') }}</NButton>
       <NButton size="tiny" quaternary type="error" @click="handleDelete">{{ t('common.delete') }}</NButton>
     </div>
+
+    <NDrawer v-model:show="showRuns" placement="right" :width="520">
+      <NDrawerContent :title="t('jobs.historyTitle', { name: job.name })" closable>
+        <NSpin :show="runsLoading">
+          <div v-if="runs.length === 0" class="empty-runs">{{ t('jobs.noHistory') }}</div>
+          <div v-else class="run-list">
+            <div v-for="run in runs" :key="run.run_id" class="run-item">
+              <div class="run-head">
+                <span class="run-status" :class="{ ok: run.status === 'ok', err: run.status && run.status !== 'ok' }">
+                  {{ run.status || '—' }}
+                </span>
+                <span class="run-time">{{ formatTime(run.started_at) }}</span>
+              </div>
+              <div class="run-meta">
+                {{ t('jobs.historyTrigger') }} {{ run.trigger || 'scheduled' }}
+                <template v-if="run.attempt"> · {{ t('jobs.historyAttempt') }} {{ run.attempt }}</template>
+              </div>
+              <pre v-if="run.summary || run.output" class="run-output">{{ run.summary || run.output }}</pre>
+              <div v-if="run.error || run.delivery_error" class="error-line">
+                {{ run.error || run.delivery_error }}
+              </div>
+            </div>
+          </div>
+        </NSpin>
+      </NDrawerContent>
+    </NDrawer>
   </div>
 </template>
 
@@ -284,10 +344,72 @@ async function handleDelete() {
   overflow-wrap: anywhere;
 }
 
+.output-preview {
+  color: $text-secondary;
+  background: $bg-card;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  padding: 8px;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 96px;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
 .card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-top: 1px solid $border-light;
   padding-top: 10px;
+}
+
+.empty-runs {
+  color: $text-muted;
+  font-size: 13px;
+  padding: 18px 0;
+}
+
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.run-item {
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  padding: 12px;
+  background: $bg-card;
+}
+
+.run-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.run-time,
+.run-meta {
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.run-output {
+  margin: 8px 0 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(var(--accent-primary-rgb), 0.06);
+  color: $text-secondary;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
 }
 </style>

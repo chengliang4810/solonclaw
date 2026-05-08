@@ -58,6 +58,10 @@ export const useJobsStore = defineStore('jobs', () => {
     if (idx !== -1) jobs.value[idx] = job
   }
 
+  async function fetchJobRuns(jobId: string, limit = 20) {
+    return jobsApi.fetchJobRuns(jobId, limit)
+  }
+
   return {
     jobs,
     loading,
@@ -68,5 +72,6 @@ export const useJobsStore = defineStore('jobs', () => {
     pauseJob,
     resumeJob,
     runJob,
+    fetchJobRuns,
   }
 })

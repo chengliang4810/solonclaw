@@ -26,6 +26,8 @@ const formData = ref({
   schedule: '',
   prompt: '',
   deliver: 'origin',
+  deliver_chat_id: '',
+  deliver_thread_id: '',
   repeat_times: null as number | null,
   skills_text: '',
   wrap_response: true,
@@ -78,6 +80,8 @@ onMounted(async () => {
         schedule: editableScheduleValue(job.schedule, job.schedule_display || ''),
         prompt: job.prompt,
         deliver: job.deliver || 'origin',
+        deliver_chat_id: job.deliver_chat_id || '',
+        deliver_thread_id: job.deliver_thread_id || '',
         repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),
         skills_text: joinCsv(job.skills),
         wrap_response: job.wrap_response,
@@ -127,6 +131,8 @@ async function handleSave() {
       schedule: formData.value.schedule,
       prompt: formData.value.prompt,
       deliver: formData.value.deliver,
+      deliver_chat_id: formData.value.deliver_chat_id.trim() || undefined,
+      deliver_thread_id: formData.value.deliver_thread_id.trim() || undefined,
       repeat: formData.value.repeat_times ?? undefined,
       skills,
       wrap_response: formData.value.wrap_response,
@@ -140,6 +146,8 @@ async function handleSave() {
       ['provider', formData.value.provider],
       ['model', formData.value.model],
       ['base_url', formData.value.base_url],
+      ['deliver_chat_id', formData.value.deliver_chat_id],
+      ['deliver_thread_id', formData.value.deliver_thread_id],
     ]
     for (const [key, raw] of nullableFields) {
       const value = String(raw).trim()
@@ -223,6 +231,22 @@ function handleClose() {
           <NInput
             v-model:value="formData.deliver"
             :placeholder="t('jobs.deliverPlaceholder')"
+          />
+        </NFormItem>
+      </div>
+
+      <div class="form-grid">
+        <NFormItem :label="t('jobs.deliverChatId')">
+          <NInput
+            v-model:value="formData.deliver_chat_id"
+            :placeholder="t('jobs.deliverChatIdPlaceholder')"
+          />
+        </NFormItem>
+
+        <NFormItem :label="t('jobs.deliverThreadId')">
+          <NInput
+            v-model:value="formData.deliver_thread_id"
+            :placeholder="t('jobs.deliverThreadIdPlaceholder')"
           />
         </NFormItem>
       </div>

@@ -378,8 +378,9 @@ public class SecurityPolicyService {
 
     public FileVerdict checkFileToolArgs(String toolName, Map<String, Object> args) {
         List<String> paths = extractPaths(toolName, args);
+        boolean writeLike = isWriteLikeTool(toolName) || hasWriteIntent(args);
         for (String path : paths) {
-            FileVerdict verdict = checkPath(path, isWriteLikeTool(toolName));
+            FileVerdict verdict = checkPath(path, writeLike);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -761,9 +762,86 @@ public class SecurityPolicyService {
     }
 
     private boolean isWriteLikeTool(String toolName) {
-        return "file_write".equals(toolName)
-                || "file_delete".equals(toolName)
+        String normalized = StrUtil.nullToEmpty(toolName).trim().toLowerCase(Locale.ROOT);
+        return "file_write".equals(normalized)
+                || "file_delete".equals(normalized)
+                || "write_file".equals(normalized)
+                || "delete_file".equals(normalized)
+                || "file_append".equals(normalized)
+                || "append_file".equals(normalized)
+                || "file_move".equals(normalized)
+                || "move_file".equals(normalized)
+                || "file_rename".equals(normalized)
+                || "rename_file".equals(normalized)
+                || "file_mkdir".equals(normalized)
+                || "mkdir".equals(normalized)
+                || "create_file".equals(normalized)
+                || "edit_file".equals(normalized)
                 || ToolNameConstants.PATCH.equals(toolName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean hasWriteIntent(Object raw) {
+        if (raw == null) {
+            return false;
+        }
+        if (raw instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                Object value = entry.getValue();
+                if (looksLikeActionKey(key) && isWriteIntentValue(value)) {
+                    return true;
+                }
+                if (hasWriteIntent(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (raw instanceof Collection) {
+            for (Object value : (Collection<Object>) raw) {
+                if (hasWriteIntent(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (raw.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(raw);
+            for (int i = 0; i < length; i++) {
+                if (hasWriteIntent(java.lang.reflect.Array.get(raw, i))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean looksLikeActionKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase(Locale.ROOT);
+        return "action".equals(normalized)
+                || "operation".equals(normalized)
+                || "op".equals(normalized)
+                || "mode".equals(normalized)
+                || "method".equals(normalized);
+    }
+
+    private boolean isWriteIntentValue(Object raw) {
+        String value = StrUtil.nullToEmpty(String.valueOf(raw)).trim().toLowerCase(Locale.ROOT);
+        return "write".equals(value)
+                || "append".equals(value)
+                || "delete".equals(value)
+                || "remove".equals(value)
+                || "move".equals(value)
+                || "rename".equals(value)
+                || "create".equals(value)
+                || "mkdir".equals(value)
+                || "edit".equals(value)
+                || "patch".equals(value)
+                || "apply_patch".equals(value)
+                || "install".equals(value)
+                || "update".equals(value)
+                || "save".equals(value);
     }
 
     private String normalizePathText(String raw) {

@@ -1971,6 +1971,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldApplyWritePolicyWhenGenericToolArgsDeclareWriteIntent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> genericWrite = new LinkedHashMap<String, Object>();
+        genericWrite.put("action", "write");
+        genericWrite.put("file_path", "D:/workspace/other/file.txt");
+        Map<String, Object> nestedPatch = new LinkedHashMap<String, Object>();
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("operation", "patch");
+        payload.put("paths", Arrays.asList("D:/workspace/safe-root/app.txt", "/etc/systemd/evil.service"));
+        nestedPatch.put("payload", payload);
+        Map<String, Object> genericRead = new LinkedHashMap<String, Object>();
+        genericRead.put("action", "read");
+        genericRead.put("file_path", "D:/workspace/other/file.txt");
+
+        SecurityPolicyService.FileVerdict write =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericWrite);
+        SecurityPolicyService.FileVerdict patch =
+                securityPolicyService.checkFileToolArgs("tool_gateway", nestedPatch);
+        SecurityPolicyService.FileVerdict read =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericRead);
+
+        assertThat(write.isAllowed()).isFalse();
+        assertThat(write.getMessage()).contains("安全写入根");
+        assertThat(write.getPath()).isEqualTo("D:/workspace/other/file.txt");
+        assertThat(patch.isAllowed()).isFalse();
+        assertThat(patch.getMessage()).contains("敏感系统");
+        assertThat(patch.getPath()).isEqualTo("/etc/systemd/evil.service");
+        assertThat(read.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldExpandHomeSafeRootLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String oldHome = System.getProperty("user.home");
