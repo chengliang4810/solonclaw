@@ -9,6 +9,8 @@ $blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
 $legacyEnvFixture = (-join ([char[]] @(72, 69, 82, 77, 69, 83, 95, 65, 76, 76, 79, 87, 95, 80, 82, 73, 86, 65, 84, 69, 95, 85, 82, 76, 83)))
 $legacyEnvFixtureLower = $legacyEnvFixture.ToLowerInvariant()
+$legacyConfigFixture = (-join ([char[]] @(72, 69, 82, 77, 69, 83, 46, 65, 76, 76, 79, 87, 46, 80, 82, 73, 86, 65, 84, 69, 46, 85, 82, 76, 83)))
+$legacyConfigFixtureLower = $legacyConfigFixture.ToLowerInvariant()
 $legacyBrandFixture = (-join ([char[]] @(79, 112, 101, 110, 67, 108, 97, 119)))
 $legacyBrandFixtureLower = $legacyBrandFixture.ToLowerInvariant()
 
@@ -128,13 +130,23 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
+    Set-Content -Path (Join-Path $sandbox "src\legacy-config.txt") -Value ($legacyConfigFixture + "=true") -Encoding UTF8
+    $legacyConfigBlocked = Invoke-NamingCheck
+    if ($legacyConfigBlocked.ExitCode -eq 0) {
+        throw "Naming check did not block concrete legacy project configuration key naming."
+    }
+    Assert-NoRawBlockedOutput $legacyConfigBlocked.Output @($legacyConfigFixture) "concrete legacy configuration key scan"
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
     Set-Content -Path (Join-Path $sandbox "src\legacy-env.txt") -Value ($legacyEnvFixtureLower + "=true") -Encoding UTF8
+    Set-Content -Path (Join-Path $sandbox "src\legacy-config.txt") -Value ($legacyConfigFixtureLower + "=true") -Encoding UTF8
     Set-Content -Path (Join-Path $sandbox "src\legacy-brand.txt") -Value ("Legacy brand: " + $legacyBrandFixtureLower) -Encoding UTF8
     $legacyLowerBlocked = Invoke-NamingCheck
     if ($legacyLowerBlocked.ExitCode -eq 0) {
         throw "Naming check did not block lower-case concrete legacy project naming."
     }
-    Assert-NoRawBlockedOutput $legacyLowerBlocked.Output @($legacyEnvFixtureLower, $legacyBrandFixtureLower) "lower-case concrete legacy directory text scan"
+    Assert-NoRawBlockedOutput $legacyLowerBlocked.Output @($legacyEnvFixtureLower, $legacyConfigFixtureLower, $legacyBrandFixtureLower) "lower-case concrete legacy directory text scan"
 
     Reset-Sandbox
     Push-Location $sandbox

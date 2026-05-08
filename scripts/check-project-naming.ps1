@@ -14,10 +14,14 @@ $scanRoot = Resolve-Path $RootPath
 Push-Location $scanRoot
 try {
     function Get-BlockedPatterns {
+        $legacyConfigKeyPrefixes = @(
+            "[Hh][Ee][Rr][Mm][Ee][Ss](?:[_\-.])",
+            "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww](?:[_\-.])"
+        )
         $patterns = @(
             "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
             "[Oo][Pp][Ee][Nn](?:[_\-\s])?[Cc][Ll][Aa][Ww][_\-]?"
-        )
+        ) + $legacyConfigKeyPrefixes
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
                 $patterns += [Regex]::Escape($term)
@@ -27,10 +31,14 @@ try {
     }
 
     function Get-GitGrepBlockedPatterns {
+        $legacyConfigKeyPrefixes = @(
+            "[Hh][Ee][Rr][Mm][Ee][Ss]([_.-])",
+            "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww]([_.-])"
+        )
         $patterns = @(
             "[Hh][Ee][Rr][Mm][Ee][Ss]_?",
             "[Oo][Pp][Ee][Nn]([_[:space:]-])?[Cc][Ll][Aa][Ww][_ -]?"
-        )
+        ) + $legacyConfigKeyPrefixes
         foreach ($term in $ExtraBlockedTerms) {
             if (-not [string]::IsNullOrWhiteSpace($term)) {
                 $patterns += [Regex]::Escape($term)
@@ -209,7 +217,7 @@ try {
     Search-Directory (Get-Item -LiteralPath $scanRoot)
 
     if ($findings) {
-        Write-Host "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, and generated source." -ForegroundColor Red
+        Write-Host "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, generated source, and release artifacts." -ForegroundColor Red
         $findings | ForEach-Object { Write-Host $_ -ForegroundColor Red }
         exit 1
     }
