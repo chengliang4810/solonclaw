@@ -311,6 +311,33 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckWebsocketUrlsInCommands() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict privateCommand =
+                privatePolicy.checkCommandUrls("websocat ws://internal.example/socket");
+        SecurityPolicyService.UrlVerdict metadataCommand =
+                publicPolicy.checkCommandUrls("websocat wss://169.254.169.254/latest");
+        SecurityPolicyService.UrlVerdict userInfoCommand =
+                publicPolicy.checkCommandUrls("websocat ws://alice:secret@example.com/socket");
+        SecurityPolicyService.UrlVerdict publicCommand =
+                publicPolicy.checkCommandUrls("websocat wss://example.com/socket");
+
+        assertThat(privateCommand.isAllowed()).isFalse();
+        assertThat(privateCommand.getMessage()).contains("内网");
+        assertThat(metadataCommand.isAllowed()).isFalse();
+        assertThat(metadataCommand.getMessage()).contains("元数据");
+        assertThat(userInfoCommand.isAllowed()).isFalse();
+        assertThat(userInfoCommand.getMessage()).contains("userinfo");
+        assertThat(publicCommand.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
