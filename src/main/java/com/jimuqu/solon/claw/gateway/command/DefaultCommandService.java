@@ -60,6 +60,8 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1982,6 +1984,12 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(formatCronStatus(message.sourceKey(), options.all));
         }
 
+        if ("next".equals(action)) {
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            int limit = options.limit == null ? 5 : options.limit.intValue();
+            return GatewayReply.ok(formatCronNext(message.sourceKey(), options.all, limit));
+        }
+
         if ("tick".equals(action)) {
             if (cronScheduler == null) {
                 return GatewayReply.error("当前运行环境未启用 Cron scheduler，无法手动 tick。");
@@ -2093,7 +2101,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|inspect|show|add|edit|pause|resume|remove|run|history|status|tick]");
+                        + " [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|history|status|tick]");
     }
 
     private String cronOverview(String listText) {
@@ -2103,6 +2111,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron list - 查看启用中的定时任务\n")
                 .append("/cron list --all - 查看全部定时任务，包括已暂停任务\n")
                 .append("/cron inspect <job-id> - 查看单个任务详情\n")
+                .append("/cron next [--all] [--limit 5] - 查看即将运行的任务\n")
                 .append("/cron status [--all] - 查看任务计数、到期任务、最近失败与下次运行\n")
                 .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
                 .append("/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
@@ -2206,6 +2215,67 @@ public class DefaultCommandService implements CommandService {
                     buffer.append(" delivery=").append(StrUtil.maxLength(job.getLastDeliveryError(), 120));
                 }
             }
+        }
+        return buffer.toString();
+    }
+
+    private String formatCronNext(String sourceKey, boolean all, int limit) throws Exception {
+        int safeLimit = limit <= 0 ? 5 : Math.min(limit, 50);
+        List<CronJobRecord> jobs = all ? cronJobService.listAll(true) : cronJobService.listBySource(sourceKey, true);
+        List<CronJobRecord> upcoming = new ArrayList<CronJobRecord>();
+        for (CronJobRecord job : jobs) {
+            String state = cronState(job);
+            if (!"scheduled".equals(state) || job.getNextRunAt() <= 0L) {
+                continue;
+            }
+            upcoming.add(job);
+        }
+        Collections.sort(
+                upcoming,
+                new Comparator<CronJobRecord>() {
+                    @Override
+                    public int compare(CronJobRecord left, CronJobRecord right) {
+                        long delta = left.getNextRunAt() - right.getNextRunAt();
+                        if (delta < 0L) {
+                            return -1;
+                        }
+                        if (delta > 0L) {
+                            return 1;
+                        }
+                        return StrUtil.blankToDefault(left.getJobId(), "")
+                                .compareTo(StrUtil.blankToDefault(right.getJobId(), ""));
+                    }
+                });
+
+        StringBuilder buffer = new StringBuilder("Cron 即将运行");
+        buffer.append('\n').append("范围：").append(all ? "全部任务" : "当前会话");
+        if (upcoming.isEmpty()) {
+            buffer.append('\n').append("暂无即将运行的任务。");
+            return buffer.toString();
+        }
+        int count = Math.min(safeLimit, upcoming.size());
+        for (int i = 0; i < count; i++) {
+            CronJobRecord job = upcoming.get(i);
+            buffer.append('\n')
+                    .append(i + 1)
+                    .append(". ")
+                    .append(formatTimestamp(job.getNextRunAt()))
+                    .append(" ")
+                    .append(job.getJobId())
+                    .append(" ")
+                    .append(StrUtil.blankToDefault(job.getName(), ""));
+            buffer.append('\n')
+                    .append("   Schedule: ")
+                    .append(StrUtil.blankToDefault(job.getCronExpr(), ""));
+            buffer.append('\n')
+                    .append("   Deliver: ")
+                    .append(StrUtil.blankToDefault(job.getDeliverPlatform(), "local"));
+            if (job.getRepeatTimes() > 0) {
+                buffer.append(" Repeat: ").append(formatCronRepeat(job));
+            }
+        }
+        if (upcoming.size() > count) {
+            buffer.append('\n').append("还有 ").append(upcoming.size() - count).append(" 个任务未显示。");
         }
         return buffer.toString();
     }
@@ -3649,7 +3719,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|inspect|show|add|edit|pause|resume|remove|run|history|status|tick]",
+                                        + " [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN

@@ -538,7 +538,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|add|edit|pause|resume|remove|run|history|status|tick]");
+                .contains("/cron [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|history|status|tick]");
     }
 
     @Test
@@ -652,12 +652,58 @@ public class CommandEnhancementTest {
         assertThat(overview.getContent())
                 .contains("Cron 定时任务")
                 .contains("/cron list --all")
+                .contains("/cron next [--all] [--limit 5]")
                 .contains("/cron status [--all]")
                 .contains("/cron history <job-id>")
                 .contains("--deliver-chat-id")
                 .contains("--clear-deliver-chat-id")
                 .contains("--clear-model")
                 .contains("当前没有定时任务。");
+    }
+
+    @Test
+    void shouldShowUpcomingCronJobsInNextCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Later job\" --deliver feishu");
+        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Soon job\" --deliver local --repeat 2");
+        env.send("admin-chat", "admin-user", "/cron add \"30m\" \"Paused job\"");
+        List<CronJobRecord> records =
+                env.cronJobRepository.listBySource("MEMORY:admin-chat:admin-user");
+        CronJobRecord later = findCronByName(records, "Later job");
+        CronJobRecord soon = findCronByName(records, "Soon job");
+        CronJobRecord paused = findCronByName(records, "Paused job");
+        long now = System.currentTimeMillis();
+        later.setNextRunAt(now + 120000L);
+        soon.setNextRunAt(now + 60000L);
+        paused.setNextRunAt(now + 30000L);
+        paused.setStatus("PAUSED");
+        env.cronJobRepository.update(later);
+        env.cronJobRepository.update(soon);
+        env.cronJobRepository.update(paused);
+
+        GatewayReply next = env.send("admin-chat", "admin-user", "/cron next --limit 1");
+
+        assertThat(next.getContent())
+                .contains("Cron 即将运行")
+                .contains("范围：当前会话")
+                .contains("1. ")
+                .contains(soon.getJobId())
+                .contains("Soon job")
+                .contains("Deliver: local Repeat: 0/2")
+                .contains("还有 1 个任务未显示。")
+                .doesNotContain(later.getJobId())
+                .doesNotContain(paused.getJobId());
+
+        GatewayReply allNext = env.send("admin-chat", "admin-user", "/cron next --all --limit 5");
+        assertThat(allNext.getContent())
+                .contains("范围：全部任务")
+                .contains(soon.getJobId())
+                .contains(later.getJobId())
+                .doesNotContain(paused.getJobId());
+        assertThat(allNext.getContent().indexOf(soon.getJobId()))
+                .isLessThan(allNext.getContent().indexOf(later.getJobId()));
     }
 
     @Test
@@ -1089,6 +1135,15 @@ public class CommandEnhancementTest {
     private String cronJobView(TestEnvironment env, String jobId) throws Exception {
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         return service.toView(env.cronJobRepository.findById(jobId)).toString();
+    }
+
+    private CronJobRecord findCronByName(List<CronJobRecord> jobs, String name) {
+        for (CronJobRecord job : jobs) {
+            if (name.equals(job.getName())) {
+                return job;
+            }
+        }
+        throw new AssertionError("Cron job not found: " + name);
     }
 
     private Process newSleepProcess() throws Exception {
