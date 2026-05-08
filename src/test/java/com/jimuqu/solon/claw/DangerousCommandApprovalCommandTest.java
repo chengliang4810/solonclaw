@@ -111,6 +111,7 @@ public class DangerousCommandApprovalCommandTest {
                 .contains("pending=2")
                 .contains("#1")
                 .contains("#2")
+                .contains("command_preview=rm -rf runtime/cache")
                 .contains("scopes=once,session,always")
                 .contains("expires_in=")
                 .contains("expired=false");
@@ -166,6 +167,32 @@ public class DangerousCommandApprovalCommandTest {
         assertThat(status.getContent()).isEqualTo(list.getContent());
         assertThat(env.dangerousCommandApprovalService.listPendingApprovals(agentSession))
                 .hasSize(2);
+    }
+
+    @Test
+    void shouldRedactApproveListSensitiveText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-redact-list", "user-redact-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-redact-list", "user-redact-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-redact-list:user-redact-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "Security scan token=ghp_reasonsecret123",
+                "rm -rf runtime/cache --token ghp_commandsecret123");
+
+        GatewayReply list = env.send("room-redact-list", "user-redact-list", "/approve list");
+
+        assertThat(list.getContent())
+                .contains("token=***")
+                .contains("command_preview=rm -rf runtime/cache --token ***")
+                .doesNotContain("ghp_reasonsecret123")
+                .doesNotContain("ghp_commandsecret123");
     }
 
     @Test
