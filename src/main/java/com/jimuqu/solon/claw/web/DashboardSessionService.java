@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import com.jimuqu.solon.claw.goal.GoalState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -145,6 +146,7 @@ public class DashboardSessionService {
         result.put("compression_failure_count", record.getCompressionFailureCount());
         result.put("parent_session_id", record.getParentSessionId());
         result.put("branch_name", record.getBranchName());
+        result.put("goal_state", goalState(record));
         result.put("messages", messages);
         return result;
     }
@@ -415,6 +417,7 @@ public class DashboardSessionService {
         result.put("last_usage_at", record.getLastUsageAt());
         result.put("parent_session_id", record.getParentSessionId());
         result.put("branch_name", record.getBranchName());
+        result.put("goal_state", goalState(record));
         result.put(
                 "compressed_summary", SecretRedactor.redact(record.getCompressedSummary(), 8000));
         result.put("last_compression_at", record.getLastCompressionAt());
@@ -427,6 +430,24 @@ public class DashboardSessionService {
                                 MessageSupport.getLastUserMessage(record.getNdjson()),
                                 record.getCompressedSummary()),
                         160));
+        return result;
+    }
+
+    private Map<String, Object> goalState(SessionRecord record) {
+        GoalState state = GoalState.fromJson(record.getGoalStateJson());
+        if (state == null || GoalState.STATUS_CLEARED.equals(state.getStatus())) {
+            return null;
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("goal", SecretRedactor.redact(state.getGoal(), 2000));
+        result.put("status", state.getStatus());
+        result.put("turns_used", state.getTurnsUsed());
+        result.put("max_turns", state.getMaxTurns());
+        result.put("created_at", state.getCreatedAt());
+        result.put("last_turn_at", state.getLastTurnAt());
+        result.put("last_verdict", state.getLastVerdict());
+        result.put("last_reason", SecretRedactor.redact(state.getLastReason(), 2000));
+        result.put("paused_reason", SecretRedactor.redact(state.getPausedReason(), 1000));
         return result;
     }
 

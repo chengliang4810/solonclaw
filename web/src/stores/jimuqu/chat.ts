@@ -1,5 +1,5 @@
 import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage, type RunEvent } from '@/api/jimuqu/chat'
-import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionSummary } from '@/api/jimuqu/sessions'
+import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/jimuqu/sessions'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
@@ -43,6 +43,7 @@ export interface Session {
   endedAt?: number | null
   lastActiveAt?: number
   activeAgentName?: string
+  goalState?: SessionGoalState | null
 }
 
 function uid(): string {
@@ -145,6 +146,7 @@ function mapSolonClawSession(s: SessionSummary): Session {
     endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
     lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
     activeAgentName: s.active_agent_name || 'default',
+    goalState: s.goal_state || null,
   }
 }
 
@@ -384,6 +386,7 @@ export const useChatStore = defineStore('chat', () => {
         if (serverIsAhead) {
           target.messages = mapped
           if (detail.title && !target.title) target.title = detail.title
+          target.goalState = detail.goal_state || null
           if (sid === activeSessionId.value) persistActiveMessages()
         }
         // Stability detection ONLY matters when the server has at least as
@@ -405,6 +408,7 @@ export const useChatStore = defineStore('chat', () => {
               // now the authoritative source of truth.
               target.messages = mapped
               if (detail.title) target.title = detail.title
+              target.goalState = detail.goal_state || null
               if (sid === activeSessionId.value) persistActiveMessages()
               clearInFlight(sid)
               stopPolling(sid)
@@ -491,6 +495,7 @@ export const useChatStore = defineStore('chat', () => {
       if (!target) return false
       const mapped = mapSolonClawMessages(detail.messages || [])
       target.messages = mapped
+      target.goalState = detail.goal_state || null
       if (detail.title) target.title = detail.title
       persistActiveMessages()
       return true
@@ -573,6 +578,7 @@ export const useChatStore = defineStore('chat', () => {
         if (serverIsAhead) {
           activeSession.value.messages = mapped
         }
+        activeSession.value.goalState = detail.goal_state || null
         // Update title: use Jimuqu title, or fallback to first user message
         if (detail.title) {
           activeSession.value.title = detail.title

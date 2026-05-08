@@ -4,6 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -188,15 +193,23 @@ public class DashboardControllerHttpTest {
         assertThat(revealRuntimeConfig.status).isEqualTo(200);
         assertThat(revealRuntimeConfig.body).contains("secret12345678");
 
-        request(
-                "POST",
-                "/api/gateway/message",
-                "{\"platform\":\"MEMORY\",\"chatId\":\"dashboard-chat\",\"userId\":\"dashboard-user\",\"chatType\":\"dm\",\"chatName\":\"dashboard-chat\",\"userName\":\"dashboard-user\",\"text\":\"hello\"}",
-                null);
+        seedDashboardGoalSession();
 
         HttpResult sessions = request("GET", "/api/sessions?limit=20&offset=0", null, token);
         assertThat(sessions.status).isEqualTo(200);
         assertThat(sessions.body).contains("\"total\"");
+        assertThat(sessions.body)
+                .contains("\"goal_state\"")
+                .contains("完成 dashboard 会话目标展示")
+                .contains("\"turns_used\":0")
+                .contains("\"max_turns\":3");
+
+        HttpResult sessionMessages =
+                request("GET", "/api/sessions/dashboard-chat/messages", null, token);
+        assertThat(sessionMessages.status).isEqualTo(200);
+        assertThat(sessionMessages.body)
+                .contains("\"goal_state\"")
+                .contains("完成 dashboard 会话目标展示");
 
         HttpResult runs = request("GET", "/api/sessions/dashboard-chat/runs", null, token);
         assertThat(runs.status).isEqualTo(200);
@@ -1146,6 +1159,32 @@ public class DashboardControllerHttpTest {
         File references = FileUtil.file(runtimeHome, "skills", "sample-skill", "references");
         FileUtil.mkdir(references);
         FileUtil.writeUtf8String("supporting skill notes", FileUtil.file(references, "info.md"));
+    }
+
+    private static void seedDashboardGoalSession() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime()
+                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteSessionRepository repository = new SqliteSessionRepository(database);
+            SessionRecord record = repository.findById("dashboard-chat");
+            if (record == null) {
+                record = new SessionRecord();
+                record.setSessionId("dashboard-chat");
+                record.setSourceKey("MEMORY:dashboard-chat:dashboard-user");
+                record.setBranchName("main");
+                record.setTitle("Dashboard goal session");
+                record.setNdjson("");
+                record.setCreatedAt(System.currentTimeMillis());
+                record.setUpdatedAt(record.getCreatedAt());
+                repository.save(record);
+            }
+            new GoalService(repository).set(record, "完成 dashboard 会话目标展示", 3);
+        } finally {
+            database.shutdown();
+        }
     }
 
     private static String extractToken(String html) {

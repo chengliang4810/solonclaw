@@ -24,6 +24,19 @@ export interface SessionSummary {
   last_compression_input_tokens?: number
   compression_failure_count?: number
   active_agent_name?: string | null
+  goal_state?: SessionGoalState | null
+}
+
+export interface SessionGoalState {
+  goal: string
+  status: string
+  turns_used: number
+  max_turns: number
+  created_at?: number
+  last_turn_at?: number
+  last_verdict?: string | null
+  last_reason?: string | null
+  paused_reason?: string | null
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -82,6 +95,7 @@ interface DashboardSessionSummary {
   last_compression_input_tokens?: number
   compression_failure_count?: number
   active_agent_name?: string | null
+  goal_state?: SessionGoalState | null
 }
 
 interface DashboardSessionDetail {
@@ -103,6 +117,7 @@ interface DashboardSessionDetail {
   active_agent_name?: string | null
   parent_session_id?: string | null
   branch_name?: string | null
+  goal_state?: SessionGoalState | null
   messages: Array<{
     role: 'user' | 'assistant' | 'system' | 'tool'
     content: string | null
@@ -142,6 +157,7 @@ function mapSummary(s: DashboardSessionSummary): SessionSummary {
     last_compression_input_tokens: s.last_compression_input_tokens || 0,
     compression_failure_count: s.compression_failure_count || 0,
     active_agent_name: s.active_agent_name || 'default',
+    goal_state: s.goal_state || null,
   }
 }
 
@@ -252,6 +268,7 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
       last_compression_input_tokens: detail.last_compression_input_tokens || 0,
       compression_failure_count: detail.compression_failure_count || 0,
       active_agent_name: detail.active_agent_name || 'default',
+      goal_state: detail.goal_state || null,
     }
 
     return {
