@@ -380,7 +380,9 @@ public class ProcessTools {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "BLOCKED: process stdin 会被 "
-                            + executableLabel(managed.getCommand())
+                            + StrUtil.blankToDefault(
+                                    stdinExecutionExecutable(managed.getCommand()),
+                                    executableLabel(managed.getCommand()))
                             + " 当作命令或脚本执行，已套用同等终端安全策略。\n"
                             + safeError(e),
                     e);
@@ -400,7 +402,7 @@ public class ProcessTools {
     }
 
     private String stdinExecutionToolName(String command) {
-        String executable = executableLabel(command).toLowerCase(java.util.Locale.ROOT);
+        String executable = stdinExecutionExecutable(command).toLowerCase(java.util.Locale.ROOT);
         if (executable.length() == 0) {
             return "";
         }
@@ -430,26 +432,161 @@ public class ProcessTools {
         return "";
     }
 
+    private String stdinExecutionExecutable(String command) {
+        List<String> tokens = commandTokens(command, 24);
+        if (tokens.isEmpty()) {
+            return "";
+        }
+        int index = 0;
+        while (index < tokens.size()) {
+            String token = tokens.get(index);
+            String executable = executableName(token);
+            String normalized = executable.toLowerCase(java.util.Locale.ROOT);
+            if (isEnvAssignment(token)) {
+                index++;
+                continue;
+            }
+            if ("env".equals(normalized) || "env.exe".equals(normalized)) {
+                index++;
+                while (index < tokens.size()) {
+                    String option = tokens.get(index);
+                    if (isEnvAssignment(option)) {
+                        index++;
+                        continue;
+                    }
+                    if ("-i".equals(option) || "--ignore-environment".equals(option) || "-0".equals(option)) {
+                        index++;
+                        continue;
+                    }
+                    if (option.startsWith("-u") && option.length() > 2) {
+                        index++;
+                        continue;
+                    }
+                    if (("-u".equals(option) || "--unset".equals(option)) && index + 1 < tokens.size()) {
+                        index += 2;
+                        continue;
+                    }
+                    break;
+                }
+                continue;
+            }
+            if ("sudo".equals(normalized) || "sudo.exe".equals(normalized)) {
+                index++;
+                while (index < tokens.size()) {
+                    String option = tokens.get(index);
+                    if (isEnvAssignment(option)) {
+                        index++;
+                        continue;
+                    }
+                    if ("--".equals(option)) {
+                        index++;
+                        break;
+                    }
+                    if (!option.startsWith("-") || "-".equals(option)) {
+                        break;
+                    }
+                    if (sudoOptionConsumesNext(option) && index + 1 < tokens.size()) {
+                        index += 2;
+                    } else {
+                        index++;
+                    }
+                }
+                continue;
+            }
+            if ("command".equals(normalized)
+                    || "command.exe".equals(normalized)
+                    || "exec".equals(normalized)
+                    || "exec.exe".equals(normalized)
+                    || "builtin".equals(normalized)
+                    || "builtin.exe".equals(normalized)
+                    || "nohup".equals(normalized)
+                    || "nohup.exe".equals(normalized)) {
+                index++;
+                while (index < tokens.size() && tokens.get(index).startsWith("-")) {
+                    index++;
+                }
+                continue;
+            }
+            return executable;
+        }
+        return "";
+    }
+
     private String executableLabel(String command) {
         String token = firstCommandToken(command);
         if (token.length() == 0) {
             return "";
         }
-        return new File(token).getName();
+        return executableName(token);
+    }
+
+    private String executableName(String token) {
+        String value = StrUtil.nullToEmpty(token).trim();
+        if (value.length() == 0) {
+            return "";
+        }
+        return new File(value).getName();
+    }
+
+    private boolean isEnvAssignment(String token) {
+        String value = StrUtil.nullToEmpty(token);
+        int equals = value.indexOf('=');
+        if (equals <= 0) {
+            return false;
+        }
+        for (int i = 0; i < equals; i++) {
+            char ch = value.charAt(i);
+            if (!(Character.isLetterOrDigit(ch) || ch == '_')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sudoOptionConsumesNext(String option) {
+        String value = StrUtil.nullToEmpty(option);
+        if ("-u".equals(value)
+                || "-g".equals(value)
+                || "-h".equals(value)
+                || "-p".equals(value)
+                || "-C".equals(value)
+                || "-T".equals(value)
+                || "-r".equals(value)
+                || "-t".equals(value)
+                || "--user".equals(value)
+                || "--group".equals(value)
+                || "--host".equals(value)
+                || "--prompt".equals(value)
+                || "--close-from".equals(value)
+                || "--command-timeout".equals(value)
+                || "--role".equals(value)
+                || "--type".equals(value)) {
+            return true;
+        }
+        return false;
     }
 
     private String firstCommandToken(String command) {
-        String text = StrUtil.nullToEmpty(command).trim();
-        if (text.length() == 0) {
+        List<String> tokens = commandTokens(command, 1);
+        if (tokens.isEmpty()) {
             return "";
         }
+        return tokens.get(0);
+    }
+
+    private List<String> commandTokens(String command, int maxTokens) {
+        String text = StrUtil.nullToEmpty(command).trim();
+        List<String> tokens = new ArrayList<String>();
+        if (text.length() == 0) {
+            return tokens;
+        }
         int i = 0;
-        while (i < text.length()) {
+        while (i < text.length() && tokens.size() < Math.max(1, maxTokens)) {
             while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
                 i++;
             }
             if (i >= text.length()) {
-                return "";
+                return tokens;
             }
             boolean quoted = text.charAt(i) == '"' || text.charAt(i) == '\'';
             char quote = quoted ? text.charAt(i++) : 0;
@@ -465,6 +602,11 @@ public class ProcessTools {
                     i++;
                     continue;
                 }
+                if (ch == '\\' && i + 1 < text.length()) {
+                    token.append(text.charAt(i + 1));
+                    i += 2;
+                    continue;
+                }
                 if (Character.isWhitespace(ch)) {
                     break;
                 }
@@ -472,12 +614,11 @@ public class ProcessTools {
                 i++;
             }
             String value = token.toString();
-            if (value.indexOf('=') > 0 && !value.startsWith("=")) {
-                continue;
+            if (value.length() > 0 || quoted) {
+                tokens.add(value);
             }
-            return value;
         }
-        return "";
+        return tokens;
     }
 
     private void addNotificationMetadata(

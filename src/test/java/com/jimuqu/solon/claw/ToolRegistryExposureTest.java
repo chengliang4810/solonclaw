@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.File;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
@@ -1065,6 +1066,35 @@ public class ToolRegistryExposureTest {
                 .contains("危险命令安全规则");
 
         assertThat(env.processRegistry.stop(sessionId)).isTrue();
+    }
+
+    @Test
+    void shouldRecognizeWrappedManagedProcessStdinInterpretersForGuardrails() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        assertThat(resolveStdinExecutionToolName(tools, "TOKEN=1 python3"))
+                .isEqualTo("execute_python");
+        assertThat(resolveStdinExecutionToolName(tools, "/usr/bin/env FOO=bar python3 -i"))
+                .isEqualTo("execute_python");
+        assertThat(resolveStdinExecutionToolName(tools, "env -i -u TOKEN node"))
+                .isEqualTo("execute_js");
+        assertThat(resolveStdinExecutionToolName(tools, "sudo -S -p '' python3"))
+                .isEqualTo("execute_python");
+        assertThat(resolveStdinExecutionToolName(tools, "sudo --user root -- bash"))
+                .isEqualTo("execute_shell");
+        assertThat(resolveStdinExecutionToolName(tools, "command -p sh"))
+                .isEqualTo("execute_shell");
+        assertThat(resolveStdinExecutionToolName(tools, "exec /bin/bash"))
+                .isEqualTo("execute_shell");
+        assertThat(resolveStdinExecutionToolName(tools, "nohup node"))
+                .isEqualTo("execute_js");
+        assertThat(resolveStdinExecutionToolName(tools, "cat"))
+                .isEqualTo("");
     }
 
     @Test
@@ -2538,5 +2568,11 @@ public class ToolRegistryExposureTest {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private String resolveStdinExecutionToolName(ProcessTools tools, String command) throws Exception {
+        Method method = ProcessTools.class.getDeclaredMethod("stdinExecutionToolName", String.class);
+        method.setAccessible(true);
+        return String.valueOf(method.invoke(tools, command));
     }
 }
