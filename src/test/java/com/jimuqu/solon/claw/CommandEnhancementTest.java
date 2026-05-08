@@ -831,7 +831,7 @@ public class CommandEnhancementTest {
         assertThat(always.getContent()).contains("已永久确认 /reload-mcp");
         assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
         assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
-                        .get("solonclaw.approvals.mcpReloadConfirm"))
+                        .get("approvals.mcpReloadConfirm"))
                 .isEqualTo("false");
 
         GatewayReply direct = env.send("admin-chat", "admin-user", "/reload-mcp");

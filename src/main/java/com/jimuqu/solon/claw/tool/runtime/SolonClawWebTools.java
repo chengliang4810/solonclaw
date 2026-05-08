@@ -110,6 +110,10 @@ public class SolonClawWebTools {
             checkFinalDocumentUrls(securityPolicyService, (Document) value);
             return;
         }
+        if (value instanceof CharSequence) {
+            checkUrl(securityPolicyService, value.toString());
+            return;
+        }
         if (value instanceof Collection) {
             for (Object item : (Collection<?>) value) {
                 checkReturnedUrls(securityPolicyService, item, visited);

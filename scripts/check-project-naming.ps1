@@ -5,7 +5,10 @@ Push-Location $repoRoot
 try {
     $terms = @(
         (([char]72) + ([char]101) + ([char]114) + ([char]109) + ([char]101) + ([char]115)),
-        (([char]79) + ([char]112) + ([char]101) + ([char]110) + ([char]67) + ([char]108) + ([char]97) + ([char]119))
+        (([char]79) + ([char]112) + ([char]101) + ([char]110) + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
+        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "_" + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
+        (([char]79) + ([char]112) + ([char]101) + ([char]110) + "-" + ([char]67) + ([char]108) + ([char]97) + ([char]119)),
+        (([char]79) + ([char]112) + ([char]101) + ([char]110) + " " + ([char]67) + ([char]108) + ([char]97) + ([char]119))
     )
     $regex = [Regex]::new(
         (($terms | ForEach-Object { [Regex]::Escape($_) }) -join "|"),

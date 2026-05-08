@@ -23,7 +23,11 @@ import org.yaml.snakeyaml.Yaml;
 /** Dashboard 配置读写与 schema 服务。 */
 public class DashboardConfigService {
     private static final List<String> PASSTHROUGH_PREFIXES =
-            Arrays.asList("channels.wecom.groups.", "security.website_blocklist.");
+            Arrays.asList(
+                    "approvals.",
+                    "channels.wecom.groups.",
+                    "security.",
+                    "terminal.");
     private static final List<String> PASSTHROUGH_KEYS =
             Arrays.asList("security.allow_private_urls", "browser.allow_private_urls");
     private static final Pattern WINDOWS_DRIVE_PATH = Pattern.compile("^[A-Za-z]:.*");
@@ -1003,8 +1007,13 @@ public class DashboardConfigService {
             Map<String, Object> root = loadRawConfigRoot();
             Map<String, Object> solonclaw = ensureSolonClawRoot(root);
             clearManagedFields(solonclaw);
+            clearRootPassthroughFields(root);
             for (Map.Entry<String, Object> entry : fieldValues.entrySet()) {
-                setNestedValue(solonclaw, entry.getKey(), entry.getValue());
+                if (isSupportedPassthroughKey(entry.getKey())) {
+                    setNestedValue(root, entry.getKey(), entry.getValue());
+                } else {
+                    setNestedValue(solonclaw, entry.getKey(), entry.getValue());
+                }
             }
 
             File configFile = new File(appConfig.getRuntime().getConfigFile());
@@ -1082,6 +1091,15 @@ public class DashboardConfigService {
         }
         for (String key : PASSTHROUGH_KEYS) {
             removeNestedValue(jimuqu, key);
+        }
+    }
+
+    private void clearRootPassthroughFields(Map<String, Object> root) {
+        for (String prefix : PASSTHROUGH_PREFIXES) {
+            removeNestedPrefix(root, prefix);
+        }
+        for (String key : PASSTHROUGH_KEYS) {
+            removeNestedValue(root, key);
         }
     }
 

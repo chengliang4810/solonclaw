@@ -86,16 +86,24 @@ public class RuntimeRefreshBehaviorTest {
         runtimeSettingsService.setConfigValue(
                 "security.website_blocklist.shared_files",
                 "community-blocklist.txt");
+        runtimeSettingsService.setConfigValue("security.tirithEnabled", "false");
+        runtimeSettingsService.setConfigValue("security.tirithTimeoutSeconds", "9");
 
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getDomains())
                 .containsExactly("blocked.example", "*.tracking.example");
         assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())
                 .containsExactly("community-blocklist.txt");
-        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
+        assertThat(env.appConfig.getSecurity().isTirithEnabled()).isFalse();
+        assertThat(env.appConfig.getSecurity().getTirithTimeoutSeconds()).isEqualTo(9);
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(config)
                 .contains("website_blocklist:")
                 .contains("blocked.example")
-                .contains("community-blocklist.txt");
+                .contains("community-blocklist.txt")
+                .contains("tirithEnabled: false")
+                .contains("tirithTimeoutSeconds: 9")
+                .doesNotContain("solonclaw:\n  security:");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -111,7 +119,26 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(env.appConfig.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("allow_private_urls: true");
+                .contains("allow_private_urls: true")
+                .doesNotContain("solonclaw:\n  security:\n    allow_private_urls:");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
+    }
+
+    @Test
+    void shouldWriteApprovalsRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("approvals.mcpReloadConfirm", "false");
+
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
+        assertThat(config)
+                .contains("approvals:")
+                .contains("mcpReloadConfirm: false")
+                .doesNotContain("solonclaw:\n  approvals:");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -127,13 +154,33 @@ public class RuntimeRefreshBehaviorTest {
         configService.savePartialFlat(updates, false);
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
                 .contains("credentialFiles:")
-                .contains("credentials/oauth.json");
+                .contains("credentials/oauth.json")
+                .doesNotContain("solonclaw:\n  terminal:");
 
         assertCredentialPathRejected(configService, "../secret.json", "path traversal");
         assertCredentialPathRejected(configService, "/tmp/secret.json", "runtime-relative");
         assertCredentialPathRejected(configService, "C:\\Users\\secret.json", "runtime-relative");
         assertCredentialPathRejected(configService, "~/.ssh/id_rsa", "runtime-relative");
         assertCredentialPathRejected(configService, "credentials/\u0000secret.json", "control");
+    }
+
+    @Test
+    void shouldWriteTerminalRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        runtimeSettingsService.setConfigValue("terminal.writeSafeRoot", "D:/workspace/jimuqu-safe");
+
+        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
+        assertThat(env.appConfig.getTerminal().getWriteSafeRoot())
+                .isEqualTo("D:/workspace/jimuqu-safe");
+        assertThat(config)
+                .contains("terminal:")
+                .contains("writeSafeRoot: D:/workspace/jimuqu-safe")
+                .doesNotContain("solonclaw:\n  terminal:");
+        assertThat(adapter.disconnectCount).isZero();
+        assertThat(adapter.connectCount).isZero();
     }
 
     @Test
@@ -150,7 +197,8 @@ public class RuntimeRefreshBehaviorTest {
         configService.savePartialFlat(updates, false);
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
                 .contains("sharedFiles:")
-                .contains("blocklists/sites.txt");
+                .contains("blocklists/sites.txt")
+                .doesNotContain("solonclaw:\n  security:");
 
         assertWebsiteSharedFileRejected(configService, "../blocklists/sites.txt", "path traversal");
         assertWebsiteSharedFileRejected(configService, "blocklists/\u0000sites.txt", "control");

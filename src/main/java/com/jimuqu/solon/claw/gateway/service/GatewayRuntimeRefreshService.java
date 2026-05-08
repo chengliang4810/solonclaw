@@ -57,12 +57,15 @@ public class GatewayRuntimeRefreshService {
 
         AppConfig latest;
         try {
+            Props props =
+                    Solon.cfg() == null
+                            ? new Props()
+                            : new Props(Solon.cfg());
+            props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
             if (Solon.cfg() == null) {
-                Props props = new Props();
-                props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
                 latest = AppConfig.load(props);
             } else {
-                latest = AppConfig.load(Solon.cfg());
+                latest = AppConfig.load(props);
             }
         } catch (Throwable e) {
             log.debug("Skip runtime refresh because config reload failed", e);
@@ -407,6 +410,7 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "providers",
                     "model",
+                    "approvals",
                     "solonclaw",
                     "solonclaw.llm",
                     "solonclaw.scheduler",
@@ -426,7 +430,6 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.trace",
                     "solonclaw.task",
                     "solonclaw.security",
-                    "solonclaw.approvals",
                     "solonclaw.mcp",
                     "solonclaw.channels",
                     "solonclaw.channels.feishu",
@@ -495,7 +498,10 @@ public class GatewayRuntimeRefreshService {
                     "tool_output.max_lines",
                     "tool_output.max_line_length",
                     "solonclaw.task.mediaCacheTtlHours",
-                    "solonclaw.security.tirithTimeoutSeconds");
+                    "jimuqu.security.tirithTimeoutSeconds",
+                    "jimuqu.security.tirith_timeout",
+                    "security.tirithTimeoutSeconds",
+                    "security.tirith_timeout");
 
     private static final Set<String> DOUBLE_KEYS =
             setOf(
@@ -521,15 +527,25 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react.toolLoopHardStopEnabled",
                     "tool_loop_guardrails.warnings_enabled",
                     "tool_loop_guardrails.hard_stop_enabled",
-                    "solonclaw.security.allow_private_urls",
+                    "jimuqu.security.allow_private_urls",
                     "security.allow_private_urls",
-                    "solonclaw.browser.allow_private_urls",
+                    "jimuqu.browser.allow_private_urls",
                     "browser.allow_private_urls",
-                    "solonclaw.security.tirithEnabled",
-                    "solonclaw.security.tirithFailOpen",
-                    "solonclaw.approvals.mcpReloadConfirm",
-                    "solonclaw.approvals.mcp_reload_confirm",
-                    "solonclaw.security.website_blocklist.enabled",
+                    "jimuqu.security.tirithEnabled",
+                    "jimuqu.security.tirith_enabled",
+                    "security.tirithEnabled",
+                    "security.tirith_enabled",
+                    "jimuqu.security.tirithFailOpen",
+                    "jimuqu.security.tirith_fail_open",
+                    "security.tirithFailOpen",
+                    "security.tirith_fail_open",
+                    "jimuqu.approvals.mcpReloadConfirm",
+                    "jimuqu.approvals.mcp_reload_confirm",
+                    "approvals.mcpReloadConfirm",
+                    "approvals.mcp_reload_confirm",
+                    "jimuqu.security.websiteBlocklist.enabled",
+                    "jimuqu.security.website_blocklist.enabled",
+                    "security.websiteBlocklist.enabled",
                     "security.website_blocklist.enabled",
                     "solonclaw.mcp.enabled");
 
@@ -537,13 +553,21 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "solonclaw.display.runtimeFooter.fields",
                     "solonclaw.gateway.allowedUsers",
-                    "solonclaw.security.website_blocklist.domains",
-                    "solonclaw.security.website_blocklist.shared_files",
+                    "jimuqu.security.websiteBlocklist.domains",
+                    "jimuqu.security.websiteBlocklist.sharedFiles",
+                    "jimuqu.security.website_blocklist.domains",
+                    "jimuqu.security.website_blocklist.shared_files",
+                    "security.websiteBlocklist.domains",
+                    "security.websiteBlocklist.sharedFiles",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
-                    "solonclaw.terminal.credentialFiles",
+                    "jimuqu.terminal.credentialFiles",
+                    "jimuqu.terminal.credential_files",
+                    "terminal.credentialFiles",
                     "terminal.credential_files",
-                    "solonclaw.terminal.writeSafeRoot",
+                    "jimuqu.terminal.writeSafeRoot",
+                    "jimuqu.terminal.write_safe_root",
+                    "terminal.writeSafeRoot",
                     "terminal.write_safe_root");
 
     private static final Set<String> INT_SUFFIXES =

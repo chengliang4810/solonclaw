@@ -2933,6 +2933,9 @@ public class DefaultCommandService implements CommandService {
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         String selector = firstToken(args);
+        if ("list".equalsIgnoreCase(selector) || "status".equalsIgnoreCase(selector)) {
+            return GatewayReply.ok(formatApprovalList(agentSession));
+        }
         if ("all".equalsIgnoreCase(selector)) {
             int rejected =
                     dangerousCommandApprovalService.rejectAll(

@@ -81,28 +81,27 @@ solonclaw.task.toolOutputInlineLimit: 4000
 solonclaw.task.toolOutputTurnBudget: 200000
 
 # 终端/沙箱执行
-solonclaw.terminal.credentialFiles:
-solonclaw.terminal.sudoPassword:
-solonclaw.terminal.writeSafeRoot:
+jimuqu.terminal.credentialFiles:
+jimuqu.terminal.sudoPassword:
+jimuqu.terminal.writeSafeRoot:
 solonclaw.terminal.maxForegroundTimeoutSeconds: 600
 solonclaw.terminal.foregroundMaxRetries: 3
 solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2
 
 # 安全策略
-solonclaw.security.allowPrivateUrls: false
-solonclaw.security.websiteBlocklist.enabled: false
-solonclaw.security.websiteBlocklist.domains:
-solonclaw.security.websiteBlocklist.sharedFiles:
-solonclaw.security.tirithEnabled: true
-solonclaw.security.tirithPath: tirith
-solonclaw.security.tirithTimeoutSeconds: 5
-solonclaw.security.tirithFailOpen: true
+security.websiteBlocklist.enabled: false
+security.websiteBlocklist.domains:
+security.websiteBlocklist.sharedFiles:
+security.tirithEnabled: true
+security.tirithPath: tirith
+security.tirithTimeoutSeconds: 5
+security.tirithFailOpen: true
 
 # 审批/确认策略
-solonclaw.approvals.mode: on
-solonclaw.approvals.cronMode: deny
-solonclaw.approvals.subagentAutoApprove: false
-solonclaw.approvals.mcpReloadConfirm: true
+jimuqu.approvals.mode: on
+jimuqu.approvals.cronMode: deny
+jimuqu.approvals.subagentAutoApprove: false
+jimuqu.approvals.mcpReloadConfirm: true
 
 # 预定义人格
 solonclaw.agent.personalities.helpful.description: 友好、通用的默认助手
