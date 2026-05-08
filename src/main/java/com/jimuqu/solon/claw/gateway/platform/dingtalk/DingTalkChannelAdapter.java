@@ -221,9 +221,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         } catch (Exception e) {
             setConnected(false);
             setSetupState("error");
-            setLastError("dingtalk_stream_connect_failed", e.getMessage());
-            setDetail("stream mode connect failed: " + e.getMessage());
-            log.warn("[DINGTALK] Stream mode connect failed", e);
+            setLastError("dingtalk_stream_connect_failed", safeError(e));
+            setDetail("stream mode connect failed: " + safeError(e));
+            log.warn(
+                    "[DINGTALK] Stream mode connect failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
             return false;
         }
     }
@@ -235,7 +238,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 streamClient.stop();
             }
         } catch (Exception e) {
-            log.warn("[DINGTALK] Stream mode disconnect failed", e);
+            log.warn(
+                    "[DINGTALK] Stream mode disconnect failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         } finally {
             if (callbackExecutor != null) {
                 callbackExecutor.shutdownNow();
@@ -340,7 +346,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             gatewayMessage.setAttachments(attachments);
                             inboundMessageHandler().handle(gatewayMessage);
                         } catch (Exception e) {
-                            log.warn("[DINGTALK] inbound dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[DINGTALK] inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -361,9 +370,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             }
                         } catch (Exception e) {
                             log.warn(
-                                    "[DINGTALK] card callback dispatch failed: {}",
-                                    e.getMessage(),
-                                    e);
+                                    "[DINGTALK] card callback dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });

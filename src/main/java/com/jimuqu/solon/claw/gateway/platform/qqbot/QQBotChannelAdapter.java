@@ -145,9 +145,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         } catch (Exception e) {
             setConnected(false);
             setSetupState("error");
-            setLastError("qqbot_connect_failed", e.getMessage());
-            setDetail("connect failed: " + e.getMessage());
-            log.warn("[QQBOT] connect failed: {}", e.getMessage(), e);
+            setLastError("qqbot_connect_failed", safeError(e));
+            setDetail("connect failed: " + safeError(e));
+            log.warn("[QQBOT] connect failed: errorType={}, error={}", errorType(e), safeError(e));
             return false;
         }
     }
@@ -407,7 +407,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             return firstNonBlank(
                     node.get("url").getString(), node.get("data").get("url").getString());
         } catch (Exception e) {
-            log.debug("[QQBOT] gateway lookup failed: {}", e.getMessage(), e);
+            log.debug(
+                    "[QQBOT] gateway lookup failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
             return "";
         }
     }
@@ -516,7 +519,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             QQBotChannelAdapter.this.webSocket = null;
             setConnected(false);
             setSetupState("error");
-            setLastError("qqbot_websocket_failure", t == null ? "unknown" : t.getMessage());
+            setLastError("qqbot_websocket_failure", safeError(t));
             setDetail("websocket disconnected");
         }
 
@@ -545,7 +548,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         try {
                             inboundMessageHandler().handle(message);
                         } catch (Exception e) {
-                            log.warn("[QQBOT] inbound dispatch failed: {}", e.getMessage(), e);
+                            log.warn(
+                                    "[QQBOT] inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
                         }
                     }
                 });
@@ -724,7 +730,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             result.add(cacheRemoteAttachment(url, kind, fileName, mimeType, fromQuote, transcript));
         } catch (Exception e) {
-            log.warn("[QQBOT] attachment cache failed: {}", e.getMessage());
+            log.warn(
+                    "[QQBOT] attachment cache failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -764,7 +773,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
             putJson("/interactions/" + interactionId, new ONode().set("code", 0).toJson());
         } catch (Exception e) {
-            log.warn("[QQBOT] interaction ACK failed: {}", e.getMessage(), e);
+            log.warn(
+                    "[QQBOT] interaction ACK failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -864,7 +876,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (Exception e) {
-            log.warn("[QQBOT] update prompt response write failed: {}", e.getMessage(), e);
+            log.warn(
+                    "[QQBOT] update prompt response write failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 

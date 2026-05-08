@@ -69,7 +69,10 @@ public class GatewayRuntimeRefreshService {
                 latest = AppConfig.load(props);
             }
         } catch (Throwable e) {
-            log.debug("Skip runtime refresh because config reload failed", e);
+            log.debug(
+                    "Skip runtime refresh because config reload failed: errorType={}, error={}",
+                    e.getClass().getSimpleName(),
+                    safeError(e));
             return RefreshResult.failure(
                     configFile.getAbsolutePath(),
                     safeError(e));
