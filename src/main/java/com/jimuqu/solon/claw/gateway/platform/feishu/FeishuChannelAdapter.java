@@ -146,9 +146,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                                         event.getEvent());
                                                             } catch (Exception e) {
                                                                 log.warn(
-                                                                        "[FEISHU] websocket inbound dispatch failed: {}",
-                                                                        e.getMessage(),
-                                                                        e);
+                                                                        "[FEISHU] websocket inbound dispatch failed: errorType={}, error={}",
+                                                                        errorType(e),
+                                                                        safeError(e));
                                                             }
                                                         }
                                                     });

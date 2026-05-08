@@ -604,11 +604,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         response.getBody().getProcessQueryKey());
             } catch (TeaException e) {
                 log.warn(
-                        "[DINGTALK] group send failed: code={}, message={}, data={}",
+                        "[DINGTALK] group send failed: code={}, message={}, data={}, error={}",
                         e.getCode(),
-                        e.getMessage(),
-                        e.getData(),
-                        e);
+                        SecretRedactor.redact(e.getMessage(), 1000),
+                        SecretRedactor.redact(String.valueOf(e.getData()), 1000),
+                        safeError(e));
                 throw e;
             }
         } else {
@@ -647,11 +647,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         response.getBody().toMap());
             } catch (TeaException e) {
                 log.warn(
-                        "[DINGTALK] private send failed: code={}, message={}, data={}",
+                        "[DINGTALK] private send failed: code={}, message={}, data={}, error={}",
                         e.getCode(),
-                        e.getMessage(),
-                        e.getData(),
-                        e);
+                        SecretRedactor.redact(e.getMessage(), 1000),
+                        SecretRedactor.redact(String.valueOf(e.getData()), 1000),
+                        safeError(e));
                 throw e;
             }
         }

@@ -1263,13 +1263,22 @@ public class SolonAiLlmGateway implements LlmGateway {
                         primaryModel);
             } catch (Throwable e) {
                 log.warn(
-                        "Aux summary model failed, fallback to primary model: strategy={}, auxModel={}, primaryModel={}",
+                        "Aux summary model failed, fallback to primary model: strategy={}, auxModel={}, primaryModel={}, error={}",
                         name,
                         auxModel,
                         primaryModel,
-                        e);
+                        safeSummaryError(e));
             }
             return primary.summarize(trace, messagesToSummarize);
+        }
+
+        private String safeSummaryError(Throwable error) {
+            if (error == null) {
+                return "unknown";
+            }
+            String message = error.getMessage();
+            String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+            return SecretRedactor.redact(value, 1000);
         }
     }
 
@@ -1303,9 +1312,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 return new FileInputStream(fontFile);
                             } catch (Exception e) {
                                 log.warn(
-                                        "Failed to open PDF font file: {}",
-                                        fontFile.getAbsolutePath(),
-                                        e);
+                                        "Failed to open PDF font file: path={}, error={}",
+                                        SecretRedactor.redact(fontFile.getAbsolutePath(), 400),
+                                        safeError(e));
                                 return null;
                             }
                         }

@@ -134,7 +134,7 @@ try {
                 return
             }
             if ($regex.IsMatch($relativePath)) {
-                $matches.Add(("{0}:0:<path>" -f (Hide-BlockedText $relativePath)))
+                $findings.Add(("{0}:0:<path>" -f (Hide-BlockedText $relativePath)))
             }
             if ($_.PSIsContainer) {
                 Search-Directory $_
@@ -148,18 +148,18 @@ try {
             foreach ($line in [System.IO.File]::ReadLines($_.FullName)) {
                 $lineNumber++
                 if ($regex.IsMatch($line)) {
-                    $matches.Add(("{0}:{1}:<blocked>" -f (Hide-BlockedText $relativePath), $lineNumber))
+                    $findings.Add(("{0}:{1}:<blocked>" -f (Hide-BlockedText $relativePath), $lineNumber))
                 }
             }
         }
     }
 
-    $matches = New-Object System.Collections.Generic.List[string]
+    $findings = New-Object System.Collections.Generic.List[string]
     Search-Directory (Get-Item -LiteralPath $scanRoot)
 
-    if ($matches) {
+    if ($findings) {
         Write-Host "Blocked legacy project naming in repository paths or text. Use Jimuqu/JIMUQU naming for code, docs, config keys, routes, storage keys, environment variables, and generated source." -ForegroundColor Red
-        $matches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+        $findings | ForEach-Object { Write-Host $_ -ForegroundColor Red }
         exit 1
     }
 

@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.skillhub.support.SkillBundlePathSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -55,12 +56,12 @@ public class GitHubSkillSource implements SkillSource {
                         StrUtil.blankToDefault(tap.getPath(), ""),
                         StrUtil.nullToEmpty(query),
                         limit,
-                        e.toString());
+                        safeError(e));
                 log.debug(
-                        "GitHub Skills Hub tap search failure detail: repo={}, path={}",
+                        "GitHub Skills Hub tap search failure detail: repo={}, path={}, error={}",
                         tap.getRepo(),
                         StrUtil.blankToDefault(tap.getPath(), ""),
-                        e);
+                        safeError(e));
                 continue;
             }
             for (SkillMeta meta : tapResults) {
@@ -275,5 +276,14 @@ public class GitHubSkillSource implements SkillSource {
         String normalized = trimSlashes(path);
         int index = normalized.lastIndexOf('/');
         return index >= 0 ? normalized.substring(index + 1) : normalized;
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 }

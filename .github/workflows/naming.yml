@@ -1,4 +1,4 @@
-name: Project Naming Guard
+name: Repository Guards
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  naming:
+  guards:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,11 +22,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check repository naming
+      - name: Check repository guards
         shell: pwsh
         run: |
           ./scripts/check-project-naming.selftest.ps1
           ./scripts/check-project-naming.ps1
+          ./scripts/check-raw-exception-logging.selftest.ps1
+          ./scripts/check-raw-exception-logging.ps1
 
       - name: Check new commit subjects
         shell: pwsh
