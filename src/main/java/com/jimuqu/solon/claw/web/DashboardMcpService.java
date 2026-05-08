@@ -604,7 +604,7 @@ public class DashboardMcpService {
                             ? (appConfig.getMcp().isEnabled()
                                     ? null
                                     : "MCP is disabled in runtime config.")
-                            : securityVerdict.getMessage());
+                            : safeDisplayError(securityVerdict.getMessage()));
             long now = System.currentTimeMillis();
             statement.setLong(3, now);
             statement.setLong(4, now);
@@ -628,7 +628,7 @@ public class DashboardMcpService {
                             ? (appConfig.getMcp().isEnabled()
                                     ? null
                                     : "MCP is disabled in runtime config.")
-                            : securityVerdict.getMessage());
+                            : safeDisplayError(securityVerdict.getMessage()));
         } finally {
             connection.close();
         }
@@ -735,7 +735,7 @@ public class DashboardMcpService {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("allowed", verdict == null || verdict.isAllowed());
         if (verdict != null && StrUtil.isNotBlank(verdict.getMessage())) {
-            map.put("message", verdict.getMessage());
+            map.put("message", safeDisplayError(verdict.getMessage()));
         }
         return map;
     }

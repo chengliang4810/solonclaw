@@ -96,6 +96,38 @@ public class McpPackageSecurityServiceTest {
         assertThat(String.valueOf(listed.get("servers"))).contains("MAL-2026-9999");
     }
 
+    @Test
+    void shouldRedactBlockedMcpPackageStatusMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardMcpService service =
+                new DashboardMcpService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        new McpPackageSecurityService(
+                                new FakeOsvHttpClient("{\"vulns\":[]}"),
+                                "http://169.254.169.254/latest/meta-data/?token=secret-mcp-osv",
+                                new SecurityPolicyService(env.appConfig)));
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "unsafe-osv-mcp");
+        body.put("name", "Unsafe OSV MCP");
+        body.put("transport", "stdio");
+        body.put("command", "npx");
+        body.put("args", Arrays.asList("-y", "safe-server"));
+        body.put("tools", Arrays.asList(tool("safe_tool")));
+
+        Map<String, Object> saved = service.save(body);
+        Map<String, Object> checked = service.check("unsafe-osv-mcp");
+        Map<String, Object> listed = service.list();
+
+        assertThat(String.valueOf(saved.get("security"))).contains("token=***");
+        assertThat(String.valueOf(checked.get("security"))).contains("token=***");
+        assertThat(String.valueOf(listed.get("servers"))).contains("token=***");
+        assertThat(String.valueOf(saved)).doesNotContain("secret-mcp-osv");
+        assertThat(String.valueOf(checked)).doesNotContain("secret-mcp-osv");
+        assertThat(String.valueOf(listed)).doesNotContain("secret-mcp-osv");
+    }
+
     private Map<String, Object> tool(String name) {
         Map<String, Object> tool = new LinkedHashMap<String, Object>();
         tool.put("name", name);
