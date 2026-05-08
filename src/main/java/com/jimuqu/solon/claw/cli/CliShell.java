@@ -82,6 +82,11 @@ public class CliShell {
     private int sendOnce(PrintWriter writer, String sessionId, String input, boolean verbose)
             throws Exception {
         String trimmed = StrUtil.nullToEmpty(input).trim();
+        if (LocalTerminalHelp.isHelp(trimmed)) {
+            writer.println(LocalTerminalHelp.text());
+            writer.flush();
+            return 0;
+        }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
         }

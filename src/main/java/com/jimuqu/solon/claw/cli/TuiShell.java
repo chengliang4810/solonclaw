@@ -105,6 +105,11 @@ public class TuiShell {
 
     private int send(PrintWriter writer, String sessionId, String input) throws Exception {
         String trimmed = StrUtil.nullToEmpty(input).trim();
+        if (LocalTerminalHelp.isHelp(trimmed)) {
+            writer.println(LocalTerminalHelp.text());
+            writer.flush();
+            return 0;
+        }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
         }

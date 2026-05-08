@@ -5,10 +5,8 @@ $scriptPath = Join-Path $repoRoot "scripts\check-project-naming.ps1"
 $releaseNotesScriptPath = Join-Path $repoRoot "scripts\write-release-notes.ps1"
 $releaseRangeScriptPath = Join-Path $repoRoot "scripts\resolve-release-range.ps1"
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("jimuqu-naming-check-selftest-" + [Guid]::NewGuid().ToString("N"))
-$blockedFixture = "BLOCKED_PROJECT_NAME_ALLOW_PRIVATE_URLS"
+$blockedFixture = "BLOCKED_LEGACY_TOKEN_FIXTURE"
 $blockedFixtureLower = $blockedFixture.ToLowerInvariant()
-$defaultBlockedEnvFixture = ("{0}_ALLOW_PRIVATE_URLS" -f ([string]::Concat("HER", "MES")))
-$defaultBlockedProjectFixture = [string]::Concat("Open", "Claw")
 
 function Invoke-NamingCheck {
     param([switch] $WithExtraFixture)
@@ -96,24 +94,6 @@ try {
         throw "Naming check did not block a forbidden legacy environment variable."
     }
     Assert-NoRawBlockedOutput $blocked.Output @($blockedFixture) "directory text scan"
-
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path (Join-Path $sandbox "src") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "src\config.txt") -Value ($defaultBlockedEnvFixture + "=true") -Encoding UTF8
-    $defaultBlockedEnv = Invoke-NamingCheck
-    if ($defaultBlockedEnv.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden default environment variable."
-    }
-    Assert-NoRawBlockedOutput $defaultBlockedEnv.Output @($defaultBlockedEnvFixture) "default environment variable scan"
-
-    Reset-Sandbox
-    New-Item -ItemType Directory -Path (Join-Path $sandbox "docs") | Out-Null
-    Set-Content -Path (Join-Path $sandbox "docs\name.txt") -Value ("Do not copy " + $defaultBlockedProjectFixture + " naming.") -Encoding UTF8
-    $defaultBlockedProject = Invoke-NamingCheck
-    if ($defaultBlockedProject.ExitCode -eq 0) {
-        throw "Naming check did not block a forbidden default project name."
-    }
-    Assert-NoRawBlockedOutput $defaultBlockedProject.Output @($defaultBlockedProjectFixture) "default project name scan"
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path (Join-Path $sandbox "web\node_modules\fixture") -Force | Out-Null

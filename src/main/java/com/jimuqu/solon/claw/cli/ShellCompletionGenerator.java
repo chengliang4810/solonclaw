@@ -15,6 +15,8 @@ public class ShellCompletionGenerator {
     private static final List<String> OPTIONS =
             Collections.unmodifiableList(
                     Arrays.asList("--cli", "--tui", "--acp", "--session", "--ask", "-p"));
+    private static final List<String> LOCAL_SLASH_COMMANDS =
+            Collections.unmodifiableList(Arrays.asList("/help", "/copy", "/exit", "/quit"));
 
     public int write(String shell, PrintStream out, PrintStream err) {
         String normalized = StrUtil.blankToDefault(shell, "bash").trim().toLowerCase();
@@ -64,7 +66,9 @@ public class ShellCompletionGenerator {
                 + "            return\n"
                 + "            ;;\n"
                 + "        cli|--cli|tui|--tui)\n"
-                + "            COMPREPLY=($(compgen -W \"--session --ask -p\" -- \"$cur\"))\n"
+                + "            COMPREPLY=($(compgen -W \"--session --ask -p "
+                + words(LOCAL_SLASH_COMMANDS)
+                + "\" -- \"$cur\"))\n"
                 + "            return\n"
                 + "            ;;\n"
                 + "    esac\n"
@@ -85,7 +89,9 @@ public class ShellCompletionGenerator {
                 + "        '--tui[Run terminal UI]' \\\n"
                 + "        '--acp[Run ACP stdio adapter]' \\\n"
                 + "        '--session[Session id]:session id:' \\\n"
-                + "        '(-p --ask)'{-p,--ask}'[Send one prompt]:prompt:' \\\n"
+                + "        '(-p --ask)'{-p,--ask}'[Send one prompt or local terminal command]:prompt:("
+                + words(LOCAL_SLASH_COMMANDS)
+                + ")' \\\n"
                 + "        '1:command:->commands' \\\n"
                 + "        '*::arg:->args'\n\n"
                 + "    case $state in\n"
@@ -123,6 +129,9 @@ public class ShellCompletionGenerator {
                 + "complete -c jimuqu-agent -f -l acp -d 'Run ACP stdio adapter'\n"
                 + "complete -c jimuqu-agent -f -l session -d 'Session id'\n"
                 + "complete -c jimuqu-agent -f -s p -l ask -d 'Send one prompt'\n"
+                + "complete -c jimuqu-agent -f -n '__fish_seen_subcommand_from cli tui; and __fish_seen_argument -s p -l ask' -a '"
+                + words(LOCAL_SLASH_COMMANDS)
+                + "'\n"
                 + "complete -c jimuqu-agent -f -n 'not __fish_seen_subcommand_from "
                 + words(TOP_LEVEL)
                 + "' -a '"
