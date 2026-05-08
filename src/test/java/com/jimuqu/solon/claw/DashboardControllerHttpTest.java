@@ -424,7 +424,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/jimuqu/mcp",
-                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"stdio\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"]}",
+                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-endpoint-token\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
                         token);
         assertThat(secretMcp.status).isEqualTo(200);
         HttpResult secretMcpList = request("GET", "/api/jimuqu/mcp", null, token);
@@ -432,8 +432,13 @@ public class DashboardControllerHttpTest {
         assertThat(secretMcpList.body)
                 .contains("OPENAI_API_KEY=***")
                 .contains("--token=***")
+                .contains("Authorization: Bearer ***")
+                .contains("https://user:***@example.com/sse?token=***")
                 .doesNotContain("sk-test-dashboard-secret")
-                .doesNotContain("secret-arg-value");
+                .doesNotContain("secret-arg-value")
+                .doesNotContain("secret-endpoint-pass")
+                .doesNotContain("secret-endpoint-token")
+                .doesNotContain("ghp_mcpsecret12345");
 
         HttpResult updateMcpOAuth =
                 request(
