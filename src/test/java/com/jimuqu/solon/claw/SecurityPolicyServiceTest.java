@@ -2,9 +2,13 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import java.io.File;
 import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -166,6 +170,94 @@ public class SecurityPolicyServiceTest {
         assertThat(wildcard.isAllowed()).isFalse();
         assertThat(wildcard.getMessage()).contains("wild.example");
         assertThat(bareWildcard.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldMergeWebsiteBlocklistDomainsAndSharedFileRules() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("jimuqu-website-policy");
+        File shared = runtimeHome.resolve("community-blocklist.txt").toFile();
+        FileUtil.writeUtf8String(
+                "# comment\n"
+                        + "example.org\n"
+                        + "https://www.evil.test/path\n"
+                        + "*.tracking.example\n",
+                shared);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("example.com", "https://www.inline.test/path"));
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("community-blocklist.txt"));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "8.8.8.8");
+
+        SecurityPolicyService.UrlVerdict configDomain =
+                policy.checkUrl("https://docs.example.com/page");
+        SecurityPolicyService.UrlVerdict configUrlRule =
+                policy.checkUrl("https://www.inline.test/page");
+        SecurityPolicyService.UrlVerdict sharedDomain =
+                policy.checkUrl("https://api.example.org/v1");
+        SecurityPolicyService.UrlVerdict sharedUrlRule =
+                policy.checkUrl("https://evil.test/login");
+        SecurityPolicyService.UrlVerdict wildcardChild =
+                policy.checkUrl("https://a.tracking.example/pixel");
+        SecurityPolicyService.UrlVerdict wildcardBare =
+                policy.checkUrl("https://tracking.example/pixel");
+
+        assertThat(configDomain.isAllowed()).isFalse();
+        assertThat(configDomain.getMessage()).contains("example.com");
+        assertThat(configUrlRule.isAllowed()).isFalse();
+        assertThat(configUrlRule.getMessage()).contains("inline.test");
+        assertThat(sharedDomain.isAllowed()).isFalse();
+        assertThat(sharedDomain.getMessage()).contains("example.org");
+        assertThat(sharedUrlRule.isAllowed()).isFalse();
+        assertThat(sharedUrlRule.getMessage()).contains("evil.test");
+        assertThat(wildcardChild.isAllowed()).isFalse();
+        assertThat(wildcardChild.getMessage()).contains("tracking.example");
+        assertThat(wildcardBare.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldSkipMissingAndUnsafeWebsiteBlocklistSharedFiles() throws Exception {
+        Path parent = Files.createTempDirectory("jimuqu-website-policy-parent");
+        Path runtimeHome = Files.createDirectory(parent.resolve("runtime"));
+        File outside = parent.resolve("outside-blocklist.txt").toFile();
+        FileUtil.writeUtf8String("blocked-outside.example\n", outside);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("missing-blocklist.txt", "../outside-blocklist.txt"));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "8.8.8.8");
+
+        assertThat(policy.checkUrl("https://allowed.example/").isAllowed()).isTrue();
+        assertThat(policy.checkUrl("https://blocked-outside.example/").isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldLoadAbsoluteWebsiteBlocklistSharedFiles() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("jimuqu-website-policy");
+        File shared = Files.createTempFile("jimuqu-shared-blocklist", ".txt").toFile();
+        FileUtil.writeUtf8String("absolute-blocked.example\n", shared);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList(shared.getAbsolutePath()));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "8.8.8.8");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                policy.checkUrl("https://cdn.absolute-blocked.example/path");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("absolute-blocked.example");
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
