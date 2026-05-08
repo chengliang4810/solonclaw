@@ -202,7 +202,7 @@ public class AppUpdateService {
 
             return UpdateResult.ok("已开始在线升级到 " + status.getLatestTag() + "，应用将在几秒后自动重启。");
         } catch (Exception e) {
-            return UpdateResult.error("启动在线升级失败：" + e.getMessage());
+            return UpdateResult.error("启动在线升级失败：" + safeError(e));
         }
     }
 
@@ -499,7 +499,7 @@ public class AppUpdateService {
             }
             return releaseInfo;
         } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+            setLastError(e.getClass().getSimpleName() + ": " + safeError(e));
             return null;
         }
     }
@@ -525,7 +525,7 @@ public class AppUpdateService {
             releaseInfo.setSource("tag");
             return releaseInfo;
         } catch (Exception e) {
-            setLastError(e.getClass().getSimpleName() + ": " + e.getMessage());
+            setLastError(e.getClass().getSimpleName() + ": " + safeError(e));
             return null;
         }
     }
@@ -551,7 +551,7 @@ public class AppUpdateService {
         try {
             return ProxyUrlSupport.parseProxy(proxyUrl);
         } catch (Exception e) {
-            setLastError("更新代理地址解析失败: " + SecretRedactor.maskUrl(proxyUrl) + "，" + e.getMessage());
+            setLastError("更新代理地址解析失败: " + SecretRedactor.maskUrl(proxyUrl) + "，" + safeError(e));
             return null;
         }
     }
@@ -559,6 +559,13 @@ public class AppUpdateService {
     private void setLastError(String message) {
         this.lastErrorMessage = StrUtil.nullToEmpty(message).trim();
         this.lastErrorAt = System.currentTimeMillis();
+    }
+
+    private String safeError(Exception e) {
+        if (e == null) {
+            return "Exception";
+        }
+        return SecretRedactor.redact(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     private void clearLastError() {
