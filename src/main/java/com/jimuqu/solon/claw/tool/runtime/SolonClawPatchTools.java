@@ -701,7 +701,7 @@ public class SolonClawPatchTools {
         public static PatchResult error(String error) {
             PatchResult result = new PatchResult();
             result.success = false;
-            result.error = StrUtil.blankToDefault(error, "patch failed");
+            result.error = SecretRedactor.redact(StrUtil.blankToDefault(error, "patch failed"), 1000);
             return result;
         }
 

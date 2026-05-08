@@ -218,6 +218,27 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
+    void shouldRedactSecretsFromPatchErrors() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+
+        String json =
+                tools.patch(
+                        "replace",
+                        "missing-ghp_1234567890abcdef.txt",
+                        "old",
+                        "new",
+                        false,
+                        null);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("missing-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    @Test
     void shouldRejectAddFileWhenTargetExistsWithoutOverwriting() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("existing.txt");
