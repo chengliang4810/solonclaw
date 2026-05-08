@@ -243,6 +243,18 @@ public class DangerousCommandApprovalService {
                                                     + COMMAND_TAIL),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_disable_firewall",
+                                    "Linux firewall disabled or flushed",
+                                    pattern(
+                                            "\\b(?:ufw\\s+disable|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "linux_disable_mac_policy",
+                                    "Linux mandatory access control disabled",
+                                    pattern(
+                                            "\\b(?:setenforce\\s+0|aa-teardown\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+apparmor\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "stop_service",
                                     "stop/restart system service",
                                     pattern(

@@ -80,6 +80,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult setcap =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "setcap cap_net_bind_service+ep ./server");
+        DangerousCommandApprovalService.DetectionResult ufwDisable =
+                env.dangerousCommandApprovalService.detect("execute_shell", "ufw disable");
+        DangerousCommandApprovalService.DetectionResult iptablesFlush =
+                env.dangerousCommandApprovalService.detect("execute_shell", "iptables -F");
+        DangerousCommandApprovalService.DetectionResult nftFlush =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nft flush ruleset");
+        DangerousCommandApprovalService.DetectionResult setenforce =
+                env.dangerousCommandApprovalService.detect("execute_shell", "setenforce 0");
+        DangerousCommandApprovalService.DetectionResult stopAppArmor =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "systemctl disable apparmor");
 
         assertThat(recursiveLong).isNotNull();
         assertThat(recursiveLong.getPatternKey()).isEqualTo("recursive_delete_long_flag");
@@ -105,6 +117,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chmodNumericSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
         assertThat(setcap).isNotNull();
         assertThat(setcap.getPatternKey()).isEqualTo("setcap_privilege");
+        assertThat(ufwDisable).isNotNull();
+        assertThat(ufwDisable.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(iptablesFlush).isNotNull();
+        assertThat(iptablesFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(nftFlush).isNotNull();
+        assertThat(nftFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(setenforce).isNotNull();
+        assertThat(setenforce.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(stopAppArmor).isNotNull();
+        assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
     }
 
     @Test
