@@ -768,11 +768,17 @@ public class DefaultCronScheduler {
     private GatewayReply runScheduledWithAutoDeliveryContext(
             CronJobRecord job, GatewayMessage synthetic) throws Exception {
         List<CronDeliveryTarget> targets = resolveDeliveryTargets(job);
-        CronDeliveryTarget target = targets.isEmpty() ? null : targets.get(0);
-        if (target == null) {
+        if (targets.isEmpty()) {
             return runScheduledWithInactivityTimeout(job, synthetic);
         }
-        CronAutoDeliveryContext.set(target.platform, target.chatId, target.threadId);
+        List<CronAutoDeliveryContext.Target> autoTargets =
+                new ArrayList<CronAutoDeliveryContext.Target>();
+        for (CronDeliveryTarget target : targets) {
+            autoTargets.add(
+                    new CronAutoDeliveryContext.Target(
+                            target.platform, target.chatId, target.threadId));
+        }
+        CronAutoDeliveryContext.setAll(autoTargets);
         try {
             return runScheduledWithInactivityTimeout(job, synthetic);
         } finally {

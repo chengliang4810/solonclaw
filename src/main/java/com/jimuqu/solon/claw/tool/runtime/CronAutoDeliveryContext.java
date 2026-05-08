@@ -2,10 +2,14 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /** Cron 自动投递上下文，用于避免 Agent 在同一目标重复调用 send_message。 */
 public final class CronAutoDeliveryContext {
-    private static final ThreadLocal<Target> CURRENT = new InheritableThreadLocal<Target>();
+    private static final ThreadLocal<List<Target>> CURRENT =
+            new InheritableThreadLocal<List<Target>>();
 
     private CronAutoDeliveryContext() {}
 
@@ -14,7 +18,25 @@ public final class CronAutoDeliveryContext {
             clear();
             return;
         }
-        CURRENT.set(new Target(platform, chatId.trim(), normalizeBlank(threadId)));
+        CURRENT.set(Collections.singletonList(new Target(platform, chatId.trim(), normalizeBlank(threadId))));
+    }
+
+    public static void setAll(List<Target> targets) {
+        if (targets == null || targets.isEmpty()) {
+            clear();
+            return;
+        }
+        List<Target> normalized = new ArrayList<Target>();
+        for (Target target : targets) {
+            if (target != null && target.platform != null && StrUtil.isNotBlank(target.chatId)) {
+                normalized.add(new Target(target.platform, target.chatId, target.threadId));
+            }
+        }
+        if (normalized.isEmpty()) {
+            clear();
+        } else {
+            CURRENT.set(Collections.unmodifiableList(normalized));
+        }
     }
 
     public static void clear() {
@@ -22,17 +44,33 @@ public final class CronAutoDeliveryContext {
     }
 
     public static Target current() {
-        return CURRENT.get();
+        List<Target> targets = CURRENT.get();
+        return targets == null || targets.isEmpty() ? null : targets.get(0);
+    }
+
+    public static List<Target> currentTargets() {
+        List<Target> targets = CURRENT.get();
+        return targets == null ? Collections.<Target>emptyList() : targets;
     }
 
     public static boolean isDuplicateTarget(PlatformType platform, String chatId, String threadId) {
-        Target target = current();
-        if (target == null || platform == null || StrUtil.isBlank(chatId)) {
+        if (platform == null || StrUtil.isBlank(chatId)) {
             return false;
         }
-        return target.platform == platform
-                && StrUtil.equals(target.chatId, chatId.trim())
-                && StrUtil.equals(target.threadId, normalizeBlank(threadId));
+        List<Target> targets = CURRENT.get();
+        if (targets == null || targets.isEmpty()) {
+            return false;
+        }
+        String normalizedChatId = chatId.trim();
+        String normalizedThreadId = normalizeBlank(threadId);
+        for (Target target : targets) {
+            if (target.platform == platform
+                    && StrUtil.equals(target.chatId, normalizedChatId)
+                    && StrUtil.equals(target.threadId, normalizedThreadId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String normalizeBlank(String value) {
@@ -45,10 +83,10 @@ public final class CronAutoDeliveryContext {
         private final String chatId;
         private final String threadId;
 
-        private Target(PlatformType platform, String chatId, String threadId) {
+        public Target(PlatformType platform, String chatId, String threadId) {
             this.platform = platform;
-            this.chatId = chatId;
-            this.threadId = threadId;
+            this.chatId = StrUtil.nullToEmpty(chatId).trim();
+            this.threadId = normalizeBlank(threadId);
         }
 
         public PlatformType getPlatform() {

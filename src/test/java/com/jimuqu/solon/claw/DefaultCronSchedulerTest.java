@@ -640,6 +640,47 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldSkipDuplicateSendMessageForAnyCronAutoDeliveryTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        RecordingDeliveryService deliveryService = new RecordingDeliveryService();
+        CronSendMessageToExplicitTargetOrchestrator orchestrator =
+                new CronSendMessageToExplicitTargetOrchestrator(
+                        new MessagingTools(
+                                deliveryService,
+                                "MEMORY:cron-room:user",
+                                new AttachmentCacheService(env.appConfig),
+                                env.appConfig),
+                        "second-room",
+                        null);
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("name", "auto-deliver-multi");
+        body.put("schedule", "30m");
+        body.put("prompt", "final answer");
+        body.put("deliver", "MEMORY:first-room,MEMORY:second-room");
+        CronJobRecord job = service.create("MEMORY:cron-room:user", body);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        orchestrator,
+                        deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        scheduler.runNow(job.getJobId());
+
+        assertThat(orchestrator.toolResult).contains("cron_auto_delivery_duplicate_target");
+        assertThat(deliveryService.requests).hasSize(2);
+        assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("first-room");
+        assertThat(deliveryService.requests.get(1).getChatId()).isEqualTo("second-room");
+        assertThat(deliveryService.requests.get(0).getText()).contains("final cron response");
+        assertThat(deliveryService.requests.get(1).getText()).contains("final cron response");
+    }
+
+    @Test
     void shouldDeliverCronResultToExplicitAndMultipleTargets() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobRecord job = job("job-multi", "MEMORY:source-room:source-user");
@@ -3190,6 +3231,43 @@ public class DefaultCronSchedulerTest {
                     messagingTools.sendMessage(
                             null,
                             null,
+                            "duplicate tool message",
+                            java.util.Collections.<String>emptyList(),
+                            null);
+            return GatewayReply.ok("final cron response");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("");
+        }
+    }
+
+    private static class CronSendMessageToExplicitTargetOrchestrator implements ConversationOrchestrator {
+        private final MessagingTools messagingTools;
+        private final String chatId;
+        private final String threadId;
+        private String toolResult;
+
+        private CronSendMessageToExplicitTargetOrchestrator(
+                MessagingTools messagingTools, String chatId, String threadId) {
+            this.messagingTools = messagingTools;
+            this.chatId = chatId;
+            this.threadId = threadId;
+        }
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            return GatewayReply.ok("");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) throws Exception {
+            toolResult =
+                    messagingTools.sendMessage(
+                            "MEMORY",
+                            chatId,
+                            threadId,
                             "duplicate tool message",
                             java.util.Collections.<String>emptyList(),
                             null);
