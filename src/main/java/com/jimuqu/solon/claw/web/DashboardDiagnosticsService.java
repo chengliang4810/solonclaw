@@ -2,10 +2,16 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -24,6 +30,8 @@ public class DashboardDiagnosticsService {
     private final DeliveryService deliveryService;
     private final LlmProviderService llmProviderService;
     private final ToolRegistry toolRegistry;
+    private final SessionRepository sessionRepository;
+    private final ConversationOrchestrator conversationOrchestrator;
     private final DangerousCommandApprovalService approvalService;
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
@@ -33,6 +41,8 @@ public class DashboardDiagnosticsService {
             DeliveryService deliveryService,
             LlmProviderService llmProviderService,
             ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
             DangerousCommandApprovalService approvalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
@@ -40,6 +50,8 @@ public class DashboardDiagnosticsService {
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
         this.toolRegistry = toolRegistry;
+        this.sessionRepository = sessionRepository;
+        this.conversationOrchestrator = conversationOrchestrator;
         this.approvalService = approvalService;
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
@@ -80,6 +92,81 @@ public class DashboardDiagnosticsService {
         fallback.put("decision", "error");
         fallback.put("summary", "security audit result was not a JSON object");
         return fallback;
+    }
+
+    public Map<String, Object> pendingApprovals(int limit) throws Exception {
+        int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        if (sessionRepository == null || approvalService == null) {
+            Map<String, Object> disabled = new LinkedHashMap<String, Object>();
+            disabled.put("count", Integer.valueOf(0));
+            disabled.put("items", items);
+            return disabled;
+        }
+
+        for (SessionRecord session : sessionRepository.listRecent(effectiveLimit)) {
+            List<DangerousCommandApprovalService.PendingApproval> pending =
+                    approvalService.listPendingApprovals(session);
+            for (DangerousCommandApprovalService.PendingApproval approval : pending) {
+                items.add(pendingApprovalItem(session, approval));
+                if (items.size() >= effectiveLimit) {
+                    break;
+                }
+            }
+            if (items.size() >= effectiveLimit) {
+                break;
+            }
+        }
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("count", Integer.valueOf(items.size()));
+        result.put("items", items);
+        return result;
+    }
+
+    public Map<String, Object> resolveApproval(Map<String, Object> body) throws Exception {
+        Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
+        String sessionId = text(input, "sessionId");
+        String selector = StrUtil.blankToDefault(text(input, "approvalId"), text(input, "selector"));
+        String action = StrUtil.nullToEmpty(text(input, "action")).trim().toLowerCase();
+        boolean resume = !Boolean.FALSE.equals(bool(input, "resume"));
+        String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
+        DangerousCommandApprovalService.ApprovalScope scope = parseApprovalScope(text(input, "scope"));
+
+        if (StrUtil.isBlank(sessionId)) {
+            return resolveResult(false, "missing_session", "缺少会话 ID。", null);
+        }
+        if (!"approve".equals(action) && !"deny".equals(action)) {
+            return resolveResult(false, "invalid_action", "审批动作必须是 approve 或 deny。", null);
+        }
+
+        SessionRecord session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            return resolveResult(false, "session_not_found", "会话不存在或已删除。", null);
+        }
+
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        boolean changed;
+        if ("approve".equals(action)) {
+            changed = approvalService.approve(agentSession, selector, scope, approver);
+        } else {
+            changed = approvalService.reject(agentSession, selector, approver);
+        }
+        if (!changed) {
+            return resolveResult(false, "approval_not_found", "待审批项不存在或已过期。", null);
+        }
+
+        GatewayReply reply = null;
+        if (resume && StrUtil.isNotBlank(session.getSourceKey()) && conversationOrchestrator != null) {
+            reply = conversationOrchestrator.resumePending(session.getSourceKey());
+        }
+
+        Map<String, Object> result =
+                resolveResult(true, "ok", "审批状态已更新。", reply == null ? null : replyMap(reply));
+        result.put("action", action);
+        result.put("session_id", session.getSessionId());
+        result.put("resumed", Boolean.valueOf(reply != null));
+        return result;
     }
 
     private Map<String, Object> runtime() {
@@ -215,6 +302,62 @@ public class DashboardDiagnosticsService {
                 "foreground_retry_base_delay_seconds",
                 Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
         map.put("terminal", terminal);
+        return map;
+    }
+
+    private Map<String, Object> pendingApprovalItem(
+            SessionRecord session, DangerousCommandApprovalService.PendingApproval pending) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("session_id", session.getSessionId());
+        item.put("source_key", session.getSourceKey());
+        item.put("title", StrUtil.blankToDefault(session.getTitle(), session.getSessionId()));
+        item.put("branch_name", session.getBranchName());
+        item.put("updated_at", Long.valueOf(session.getUpdatedAt()));
+        item.put("approval_id", pending.getApprovalId());
+        item.put("selector", StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()));
+        item.put("tool_name", pending.getToolName());
+        item.put("description", pending.getDescription());
+        item.put("pattern_key", pending.getPatternKey());
+        item.put("pattern_keys", pending.effectivePatternKeys());
+        item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
+        item.put("command_hash", pending.getCommandHash());
+        item.put("approval_key", pending.approvalKey());
+        item.put("created_at", Long.valueOf(pending.getCreatedAt()));
+        item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
+        item.put("scopes", pending.isPermanentApprovalAllowed() ? "once,session,always" : "once,session");
+        item.put("permanent_allowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
+        return item;
+    }
+
+    private DangerousCommandApprovalService.ApprovalScope parseApprovalScope(String value) {
+        String normalized = StrUtil.nullToEmpty(value).trim().toLowerCase();
+        if ("always".equals(normalized)) {
+            return DangerousCommandApprovalService.ApprovalScope.ALWAYS;
+        }
+        if ("session".equals(normalized)) {
+            return DangerousCommandApprovalService.ApprovalScope.SESSION;
+        }
+        return DangerousCommandApprovalService.ApprovalScope.ONCE;
+    }
+
+    private Map<String, Object> resolveResult(
+            boolean success, String code, String message, Map<String, Object> reply) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("success", Boolean.valueOf(success));
+        result.put("code", code);
+        result.put("message", message);
+        if (reply != null) {
+            result.put("reply", reply);
+        }
+        return result;
+    }
+
+    private Map<String, Object> replyMap(GatewayReply reply) {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("session_id", reply.getSessionId());
+        map.put("branch_name", reply.getBranchName());
+        map.put("content", SecretRedactor.redact(reply.getContent(), 1200));
+        map.put("error", Boolean.valueOf(reply.isError()));
         return map;
     }
 

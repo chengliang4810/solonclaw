@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NInput, NSelect, NSpin, NSwitch, NTag } from 'naive-ui'
+import { NButton, NButtonGroup, NInput, NSelect, NSpin, NSwitch, NTag, useMessage } from 'naive-ui'
 import {
   auditSecurity,
+  fetchPendingApprovals,
   fetchDiagnostics,
+  resolveApproval,
   type Diagnostics,
+  type PendingApproval,
   type SecurityAuditFinding,
   type SecurityAuditResult,
 } from '@/api/jimuqu/diagnostics'
 
+const message = useMessage()
 const diagnostics = ref<Diagnostics | null>(null)
 const loading = ref(false)
 const auditLoading = ref(false)
+const approvalsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
+const pendingApprovals = ref<PendingApproval[]>([])
 const auditForm = ref({
   action: 'command',
   toolName: 'execute_shell',
@@ -22,6 +28,7 @@ const auditForm = ref({
   writeLike: false,
   argsJson: '',
 })
+const resolvingKey = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
@@ -32,6 +39,7 @@ const auditActionOptions = [
   { label: '工具参数', value: 'tool_args' },
 ]
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
+const pendingCount = computed(() => pendingApprovals.value.length)
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -58,9 +66,20 @@ function decisionType(decision: unknown) {
 async function load() {
   loading.value = true
   try {
-    diagnostics.value = await fetchDiagnostics()
+    const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadApprovals()])
+    diagnostics.value = diagnosticsData
   } finally {
     loading.value = false
+  }
+}
+
+async function loadApprovals() {
+  approvalsLoading.value = true
+  try {
+    const result = await fetchPendingApprovals(100)
+    pendingApprovals.value = result.items || []
+  } finally {
+    approvalsLoading.value = false
   }
 }
 
@@ -79,6 +98,37 @@ async function runAudit() {
   } finally {
     auditLoading.value = false
   }
+}
+
+async function handleApproval(item: PendingApproval, action: 'approve' | 'deny', scope: 'once' | 'session' | 'always' = 'once') {
+  const key = `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+  resolvingKey.value = key
+  try {
+    const result = await resolveApproval({
+      sessionId: item.session_id,
+      approvalId: item.selector || item.approval_id,
+      action,
+      scope,
+      resume: true,
+    })
+    if (result.success) {
+      message.success(result.message || '审批状态已更新')
+      await loadApprovals()
+      return
+    }
+    message.error(result.message || '审批状态更新失败')
+  } finally {
+    resolvingKey.value = ''
+  }
+}
+
+function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
+  return resolvingKey.value === `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+}
+
+function timeText(value?: number) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString()
 }
 
 onMounted(load)
@@ -294,6 +344,71 @@ onMounted(load)
             </div>
           </div>
         </section>
+        <section class="panel approvals-panel">
+          <div class="panel-title-row">
+            <h3>待审批命令</h3>
+            <div class="panel-actions">
+              <NTag size="small" :type="pendingCount ? 'warning' : 'success'">{{ pendingCount }}</NTag>
+              <NButton size="small" :loading="approvalsLoading" @click="loadApprovals">刷新</NButton>
+            </div>
+          </div>
+          <NSpin :show="approvalsLoading">
+            <div v-if="pendingApprovals.length" class="approval-list">
+              <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.approval_key}`" class="approval-item">
+                <div class="approval-head">
+                  <div>
+                    <strong>{{ item.title || item.session_id }}</strong>
+                    <span>{{ item.tool_name || '-' }}</span>
+                  </div>
+                  <NTag size="small" :type="item.permanent_allowed ? 'default' : 'warning'">
+                    {{ item.permanent_allowed ? '可长期授权' : '仅本次/本会话' }}
+                  </NTag>
+                </div>
+                <p class="approval-desc">{{ item.description || '-' }}</p>
+                <pre class="approval-command">{{ item.command_preview || '-' }}</pre>
+                <div class="approval-meta">
+                  <span>{{ item.selector || item.approval_id || '-' }}</span>
+                  <span>创建：{{ timeText(item.created_at) }}</span>
+                  <span>过期：{{ timeText(item.expires_at) }}</span>
+                </div>
+                <div class="approval-actions">
+                  <NButtonGroup size="small">
+                    <NButton
+                      type="primary"
+                      :loading="approvalBusy(item, 'approve', 'once')"
+                      @click="handleApproval(item, 'approve', 'once')"
+                    >
+                      批准本次
+                    </NButton>
+                    <NButton
+                      :loading="approvalBusy(item, 'approve', 'session')"
+                      @click="handleApproval(item, 'approve', 'session')"
+                    >
+                      本会话批准
+                    </NButton>
+                    <NButton
+                      :disabled="!item.permanent_allowed"
+                      :loading="approvalBusy(item, 'approve', 'always')"
+                      @click="handleApproval(item, 'approve', 'always')"
+                    >
+                      长期批准
+                    </NButton>
+                  </NButtonGroup>
+                  <NButton
+                    size="small"
+                    type="error"
+                    ghost
+                    :loading="approvalBusy(item, 'deny')"
+                    @click="handleApproval(item, 'deny')"
+                  >
+                    拒绝
+                  </NButton>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state">暂无待审批命令</div>
+          </NSpin>
+        </section>
       </main>
     </NSpin>
   </div>
@@ -329,6 +444,24 @@ onMounted(load)
 
 .audit-panel {
   grid-column: 1 / -1;
+}
+
+.approvals-panel {
+  grid-column: 1 / -1;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .security-groups {
@@ -450,6 +583,76 @@ dd {
   font-size: 12px;
   color: $text-primary;
   word-break: break-word;
+}
+
+.approval-list {
+  display: grid;
+  gap: 12px;
+}
+
+.approval-item {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 12px;
+}
+
+.approval-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.approval-head strong {
+  display: block;
+  font-size: 13px;
+  color: $text-primary;
+}
+
+.approval-head span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.approval-desc {
+  margin: 10px 0 8px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.approval-command {
+  background: $bg-primary;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  padding: 10px;
+}
+
+.approval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.approval-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.empty-state {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: $text-muted;
+  font-size: 13px;
 }
 
 pre {

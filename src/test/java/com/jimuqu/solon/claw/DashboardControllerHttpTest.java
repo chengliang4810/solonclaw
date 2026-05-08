@@ -6,9 +6,12 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -37,6 +40,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.Solon;
+import org.noear.solon.core.AppContext;
 
 public class DashboardControllerHttpTest {
     private static int port;
@@ -915,6 +919,49 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldListAndResolvePendingDashboardApprovals() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        seedPendingApproval(
+                "dashboard-approval-chat",
+                "MEMORY:dashboard-approval-chat:dashboard-user",
+                "Dashboard approval session",
+                "printf api_key=sk-test-secret-token-value");
+
+        HttpResult pending =
+                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        assertThat(pending.status).isEqualTo(200);
+        assertThat(pending.body)
+                .contains("\"count\"")
+                .contains("\"session_id\":\"dashboard-approval-chat\"")
+                .contains("\"tool_name\":\"execute_shell\"")
+                .contains("\"command_preview\":\"printf api_key=***\"")
+                .doesNotContain("sk-test-secret-token-value");
+
+        ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
+        String selector = pendingData.get("selector").getString();
+        assertThat(selector).isNotBlank();
+
+        HttpResult resolve =
+                request(
+                        "POST",
+                        "/api/diagnostics/approvals/resolve",
+                        "{\"sessionId\":\"dashboard-approval-chat\",\"approvalId\":\""
+                                + jsonEscape(selector)
+                                + "\",\"action\":\"deny\",\"resume\":false}",
+                        token);
+        assertThat(resolve.status).isEqualTo(200);
+        assertThat(resolve.body)
+                .contains("\"success\":true")
+                .contains("\"action\":\"deny\"")
+                .contains("\"resumed\":false");
+
+        HttpResult after =
+                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        assertThat(after.status).isEqualTo(200);
+        assertThat(after.body).doesNotContain("\"session_id\":\"dashboard-approval-chat\"");
+    }
+
+    @Test
     void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
@@ -1230,6 +1277,39 @@ public class DashboardControllerHttpTest {
         } finally {
             database.shutdown();
         }
+    }
+
+    private static void seedPendingApproval(
+            String sessionId, String sourceKey, String title, String command) throws Exception {
+        SessionRepository repository = bean(SessionRepository.class);
+        DangerousCommandApprovalService approvalService =
+                bean(DangerousCommandApprovalService.class);
+        SessionRecord record = repository.findById(sessionId);
+        long now = System.currentTimeMillis();
+        if (record == null) {
+            record = new SessionRecord();
+            record.setSessionId(sessionId);
+            record.setSourceKey(sourceKey);
+            record.setBranchName("main");
+            record.setTitle(title);
+            record.setNdjson("");
+            record.setCreatedAt(now);
+        }
+        record.setUpdatedAt(now);
+        repository.save(record);
+        repository.bindSource(sourceKey, sessionId);
+        SqliteAgentSession agentSession = new SqliteAgentSession(record, repository);
+        approvalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "rm_recursive_root",
+                "需要确认危险命令",
+                command);
+    }
+
+    private static <T> T bean(Class<T> type) {
+        AppContext context = Solon.context();
+        return context.getBean(type);
     }
 
     private static String extractToken(String html) {

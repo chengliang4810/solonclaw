@@ -33,4 +33,29 @@ public class DashboardDiagnosticsController {
                         : new LinkedHashMap<String, Object>();
         return DashboardResponse.ok(diagnosticsService.securityAudit(payload));
     }
+
+    @Mapping(value = "/api/diagnostics/approvals", method = MethodType.GET)
+    public Map<String, Object> pendingApprovals(Context context) throws Exception {
+        return DashboardResponse.ok(diagnosticsService.pendingApprovals(limit(context.param("limit"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Mapping(value = "/api/diagnostics/approvals/resolve", method = MethodType.POST)
+    public Map<String, Object> resolveApproval(Context context) throws Exception {
+        String raw = context.body();
+        Object body = raw == null || raw.trim().length() == 0 ? null : ONode.ofJson(raw).toData();
+        Map<String, Object> payload =
+                body instanceof Map
+                        ? (Map<String, Object>) body
+                        : new LinkedHashMap<String, Object>();
+        return DashboardResponse.ok(diagnosticsService.resolveApproval(payload));
+    }
+
+    private int limit(String value) {
+        try {
+            return value == null ? 100 : Integer.parseInt(value.trim());
+        } catch (Exception ignored) {
+            return 100;
+        }
+    }
 }

@@ -129,6 +129,8 @@ public class DashboardConfiguration {
             DeliveryService deliveryService,
             LlmProviderService llmProviderService,
             ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
@@ -137,6 +139,8 @@ public class DashboardConfiguration {
                 deliveryService,
                 llmProviderService,
                 toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
                 dangerousCommandApprovalService,
                 securityPolicyService,
                 tirithSecurityService);
