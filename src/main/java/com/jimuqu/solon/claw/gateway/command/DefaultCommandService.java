@@ -1982,6 +1982,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
                 .append("/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
+                .append("/cron edit <job-id> --clear-deliver-chat-id --clear-deliver-thread-id - 清空投递会话与线程\n")
                 .append("/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
                 .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
                 .append("/cron pause <job-id> [--reason 原因] - 暂停定时任务\n")
@@ -2380,10 +2381,14 @@ public class DefaultCommandService implements CommandService {
                 body.put("deliver_chat_id", field.substring("--deliver-chat-id ".length()).trim());
             } else if (field.startsWith("--deliver_chat_id ")) {
                 body.put("deliver_chat_id", field.substring("--deliver_chat_id ".length()).trim());
+            } else if ("--clear-deliver-chat-id".equals(field) || "--clear-deliver_chat_id".equals(field)) {
+                body.put("deliver_chat_id", null);
             } else if (field.startsWith("--deliver-thread-id ")) {
                 body.put("deliver_thread_id", field.substring("--deliver-thread-id ".length()).trim());
             } else if (field.startsWith("--deliver_thread_id ")) {
                 body.put("deliver_thread_id", field.substring("--deliver_thread_id ".length()).trim());
+            } else if ("--clear-deliver-thread-id".equals(field) || "--clear-deliver_thread_id".equals(field)) {
+                body.put("deliver_thread_id", null);
             } else if (field.startsWith("--repeat ")) {
                 body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
             } else if (field.startsWith("--script ")) {
@@ -2441,6 +2446,12 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "deliver", options.deliver);
         putCronStringOption(body, "deliver_chat_id", options.deliverChatId);
         putCronStringOption(body, "deliver_thread_id", options.deliverThreadId);
+        if (options.clearDeliverChatId) {
+            body.put("deliver_chat_id", null);
+        }
+        if (options.clearDeliverThreadId) {
+            body.put("deliver_thread_id", null);
+        }
         if (options.repeat != null) {
             body.put("repeat", options.repeat);
         }
@@ -2504,9 +2515,13 @@ public class DefaultCommandService implements CommandService {
             } else if (("--deliver-chat-id".equals(token) || "--deliver_chat_id".equals(token))
                     && i + 1 < tokens.size()) {
                 options.deliverChatId = tokens.get(++i);
+            } else if ("--clear-deliver-chat-id".equals(token) || "--clear-deliver_chat_id".equals(token)) {
+                options.clearDeliverChatId = true;
             } else if (("--deliver-thread-id".equals(token) || "--deliver_thread_id".equals(token))
                     && i + 1 < tokens.size()) {
                 options.deliverThreadId = tokens.get(++i);
+            } else if ("--clear-deliver-thread-id".equals(token) || "--clear-deliver_thread_id".equals(token)) {
+                options.clearDeliverThreadId = true;
             } else if ("--repeat".equals(token) && i + 1 < tokens.size()) {
                 options.repeat = Integer.valueOf(tokens.get(++i));
             } else if ("--limit".equals(token) && i + 1 < tokens.size()) {
@@ -3683,6 +3698,8 @@ public class DefaultCommandService implements CommandService {
         private String deliver;
         private String deliverChatId;
         private String deliverThreadId;
+        private boolean clearDeliverChatId;
+        private boolean clearDeliverThreadId;
         private Integer repeat;
         private Integer limit;
         private String reason;

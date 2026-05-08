@@ -480,7 +480,7 @@ public class CommandEnhancementTest {
                                 + jobId
                                 + " --script collect.py --workdir \""
                                 + runtimeHome
-                                + "\" --deliver local --deliver_chat_id \"\" --deliver_thread_id \"\"");
+                                + "\" --deliver local --clear-deliver-chat-id --clear-deliver-thread-id");
         assertThat(retuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
@@ -615,6 +615,7 @@ public class CommandEnhancementTest {
                 .contains("/cron status [--all]")
                 .contains("/cron history <job-id>")
                 .contains("--deliver-chat-id")
+                .contains("--clear-deliver-chat-id")
                 .contains("--clear-model")
                 .contains("当前没有定时任务。");
     }
