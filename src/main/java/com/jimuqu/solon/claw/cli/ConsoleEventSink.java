@@ -111,6 +111,7 @@ public class ConsoleEventSink implements ConversationEventSink {
     @Override
     public void onRunCompleted(String sessionId, String finalReply, LlmResult result) {
         if (assistantStarted) {
+            writer.print(markdownRenderer.flush());
             writer.println();
         }
         if (verbose && result != null) {

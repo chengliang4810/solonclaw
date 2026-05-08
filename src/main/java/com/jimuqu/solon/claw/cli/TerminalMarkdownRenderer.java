@@ -10,18 +10,31 @@ public class TerminalMarkdownRenderer {
     private static final String CYAN = "\u001B[36m";
     private static final String GREEN = "\u001B[32m";
     private static final String YELLOW = "\u001B[33m";
+    private final StringBuilder pendingLine = new StringBuilder();
     private boolean codeBlock;
 
     public String render(String text) {
         if (StrUtil.isEmpty(text)) {
             return "";
         }
-        String[] lines = text.split("(?<=\n)", -1);
         StringBuilder out = new StringBuilder();
-        for (String line : lines) {
+        pendingLine.append(text);
+        int newlineIndex;
+        while ((newlineIndex = pendingLine.indexOf("\n")) >= 0) {
+            String line = pendingLine.substring(0, newlineIndex + 1);
+            pendingLine.delete(0, newlineIndex + 1);
             out.append(renderLine(line));
         }
         return out.toString();
+    }
+
+    public String flush() {
+        if (pendingLine.length() == 0) {
+            return "";
+        }
+        String line = pendingLine.toString();
+        pendingLine.setLength(0);
+        return renderLine(line);
     }
 
     String renderLine(String line) {
