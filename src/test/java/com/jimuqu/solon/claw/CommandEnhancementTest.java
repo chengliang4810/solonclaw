@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -604,14 +605,30 @@ public class CommandEnhancementTest {
                         "admin-user",
                         "/cron add \"30m\" \"Runtime detail check\" --script collect.py --workdir \""
                                 + runtimeHome
-                                + "\" --no-agent --repeat 3 --deliver feishu:chat-1:topic-2");
+                                + "\" --no-agent --repeat 3 --deliver feishu --no-wrap-response"
+                                + " --model gpt-cron --provider default --base-url https://api.cron.example/v1/"
+                                + " --toolsets shell,file");
         assertThat(created.getContent()).contains("已创建定时任务");
         String jobId =
                 env.cronJobRepository
                         .listBySource("MEMORY:admin-chat:admin-user")
                         .get(0)
                         .getJobId();
+        GatewayReply createdDependency =
+                env.send("admin-chat", "admin-user", "/cron add \"45m\" \"Dependency detail check\"");
+        assertThat(createdDependency.getContent()).contains("已创建定时任务");
+        String dependencyId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .stream()
+                        .filter(record -> !jobId.equals(record.getJobId()))
+                        .findFirst()
+                        .get()
+                        .getJobId();
         CronJobRecord job = env.cronJobRepository.findById(jobId);
+        job.setDeliverChatId("chat-1");
+        job.setDeliverThreadId("topic-2");
+        job.setContextFromJson(org.noear.snack4.ONode.serialize(Arrays.asList(dependencyId)));
         job.setRepeatCompleted(1);
         job.setLastRunAt(System.currentTimeMillis());
         job.setLastStatus("error");
@@ -623,10 +640,18 @@ public class CommandEnhancementTest {
         assertThat(list.getContent())
                 .contains("ID: " + jobId)
                 .contains("Repeat: 1/3")
-                .contains("Deliver: feishu:chat-1:topic-2")
+                .contains("Deliver: feishu")
+                .contains("Deliver chat: chat-1")
+                .contains("Deliver thread: topic-2")
+                .contains("Wrap response: false")
                 .contains("Script: collect.py")
                 .contains("Mode: no-agent (script stdout delivered directly)")
                 .contains("Workdir: " + runtimeHome)
+                .contains("Context from: " + dependencyId)
+                .contains("Toolsets: shell, file")
+                .contains("Model: gpt-cron")
+                .contains("Provider: default")
+                .contains("Base URL: https://api.cron.example/v1")
                 .contains("Last run:")
                 .contains("(error)")
                 .contains("Delivery failed: send timeout");

@@ -2158,6 +2158,13 @@ public class DefaultCommandService implements CommandService {
                     .append(job.getNextRunAt() <= 0 ? "N/A" : String.valueOf(job.getNextRunAt()));
             String deliver = StrUtil.blankToDefault(job.getDeliverPlatform(), "local");
             buffer.append('\n').append("Deliver: ").append(deliver);
+            if (StrUtil.isNotBlank(job.getDeliverChatId())) {
+                buffer.append('\n').append("Deliver chat: ").append(job.getDeliverChatId());
+            }
+            if (StrUtil.isNotBlank(job.getDeliverThreadId())) {
+                buffer.append('\n').append("Deliver thread: ").append(job.getDeliverThreadId());
+            }
+            buffer.append('\n').append("Wrap response: ").append(job.isWrapResponse());
             if (StrUtil.isNotBlank(job.getPausedReason())) {
                 buffer.append('\n').append("Paused reason: ").append(job.getPausedReason());
             }
@@ -2177,6 +2184,17 @@ public class DefaultCommandService implements CommandService {
             if (StrUtil.isNotBlank(job.getWorkdir())) {
                 buffer.append('\n').append("Workdir: ").append(job.getWorkdir());
             }
+            appendCronListIterable(buffer, "Context from", view.get("context_from"));
+            appendCronListIterable(buffer, "Toolsets", view.get("enabled_toolsets"));
+            if (StrUtil.isNotBlank(job.getModel())) {
+                buffer.append('\n').append("Model: ").append(job.getModel());
+            }
+            if (StrUtil.isNotBlank(job.getProvider())) {
+                buffer.append('\n').append("Provider: ").append(job.getProvider());
+            }
+            if (StrUtil.isNotBlank(job.getBaseUrl())) {
+                buffer.append('\n').append("Base URL: ").append(job.getBaseUrl());
+            }
             buffer.append('\n')
                     .append("Prompt: ")
                     .append(StrUtil.blankToDefault(String.valueOf(view.get("prompt_preview")), ""));
@@ -2193,6 +2211,16 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return buffer.toString();
+    }
+
+    private void appendCronListIterable(StringBuilder buffer, String label, Object values) {
+        if (!(values instanceof Iterable)) {
+            return;
+        }
+        String text = joinIterable((Iterable<?>) values, ", ");
+        if (StrUtil.isNotBlank(text)) {
+            buffer.append('\n').append(label).append(": ").append(text);
+        }
     }
 
     private String formatCronRepeat(CronJobRecord job) {
