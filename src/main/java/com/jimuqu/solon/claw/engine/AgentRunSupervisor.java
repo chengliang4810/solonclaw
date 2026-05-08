@@ -32,6 +32,7 @@ import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -695,11 +696,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         }
                         updateRunPhase(runRecord, "retry");
                         lastError = e;
+                        String errorMessage = safeError(e);
                         eventSink.onAttemptCompleted(
-                                runRecord.getRunId(), attemptNo, "error", e.getMessage());
+                                runRecord.getRunId(), attemptNo, "error", errorMessage);
                         runContext.event(
                                 "attempt.error",
-                                "第 " + attemptNo + " 次尝试失败：" + e.getMessage(),
+                                "第 " + attemptNo + " 次尝试失败：" + errorMessage,
                                 errorMetadata(e, resolved, attemptNo, candidateIndex));
                         if (classifyRetryable(e) && attempt < maxAttempts) {
                             continue;
@@ -720,7 +722,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             runRecord.getRunId(),
                             previousProvider,
                             next.getProvider(),
-                            lastError == null ? "empty response" : lastError.getMessage());
+                            lastError == null ? "empty response" : safeError(lastError));
                     runContext.event(
                             "fallback",
                             "切换 fallback provider："
@@ -737,7 +739,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 runRecord.setExitReason("failed");
                 runRecord.setFinishedAt(System.currentTimeMillis());
                 runRecord.setError(
-                        lastError == null ? "LLM execution failed" : lastError.getMessage());
+                        lastError == null ? "LLM execution failed" : safeError(lastError));
                 agentRunRepository.saveRun(runRecord);
                 runContext.event("run.failed", runRecord.getError());
                 if (lastError instanceof Exception) {
@@ -784,10 +786,10 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runRecord.setPhase("cancelled");
             runRecord.setExitReason("cancelled");
             runRecord.setFinishedAt(System.currentTimeMillis());
-            runRecord.setError(e.getMessage());
+            runRecord.setError(safeError(e));
             heartbeat(runRecord);
             agentRunRepository.saveRun(runRecord);
-            runContext.event("run.cancelled", e.getMessage());
+            runContext.event("run.cancelled", safeError(e));
             throw e;
         } finally {
             SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
@@ -899,7 +901,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     resolved,
                     runContext);
         } catch (Exception e) {
-            runContext.event("recovery.error", e.getMessage());
+            runContext.event("recovery.error", safeError(e));
             log.warn("Agent recovery failed: sessionId={}", session.getSessionId(), e);
             return null;
         } finally {
@@ -1095,7 +1097,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         metadata.put("retryable", Boolean.valueOf(classified.isRetryable()));
         metadata.put("should_fallback", Boolean.valueOf(classified.isShouldFallback()));
         metadata.put("should_compress", Boolean.valueOf(classified.isShouldCompress()));
-        metadata.put("error", error == null ? "" : error.getMessage());
+        metadata.put("error", safeError(error));
         return metadata;
     }
 
@@ -1111,7 +1113,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         metadata.put("status_code", Integer.valueOf(classified.getStatusCode()));
         metadata.put("retryable", Boolean.valueOf(classified.isRetryable()));
         metadata.put("should_compress", Boolean.valueOf(classified.isShouldCompress()));
-        metadata.put("error", lastError == null ? "empty response" : lastError.getMessage());
+        metadata.put("error", lastError == null ? "empty response" : safeError(lastError));
         return metadata;
     }
 
@@ -1371,7 +1373,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             } catch (Exception e) {
                 try {
                     agentRunRepository.markQueuedMessage(
-                            queued.getQueueId(), "failed", System.currentTimeMillis(), e.getMessage());
+                            queued.getQueueId(), "failed", System.currentTimeMillis(), safeError(e));
                 } catch (Exception ignored) {
                 }
                 log.warn("queued run failed: queueId={}", queued.getQueueId(), e);
@@ -1421,7 +1423,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             event.setEventType(eventType);
             event.setPhase(record.getPhase());
             event.setSeverity(eventType != null && eventType.contains("reject") ? "warn" : "info");
-            event.setSummary(AgentRunContext.safe(summary, 1000));
+            event.setSummary(safeText(summary));
             event.setMetadataJson(metadataJson);
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
@@ -1434,6 +1436,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "";
+        }
+        return safeText(StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()));
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(AgentRunContext.safe(value, 1000), 1000);
     }
 
     private String extractQueuedMarker(String text, String key) {

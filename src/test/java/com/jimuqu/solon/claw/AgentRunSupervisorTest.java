@@ -100,6 +100,52 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldRedactRunFailureEventsAndRecords() throws Exception {
+        Fixture fixture = fixture();
+        String leakedToken = "sk-supervisor12345";
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, new ThrowingGateway(leakedToken), noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:room:user");
+
+        try {
+            supervisor.run(
+                    session,
+                    "system",
+                    "hello",
+                    Collections.emptyList(),
+                    ConversationFeedbackSink.noop(),
+                    ConversationEventSink.noop(),
+                    false);
+        } catch (Exception expected) {
+            // The assertions below inspect the persisted run surface.
+        }
+
+        List<com.jimuqu.solon.claw.core.model.AgentRunRecord> runs =
+                fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
+        assertThat(runs).hasSize(1);
+        assertThat(runs.get(0).getStatus()).isEqualTo("failed");
+        assertThat(runs.get(0).getError()).contains("***").doesNotContain(leakedToken);
+
+        List<AgentRunEventRecord> events =
+                fixture.agentRunRepository.listEvents(runs.get(0).getRunId());
+        assertThat(eventTypes(events)).contains("attempt.error", "fallback", "run.failed");
+        boolean sawRedactedEvent = false;
+        for (AgentRunEventRecord event : events) {
+            if (event.getSummary() != null) {
+                assertThat(event.getSummary()).doesNotContain(leakedToken);
+            }
+            if (event.getMetadataJson() != null) {
+                assertThat(event.getMetadataJson()).doesNotContain(leakedToken);
+            }
+            if ((event.getSummary() != null && event.getSummary().contains("***"))
+                    || (event.getMetadataJson() != null && event.getMetadataJson().contains("***"))) {
+                sawRedactedEvent = true;
+            }
+        }
+        assertThat(sawRedactedEvent).isTrue();
+    }
+
+    @Test
     void shouldMarkRunningSessionsResumePendingForRestartTimeoutStops() throws Exception {
         Fixture fixture = fixture();
         BlockingGateway gateway = new BlockingGateway();
@@ -358,6 +404,43 @@ public class AgentRunSupervisorTest {
             result.setAssistantMessage(new AssistantMessage("backup ok"));
             result.setNdjson(session.getNdjson());
             return result;
+        }
+    }
+
+    private static class ThrowingGateway implements LlmGateway {
+        private final String leakedToken;
+
+        private ThrowingGateway(String leakedToken) {
+            this.leakedToken = leakedToken;
+        }
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            throw new IllegalStateException("upstream rejected api_key=" + leakedToken);
         }
     }
 
