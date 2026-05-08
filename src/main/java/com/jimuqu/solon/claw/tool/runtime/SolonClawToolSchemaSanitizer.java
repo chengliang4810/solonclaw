@@ -231,7 +231,10 @@ public final class SolonClawToolSchemaSanitizer {
     }
 
     private static boolean isSchemaMapKey(String key) {
-        return "properties".equals(key) || "$defs".equals(key) || "definitions".equals(key);
+        return "properties".equals(key)
+                || "patternProperties".equals(key)
+                || "$defs".equals(key)
+                || "definitions".equals(key);
     }
 
     private static boolean isUnionKey(String key) {

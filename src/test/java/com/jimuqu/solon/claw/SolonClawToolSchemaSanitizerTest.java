@@ -161,6 +161,22 @@ public class SolonClawToolSchemaSanitizerTest {
     }
 
     @Test
+    void shouldSanitizePatternProperties() {
+        ONode root =
+                ONode.ofJson(
+                        SolonClawToolSchemaSanitizer.sanitizeSchemaJson(
+                                "{"
+                                        + "\"type\":\"object\","
+                                        + "\"patternProperties\":{\"^x-\":{\"type\":\"object\"}}"
+                                        + "}"));
+
+        ONode dynamic = root.get("patternProperties").get("^x-");
+
+        assertThat(dynamic.get("type").getString()).isEqualTo("object");
+        assertThat(dynamic.get("properties").isObject()).isTrue();
+    }
+
+    @Test
     void shouldDefaultInvalidTopLevelSchemaAndDropAllMissingRequiredFields() {
         ONode invalid = ONode.ofJson(SolonClawToolSchemaSanitizer.sanitizeSchemaJson("object"));
         assertThat(invalid.get("type").getString()).isEqualTo("object");
