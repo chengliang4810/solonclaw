@@ -163,8 +163,11 @@ public class ToolResultStorageServiceTest {
                 service.observe("execute_shell", repeat("w", 400), "run-workspace", "call-1");
         String ref = result.getResultRef();
 
-        assertThat(new File(ref).getCanonicalPath())
+        assertThat(ref).startsWith(".jimuqu/tool-results/run-workspace/");
+        assertThat(ref).doesNotContain(workspace.getAbsolutePath());
+        assertThat(new File(workspace, ref).getCanonicalPath())
                 .startsWith(new File(workspace, ".jimuqu/tool-results").getCanonicalPath());
+        assertThat(result.getObservation()).contains("Full output saved to: " + ref);
     }
 
     private String repeat(String value, int count) {

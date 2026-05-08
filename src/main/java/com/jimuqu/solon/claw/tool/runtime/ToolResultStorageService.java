@@ -265,7 +265,7 @@ public class ToolResultStorageService {
                 return null;
             }
             Files.write(file.toPath(), bytes);
-            return file.getAbsolutePath();
+            return displayRef(file);
         } catch (Exception ignored) {
             return null;
         }
@@ -279,6 +279,26 @@ public class ToolResultStorageService {
             return new File(cacheDir, TOOL_RESULTS_DIR);
         }
         return null;
+    }
+
+    private String displayRef(File file) {
+        if (file == null) {
+            return null;
+        }
+        if (StrUtil.isBlank(workspaceDir)) {
+            return file.getAbsolutePath();
+        }
+        try {
+            File workspace = new File(workspaceDir).getCanonicalFile();
+            File canonicalFile = file.getCanonicalFile();
+            if (!isChild(workspace, canonicalFile)) {
+                return canonicalFile.getAbsolutePath();
+            }
+            String relative = workspace.toPath().relativize(canonicalFile.toPath()).toString();
+            return relative.replace(File.separatorChar, '/');
+        } catch (Exception ignored) {
+            return file.getAbsolutePath();
+        }
     }
 
     private boolean isChild(File base, File candidate) {
