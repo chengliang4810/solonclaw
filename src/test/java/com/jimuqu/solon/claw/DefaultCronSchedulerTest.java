@@ -2101,6 +2101,8 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> run = (Map<?, ?>) ((List<?>) history.get("runs")).get(0);
         assertThat(run.get("status")).isEqualTo("ok");
         assertThat(run.get("trigger")).isEqualTo("scheduled");
+        assertThat(run.get("finished")).isEqualTo(Boolean.TRUE);
+        assertThat(((Number) run.get("duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
     }
 
     @Test

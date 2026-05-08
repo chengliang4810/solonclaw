@@ -346,12 +346,21 @@ public class CronJobService {
         result.put("attempt", Integer.valueOf(record.getAttempt()));
         result.put("started_at", record.getStartedAt() <= 0 ? null : Long.valueOf(record.getStartedAt()));
         result.put("finished_at", record.getFinishedAt() <= 0 ? null : Long.valueOf(record.getFinishedAt()));
+        result.put("finished", Boolean.valueOf(record.getFinishedAt() > 0));
+        result.put("duration_ms", durationMillis(record));
         result.put("status", record.getStatus());
         result.put("output", record.getOutput());
         result.put("error", record.getError());
         result.put("delivery_error", record.getDeliveryError());
         result.put("summary", record.getSummary());
         return result;
+    }
+
+    private Long durationMillis(CronJobRunRecord record) {
+        if (record == null || record.getStartedAt() <= 0 || record.getFinishedAt() <= 0) {
+            return null;
+        }
+        return Long.valueOf(Math.max(0L, record.getFinishedAt() - record.getStartedAt()));
     }
 
     public Map<String, Object> toView(CronJobRecord record) {
