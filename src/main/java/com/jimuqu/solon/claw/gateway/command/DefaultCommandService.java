@@ -2041,8 +2041,13 @@ public class DefaultCommandService implements CommandService {
                     .append("Schedule: ")
                     .append(job.getCronExpr())
                     .append('\n')
+                    .append("Repeat: ")
+                    .append(formatCronRepeat(job))
+                    .append('\n')
                     .append("Next run: ")
                     .append(job.getNextRunAt() <= 0 ? "N/A" : String.valueOf(job.getNextRunAt()));
+            String deliver = StrUtil.blankToDefault(job.getDeliverPlatform(), "local");
+            buffer.append('\n').append("Deliver: ").append(deliver);
             if (StrUtil.isNotBlank(job.getPausedReason())) {
                 buffer.append('\n').append("Paused reason: ").append(job.getPausedReason());
             }
@@ -2052,6 +2057,15 @@ public class DefaultCommandService implements CommandService {
                 if (StrUtil.isNotBlank(text)) {
                     buffer.append('\n').append("Skills: ").append(text);
                 }
+            }
+            if (StrUtil.isNotBlank(job.getScript())) {
+                buffer.append('\n').append("Script: ").append(job.getScript());
+            }
+            if (job.isNoAgent()) {
+                buffer.append('\n').append("Mode: no-agent (script stdout delivered directly)");
+            }
+            if (StrUtil.isNotBlank(job.getWorkdir())) {
+                buffer.append('\n').append("Workdir: ").append(job.getWorkdir());
             }
             buffer.append('\n')
                     .append("Prompt: ")
@@ -2064,8 +2078,18 @@ public class DefaultCommandService implements CommandService {
                         .append(StrUtil.blankToDefault(job.getLastStatus(), "?"))
                         .append(")");
             }
+            if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
+                buffer.append('\n').append("Delivery failed: ").append(job.getLastDeliveryError());
+            }
         }
         return buffer.toString();
+    }
+
+    private String formatCronRepeat(CronJobRecord job) {
+        if (job.getRepeatTimes() <= 0) {
+            return "∞";
+        }
+        return job.getRepeatCompleted() + "/" + job.getRepeatTimes();
     }
 
     private String joinIterable(Iterable<?> values, String delimiter) {

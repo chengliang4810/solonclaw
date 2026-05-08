@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
@@ -531,6 +532,8 @@ public class CommandEnhancementTest {
                 .contains("ID: " + jobId)
                 .contains("State: paused")
                 .contains("Paused reason: maintenance window")
+                .contains("Repeat: ∞")
+                .contains("Deliver: origin")
                 .contains("Schedule: every 2h");
 
         GatewayReply status = env.send("admin-chat", "admin-user", "/cron status");
@@ -549,6 +552,46 @@ public class CommandEnhancementTest {
                 .contains("/cron status [--all]")
                 .contains("/cron history <job-id>")
                 .contains("当前没有定时任务。");
+    }
+
+    @Test
+    void shouldShowHermesCronListRuntimeDetails() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        String runtimeHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
+        GatewayReply created =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron add \"30m\" \"Runtime detail check\" --script collect.py --workdir \""
+                                + runtimeHome
+                                + "\" --no-agent --repeat 3 --deliver feishu:chat-1:topic-2");
+        assertThat(created.getContent()).contains("已创建定时任务");
+        String jobId =
+                env.cronJobRepository
+                        .listBySource("MEMORY:admin-chat:admin-user")
+                        .get(0)
+                        .getJobId();
+        CronJobRecord job = env.cronJobRepository.findById(jobId);
+        job.setRepeatCompleted(1);
+        job.setLastRunAt(System.currentTimeMillis());
+        job.setLastStatus("error");
+        job.setLastDeliveryError("send timeout");
+        env.cronJobRepository.update(job);
+
+        GatewayReply list = env.send("admin-chat", "admin-user", "/cron list");
+
+        assertThat(list.getContent())
+                .contains("ID: " + jobId)
+                .contains("Repeat: 1/3")
+                .contains("Deliver: feishu:chat-1:topic-2")
+                .contains("Script: collect.py")
+                .contains("Mode: no-agent (script stdout delivered directly)")
+                .contains("Workdir: " + runtimeHome)
+                .contains("Last run:")
+                .contains("(error)")
+                .contains("Delivery failed: send timeout");
     }
 
     @Test
