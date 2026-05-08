@@ -5,8 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.ContextBudgetDecision;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
+import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -299,6 +304,53 @@ public class AgentRunSupervisorTest {
         assertThat(persisted).doesNotContain("最大推理步数限制");
         assertThat(messages).hasSize(2);
         assertThat(messages.get(1).getContent()).isEqualTo("收敛总结：已经完成主要处理。");
+    }
+
+    @Test
+    void shouldMarkQueuedRunCompletedWhenBusyQueueDrains() throws Exception {
+        Fixture fixture = fixture();
+        RecordingGateway gateway = new RecordingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        String sourceKey = "MEMORY:queue-room:queue-user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        GatewayMessage message =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "queue-room",
+                        "queue-user",
+                        "queued task");
+
+        RunBusyDecision decision =
+                supervisor.queueIncoming(sourceKey, session.getSessionId(), message);
+        QueuedRunMessage queued =
+                fixture.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId());
+        CountDownLatch drained = new CountDownLatch(1);
+
+        supervisor.onRunFinished(
+                sourceKey,
+                session.getSessionId(),
+                queuedMessage -> {
+                    drained.countDown();
+                    return GatewayReply.ok("queued done");
+                });
+
+        assertThat(drained.await(2, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(100L);
+        AgentRunRecord run = fixture.agentRunRepository.findRun(decision.getRunId());
+        QueuedRunMessage remaining =
+                fixture.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId());
+
+        assertThat(queued).isNotNull();
+        assertThat(run).isNotNull();
+        assertThat(run.getStatus()).isEqualTo("success");
+        assertThat(run.getPhase()).isEqualTo("completed");
+        assertThat(run.getExitReason()).isEqualTo("success");
+        assertThat(run.getFinalReplyPreview()).isEqualTo("queued done");
+        assertThat(run.getFinishedAt()).isGreaterThan(0L);
+        assertThat(remaining).isNull();
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
+                .contains("run.queue.start", "run.queue.success");
     }
 
     private static AgentRunSupervisor supervisor(

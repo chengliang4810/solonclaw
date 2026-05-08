@@ -1370,17 +1370,74 @@ public class AgentRunSupervisor implements AgentRunControlService {
             try {
                 agentRunRepository.markQueuedMessage(
                         queued.getQueueId(), "running", System.currentTimeMillis(), null);
-                runner.apply(deserializeMessage(queued));
+                markQueuedRunStarted(queued);
+                GatewayReply reply = runner.apply(deserializeMessage(queued));
                 agentRunRepository.markQueuedMessage(
                         queued.getQueueId(), "success", System.currentTimeMillis(), null);
+                markQueuedRunFinished(queued, "success", reply == null ? null : reply.getContent(), null);
             } catch (Exception e) {
                 try {
                     agentRunRepository.markQueuedMessage(
                             queued.getQueueId(), "failed", System.currentTimeMillis(), safeError(e));
                 } catch (Exception ignored) {
                 }
+                markQueuedRunFinished(queued, "failed", null, safeError(e));
                 log.warn("queued run failed: queueId={}, error={}", queued.getQueueId(), safeError(e));
             }
+        }
+    }
+
+    private void markQueuedRunStarted(QueuedRunMessage queued) {
+        try {
+            AgentRunRecord record =
+                    queued == null || StrUtil.isBlank(queued.getRunId())
+                            ? null
+                            : agentRunRepository.findRun(queued.getRunId());
+            if (record == null) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            record.setStatus("running");
+            record.setPhase("running");
+            record.setStartedAt(now);
+            record.setHeartbeatAt(now);
+            record.setLastActivityAt(now);
+            record.setExitReason(null);
+            record.setError(null);
+            agentRunRepository.saveRun(record);
+            appendRunEvent(record, "run.queue.start", "开始执行 busy 队列消息", null);
+        } catch (Exception e) {
+            log.warn("mark queued run start failed: error={}", safeError(e));
+        }
+    }
+
+    private void markQueuedRunFinished(
+            QueuedRunMessage queued, String status, String finalReply, String error) {
+        try {
+            AgentRunRecord record =
+                    queued == null || StrUtil.isBlank(queued.getRunId())
+                            ? null
+                            : agentRunRepository.findRun(queued.getRunId());
+            if (record == null) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            boolean success = "success".equals(status);
+            record.setStatus(success ? "success" : "failed");
+            record.setPhase(success ? "completed" : "failed");
+            record.setFinishedAt(now);
+            record.setLastActivityAt(now);
+            record.setExitReason(status);
+            record.setFinalReplyPreview(AgentRunContext.safe(finalReply, 1000));
+            record.setError(error);
+            agentRunRepository.saveRun(record);
+            appendRunEvent(
+                    record,
+                    success ? "run.queue.success" : "run.queue.failed",
+                    success ? "busy 队列消息执行完成" : "busy 队列消息执行失败",
+                    null);
+        } catch (Exception e) {
+            log.warn("mark queued run finish failed: error={}", safeError(e));
         }
     }
 
