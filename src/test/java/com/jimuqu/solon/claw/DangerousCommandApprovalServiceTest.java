@@ -300,6 +300,24 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "vssadmin delete shadows /all /quiet",
                 "windows_delete_shadow_copies");
+        assertDangerPattern(
+                env,
+                "wbadmin delete systemstatebackup -keepVersions:0 -quiet",
+                "windows_delete_backup");
+        assertDangerPattern(env, "wbadmin delete catalog -quiet", "windows_delete_backup");
+        assertDangerPattern(
+                env,
+                "Remove-ComputerRestorePoint -SequenceNumber 3",
+                "windows_delete_backup");
+        assertDangerPattern(env, "reagentc /disable", "windows_disable_recovery");
+        assertDangerPattern(
+                env,
+                "bcdedit /delete {current} /f",
+                "windows_disable_recovery");
+        assertDangerPattern(
+                env,
+                "bcdedit /set {default} recoveryenabled No",
+                "windows_disable_recovery");
     }
 
     @Test

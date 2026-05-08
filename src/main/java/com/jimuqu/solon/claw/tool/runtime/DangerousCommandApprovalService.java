@@ -528,6 +528,18 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bvssadmin\\s+delete\\s+shadows\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_delete_backup",
+                                    "Windows backup deletion",
+                                    pattern(
+                                            "\\b(?:wbadmin\\s+delete\\s+(?:systemstatebackup|backup|catalog)|Remove-ComputerRestorePoint\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_disable_recovery",
+                                    "Windows recovery disabled or boot entry removed",
+                                    pattern(
+                                            "\\b(?:reagentc\\s+/disable|bcdedit\\s+/(?:delete|deletevalue|set)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "python_rmtree",
                                     "Python recursive delete",
                                     pattern("\\bshutil\\.rmtree\\s*\\("),
