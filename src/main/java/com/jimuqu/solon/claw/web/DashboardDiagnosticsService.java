@@ -432,7 +432,7 @@ public class DashboardDiagnosticsService {
         item.put("branch_name", session.getBranchName());
         item.put("updated_at", Long.valueOf(session.getUpdatedAt()));
         item.put("approval_id", pending.getApprovalId());
-        item.put("selector", StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()));
+        item.put("selector", DangerousCommandApprovalService.approvalSelector(pending));
         item.put("tool_name", pending.getToolName());
         item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
         item.put("pattern_key", pending.getPatternKey());

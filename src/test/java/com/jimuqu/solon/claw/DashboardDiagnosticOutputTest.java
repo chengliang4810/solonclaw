@@ -173,7 +173,84 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(localItem.get("approval_key")))
                 .contains("execute_shell:recursive_delete:***")
                 .doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(String.valueOf(localItem.get("selector")))
+                .isEqualTo(String.valueOf(localItem.get("approval_id")))
+                .doesNotContain("execute_shell:");
         assertThat(localItem.get("command_hash")).isEqualTo("***");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldUseOpaqueSelectorForLegacyApprovalWithoutApprovalId() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-legacy-approval");
+        record.setSourceKey("source-legacy-approval");
+        record.setTitle("旧审批会话");
+
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        DangerousCommandApprovalService.PendingApproval pending =
+                approvalService.getPendingApproval(session);
+        String approvalKey = pending.approvalKey();
+        Map<String, Object> legacy = new LinkedHashMap<String, Object>();
+        legacy.put("toolName", pending.getToolName());
+        legacy.put("patternKey", pending.getPatternKey());
+        legacy.put("patternKeys", pending.effectivePatternKeys());
+        legacy.put("description", pending.getDescription());
+        legacy.put("command", pending.getCommand());
+        legacy.put("commandHash", pending.getCommandHash());
+        legacy.put("approvalKey", approvalKey);
+        legacy.put("createdAt", Long.valueOf(pending.getCreatedAt()));
+        legacy.put("expiresAt", Long.valueOf(pending.getExpiresAt()));
+        List<Map<String, Object>> queue = new ArrayList<Map<String, Object>>();
+        queue.add(legacy);
+        session.getContext().put("_dangerous_command_pending_queue_", queue);
+        session.getContext().put("_dangerous_command_pending_", legacy);
+        session.updateSnapshot();
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(Collections.singletonList(record)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        Map<String, Object> item = items.get(0);
+        String selector = String.valueOf(item.get("selector"));
+
+        assertThat(item.get("approval_id")).isEqualTo("");
+        assertThat(selector).startsWith("key_").hasSize(28);
+        assertThat(selector).isNotEqualTo(approvalKey).doesNotContain("execute_shell:");
+        assertThat(String.valueOf(item.get("approval_key"))).isEqualTo("execute_shell:recursive_delete:***");
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("sessionId", record.getSessionId());
+        body.put("approvalId", selector);
+        body.put("action", "deny");
+        body.put("resume", Boolean.FALSE);
+        Map<String, Object> resolve = diagnosticsService.resolveApproval(body);
+
+        assertThat(resolve.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalService.listPendingApprovals(record)).isEmpty();
     }
 
     @Test

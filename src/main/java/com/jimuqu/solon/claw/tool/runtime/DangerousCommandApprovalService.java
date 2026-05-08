@@ -1047,8 +1047,7 @@ public class DangerousCommandApprovalService {
         List<PendingApproval> pendingApprovals = listPendingApprovals(session);
         int approved = 0;
         for (PendingApproval pending : pendingApprovals) {
-            String selector =
-                    StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
+            String selector = approvalSelector(pending);
             if (approve(session, selector, effectiveScope, approver)) {
                 approved++;
             }
@@ -2515,10 +2514,32 @@ public class DangerousCommandApprovalService {
             return false;
         }
         String value = selector.trim();
+        String approvalId = item.getApprovalId();
+        String approvalKey = item.approvalKey();
+        String opaqueSelector = approvalSelector(item);
         return value.equals(item.getApprovalId())
-                || value.equals(item.approvalKey())
-                || (item.getApprovalId() != null && item.getApprovalId().startsWith(value))
-                || (item.approvalKey() != null && item.approvalKey().startsWith(value));
+                || value.equals(approvalKey)
+                || value.equals(opaqueSelector)
+                || (approvalId != null && approvalId.startsWith(value))
+                || (approvalKey != null && approvalKey.startsWith(value))
+                || (StrUtil.isNotBlank(opaqueSelector)
+                        && value.length() >= 8
+                        && opaqueSelector.startsWith(value));
+    }
+
+    public static String approvalSelector(PendingApproval pending) {
+        if (pending == null) {
+            return "";
+        }
+        if (StrUtil.isNotBlank(pending.getApprovalId())) {
+            return pending.getApprovalId().trim();
+        }
+        return approvalSelectorFromKey(pending.approvalKey());
+    }
+
+    public static String approvalSelectorFromKey(String approvalKey) {
+        String value = StrUtil.nullToEmpty(approvalKey).trim();
+        return value.isEmpty() ? "" : "key_" + sha256Hex(value).substring(0, 24);
     }
 
     private boolean samePendingApproval(PendingApproval left, PendingApproval right) {
@@ -3221,14 +3242,16 @@ public class DangerousCommandApprovalService {
     }
 
     private String commandHash(String normalizedCode) {
+        return sha256Hex(StrUtil.nullToEmpty(normalizedCode));
+    }
+
+    private static String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash =
-                    digest.digest(
-                            StrUtil.nullToEmpty(normalizedCode).getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder();
-            for (byte value : hash) {
-                String hex = Integer.toHexString(value & 0xff);
+            for (byte item : hash) {
+                String hex = Integer.toHexString(item & 0xff);
                 if (hex.length() == 1) {
                     builder.append('0');
                 }
@@ -3236,7 +3259,7 @@ public class DangerousCommandApprovalService {
             }
             return builder.toString();
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to hash dangerous command", e);
+            throw new IllegalStateException("Failed to hash approval value", e);
         }
     }
 

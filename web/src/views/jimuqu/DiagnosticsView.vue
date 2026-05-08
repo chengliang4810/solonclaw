@@ -216,12 +216,13 @@ async function runAudit() {
 }
 
 async function handleApproval(item: PendingApproval, action: 'approve' | 'deny', scope: 'once' | 'session' | 'always' = 'once') {
-  const key = `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+  const approvalSelector = item.selector || item.approval_id || ''
+  const key = `${item.session_id}:${approvalSelector}:${action}:${scope}`
   resolvingKey.value = key
   try {
     const result = await resolveApproval({
       sessionId: item.session_id,
-      approvalId: item.selector || item.approval_id,
+      approvalId: approvalSelector,
       action,
       scope,
       resume: true,
@@ -239,7 +240,8 @@ async function handleApproval(item: PendingApproval, action: 'approve' | 'deny',
 }
 
 function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
-  return resolvingKey.value === `${item.session_id}:${item.selector || item.approval_id || item.approval_key}:${action}:${scope}`
+  const approvalSelector = item.selector || item.approval_id || ''
+  return resolvingKey.value === `${item.session_id}:${approvalSelector}:${action}:${scope}`
 }
 
 async function handleRevokeAlways(item: AlwaysApproval) {
@@ -587,7 +589,7 @@ onMounted(load)
           </div>
           <NSpin :show="approvalsLoading">
             <div v-if="pendingApprovals.length" class="approval-list">
-              <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.approval_key}`" class="approval-item">
+              <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.selector || item.approval_id || item.command_hash}`" class="approval-item">
                 <div class="approval-head">
                   <div>
                     <strong>{{ item.title || item.session_id }}</strong>
