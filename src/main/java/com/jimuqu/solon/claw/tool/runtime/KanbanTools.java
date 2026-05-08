@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -310,6 +311,6 @@ public class KanbanTools {
     }
 
     private String error(String message) {
-        return ToolResultEnvelope.error(message).toJson();
+        return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
     }
 }

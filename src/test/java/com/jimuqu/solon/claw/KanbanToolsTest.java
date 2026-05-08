@@ -65,6 +65,27 @@ public class KanbanToolsTest {
         assertThat(completed).contains("\"success\":true").contains("Completed Kanban task").contains("tests");
     }
 
+    @Test
+    void shouldRedactSecretsFromKanbanToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
+        KanbanTools tools = new KanbanTools(service);
+
+        String secretTaskId = "missing-ghp_1234567890abcdef";
+        String parentId = task(service, "父任务", "lead");
+        String show = tools.kanbanShow(secretTaskId);
+        String link = tools.kanbanLink(parentId, "child-ghp_1234567890abcdef");
+
+        assertThat(show)
+                .contains("\"success\":false")
+                .contains("missing-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+        assertThat(link)
+                .contains("\"success\":false")
+                .contains("child-ghp_***")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
     private String task(KanbanService service, String title, String assignee) throws Exception {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("title", title);
