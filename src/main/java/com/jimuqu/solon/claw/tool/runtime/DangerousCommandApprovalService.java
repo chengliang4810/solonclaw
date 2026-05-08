@@ -80,6 +80,8 @@ public class DangerousCommandApprovalService {
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
             "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
+    private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
+            "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
@@ -573,6 +575,14 @@ public class DangerousCommandApprovalService {
                                     "Windows credential or certificate export",
                                     pattern(
                                             "\\b(?:Export-PfxCertificate|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "powershell_sensitive_file_write",
+                                    "PowerShell write to sensitive credential file",
+                                    pattern(
+                                            "\\b(?:Set-Content|Add-Content|Out-File)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
+                                                    + POWERSHELL_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_delete_shadow_copies",

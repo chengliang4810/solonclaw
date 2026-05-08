@@ -381,6 +381,22 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_export_credentials");
         assertDangerPattern(
                 env,
+                "Set-Content -Path .envrc -Value layout",
+                "powershell_sensitive_file_write");
+        assertDangerPattern(
+                env,
+                "Add-Content .env.local TOKEN=value",
+                "powershell_sensitive_file_write");
+        assertDangerPattern(
+                env,
+                "Out-File -FilePath ~/.ssh/authorized_keys -InputObject $key",
+                "powershell_sensitive_file_write");
+        assertDangerPattern(
+                env,
+                "$cred | Export-Clixml -Path credentials",
+                "windows_export_credentials");
+        assertDangerPattern(
+                env,
                 "vssadmin delete shadows /all /quiet",
                 "windows_delete_shadow_copies");
         assertDangerPattern(
