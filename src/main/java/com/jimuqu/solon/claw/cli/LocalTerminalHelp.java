@@ -16,6 +16,7 @@ public final class LocalTerminalHelp {
                 + "/sessions [关键词] - 浏览或搜索最近会话；/session pick <编号> 恢复\n"
                 + "/history [条数] - 预览当前终端会话的最近历史\n"
                 + "/events - 查看最近一次运行的终端事件\n"
+                + "/tips - 查看终端提示\n"
                 + "/queue <提示> - 将新输入排到当前任务之后执行\n"
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"

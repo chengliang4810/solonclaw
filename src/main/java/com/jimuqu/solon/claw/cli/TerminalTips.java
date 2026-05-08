@@ -1,0 +1,42 @@
+package com.jimuqu.solon.claw.cli;
+
+import cn.hutool.core.util.StrUtil;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+/** Small local tips surfaced by the terminal UI. */
+public final class TerminalTips {
+    private static final List<String> TIPS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "/queue <提示> 会排到当前任务之后执行。",
+                            "/steer <提示> 会注入正在运行的任务。",
+                            "/events 可查看最近一次运行的事件明细。",
+                            "/skin mono 可切换到无 ANSI 的纯文本皮肤。",
+                            "粘贴本地文件路径会自动作为附件发送。"));
+
+    private TerminalTips() {}
+
+    public static boolean isTipsCommand(String input) {
+        String value = StrUtil.nullToEmpty(input).trim();
+        return "/tips".equalsIgnoreCase(value);
+    }
+
+    public static String current(String sessionId) {
+        if (TIPS.isEmpty()) {
+            return "";
+        }
+        String key = StrUtil.blankToDefault(sessionId, "tui");
+        int index = Math.abs(key.hashCode()) % TIPS.size();
+        return TIPS.get(index);
+    }
+
+    public static String render() {
+        StringBuilder buffer = new StringBuilder("终端提示：");
+        for (int i = 0; i < TIPS.size(); i++) {
+            buffer.append('\n').append(i + 1).append(". ").append(TIPS.get(i));
+        }
+        return buffer.toString();
+    }
+}

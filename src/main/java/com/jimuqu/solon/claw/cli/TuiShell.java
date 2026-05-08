@@ -24,7 +24,7 @@ public class TuiShell {
                 "/busy", "/model", "/tools", "/skills", "/agent", "/cron", "/approve", "/deny",
                 "/queue", "/steer", "/kanban", "/restart", "/stop", "/compress", "/rollback",
                 "/version", "/copy", "/models", "/sessions", "/session", "/history", "/events",
-                "/skin", "/exit"
+                "/tips", "/skin", "/exit"
             };
 
     private final CliRuntime cliRuntime;
@@ -175,7 +175,8 @@ public class TuiShell {
         String value = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
-                || "/events".equalsIgnoreCase(value)) {
+                || "/events".equalsIgnoreCase(value)
+                || TerminalTips.isTipsCommand(value)) {
             return true;
         }
         return value.startsWith("/")
@@ -196,6 +197,11 @@ public class TuiShell {
                 skin = TerminalSkin.resolve(next);
             }
             writer.println(skin.renderHelp());
+            writer.flush();
+            return 0;
+        }
+        if (TerminalTips.isTipsCommand(trimmed)) {
+            writer.println(TerminalTips.render());
             writer.flush();
             return 0;
         }
@@ -303,7 +309,8 @@ public class TuiShell {
         writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
                 skin.dim(
-                        "tips: /help 命令  /queue 排队  /steer 引导  /sessions 会话  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
+                        "tips: /help 命令  /tips 提示  /queue 排队  /steer 引导  /sessions 会话  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
+        writer.println(skin.dim("tip: " + TerminalTips.current(sessionId)));
         writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
         writer.flush();

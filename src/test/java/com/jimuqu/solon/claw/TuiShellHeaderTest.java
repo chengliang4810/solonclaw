@@ -57,6 +57,15 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldExposeRotatingTipInHeader() throws Exception {
+        TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
+
+        String header = renderHeader(shell, "tui");
+
+        assertThat(header).contains("tip: ").contains("/tips");
+    }
+
+    @Test
     void shouldRenderLastTerminalEvents() throws Exception {
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
         Field field = TuiShell.class.getDeclaredField("lastEventSnapshot");
