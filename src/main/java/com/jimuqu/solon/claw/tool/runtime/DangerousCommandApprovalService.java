@@ -79,7 +79,7 @@ public class DangerousCommandApprovalService {
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
-            "(?:(?:/|\\.{1,2}/)?(?:[^\\s/\"'`]+/)*(?:\\.env(?:\\.[^/\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
+            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
@@ -583,6 +583,23 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:Set-Content|Add-Content|Out-File)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "powershell_sensitive_file_copy",
+                                    "PowerShell copy or move to sensitive credential file",
+                                    pattern(
+                                            "\\b(?:Copy-Item|Move-Item)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)\\s+)?[\"']?"
+                                                    + POWERSHELL_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_sensitive_file_copy",
+                                    "Windows copy or move to sensitive credential file",
+                                    pattern(
+                                            "\\b(?:copy|move)\\b[^\\n]*\\s[\"']?"
+                                                    + POWERSHELL_SENSITIVE_WRITE_TARGET
+                                                    + "[\"']?(?:\\s+(?:/[A-Za-z?]+|-[^\\s]+))*"
+                                                    + COMMAND_TAIL),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_delete_shadow_copies",

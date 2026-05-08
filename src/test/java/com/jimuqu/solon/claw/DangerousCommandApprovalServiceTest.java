@@ -397,6 +397,26 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_export_credentials");
         assertDangerPattern(
                 env,
+                "Copy-Item -Path template.env -Destination .env",
+                "powershell_sensitive_file_copy");
+        assertDangerPattern(
+                env,
+                "Move-Item token.json runtime\\config.yml",
+                "powershell_sensitive_file_copy");
+        assertDangerPattern(
+                env,
+                "copy template.env .env.local /Y",
+                "windows_sensitive_file_copy");
+        assertDangerPattern(
+                env,
+                "move token.json credentials.json",
+                "windows_sensitive_file_copy");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "copy template.env backup.env /Y"))
+                .isNull();
+        assertDangerPattern(
+                env,
                 "vssadmin delete shadows /all /quiet",
                 "windows_delete_shadow_copies");
         assertDangerPattern(
