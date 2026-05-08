@@ -38,7 +38,8 @@ function Invoke-GitNamingCheck {
         [string] $Range,
         [switch] $WithExtraFixture,
         [switch] $CheckObjectText,
-        [switch] $CheckAllGitRefs
+        [switch] $CheckAllGitRefs,
+        [switch] $CheckCurrentBranchRange
     )
 
     $args = @(
@@ -56,6 +57,9 @@ function Invoke-GitNamingCheck {
     }
     if ($CheckAllGitRefs) {
         $args += @("-CheckAllGitRefs")
+    }
+    if ($CheckCurrentBranchRange) {
+        $args += @("-CheckCurrentBranchRange")
     }
     if (-not [string]::IsNullOrWhiteSpace($Range)) {
         $args += @("-GitCommitRange", $Range)
@@ -223,6 +227,28 @@ try {
         throw "Naming check did not block forbidden naming in all reachable git refs."
     }
     Assert-NoRawBlockedOutput $allRefsBlocked.Output @($blockedFixture) "all refs git object text scan"
+
+    Reset-Sandbox
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean baseline" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m ("fix: " + $legacyEnvFixture + " historical fixture") | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean current branch" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: clean current branch / Clean current branch" | Out-Null
+        & git remote add origin $sandbox | Out-Null
+        & git update-ref refs/remotes/origin/main HEAD | Out-Null
+    } finally {
+        Pop-Location
+    }
+    $emptyCurrentBranchRange = Invoke-GitNamingCheck -CheckObjectText -CheckCurrentBranchRange
+    if ($emptyCurrentBranchRange.ExitCode -ne 0) {
+        throw "Naming check should skip git history scanning when the current branch has no commits ahead of the default branch, but failed: $($emptyCurrentBranchRange.Output)"
+    }
 
     Reset-Sandbox
     Push-Location $sandbox

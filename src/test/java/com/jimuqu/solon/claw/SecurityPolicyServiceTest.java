@@ -400,6 +400,7 @@ public class SecurityPolicyServiceTest {
         assertWriteDenied(policy, home + "/.bash_profile");
         assertWriteDenied(policy, home + "/.zprofile");
         assertWriteDenied(policy, ".env");
+        assertWriteDenied(policy, ".envrc");
         assertWriteDenied(policy, ".env.local");
         assertWriteDenied(policy, "credentials.json");
         assertWriteDenied(policy, "service-account.json");
@@ -409,6 +410,18 @@ public class SecurityPolicyServiceTest {
         assertThat(policy.checkPath("/home/user/project/main.py", true).isAllowed()).isTrue();
         assertThat(policy.checkPath(home + "/.jimuqu/config.yml", true).isAllowed()).isTrue();
         assertThat(policy.checkPath(".env.example", true).isAllowed()).isTrue();
+        assertThat(policy.checkPath(".envrc.example", true).isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldDenyCommandReadsFromEnvrcCredentialFile() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.FileVerdict verdict = policy.checkCommandPaths("cat .envrc");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getPath()).isEqualTo(".envrc");
+        assertThat(verdict.getMessage()).contains("凭据");
     }
 
     @Test

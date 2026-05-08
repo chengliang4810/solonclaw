@@ -69,7 +69,7 @@ try {
             if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($mergeBase)) {
                 $mergeBase = ($mergeBase -as [string]).Trim()
                 if ($mergeBase -eq $head) {
-                    return $head
+                    return ""
                 }
                 return ("{0}..{1}" -f $mergeBase, $head)
             }
@@ -228,16 +228,20 @@ try {
         }
 
         $range = $GitCommitRange
+        $skipRangeCheck = $false
         if ($CheckAllGitRefs) {
             $range = "--all"
         } elseif ($CheckCurrentBranchRange) {
             $range = Get-DefaultBranchRange
+            $skipRangeCheck = [string]::IsNullOrWhiteSpace($range)
         } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
 
         $subjectMatches = New-Object System.Collections.Generic.List[string]
-        if ($CheckAllGitRefs) {
+        if ($skipRangeCheck) {
+            $subjects = @()
+        } elseif ($CheckAllGitRefs) {
             $subjects = & git log --all --format="%h %s" 2>$null
         } else {
             $subjects = & git log --format="%h %s" $range 2>$null
@@ -273,15 +277,19 @@ try {
         }
 
         $range = $GitCommitRange
+        $skipRangeCheck = $false
         if ($CheckAllGitRefs) {
             $range = "--all"
         } elseif ($CheckCurrentBranchRange) {
             $range = Get-DefaultBranchRange
+            $skipRangeCheck = [string]::IsNullOrWhiteSpace($range)
         } elseif ([string]::IsNullOrWhiteSpace($range)) {
             $range = "HEAD"
         }
 
-        if ($CheckAllGitRefs) {
+        if ($skipRangeCheck) {
+            $commits = @()
+        } elseif ($CheckAllGitRefs) {
             $commits = & git rev-list --all 2>$null
         } else {
             $commits = & git rev-list $range 2>$null
