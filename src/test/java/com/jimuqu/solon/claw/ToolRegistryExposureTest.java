@@ -1832,11 +1832,13 @@ public class ToolRegistryExposureTest {
         assertThatThrownBy(() -> fileSkill.read("credentials.json"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("credentials.json");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials.json");
         assertThatThrownBy(() -> fileSkill.write("credentials", "token=secret"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("credentials");
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials");
         assertThatThrownBy(() -> fileSkill.write("../outside.txt", "x"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("路径遍历");
@@ -2005,12 +2007,19 @@ public class ToolRegistryExposureTest {
 
         assertThatThrownBy(() -> fileSkill.read("credentials/oauth.json"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("凭据");
+                .hasMessageContaining("凭据")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials/oauth.json");
         assertThatThrownBy(() -> fileSkill.write("credentials/oauth.json", "{\"token\":\"new\"}"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("凭据");
+                .hasMessageContaining("凭据")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining("credentials/oauth.json");
         assertThat(patchResult.get("success").getBoolean()).isFalse();
-        assertThat(patchResult.get("error").getString()).contains("凭据");
+        assertThat(patchResult.get("error").getString())
+                .contains("凭据")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("credentials/oauth.json");
         assertThat(new String(Files.readAllBytes(credentialFile), StandardCharsets.UTF_8))
                 .contains("old")
                 .doesNotContain("new");
