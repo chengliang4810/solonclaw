@@ -424,19 +424,30 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/jimuqu/mcp",
-                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-endpoint-token\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
+                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse?token=secret-endpoint-token\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
                         token);
         assertThat(secretMcp.status).isEqualTo(200);
+        HttpResult userInfoMcp =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"userinfo-docs\",\"name\":\"Userinfo Docs\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-userinfo-token\",\"tools\":[{\"name\":\"docs_search\"}]}",
+                        token);
+        assertThat(userInfoMcp.status).isGreaterThanOrEqualTo(400);
+        assertThat(userInfoMcp.body)
+                .doesNotContain("secret-endpoint-pass")
+                .doesNotContain("secret-userinfo-token");
         HttpResult secretMcpList = request("GET", "/api/jimuqu/mcp", null, token);
         assertThat(secretMcpList.status).isEqualTo(200);
         assertThat(secretMcpList.body)
                 .contains("OPENAI_API_KEY=***")
                 .contains("--token=***")
                 .contains("Authorization: Bearer ***")
-                .contains("https://user:***@example.com/sse?token=***")
+                .contains("https://example.com/sse?token=***")
                 .doesNotContain("sk-test-dashboard-secret")
                 .doesNotContain("secret-arg-value")
                 .doesNotContain("secret-endpoint-pass")
+                .doesNotContain("secret-userinfo-token")
                 .doesNotContain("secret-endpoint-token")
                 .doesNotContain("ghp_mcpsecret12345");
 
@@ -458,6 +469,23 @@ public class DashboardControllerHttpTest {
         assertThat(oauthStatus.body).doesNotContain("secret-access");
         assertThat(oauthStatus.body).doesNotContain("secret-refresh");
 
+        HttpResult oauthErrorServer =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"oauth-error-docs\",\"name\":\"OAuth Error Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"pending\",\"error\":\"access_token=ghp_oautherror12345&redirect_uri=http://localhost/cb?token=secret-oauth-error\",\"message\":\"client_secret=oauth-message-secret\"},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        token);
+        assertThat(oauthErrorServer.status).isEqualTo(200);
+        HttpResult oauthErrorStatus =
+                request("GET", "/api/jimuqu/mcp/oauth-error-docs/oauth/status", null, token);
+        assertThat(oauthErrorStatus.status).isEqualTo(200);
+        assertThat(oauthErrorStatus.body).contains("access_token=***");
+        assertThat(oauthErrorStatus.body).contains("client_secret=***");
+        assertThat(oauthErrorStatus.body)
+                .doesNotContain("ghp_oautherror12345")
+                .doesNotContain("secret-oauth-error")
+                .doesNotContain("oauth-message-secret");
+
         HttpResult mcpListWithOAuth = request("GET", "/api/jimuqu/mcp", null, token);
         assertThat(mcpListWithOAuth.body).contains("\"has_access_token\":true");
         assertThat(mcpListWithOAuth.body).doesNotContain("secret-access");
@@ -477,6 +505,20 @@ public class DashboardControllerHttpTest {
         assertThat(beginOAuth.body).contains("scope=repo%20read%3Auser");
         assertThat(beginOAuth.body).contains("\"has_code_verifier\":true");
         assertThat(beginOAuth.body).doesNotContain("\"code_verifier\":\"");
+
+        HttpResult oauthCallbackError =
+                request(
+                        "GET",
+                        "/api/jimuqu/mcp/oauth-docs/oauth/callback?error="
+                                + URLEncoder.encode(
+                                        "access_token=ghp_callbackerror12345&redirect_uri=http://localhost/cb?token=secret-callback-error",
+                                        "UTF-8"),
+                        null,
+                        null);
+        assertThat(oauthCallbackError.status).isGreaterThanOrEqualTo(400);
+        assertThat(oauthCallbackError.body)
+                .doesNotContain("ghp_callbackerror12345")
+                .doesNotContain("secret-callback-error");
 
         HttpResult blockedAuthorizationEndpoint =
                 request(

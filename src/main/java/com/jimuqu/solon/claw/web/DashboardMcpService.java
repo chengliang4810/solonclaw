@@ -218,7 +218,7 @@ public class DashboardMcpService {
         result.put("removed_tools", state.getRemovedTools());
         result.put("security", securityMap(state.getSecurityVerdict()));
         if (StrUtil.isNotBlank(state.getError())) {
-            result.put("error", state.getError());
+            result.put("error", safeDisplayError(state.getError()));
         }
         return result;
     }
@@ -369,7 +369,8 @@ public class DashboardMcpService {
         String code = firstText(body, "code");
         String error = firstText(body, "error");
         if (StrUtil.isNotBlank(error)) {
-            throw new IllegalStateException("MCP OAuth authorization failed: " + error);
+            throw new IllegalStateException(
+                    "MCP OAuth authorization failed: " + safeDisplayError(error));
         }
         if (StrUtil.isBlank(code)) {
             throw new IllegalStateException("code is required for MCP OAuth callback");
@@ -477,7 +478,7 @@ public class DashboardMcpService {
                 refreshed.put("needs_reauth", Boolean.FALSE);
                 return refreshed;
             } catch (Exception e) {
-                return needsReauth(serverId, "refresh_failed", e.getMessage());
+                return needsReauth(serverId, "refresh_failed", safeError(e));
             }
         }
         return needsReauth(serverId, "missing_refresh_token", "MCP server requires re-authentication.");
@@ -818,6 +819,8 @@ public class DashboardMcpService {
                 if (entry.getValue() != null && StrUtil.isNotBlank(String.valueOf(entry.getValue()))) {
                     result.put("has_" + key, Boolean.TRUE);
                 }
+            } else if (isOAuthDisplayErrorKey(key)) {
+                result.put(key, safeDisplayError(string(entry.getValue())));
             } else {
                 result.put(key, entry.getValue());
             }
@@ -832,6 +835,17 @@ public class DashboardMcpService {
                 || "token".equals(key)
                 || "client_secret".equals(key)
                 || "code_verifier".equals(key);
+    }
+
+    private boolean isOAuthDisplayErrorKey(String key) {
+        return "error".equals(key)
+                || "error_description".equals(key)
+                || "errorDescription".equals(key)
+                || "message".equals(key)
+                || "last_error".equals(key)
+                || "lastError".equals(key)
+                || "authorization_error".equals(key)
+                || "authorizationError".equals(key);
     }
 
     private void clearOAuthSecrets(Map<String, Object> oauth) {
@@ -1041,7 +1055,7 @@ public class DashboardMcpService {
             return "";
         }
         Map<String, Object> error = sanitizeOAuth(parseMap(responseBody));
-        String text = ONode.serialize(error);
+        String text = safeDisplayError(ONode.serialize(error), 500);
         return text.length() > 500 ? text.substring(0, 500) : text;
     }
 
@@ -1050,7 +1064,19 @@ public class DashboardMcpService {
         if (StrUtil.isBlank(message) && e != null) {
             message = e.getClass().getSimpleName();
         }
-        return message.length() > 500 ? message.substring(0, 500) : message;
+        return safeDisplayError(message, 500);
+    }
+
+    private String safeDisplayError(String message) {
+        return safeDisplayError(message, 1000);
+    }
+
+    private String safeDisplayError(String message, int maxLength) {
+        String safe = SecretRedactor.redact(StrUtil.nullToEmpty(message), maxLength);
+        if (safe.length() > maxLength) {
+            return safe.substring(0, maxLength);
+        }
+        return safe;
     }
 
     private Map<String, Object> runtimeRefreshMap(
@@ -1066,7 +1092,7 @@ public class DashboardMcpService {
         result.put("removed_tools", state.getRemovedTools());
         result.put("schema_sanitizer", "snack4");
         if (StrUtil.isNotBlank(state.getError())) {
-            result.put("error", state.getError());
+            result.put("error", safeDisplayError(state.getError()));
         }
         return result;
     }
@@ -1080,7 +1106,9 @@ public class DashboardMcpService {
         result.put("reason", reason);
         result.put(
                 "error",
-                StrUtil.blankToDefault(message, "MCP server requires re-authentication."));
+                safeDisplayError(
+                        StrUtil.blankToDefault(
+                                message, "MCP server requires re-authentication.")));
         return result;
     }
 
