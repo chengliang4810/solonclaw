@@ -769,6 +769,9 @@ public class SecurityPolicyService {
         collectPaths(args, paths);
         if (ToolNameConstants.PATCH.equals(toolName)) {
             extractPatchPaths(args.get("patch"), paths);
+            extractPatchPaths(args.get("diff"), paths);
+            extractPatchPaths(args.get("content"), paths);
+            extractPatchPaths(args.get("input"), paths);
         }
         return paths;
     }
@@ -856,6 +859,22 @@ public class SecurityPolicyService {
                         .matcher(text);
         while (moveToMatcher.find()) {
             addPathValue(paths, moveToMatcher.group(1));
+        }
+        Matcher gitDiffMatcher =
+                Pattern.compile("^diff\\s+--git\\s+a/(\\S+)\\s+b/(\\S+).*$", Pattern.MULTILINE)
+                        .matcher(text);
+        while (gitDiffMatcher.find()) {
+            addPathValue(paths, gitDiffMatcher.group(1));
+            addPathValue(paths, gitDiffMatcher.group(2));
+        }
+        Matcher unifiedHeaderMatcher =
+                Pattern.compile("^(?:---|\\+\\+\\+)\\s+(?:a/|b/)?([^\\s]+).*$", Pattern.MULTILINE)
+                        .matcher(text);
+        while (unifiedHeaderMatcher.find()) {
+            String value = unifiedHeaderMatcher.group(1);
+            if (!"/dev/null".equals(value)) {
+                addPathValue(paths, value);
+            }
         }
     }
 

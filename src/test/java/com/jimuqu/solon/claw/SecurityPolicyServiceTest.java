@@ -297,6 +297,47 @@ public class SecurityPolicyServiceTest {
         assertThat(policy.checkPath(".env.example", true).isAllowed()).isTrue();
     }
 
+    @Test
+    void shouldDenyPatchDiffsTargetingSensitiveCredentialPaths() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+        Map<String, Object> addFileArgs = new LinkedHashMap<String, Object>();
+        addFileArgs.put(
+                "patch",
+                "*** Begin Patch\n"
+                        + "*** Add File: .env\n"
+                        + "+TOKEN=secret\n"
+                        + "*** End Patch\n");
+        Map<String, Object> unifiedArgs = new LinkedHashMap<String, Object>();
+        unifiedArgs.put(
+                "diff",
+                "diff --git a/src/Main.java b/.ssh/authorized_keys\n"
+                        + "--- a/src/Main.java\n"
+                        + "+++ b/.ssh/authorized_keys\n"
+                        + "@@ -0,0 +1 @@\n"
+                        + "+ssh-rsa AAA\n");
+        Map<String, Object> safeArgs = new LinkedHashMap<String, Object>();
+        safeArgs.put(
+                "content",
+                "diff --git a/src/Main.java b/src/Main.java\n"
+                        + "--- a/src/Main.java\n"
+                        + "+++ b/src/Main.java\n"
+                        + "@@ -1 +1 @@\n"
+                        + "-old\n"
+                        + "+new\n");
+
+        SecurityPolicyService.FileVerdict addFileVerdict =
+                policy.checkFileToolArgs("patch", addFileArgs);
+        SecurityPolicyService.FileVerdict unifiedVerdict =
+                policy.checkFileToolArgs("patch", unifiedArgs);
+
+        assertThat(addFileVerdict.isAllowed()).isFalse();
+        assertThat(addFileVerdict.getPath()).isEqualTo(".env");
+        assertThat(addFileVerdict.getMessage()).contains("凭据");
+        assertThat(unifiedVerdict.isAllowed()).isFalse();
+        assertThat(unifiedVerdict.getPath()).isEqualTo(".ssh/authorized_keys");
+        assertThat(policy.checkFileToolArgs("patch", safeArgs).isAllowed()).isTrue();
+    }
+
     private static void assertWriteDenied(SecurityPolicyService policy, String path) {
         SecurityPolicyService.FileVerdict verdict = policy.checkPath(path, true);
         assertThat(verdict.isAllowed()).as(path).isFalse();
