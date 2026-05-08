@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -59,7 +60,7 @@ public class HeartbeatScheduler {
         try {
             tick();
         } catch (Exception e) {
-            log.warn("Heartbeat tick failed", e);
+            log.warn("Heartbeat tick failed: error={}", safeError(e));
         }
     }
 
@@ -150,5 +151,14 @@ public class HeartbeatScheduler {
             return true;
         }
         return false;
+    }
+
+    private String safeError(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        return SecretRedactor.redact(value, 1000);
     }
 }
