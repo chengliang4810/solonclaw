@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -25,7 +26,13 @@ public class CliConfiguration {
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
             DashboardMcpService dashboardMcpService,
-            AppConfig appConfig) {
-        return new CliRunner(cliRuntime, sessionRepository, dashboardMcpService, appConfig);
+            AppConfig appConfig,
+            AttachmentCacheService attachmentCacheService) {
+        return new CliRunner(
+                cliRuntime,
+                sessionRepository,
+                dashboardMcpService,
+                appConfig,
+                new CliAttachmentResolver(appConfig, attachmentCacheService));
     }
 }

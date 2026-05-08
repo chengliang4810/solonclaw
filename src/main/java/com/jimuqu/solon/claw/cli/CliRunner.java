@@ -10,20 +10,21 @@ public class CliRunner {
     private final SessionRepository sessionRepository;
     private final DashboardMcpService dashboardMcpService;
     private final AppConfig appConfig;
+    private final CliAttachmentResolver attachmentResolver;
 
     public CliRunner(CliRuntime cliRuntime) {
-        this(cliRuntime, null, null, null);
+        this(cliRuntime, null, null, null, null);
     }
 
     public CliRunner(CliRuntime cliRuntime, SessionRepository sessionRepository) {
-        this(cliRuntime, sessionRepository, null, null);
+        this(cliRuntime, sessionRepository, null, null, null);
     }
 
     public CliRunner(
             CliRuntime cliRuntime,
             SessionRepository sessionRepository,
             DashboardMcpService dashboardMcpService) {
-        this(cliRuntime, sessionRepository, dashboardMcpService, null);
+        this(cliRuntime, sessionRepository, dashboardMcpService, null, null);
     }
 
     public CliRunner(
@@ -31,10 +32,20 @@ public class CliRunner {
             SessionRepository sessionRepository,
             DashboardMcpService dashboardMcpService,
             AppConfig appConfig) {
+        this(cliRuntime, sessionRepository, dashboardMcpService, appConfig, null);
+    }
+
+    public CliRunner(
+            CliRuntime cliRuntime,
+            SessionRepository sessionRepository,
+            DashboardMcpService dashboardMcpService,
+            AppConfig appConfig,
+            CliAttachmentResolver attachmentResolver) {
         this.cliRuntime = cliRuntime;
         this.sessionRepository = sessionRepository;
         this.dashboardMcpService = dashboardMcpService;
         this.appConfig = appConfig;
+        this.attachmentResolver = attachmentResolver;
     }
 
     public int run(CliMode mode) throws Exception {
@@ -47,8 +58,8 @@ public class CliRunner {
                     .run();
         }
         if (mode.getKind() == CliMode.Kind.TUI) {
-            return new TuiShell(cliRuntime, mode).run();
+            return new TuiShell(cliRuntime, mode, attachmentResolver).run();
         }
-        return new CliShell(cliRuntime, mode).run();
+        return new CliShell(cliRuntime, mode, attachmentResolver).run();
     }
 }

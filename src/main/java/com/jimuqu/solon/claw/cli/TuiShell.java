@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import org.jline.reader.EndOfFileException;
@@ -28,10 +29,16 @@ public class TuiShell {
 
     private final CliRuntime cliRuntime;
     private final CliMode mode;
+    private final CliAttachmentResolver attachmentResolver;
 
     public TuiShell(CliRuntime cliRuntime, CliMode mode) {
+        this(cliRuntime, mode, null);
+    }
+
+    public TuiShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
+        this.attachmentResolver = attachmentResolver;
     }
 
     public int run() throws Exception {
@@ -85,13 +92,27 @@ public class TuiShell {
 
     private int send(PrintWriter writer, String sessionId, String input) throws Exception {
         ConsoleEventSink sink = new ConsoleEventSink(writer, true);
-        GatewayReply reply = cliRuntime.send(sessionId, input, sink);
+        CliAttachmentResolver.ResolvedInput resolved = resolveAttachments(input);
+        if (!resolved.getAttachments().isEmpty()) {
+            writer.println(DIM + "已附加本地文件：" + resolved.getAttachments().size() + RESET);
+            writer.flush();
+        }
+        GatewayReply reply =
+                cliRuntime.send(sessionId, resolved.getText(), resolved.getAttachments(), sink);
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
             writer.println(BOLD + CYAN + "系统" + RESET);
             writer.println(reply.getContent());
             writer.flush();
         }
         return reply != null && reply.isError() ? 1 : 0;
+    }
+
+    private CliAttachmentResolver.ResolvedInput resolveAttachments(String input) {
+        if (attachmentResolver == null) {
+            return new CliAttachmentResolver.ResolvedInput(
+                    input, java.util.Collections.<MessageAttachment>emptyList());
+        }
+        return attachmentResolver.resolve(input);
     }
 
     private void renderHeader(PrintWriter writer, String sessionId) {
