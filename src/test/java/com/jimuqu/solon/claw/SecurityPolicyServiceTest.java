@@ -425,6 +425,20 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyCommandCredentialFilesWithRelativeAndVariablePrefixes() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        assertCommandPathDenied(policy, "printf token > ./.env", "./.env");
+        assertCommandPathDenied(policy, "cat $PWD/.env", "$PWD/.env");
+        assertCommandPathDenied(policy, "cat ${PWD}/.env.local", "${PWD}/.env.local");
+        assertCommandPathDenied(policy, "Get-Content $env:USERPROFILE\\.npmrc", "$env:USERPROFILE\\.npmrc");
+        assertCommandPathDenied(policy, "type %USERPROFILE%\\.netrc", "%USERPROFILE%\\.netrc");
+        assertCommandPathDenied(policy, "cat ~/.aws/credentials", "~/.aws/credentials");
+
+        assertThat(policy.checkCommandPaths("cat .env.example").isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldDenyPatchDiffsTargetingSensitiveCredentialPaths() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         Map<String, Object> addFileArgs = new LinkedHashMap<String, Object>();
@@ -469,6 +483,14 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.FileVerdict verdict = policy.checkPath(path, true);
         assertThat(verdict.isAllowed()).as(path).isFalse();
         assertThat(verdict.getMessage()).as(path).contains("敏感");
+    }
+
+    private static void assertCommandPathDenied(
+            SecurityPolicyService policy, String command, String path) {
+        SecurityPolicyService.FileVerdict verdict = policy.checkCommandPaths(command);
+        assertThat(verdict.isAllowed()).as(command).isFalse();
+        assertThat(verdict.getPath()).as(command).isEqualTo(path);
+        assertThat(verdict.getMessage()).as(command).contains("凭据");
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
