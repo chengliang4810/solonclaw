@@ -267,9 +267,32 @@ public class DashboardControllerHttpTest {
         assertThat(createCron.body).contains("\"model\":\"gpt-5-mini\"");
         assertThat(createCron.body).contains("\"provider\":\"openai-direct\"");
         assertThat(createCron.body).contains("\"base_url\":\"https://api.cron.example/v1\"");
+        String dashboardCronId = ONode.ofJson(createCron.body).get("data").get("id").getString();
+        File dashboardScriptsDir = new File(runtimeHome, "scripts");
+        FileUtil.mkdir(dashboardScriptsDir);
+        FileUtil.writeUtf8String(
+                "print('dashboard trigger ok: daily summary')\n",
+                new File(dashboardScriptsDir, "dashboard-trigger.py"));
+        HttpResult updateCron =
+                request(
+                        "PUT",
+                        "/api/cron/jobs/" + dashboardCronId,
+                        "{\"no_agent\":true,\"script\":\"dashboard-trigger.py\"}",
+                        token);
+        assertThat(updateCron.status).isEqualTo(200);
         HttpResult cronJobs = request("GET", "/api/cron/jobs", null, token);
         assertThat(cronJobs.body).contains("Daily summary");
         assertThat(cronJobs.body).contains("\"model\":\"gpt-5-mini\"");
+
+        HttpResult triggerCron =
+                request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
+        assertThat(triggerCron.status).isEqualTo(200);
+        ONode triggeredCron = ONode.ofJson(triggerCron.body).get("data");
+        assertThat(triggeredCron.get("id").getString()).isEqualTo(dashboardCronId);
+        assertThat(triggeredCron.get("last_status").getString()).isEqualTo("ok");
+        assertThat(triggeredCron.get("last_run_at").getString()).isNotBlank();
+        assertThat(triggeredCron.get("last_output").getString())
+                .contains("dashboard trigger ok: daily summary");
 
         HttpResult createMcp =
                 request(

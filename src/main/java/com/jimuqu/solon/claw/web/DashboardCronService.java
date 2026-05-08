@@ -74,7 +74,7 @@ public class DashboardCronService {
 
     public Map<String, Object> trigger(String id) throws Exception {
         cronScheduler.runNow(id);
-        return Collections.<String, Object>singletonMap("ok", true);
+        return get(id);
     }
 
     public Map<String, Object> apiRun(String id) throws Exception {
