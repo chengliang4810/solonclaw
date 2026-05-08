@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NButton, NDrawer, NDrawerContent, NInput, NModal, NSpin, NTooltip, useMessage } from 'naive-ui'
-import type { Job, JobRun } from '@/api/jimuqu/jobs'
+import type { Job, JobRun, JobRunDeliveryResultTarget } from '@/api/jimuqu/jobs'
 import { useJobsStore } from '@/stores/jimuqu/jobs'
 import { useI18n } from 'vue-i18n'
 
@@ -111,6 +111,12 @@ function listDetail(values?: string[] | null) {
 
 function boolDetail(value: boolean) {
   return value ? t('jobs.detail.yes') : t('jobs.detail.no')
+}
+
+function deliveryTargetLabel(target: JobRunDeliveryResultTarget) {
+  const parts = [target.platform || '—', target.chat_id || '—']
+  if (target.thread_id) parts.push(`#${target.thread_id}`)
+  return parts.join(' · ')
 }
 
 async function handlePause() {
@@ -338,6 +344,31 @@ async function handleDelete() {
               <pre v-if="run.summary || run.output" class="run-output">{{ run.summary || run.output }}</pre>
               <div v-if="run.error || run.delivery_error" class="error-line">
                 {{ run.error || run.delivery_error }}
+              </div>
+              <div v-if="run.delivery_result" class="delivery-result">
+                <div class="delivery-summary">
+                  {{ t('jobs.historyDelivery') }}
+                  <template v-if="run.delivery_result.skipped">
+                    · {{ t('jobs.historyDeliverySkipped') }} {{ run.delivery_result.skipped }}
+                  </template>
+                  <template v-else>
+                    · {{ t('jobs.historyDeliveryOk') }} {{ run.delivery_result.delivered || 0 }}
+                    · {{ t('jobs.historyDeliveryFailed') }} {{ run.delivery_result.failed || 0 }}
+                  </template>
+                </div>
+                <div v-if="run.delivery_result.targets?.length" class="delivery-targets">
+                  <div
+                    v-for="(target, index) in run.delivery_result.targets"
+                    :key="`${run.run_id}:${index}`"
+                    class="delivery-target"
+                    :class="{ err: target.status === 'error' }"
+                  >
+                    <span>{{ deliveryTargetLabel(target) }}</span>
+                    <span>{{ target.status || '—' }}</span>
+                    <span v-if="target.attachments">{{ t('jobs.historyDeliveryAttachments') }} {{ target.attachments }}</span>
+                    <span v-if="target.error" class="delivery-target-error">{{ target.error }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -599,6 +630,43 @@ async function handleDelete() {
   overflow-wrap: anywhere;
   max-height: 240px;
   overflow: auto;
+}
+
+.delivery-result {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  background: rgba(var(--accent-primary-rgb), 0.04);
+  font-size: 12px;
+}
+
+.delivery-summary {
+  color: $text-secondary;
+  margin-bottom: 6px;
+}
+
+.delivery-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.delivery-target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  color: $text-muted;
+
+  &.err {
+    color: $error;
+  }
+}
+
+.delivery-target-error {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
 }
 
 .detail-error {

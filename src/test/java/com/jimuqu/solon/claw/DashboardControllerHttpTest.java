@@ -401,6 +401,8 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("trigger").getString()).isEqualTo("manual");
         assertThat(latestCronRun.get("output").getString())
                 .contains("dashboard trigger ok: daily summary");
+        assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
+        assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
         HttpResult pauseCron =
                 request(

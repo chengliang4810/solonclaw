@@ -261,7 +261,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into cron_runs (run_id, job_id, source_key, trigger_type, attempt, started_at, finished_at, status, summary, output, error, delivery_error) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into cron_runs (run_id, job_id, source_key, trigger_type, attempt, started_at, finished_at, status, summary, output, error, delivery_error, delivery_result_json) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, run.getRunId());
             statement.setString(2, run.getJobId());
             statement.setString(3, run.getSourceKey());
@@ -274,6 +274,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
             statement.setString(10, run.getOutput());
             statement.setString(11, run.getError());
             statement.setString(12, run.getDeliveryError());
+            statement.setString(13, run.getDeliveryResultJson());
             statement.executeUpdate();
             statement.close();
             return run;
@@ -359,6 +360,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
         record.setOutput(resultSet.getString("output"));
         record.setError(resultSet.getString("error"));
         record.setDeliveryError(resultSet.getString("delivery_error"));
+        record.setDeliveryResultJson(resultSet.getString("delivery_result_json"));
         return record;
     }
 }

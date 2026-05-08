@@ -255,6 +255,11 @@ export default {
     historyFinished: '已结束',
     historyUnfinished: '未结束',
     historyDuration: '耗时',
+    historyDelivery: '投递结果',
+    historyDeliveryOk: '成功',
+    historyDeliveryFailed: '失败',
+    historyDeliverySkipped: '跳过',
+    historyDeliveryAttachments: '附件',
     upcomingTitle: '即将运行',
     upcomingCount: '{count} 个任务',
     status: {

@@ -252,6 +252,11 @@ export default {
     historyFinished: 'Finished',
     historyUnfinished: 'Unfinished',
     historyDuration: 'Duration',
+    historyDelivery: 'Delivery result',
+    historyDeliveryOk: 'Delivered',
+    historyDeliveryFailed: 'Failed',
+    historyDeliverySkipped: 'Skipped',
+    historyDeliveryAttachments: 'Attachments',
     upcomingTitle: 'Upcoming Runs',
     upcomingCount: '{count} jobs',
     status: {

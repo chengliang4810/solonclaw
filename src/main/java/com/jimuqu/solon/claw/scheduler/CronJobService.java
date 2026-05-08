@@ -352,6 +352,7 @@ public class CronJobService {
         result.put("output", record.getOutput());
         result.put("error", record.getError());
         result.put("delivery_error", record.getDeliveryError());
+        result.put("delivery_result", parse(record.getDeliveryResultJson()));
         result.put("summary", record.getSummary());
         return result;
     }
