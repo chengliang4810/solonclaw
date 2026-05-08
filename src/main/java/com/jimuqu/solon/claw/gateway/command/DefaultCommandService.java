@@ -1981,6 +1981,8 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
                 .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
+                .append("/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
+                .append("/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
                 .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
                 .append("/cron pause <job-id> [--reason 原因] - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")

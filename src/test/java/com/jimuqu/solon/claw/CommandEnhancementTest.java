@@ -614,6 +614,8 @@ public class CommandEnhancementTest {
                 .contains("/cron list --all")
                 .contains("/cron status [--all]")
                 .contains("/cron history <job-id>")
+                .contains("--deliver-chat-id")
+                .contains("--clear-model")
                 .contains("当前没有定时任务。");
     }
 
