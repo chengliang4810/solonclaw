@@ -33,9 +33,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
-        return DashboardResponse.ok(
-                cronService.create(
-                        body(context)));
+        try {
+            return DashboardResponse.ok(cronService.create(body(context)));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/jobs", method = MethodType.POST)
@@ -67,10 +73,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.PUT)
     public Map<String, Object> update(String id, Context context) throws Exception {
-        return DashboardResponse.ok(
-                cronService.update(
-                        id,
-                        body(context)));
+        try {
+            return DashboardResponse.ok(cronService.update(id, body(context)));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/jobs/{id}", method = MethodType.PATCH)
@@ -93,7 +104,15 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs/{id}/pause", method = MethodType.POST)
     public Map<String, Object> pause(String id, Context context) throws Exception {
-        return DashboardResponse.ok(cronService.pause(id, body(context)));
+        try {
+            return DashboardResponse.ok(cronService.pause(id, body(context)));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/jobs/{id}/pause", method = MethodType.POST)
@@ -111,8 +130,16 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/resume", method = MethodType.POST)
-    public Map<String, Object> resume(String id) throws Exception {
-        return DashboardResponse.ok(cronService.resume(id));
+    public Map<String, Object> resume(String id, Context context) throws Exception {
+        try {
+            return DashboardResponse.ok(cronService.resume(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/jobs/{id}/resume", method = MethodType.POST)
@@ -130,8 +157,16 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/trigger", method = MethodType.POST)
-    public Map<String, Object> trigger(String id) throws Exception {
-        return DashboardResponse.ok(cronService.trigger(id));
+    public Map<String, Object> trigger(String id, Context context) throws Exception {
+        try {
+            return DashboardResponse.ok(cronService.trigger(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/jobs/{id}/run", method = MethodType.POST)
@@ -149,19 +184,35 @@ public class DashboardCronController {
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/runs", method = MethodType.GET)
-    public Map<String, Object> history(String id, @Param(defaultValue = "20") Integer limit)
+    public Map<String, Object> history(String id, @Param(defaultValue = "20") Integer limit, Context context)
             throws Exception {
-        List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
-        Map<String, Object> data = new LinkedHashMap<String, Object>();
-        data.put("job_id", id);
-        data.put("runs", runs);
-        data.put("count", Integer.valueOf(runs.size()));
-        return DashboardResponse.ok(data);
+        try {
+            List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("job_id", id);
+            data.put("runs", runs);
+            data.put("count", Integer.valueOf(runs.size()));
+            return DashboardResponse.ok(data);
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.DELETE)
-    public Map<String, Object> delete(String id) throws Exception {
-        return DashboardResponse.ok(cronService.delete(id));
+    public Map<String, Object> delete(String id, Context context) throws Exception {
+        try {
+            return DashboardResponse.ok(cronService.delete(id));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return dashboardError("CRON_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            context.status(isNotFound(e) ? 404 : 400);
+            return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
+        }
     }
 
     @Mapping(value = "/api/jobs/{id}", method = MethodType.DELETE)
@@ -207,6 +258,18 @@ public class DashboardCronController {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("error", message == null ? "" : SecretRedactor.redact(message, 1000));
         return result;
+    }
+
+    private Map<String, Object> dashboardError(String code, Exception e) {
+        String message;
+        if (e == null) {
+            message = "";
+        } else if (e.getMessage() == null || e.getMessage().trim().length() == 0) {
+            message = e.getClass().getSimpleName();
+        } else {
+            message = e.getMessage();
+        }
+        return DashboardResponse.error(code, message);
     }
 
     private void validateApiJobId(String id) {

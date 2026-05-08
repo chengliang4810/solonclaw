@@ -1201,6 +1201,29 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRedactDashboardCronErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        String leakedToken = "sk-dashboardcron12345";
+        File tokenDir = new File(new File(runtimeHome, "projects"), leakedToken);
+        FileUtil.mkdir(tokenDir);
+
+        HttpResult rejectedCreate =
+                request(
+                        "POST",
+                        "/api/cron/jobs",
+                        "{\"name\":\"redact-cron\",\"schedule\":\"every 1h\",\"prompt\":\"x\",\"workdir\":\""
+                                + jsonEscape(tokenDir.getAbsolutePath() + "; rm -rf runtime")
+                                + "\"}",
+                        token);
+
+        assertThat(rejectedCreate.status).isEqualTo(400);
+        assertThat(rejectedCreate.body).contains("\"success\":false");
+        assertThat(rejectedCreate.body).contains("***");
+        assertThat(rejectedCreate.body).doesNotContain(leakedToken);
+        assertThat(rejectedCreate.body).doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
     void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
