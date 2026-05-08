@@ -1288,8 +1288,10 @@ public class DashboardControllerHttpTest {
                 .contains("\"tool_name\":\"execute_shell\"");
         ONode alwaysData = ONode.ofJson(always.body).get("data").get("items").get(0);
         String approval = alwaysData.get("approval").getString();
+        String approvalId = alwaysData.get("approval_id").getString();
         String patternKey = alwaysData.get("pattern_key").getString();
-        assertThat(approval).startsWith("execute_shell:");
+        assertThat(approval).startsWith("execute_shell:").endsWith(":***");
+        assertThat(approvalId).isNotBlank();
         assertThat(patternKey).isNotBlank();
         assertThat(bean(DangerousCommandApprovalService.class)
                         .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
@@ -1299,10 +1301,14 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/diagnostics/approvals/always/revoke",
-                        "{\"approval\":\"" + jsonEscape(approval) + "\"}",
+                        "{\"approvalId\":\"" + jsonEscape(approvalId) + "\"}",
                         token);
         assertThat(revoke.status).isEqualTo(200);
-        assertThat(revoke.body).contains("\"success\":true").contains("长期授权已撤销");
+        assertThat(revoke.body)
+                .contains("\"success\":true")
+                .contains("\"approval_id\":\"" + jsonEscape(approvalId) + "\"")
+                .contains("长期授权已撤销")
+                .doesNotContain("\"approval\":\"execute_shell:rm_recursive_root:");
         assertThat(bean(DangerousCommandApprovalService.class)
                         .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
                 .isFalse();
@@ -1315,13 +1321,13 @@ public class DashboardControllerHttpTest {
                 .contains("\"approver\":\"dashboard\"")
                 .contains("\"approval_key\":\"execute_shell:")
                 .contains(":***\"")
-                .doesNotContain("\"approval_key\":\"" + jsonEscape(approval) + "\"")
+                .doesNotContain("execute_shell:rm_recursive_root:97c852eaef0753db")
                 .contains("撤销长期审批授权");
 
         HttpResult after =
                 request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
         assertThat(after.status).isEqualTo(200);
-        assertThat(after.body).doesNotContain(approval);
+        assertThat(after.body).doesNotContain(approvalId);
     }
 
     @Test

@@ -243,10 +243,10 @@ function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
 }
 
 async function handleRevokeAlways(item: AlwaysApproval) {
-  const approval = item.approval || ''
-  revokingAlwaysKey.value = approval
+  const approvalId = item.approval_id || item.approval || ''
+  revokingAlwaysKey.value = approvalId
   try {
-    const result = await revokeAlwaysApproval(approval)
+    const result = await revokeAlwaysApproval(approvalId)
     if (result.success) {
       message.success(result.message || '长期授权已撤销')
       const [diagnosticsData] = await Promise.all([fetchDiagnostics(), loadPolicyAudit(), loadAlwaysApprovals()])
@@ -701,7 +701,7 @@ onMounted(load)
           </div>
           <NSpin :show="alwaysLoading">
             <div v-if="alwaysApprovals.length" class="approval-list">
-              <article v-for="item in alwaysApprovals" :key="item.approval" class="approval-item">
+              <article v-for="item in alwaysApprovals" :key="item.approval_id || item.approval" class="approval-item">
                 <div class="approval-head">
                   <div>
                     <strong>{{ item.pattern_key || item.approval }}</strong>
@@ -715,7 +715,7 @@ onMounted(load)
                     size="small"
                     type="error"
                     ghost
-                    :loading="revokingAlwaysKey === item.approval"
+                    :loading="revokingAlwaysKey === (item.approval_id || item.approval)"
                     @click="handleRevokeAlways(item)"
                   >
                     撤销

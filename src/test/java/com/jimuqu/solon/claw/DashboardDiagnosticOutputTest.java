@@ -276,6 +276,54 @@ public class DashboardDiagnosticOutputTest {
         assertThat(event.getApprover()).contains("token=***");
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRedactAlwaysApprovalListIdentifiers() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-always-list");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(
+                        approvalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
+                                "dashboard"))
+                .isTrue();
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.alwaysApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        Map<String, Object> item = items.get(0);
+
+        assertThat(String.valueOf(item.get("approval"))).endsWith(":***");
+        assertThat(String.valueOf(item.get("approval"))).doesNotContain("recursive_delete:");
+        assertThat(String.valueOf(item.get("approval_id"))).isNotBlank();
+        assertThat(String.valueOf(item.get("pattern_key"))).isNotBlank();
+    }
+
     private static Map<String, Object> findApprovalItem(
             List<Map<String, Object>> items, String sessionId) {
         for (Map<String, Object> item : items) {

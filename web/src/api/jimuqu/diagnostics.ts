@@ -100,6 +100,7 @@ export interface ApprovalHistoryResult {
 }
 
 export interface AlwaysApproval {
+  approval_id?: string
   approval: string
   tool_name?: string
   pattern_key?: string
@@ -176,10 +177,10 @@ export async function fetchAlwaysApprovals(limit = 100): Promise<AlwaysApprovals
   return request<AlwaysApprovalsResult>(`/api/diagnostics/approvals/always?limit=${limit}`)
 }
 
-export async function revokeAlwaysApproval(approval: string): Promise<ResolveApprovalResult> {
+export async function revokeAlwaysApproval(approvalId: string): Promise<ResolveApprovalResult> {
   return request<ResolveApprovalResult>('/api/diagnostics/approvals/always/revoke', {
     method: 'POST',
-    body: JSON.stringify({ approval }),
+    body: JSON.stringify({ approvalId }),
   })
 }
 

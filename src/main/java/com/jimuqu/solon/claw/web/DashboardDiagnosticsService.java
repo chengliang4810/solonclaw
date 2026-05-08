@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
@@ -218,7 +219,10 @@ public class DashboardDiagnosticsService {
 
     public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
-        String approval = StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern"));
+        String approval =
+                resolveAlwaysApproval(
+                        StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")),
+                        StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern")));
         String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
         if (StrUtil.isBlank(approval)) {
             return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
@@ -229,7 +233,8 @@ public class DashboardDiagnosticsService {
         }
         appendAlwaysApprovalRevokedAudit(approval, approver);
         Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
-        result.put("approval", approval);
+        result.put("approval", redactedApprovalKey(approval));
+        result.put("approval_id", alwaysApprovalId(approval));
         return result;
     }
 
@@ -579,10 +584,27 @@ public class DashboardDiagnosticsService {
             toolName = value.substring(0, colon);
             patternKey = value.substring(colon + 1);
         }
-        item.put("approval", value);
+        item.put("approval", redactedApprovalKey(value));
+        item.put("approval_id", alwaysApprovalId(value));
         item.put("tool_name", toolName);
         item.put("pattern_key", patternKey);
         return item;
+    }
+
+    private String resolveAlwaysApproval(String approvalId, String fallbackApproval) {
+        if (StrUtil.isNotBlank(approvalId) && approvalService != null) {
+            for (String approval : approvalService.listAlwaysApprovals()) {
+                if (alwaysApprovalId(approval).equals(approvalId.trim())) {
+                    return approval;
+                }
+            }
+        }
+        return StrUtil.nullToEmpty(fallbackApproval);
+    }
+
+    private String alwaysApprovalId(String approval) {
+        String value = StrUtil.nullToEmpty(approval);
+        return value.isEmpty() ? "" : SecureUtil.sha256(value).substring(0, 24);
     }
 
     private void appendAlwaysApprovalRevokedAudit(String approval, String approver) {
