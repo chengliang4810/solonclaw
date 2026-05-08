@@ -47,9 +47,11 @@ jobs:
       - name: Resolve release tag
         id: release
         shell: bash
+        env:
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            RELEASE_TAG="${{ inputs.tag_name }}"
+            RELEASE_TAG="$INPUT_TAG_NAME"
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             RELEASE_TAG="${{ github.ref_name }}"
           else
@@ -108,23 +110,60 @@ jobs:
           cp "$JAR_PATH" "$RELEASE_JAR"
           (cd dist && sha256sum "$(basename "$RELEASE_JAR")" > SHA256SUMS)
 
+          PREVIOUS_TAG="$(git describe --tags --match 'v*' --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            COMMITS="$(git log --pretty=format:'%s' "${PREVIOUS_TAG}..${GITHUB_SHA}")"
+          else
+            COMMITS="$(git log --pretty=format:'%s' -n 30 "${GITHUB_SHA}")"
+          fi
+
+          FEATURES="$(printf '%s\n' "$COMMITS" | grep -Ei '^(feat|feature)(\(.+\))?:' || true)"
+          FIXES="$(printf '%s\n' "$COMMITS" | grep -Ei '^(fix|bugfix)(\(.+\))?:' || true)"
+          OTHERS="$(printf '%s\n' "$COMMITS" | grep -Eiv '^(feat|feature|fix|bugfix)(\(.+\))?:' || true)"
+
+          write_items() {
+            local items="$1"
+            local fallback="$2"
+            if [ -z "$items" ]; then
+              printf '%s\n' "- ${fallback}"
+              return
+            fi
+            printf '%s\n' "$items" | sed -E 's/^/- /'
+          }
+
           cat > dist/release-notes.md <<EOF
           ## solon-claw ${{ steps.release.outputs.tag }}
 
           本次发布包含可直接通过 \`java -jar\` 运行的完整 shaded jar。
+          This release includes a complete shaded jar that can run directly with \`java -jar\`.
 
-          ### 下载内容
+          ### 功能 / Features
+
+          $(write_items "$FEATURES" "本次发布没有单独标记为 feat 的提交。 / No commits were explicitly marked as feat in this release.")
+
+          ### 缺陷修复 / Fixes
+
+          $(write_items "$FIXES" "本次发布没有单独标记为 fix 的提交。 / No commits were explicitly marked as fix in this release.")
+
+          ### 其他变更 / Other Changes
+
+          $(write_items "$OTHERS" "无其他提交。 / No other commits.")
+
+          ### 下载内容 / Downloads
 
           - \`solon-claw-${VERSION}.jar\`：完整运行包，包含后端依赖与 Dashboard 静态资源。
+          - \`solon-claw-${VERSION}.jar\`: Full runtime package with backend dependencies and Dashboard static assets.
           - \`SHA256SUMS\`：发布包校验文件。
+          - \`SHA256SUMS\`: Checksums for release artifacts.
 
-          ### 快速运行
+          ### 快速运行 / Quick Start
 
           \`\`\`bash
           java -jar solon-claw-${VERSION}.jar
           \`\`\`
 
           服务默认监听 \`http://127.0.0.1:8080\`，运行数据会写入当前目录的 \`runtime/\`。
+          The service listens on \`http://127.0.0.1:8080\` by default and writes runtime data to \`runtime/\` in the current directory.
           EOF
 
           echo "jar_path=$RELEASE_JAR" >> "$GITHUB_OUTPUT"
@@ -147,7 +186,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: solon-claw ${{ steps.release.outputs.tag }}
           body_path: ${{ steps.artifact.outputs.body_path }}
-          generate_release_notes: true
+          generate_release_notes: false
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
           fail_on_unmatched_files: true
           files: |

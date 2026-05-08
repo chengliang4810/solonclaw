@@ -110,6 +110,7 @@ public class RuntimeSettingsService {
                     "security.website_blocklist.shared_files",
                     "approvals.mode",
                     "approvals.cronMode",
+                    "approvals.subagentAutoApprove",
                     "approvals.timeoutSeconds",
                     "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
@@ -441,6 +442,7 @@ public class RuntimeSettingsService {
                 || "security.tirithEnabled".equals(key)
                 || "security.tirithFailOpen".equals(key)
                 || "security.website_blocklist.enabled".equals(key)
+                || "approvals.subagentAutoApprove".equals(key)
                 || "approvals.mcpReloadConfirm".equals(key)) {
             return "true".equalsIgnoreCase(value)
                     || "1".equals(value)

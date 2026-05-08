@@ -1447,6 +1447,22 @@ public class AppConfig {
                                                                 config.getScheduler()
                                                                         .getCronApprovalMode())))));
         config.getApprovals()
+                .setSubagentAutoApprove(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.approvals.subagentAutoApprove",
+                                        readBoolean(
+                                                props,
+                                                overrides,
+                                                "solonclaw.approvals.subagent_auto_approve",
+                                                readBoolean(
+                                                        props,
+                                                        overrides,
+                                                        "delegation.subagent_auto_approve",
+                                                        false)))));
+        config.getApprovals()
                 .setTimeoutSeconds(
                         positiveInt(
                                 resolveInt(
@@ -1937,6 +1953,7 @@ public class AppConfig {
     private void copyApprovals(ApprovalsConfig other) {
         this.approvals.setMode(other.getMode());
         this.approvals.setCronMode(other.getCronMode());
+        this.approvals.setSubagentAutoApprove(other.isSubagentAutoApprove());
         this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
         this.approvals.setGatewayTimeoutSeconds(other.getGatewayTimeoutSeconds());
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
@@ -3372,6 +3389,9 @@ public class AppConfig {
 
         /** cron 遇到危险命令时的模式：deny / approve。 */
         private String cronMode = "deny";
+
+        /** 子 Agent 遇到危险命令时是否自动批准一次；对齐 Hermes delegation.subagent_auto_approve，默认拒绝。 */
+        private boolean subagentAutoApprove = false;
 
         /** CLI/直接审批超时秒数；对齐 Hermes approvals.timeout。 */
         private int timeoutSeconds = 60;

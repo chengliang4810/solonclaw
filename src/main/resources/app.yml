@@ -101,6 +101,7 @@ solonclaw.security.tirithFailOpen: true
 # 审批/确认策略
 solonclaw.approvals.mode: on
 solonclaw.approvals.cronMode: deny
+solonclaw.approvals.subagentAutoApprove: false
 solonclaw.approvals.mcpReloadConfirm: true
 
 # 预定义人格

@@ -114,6 +114,9 @@ solonclaw:
     # cron 无人值守遇到危险命令时的处理方式：deny 阻断，approve 允许可审批危险命令直接运行。
     # 旧配置 solonclaw.scheduler.cronApprovalMode 仍兼容，但建议迁移到本字段。
     cronMode: deny
+    # 子 Agent 遇到危险命令时默认自动拒绝，避免等待父 TUI/stdin 审批导致卡死。
+    # 设为 true 后，子 Agent 会像 Hermes delegation.subagent_auto_approve 一样自动批准一次；仅建议可信批处理使用。
+    subagentAutoApprove: false
     # 本地/直接审批超时秒数；超时后 /approve 不再放行旧命令。
     timeoutSeconds: 60
     # 网关/渠道审批超时秒数；用于消息渠道中的审批卡与 /approve。

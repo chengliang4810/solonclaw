@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -1375,6 +1376,18 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
+        if (isSubagentRun()) {
+            if (isSubagentAutoApproveEnabled()) {
+                markCurrentThreadApproval(approvalToolName, code);
+                persistTraceSnapshot(trace);
+                return null;
+            }
+            trace.setFinalAnswer(buildSubagentDeniedMessage(detection));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         Map<String, Object> pendingMap = createPendingMap(approvalToolName, detection, code);
         storePendingMap(trace.getSession(), pendingMap);
         persistTraceSnapshot(trace);
@@ -1709,6 +1722,12 @@ public class DangerousCommandApprovalService {
         return "on";
     }
 
+    public boolean isSubagentAutoApproveEnabled() {
+        return appConfig != null
+                && appConfig.getApprovals() != null
+                && appConfig.getApprovals().isSubagentAutoApprove();
+    }
+
     protected String hermesYoloModeEnv() {
         return System.getenv("HERMES_YOLO_MODE");
     }
@@ -1795,6 +1814,23 @@ public class DangerousCommandApprovalService {
                         || "yes".equals(mode)
                 ? "approve"
                 : "deny";
+    }
+
+    private boolean isSubagentRun() {
+        AgentRunContext current = AgentRunContext.current();
+        return current != null
+                && "subagent".equalsIgnoreCase(StrUtil.nullToEmpty(current.getRunKind()));
+    }
+
+    private String buildSubagentDeniedMessage(DetectionResult detection) {
+        String description =
+                detection == null
+                        ? "dangerous command"
+                        : StrUtil.blankToDefault(
+                                detection.getDescription(), detection.getPatternKey());
+        return "BLOCKED: 子 Agent 默认拒绝可审批危险命令："
+                + description
+                + "。如确实需要在可信批处理里允许，请设置 approvals.subagentAutoApprove=true。";
     }
 
     public int approvalTimeoutSeconds() {

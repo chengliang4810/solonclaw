@@ -496,6 +496,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         runRecord.getRunId(),
                         session.getSessionId(),
                         session.getSourceKey());
+        runContext.setRunKind(runRecord.getRunKind());
+        runContext.setParentRunId(runRecord.getParentRunId());
         runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
         RunHandle runHandle =

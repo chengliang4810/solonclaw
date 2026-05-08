@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -566,11 +567,13 @@ public class DangerousCommandApprovalServiceTest {
 
         env.appConfig.getApprovals().setMode("off");
         env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getApprovals().setSubagentAutoApprove(true);
         env.appConfig.getApprovals().setTimeoutSeconds(45);
         env.appConfig.getApprovals().setGatewayTimeoutSeconds(120);
 
         assertThat(env.dangerousCommandApprovalService.approvalMode()).isEqualTo("off");
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("approve");
+        assertThat(env.dangerousCommandApprovalService.isSubagentAutoApproveEnabled()).isTrue();
         assertThat(env.dangerousCommandApprovalService.approvalTimeoutSeconds()).isEqualTo(45);
         assertThat(env.dangerousCommandApprovalService.approvalGatewayTimeoutSeconds()).isEqualTo(120);
         assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "sudo reboot"))
@@ -600,6 +603,65 @@ public class DangerousCommandApprovalServiceTest {
 
         env.appConfig.getApprovals().setCronMode("false");
         assertThat(env.dangerousCommandApprovalService.cronApprovalMode()).isEqualTo("deny");
+    }
+
+    @Test
+    void shouldAutoDenySubagentDangerousCommandByDefaultLikeHermes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service = env.dangerousCommandApprovalService;
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+        TestTrace trace = new TestTrace();
+        AgentRunContext previous = AgentRunContext.current();
+        AgentRunContext subagent =
+                new AgentRunContext(
+                        env.agentRunRepository,
+                        "run-child",
+                        "session-child",
+                        "MEMORY:room:user:delegate:child");
+        subagent.setRunKind("subagent");
+        AgentRunContext.setCurrent(subagent);
+        try {
+            service.buildInterceptor().onAction(trace, "execute_shell", args);
+        } finally {
+            AgentRunContext.setCurrent(previous);
+        }
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("子 Agent 默认拒绝").contains("recursive delete");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
+    void shouldAutoApproveSubagentDangerousCommandOnlyWhenConfigured() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setSubagentAutoApprove(true);
+        DangerousCommandApprovalService service = env.dangerousCommandApprovalService;
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "rm -rf runtime/cache");
+        TestTrace trace = new TestTrace();
+        AgentRunContext previous = AgentRunContext.current();
+        AgentRunContext subagent =
+                new AgentRunContext(
+                        env.agentRunRepository,
+                        "run-child",
+                        "session-child",
+                        "MEMORY:room:user:delegate:child");
+        subagent.setRunKind("subagent");
+        AgentRunContext.setCurrent(subagent);
+        try {
+            service.buildInterceptor().onAction(trace, "execute_shell", args);
+        } finally {
+            AgentRunContext.setCurrent(previous);
+        }
+
+        assertThat(trace.getRoute()).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "execute_shell", "rm -rf runtime/cache"))
+                .isTrue();
     }
 
     @Test
