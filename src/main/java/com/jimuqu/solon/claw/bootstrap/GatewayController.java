@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -40,7 +41,7 @@ public class GatewayController {
         } catch (IllegalStateException e) {
             GatewayReply reply = new GatewayReply();
             reply.setError(true);
-            reply.setContent(e.getMessage());
+            reply.setContent(SecretRedactor.redact(e.getMessage(), 1000));
             return reply;
         }
         GatewayMessage message = ONode.deserialize(body, GatewayMessage.class);

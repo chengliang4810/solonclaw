@@ -116,6 +116,15 @@ try {
         }
     }
 
+    function Hide-BlockedText {
+        param([string] $Text)
+
+        if ([string]::IsNullOrEmpty($Text)) {
+            return $Text
+        }
+        return $regex.Replace($Text, "<blocked>")
+    }
+
     function Search-Directory {
         param([System.IO.DirectoryInfo] $Directory)
 
@@ -125,7 +134,7 @@ try {
                 return
             }
             if ($regex.IsMatch($relativePath)) {
-                $matches.Add(("{0}:0:<path>" -f $relativePath))
+                $matches.Add(("{0}:0:<path>" -f (Hide-BlockedText $relativePath)))
             }
             if ($_.PSIsContainer) {
                 Search-Directory $_
@@ -139,7 +148,7 @@ try {
             foreach ($line in [System.IO.File]::ReadLines($_.FullName)) {
                 $lineNumber++
                 if ($regex.IsMatch($line)) {
-                    $matches.Add(("{0}:{1}:{2}" -f $relativePath, $lineNumber, $line))
+                    $matches.Add(("{0}:{1}:<blocked>" -f (Hide-BlockedText $relativePath), $lineNumber))
                 }
             }
         }
@@ -192,7 +201,7 @@ try {
 
         if ($subjectMatches) {
             Write-Host "Blocked legacy project naming in git commit subjects. Rewrite or replace the commit subject before publishing release notes." -ForegroundColor Red
-            $subjectMatches | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+            $subjectMatches | ForEach-Object { Write-Host (Hide-BlockedText $_) -ForegroundColor Red }
             exit 1
         }
     }
