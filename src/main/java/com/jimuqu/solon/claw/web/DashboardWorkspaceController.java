@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import java.util.Collections;
 import java.util.Map;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -96,7 +97,8 @@ public class DashboardWorkspaceController {
             return callback.run();
         } catch (IllegalArgumentException e) {
             context.status(400);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return Collections.<String, Object>singletonMap(
+                    "error", SecretRedactor.redact(e.getMessage(), 1000));
         }
     }
 

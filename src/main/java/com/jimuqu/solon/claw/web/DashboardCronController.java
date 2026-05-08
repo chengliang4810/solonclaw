@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import org.noear.solon.annotation.Param;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
@@ -204,7 +205,7 @@ public class DashboardCronController {
 
     private Map<String, Object> apiError(String message) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("error", message == null ? "" : message);
+        result.put("error", message == null ? "" : SecretRedactor.redact(message, 1000));
         return result;
     }
 

@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import java.util.Collections;
 import java.util.Map;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -24,10 +25,10 @@ public class DashboardChatController {
             return chatService.uploads(file);
         } catch (IllegalArgumentException e) {
             context.status(400);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return error(e.getMessage());
         } catch (Exception e) {
             context.status(500);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return error(e.getMessage());
         }
     }
 
@@ -37,10 +38,10 @@ public class DashboardChatController {
             return chatService.startRun(ONode.ofJson(context.body()));
         } catch (IllegalArgumentException e) {
             context.status(400);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return error(e.getMessage());
         } catch (Exception e) {
             context.status(500);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return error(e.getMessage());
         }
     }
 
@@ -55,7 +56,12 @@ public class DashboardChatController {
             return chatService.cancelRun(runId);
         } catch (IllegalArgumentException e) {
             context.status(404);
-            return Collections.<String, Object>singletonMap("error", e.getMessage());
+            return error(e.getMessage());
         }
+    }
+
+    private Map<String, Object> error(String message) {
+        return Collections.<String, Object>singletonMap(
+                "error", SecretRedactor.redact(message, 1000));
     }
 }

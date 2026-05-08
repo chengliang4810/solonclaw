@@ -1371,6 +1371,51 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldHideWorkspaceHostPaths() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File diaryDir = new File(runtimeHome, "memory");
+        FileUtil.mkdir(diaryDir);
+        File diary = new File(diaryDir, "2099-01-01.md");
+        FileUtil.writeUtf8String("# private diary\n", diary);
+
+        HttpResult files = request("GET", "/api/workspace/files", null, token);
+        assertThat(files.status).isEqualTo(200);
+        assertThat(files.body).contains("workspace://files/");
+        assertThat(files.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult agents = request("GET", "/api/workspace/files/agents", null, token);
+        assertThat(agents.status).isEqualTo(200);
+        assertThat(agents.body).contains("workspace://files/agents");
+        assertThat(agents.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult diaries = request("GET", "/api/workspace/diaries", null, token);
+        assertThat(diaries.status).isEqualTo(200);
+        assertThat(diaries.body).contains("workspace://diaries/memory/2099-01-01.md");
+        assertThat(diaries.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult diaryFile =
+                request(
+                        "GET",
+                        "/api/workspace/diaries/read?path="
+                                + URLEncoder.encode("memory/2099-01-01.md", "UTF-8"),
+                        null,
+                        token);
+        assertThat(diaryFile.status).isEqualTo(200);
+        assertThat(diaryFile.body).contains("workspace://diaries/memory/2099-01-01.md");
+        assertThat(diaryFile.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult rejectedDiary =
+                request(
+                        "GET",
+                        "/api/workspace/diaries/read?path="
+                                + URLEncoder.encode("memory/missing-secret-token.md", "UTF-8"),
+                        null,
+                        token);
+        assertThat(rejectedDiary.status).isEqualTo(400);
+        assertThat(rejectedDiary.body).doesNotContain(runtimeHome.getAbsolutePath());
+    }
+
+    @Test
     void shouldHideMediaCacheHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");
@@ -1438,6 +1483,8 @@ public class DashboardControllerHttpTest {
 
         assertThat(rejected.status).isEqualTo(400);
         assertThat(rejected.body).contains("outside media cache");
+        assertThat(rejected.body).doesNotContain(secret.getAbsolutePath());
+        assertThat(rejected.body).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(rejected.body).doesNotContain("run_id");
         assertThat(request("GET", "/api/sessions?limit=20&offset=0", null, token).body)
                 .doesNotContain("dashboard-chat-attachment-guard");

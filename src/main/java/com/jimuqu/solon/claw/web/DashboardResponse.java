@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.web;
 
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -17,7 +18,7 @@ public final class DashboardResponse {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("success", false);
         result.put("code", code == null ? "ERROR" : code);
-        result.put("error", message == null ? "" : message);
+        result.put("error", message == null ? "" : SecretRedactor.redact(message, 1000));
         return result;
     }
 }
