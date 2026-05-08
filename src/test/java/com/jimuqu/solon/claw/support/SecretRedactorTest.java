@@ -88,6 +88,20 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactSkillsHubInternalCachePaths() {
+        String result =
+                SecretRedactor.redact(
+                        "blocked internal path skills/.hub/index-cache/catalog.json and docs/skills/.hub/readme.md");
+
+        assertThat(result)
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("skills/.hub")
+                .doesNotContain("index-cache")
+                .doesNotContain("catalog.json")
+                .doesNotContain("readme.md");
+    }
+
+    @Test
     void shouldRedactEmbeddedTokenFragmentsInNamesAndPaths() {
         String result =
                 SecretRedactor.redact(

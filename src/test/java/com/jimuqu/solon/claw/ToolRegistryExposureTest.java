@@ -2191,6 +2191,16 @@ public class ToolRegistryExposureTest {
                 .hasMessageContaining("[REDACTED_PATH]")
                 .hasMessageNotContaining(".ssh")
                 .hasMessageNotContaining("id_rsa");
+        assertThatThrownBy(() -> fileSkill.list("~/.ssh"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("文件安全策略")
+                .hasMessageContaining("[REDACTED_PATH]")
+                .hasMessageNotContaining(".ssh");
+        assertThatThrownBy(() -> fileSkill.list("skills/.hub/index-cache"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("文件安全策略")
+                .hasMessageContaining("Skills Hub")
+                .hasMessageNotContaining("index-cache");
     }
 
     @Test
