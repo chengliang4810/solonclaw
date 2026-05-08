@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -129,7 +130,7 @@ public class CronjobTools {
         }
 
         if (jobId == null || jobId.trim().length() == 0) {
-            return ToolResultEnvelope.error("job_id is required for action: " + normalized).toJson();
+            return ToolResultEnvelope.error("job_id is required for action: " + safeText(normalized)).toJson();
         }
 
         if ("history".equals(normalized)) {
@@ -165,15 +166,27 @@ public class CronjobTools {
         } else if ("run".equals(normalized)) {
             job = cronJobService.trigger(jobId);
         } else {
-            return ToolResultEnvelope.error("Unsupported cronjob action: " + action).toJson();
+            return ToolResultEnvelope.error("Unsupported cronjob action: " + safeText(action)).toJson();
         }
         return ToolResultEnvelope.ok("Cron job action completed: " + normalized)
                 .data("job", formattedView(job))
                 .preview(job.getJobId() + " " + job.getName() + " " + job.getStatus())
                 .toJson();
         } catch (Exception e) {
-            return ToolResultEnvelope.error(e.getMessage()).toJson();
+            return ToolResultEnvelope.error(safeError(e)).toJson();
         }
+    }
+
+    private String safeError(Exception e) {
+        String message = e == null ? "" : e.getMessage();
+        if ((message == null || message.length() == 0) && e != null) {
+            message = e.getClass().getSimpleName();
+        }
+        return safeText(message);
+    }
+
+    private String safeText(String text) {
+        return SecretRedactor.redact(text, 1000);
     }
 
     public String cronjob(

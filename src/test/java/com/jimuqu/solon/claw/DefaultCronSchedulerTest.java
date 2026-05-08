@@ -1836,6 +1836,69 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromCronjobToolErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-room:user");
+
+        Map<?, ?> unsupported =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "inspect --token=ghp_cronaction12345",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> missing =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "pause",
+                                                "job_token=ghp_cronjob12345",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+
+        assertThat(String.valueOf(unsupported.get("error")))
+                .contains("token=***")
+                .doesNotContain("ghp_cronaction12345");
+        assertThat(String.valueOf(missing.get("error")))
+                .contains("token=***")
+                .doesNotContain("ghp_cronjob12345");
+    }
+
+    @Test
     void shouldDefaultCronjobToolDeliveryToOrigin() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
