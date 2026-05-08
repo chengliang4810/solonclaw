@@ -261,12 +261,14 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/cron/jobs",
-                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"local\",\"model\":\"gpt-5-mini\",\"base_url\":\"https://api.cron.example/v1/\"}",
+                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"feishu\",\"deliver_chat_id\":\"chat-dashboard\",\"deliver_thread_id\":\"thread-dashboard\",\"model\":\"gpt-5-mini\",\"base_url\":\"https://api.cron.example/v1/\"}",
                         token);
         assertThat(createCron.status).isEqualTo(200);
         assertThat(createCron.body).contains("\"model\":\"gpt-5-mini\"");
         assertThat(createCron.body).contains("\"provider\":\"openai-direct\"");
         assertThat(createCron.body).contains("\"base_url\":\"https://api.cron.example/v1\"");
+        assertThat(createCron.body).contains("\"deliver_chat_id\":\"chat-dashboard\"");
+        assertThat(createCron.body).contains("\"deliver_thread_id\":\"thread-dashboard\"");
         String dashboardCronId = ONode.ofJson(createCron.body).get("data").get("id").getString();
         File dashboardScriptsDir = new File(runtimeHome, "scripts");
         FileUtil.mkdir(dashboardScriptsDir);
@@ -277,7 +279,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/cron/jobs/" + dashboardCronId,
-                        "{\"no_agent\":true,\"script\":\"dashboard-trigger.py\"}",
+                        "{\"deliver\":\"local\",\"deliver_chat_id\":null,\"deliver_thread_id\":null,\"no_agent\":true,\"script\":\"dashboard-trigger.py\"}",
                         token);
         assertThat(updateCron.status).isEqualTo(200);
         HttpResult cronJobs = request("GET", "/api/cron/jobs", null, token);
@@ -292,6 +294,17 @@ public class DashboardControllerHttpTest {
         assertThat(triggeredCron.get("last_status").getString()).isEqualTo("ok");
         assertThat(triggeredCron.get("last_run_at").getString()).isNotBlank();
         assertThat(triggeredCron.get("last_output").getString())
+                .contains("dashboard trigger ok: daily summary");
+        HttpResult cronRuns =
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/runs?limit=5", null, token);
+        assertThat(cronRuns.status).isEqualTo(200);
+        ONode cronRunsData = ONode.ofJson(cronRuns.body).get("data");
+        assertThat(cronRunsData.get("job_id").getString()).isEqualTo(dashboardCronId);
+        assertThat(cronRunsData.get("count").getInt()).isGreaterThanOrEqualTo(1);
+        ONode latestCronRun = cronRunsData.get("runs").get(0);
+        assertThat(latestCronRun.get("status").getString()).isEqualTo("ok");
+        assertThat(latestCronRun.get("trigger").getString()).isEqualTo("manual");
+        assertThat(latestCronRun.get("output").getString())
                 .contains("dashboard trigger ok: daily summary");
 
         HttpResult createMcp =
