@@ -840,11 +840,23 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult podmanSecretEnv =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run -e CLIENT_SECRET=abc app");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretSrc =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --secret id=npm,src=.npmrc .");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --secret id=token,env=API_TOKEN .");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSshKey =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker buildx build --ssh default=~/.ssh/id_ed25519 .");
         DangerousCommandApprovalService.DetectionResult dockerPlainBuild =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker build .");
         DangerousCommandApprovalService.DetectionResult dockerNonSecretBuildArg =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker build --build-arg VERSION=1.0 .");
+        DangerousCommandApprovalService.DetectionResult dockerSecretIdOnly =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --secret id=cache .");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
@@ -1135,8 +1147,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerEnvFile.getPatternKey()).isEqualTo("container_secret_exposure");
         assertThat(podmanSecretEnv).isNotNull();
         assertThat(podmanSecretEnv.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSecretSrc).isNotNull();
+        assertThat(dockerBuildSecretSrc.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSecretEnv).isNotNull();
+        assertThat(dockerBuildSecretEnv.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSshKey).isNotNull();
+        assertThat(dockerBuildSshKey.getPatternKey()).isEqualTo("container_secret_exposure");
         assertThat(dockerPlainBuild).isNull();
         assertThat(dockerNonSecretBuildArg).isNull();
+        assertThat(dockerSecretIdOnly).isNull();
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
