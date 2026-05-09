@@ -276,6 +276,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "ssh_config_trust_weaken",
+                                    "SSH config trust weakened",
+                                    pattern(
+                                            "(?=.*(?:StrictHostKeyChecking\\s+(?:no|off|false|accept-new)|UserKnownHostsFile\\s+(?:/dev/null|NUL|nul)|ProxyCommand\\s+\\S))(?=.*(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]config\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_tee",
                                     "overwrite system file via tee",
                                     pattern("\\btee\\b.*[\"']?" + SENSITIVE_WRITE_TARGET),

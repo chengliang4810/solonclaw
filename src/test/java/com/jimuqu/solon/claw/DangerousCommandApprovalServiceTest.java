@@ -1952,6 +1952,18 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("ssh_host_key_check_disabled");
         }
 
+        List<String> persistentConfigWeakening =
+                Arrays.asList(
+                        "echo 'StrictHostKeyChecking no' >> ~/.ssh/config",
+                        "printf 'UserKnownHostsFile /dev/null' | tee -a $HOME/.ssh/config",
+                        "Add-Content $env:HOME/.ssh/config 'ProxyCommand nc %h %p'");
+        for (String command : persistentConfigWeakening) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_config_trust_weaken");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ssh -o StrictHostKeyChecking=yes user@example.com"))
@@ -1959,6 +1971,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ssh user@example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "echo 'Host example.com' >> fixtures/ssh_config"))
                 .isNull();
     }
 
