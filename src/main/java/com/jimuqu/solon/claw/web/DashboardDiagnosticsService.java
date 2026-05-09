@@ -230,9 +230,7 @@ public class DashboardDiagnosticsService {
             return resolveResult(false, "approval_not_found", "长期授权项不存在或已撤销。", null);
         }
         appendAlwaysApprovalRevokedAudit(approval, approver);
-        Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
-        result.put("approval_id", alwaysApprovalId(approval));
-        return result;
+        return resolveResult(true, "ok", "长期授权已撤销。", null);
     }
 
     public Map<String, Object> pendingSlashConfirms(int limit) {

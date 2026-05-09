@@ -1441,8 +1441,8 @@ public class DashboardControllerHttpTest {
         assertThat(revoke.status).isEqualTo(200);
         assertThat(revoke.body)
                 .contains("\"success\":true")
-                .contains("\"approval_id\":\"" + jsonEscape(approvalId) + "\"")
                 .contains("长期授权已撤销")
+                .doesNotContain("\"approval_id\":")
                 .doesNotContain("\"approval\":")
                 .doesNotContain("\"approval\":\"execute_shell:rm_recursive_root:");
         assertThat(bean(DangerousCommandApprovalService.class)
