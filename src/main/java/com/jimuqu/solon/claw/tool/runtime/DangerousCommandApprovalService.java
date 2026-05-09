@@ -449,6 +449,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:usermod\\b(?=[^\\n]*(?:-aG|--append\\s+--groups)[^\\n]*(?:sudo|wheel|admin|docker)\\b)|gpasswd\\s+-a\\s+\\S+\\s+(?:sudo|wheel|admin|docker)\\b|net(?:\\.exe)?\\s+localgroup\\s+Administrators\\b|dscl\\s+\\.\\s+-append\\s+/Groups/(?:admin|wheel)\\s+GroupMembership\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "system_time_tamper",
+                                    "system time or time sync changed",
+                                    pattern(
+                                            "\\b(?:timedatectl\\s+(?:set-time|set-timezone|set-ntp\\s+false)|date\\s+(?:-s|--set)\\b|hwclock\\s+(?:--systohc|--hctosys)\\b|Set-Date\\b|w32tm\\s+/config\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "kill_all",
                                     "kill all processes",
                                     pattern("\\bkill\\s+-9\\s+-1\\b"),

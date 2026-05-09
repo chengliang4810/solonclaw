@@ -632,6 +632,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult macAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "dscl . -append /Groups/admin GroupMembership deploy");
+        DangerousCommandApprovalService.DetectionResult timedateSet =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "timedatectl set-time '2026-01-01 00:00:00'");
+        DangerousCommandApprovalService.DetectionResult dateSet =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "date -s '2026-01-01 00:00:00'");
+        DangerousCommandApprovalService.DetectionResult powershellSetDate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Set-Date -Date '2026-01-01'");
+        DangerousCommandApprovalService.DetectionResult dateRead =
+                env.dangerousCommandApprovalService.detect("execute_shell", "date");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -779,6 +790,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(macAdmin).isNotNull();
         assertThat(macAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
+        assertThat(timedateSet).isNotNull();
+        assertThat(timedateSet.getPatternKey()).isEqualTo("system_time_tamper");
+        assertThat(dateSet).isNotNull();
+        assertThat(dateSet.getPatternKey()).isEqualTo("system_time_tamper");
+        assertThat(powershellSetDate).isNotNull();
+        assertThat(powershellSetDate.getPatternKey()).isEqualTo("system_time_tamper");
+        assertThat(dateRead).isNull();
         assertThat(killallGateway).isNotNull();
         assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(pkillUnrelated).isNull();
