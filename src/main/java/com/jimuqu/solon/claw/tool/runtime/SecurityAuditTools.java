@@ -111,12 +111,16 @@ public class SecurityAuditTools {
         approvals.put("gatewayTimeoutSeconds", Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
         approvals.put("mcpReloadConfirm", Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
         approvals.put(
+                "mcpReloadConfirmationDefault",
+                appConfig.getApprovals().isMcpReloadConfirm() ? "confirm" : "direct");
+        approvals.put(
                 "alwaysApprovalCount",
                 Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
         if (approvalService != null) {
             approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             approvals.put("auditLogPolicy", approvalService.approvalAuditPolicySummary());
+            approvals.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
         }
         result.policy.put("approvals", approvals);
 
@@ -187,6 +191,8 @@ public class SecurityAuditTools {
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("codeExecutionGuardrails", Boolean.valueOf(approvalService != null || securityPolicyService != null));
         coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));
+        coverage.put("mcpToolChangeNotice", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         coverage.put("readOnlyAuditTool", Boolean.TRUE);
         result.policy.put("coverage", coverage);
@@ -209,6 +215,8 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "toolArgsSecurity", securityPolicyService != null);
         addSurface(activeSurfaces, "codeExecution", approvalService != null || securityPolicyService != null);
         addSurface(activeSurfaces, "mcpOauthUrlSafety", securityPolicyService != null);
+        addSurface(activeSurfaces, "mcpReloadConfirmation", approvalService != null);
+        addSurface(activeSurfaces, "mcpToolChangeNotice", true);
         addSurface(activeSurfaces, "tirithSecurity", appConfig.getSecurity().isTirithEnabled());
         result.policy.put("activeSurfaces", activeSurfaces);
 

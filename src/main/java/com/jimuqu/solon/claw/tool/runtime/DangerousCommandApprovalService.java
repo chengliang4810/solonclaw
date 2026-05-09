@@ -1309,6 +1309,7 @@ public class DangerousCommandApprovalService {
         summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
         summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
         summary.put("auditLogPolicy", approvalAuditPolicySummary());
+        summary.put("mcpReloadPolicy", mcpReloadPolicySummary());
         summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
         return summary;
     }
@@ -1360,6 +1361,29 @@ public class DangerousCommandApprovalService {
         summary.put("recentDashboardViewSupported", Boolean.TRUE);
         summary.put("manualRevocationAudited", Boolean.TRUE);
         summary.put("description", "Approval request and response events can be persisted with redacted command previews, approvers, descriptions, pattern keys, command hashes, and approval timestamps.");
+        return summary;
+    }
+
+    public Map<String, Object> mcpReloadPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        boolean confirmRequired =
+                appConfig == null
+                        || appConfig.getApprovals() == null
+                        || appConfig.getApprovals().isMcpReloadConfirm();
+        summary.put("command", "/reload-mcp");
+        summary.put("confirmRequired", Boolean.valueOf(confirmRequired));
+        summary.put("configKey", "approvals.mcpReloadConfirm");
+        summary.put("slashConfirmBacked", Boolean.TRUE);
+        summary.put("directRunAlias", "now");
+        summary.put("alwaysConfirmAlias", "always");
+        summary.put("persistentDisableSupported", Boolean.TRUE);
+        summary.put("runtimeConfigPersisted", Boolean.TRUE);
+        summary.put("toolChangeNoticeInjected", Boolean.TRUE);
+        summary.put("changedServerSummary", Boolean.TRUE);
+        summary.put("toolCountSummary", Boolean.TRUE);
+        summary.put("oauthUrlSafetyCovered", Boolean.TRUE);
+        summary.put("reloadHistoryNoticeRedacted", Boolean.TRUE);
+        summary.put("description", "MCP reload can require slash confirmation, supports now/always overrides, persists the confirmation flag, and records tool-change notices for the next model turn.");
         return summary;
     }
 

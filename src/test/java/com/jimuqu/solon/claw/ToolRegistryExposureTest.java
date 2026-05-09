@@ -310,6 +310,14 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("approvals").get("subagentApprovalDefault").getString())
                 .isEqualTo("deny");
+        assertThat(policyStatus.get("policy").get("approvals").get("mcpReloadConfirm").getBoolean())
+                .isTrue();
+        assertThat(policyStatus
+                        .get("policy")
+                        .get("approvals")
+                        .get("mcpReloadConfirmationDefault")
+                        .getString())
+                .isEqualTo("confirm");
         assertThat(policyStatus.get("policy").get("approvals").get("approvalPolicy").get("mode").getString())
                 .isEqualTo("smart");
         assertThat(
@@ -352,6 +360,7 @@ public class ToolRegistryExposureTest {
                 .contains("/deny")
                 .contains("dangerous_command_approval_card")
                 .contains("auditLogPolicy")
+                .contains("mcpReloadPolicy")
                 .doesNotContain("secret-sudo");
         assertThat(
                         policyStatus
@@ -435,6 +444,33 @@ public class ToolRegistryExposureTest {
                 .contains("patternKeysStored")
                 .contains("manualRevocationAudited")
                 .doesNotContain("secret-sudo");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("mcpReloadPolicy")
+                                .get("confirmRequired")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("mcpReloadPolicy")
+                                .get("toolChangeNoticeInjected")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("mcpReloadPolicy")
+                                .get("oauthUrlSafetyCovered")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("mcpReloadPolicy")))
+                .contains("/reload-mcp")
+                .contains("approvals.mcpReloadConfirm");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("credentialPolicy").get("fileNameCount").getInt())
@@ -504,6 +540,10 @@ public class ToolRegistryExposureTest {
                 .contains("apply_patch");
         assertThat(policyStatus.get("policy").get("coverage").get("mcpUrlSafety").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("mcpReloadConfirmation").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("mcpToolChangeNotice").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("activeSurfaces")))
                 .contains("approval")
                 .contains("smartApproval")
@@ -515,7 +555,9 @@ public class ToolRegistryExposureTest {
                 .contains("urlSafety")
                 .contains("websitePolicy")
                 .contains("credentialFilePolicy")
-                .contains("mcpOauthUrlSafety");
+                .contains("mcpOauthUrlSafety")
+                .contains("mcpReloadConfirmation")
+                .contains("mcpToolChangeNotice");
         assertThat(policyStatus.toJson())
                 .doesNotContain("secret-sudo")
                 .doesNotContain("TENOR_API_KEY");
