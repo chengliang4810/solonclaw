@@ -14,10 +14,14 @@ import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /** 附件缓存服务。 */
 public class AttachmentCacheService {
     private static final long MAX_CACHE_BYTES = 32L * 1024L * 1024L;
+    private static final Pattern REDACTED_TOKEN_FILE_PART =
+            Pattern.compile(
+                    "(?i)(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_)?\\*\\*\\*");
 
     private final File runtimeHome;
     private final File cacheRoot;
@@ -49,6 +53,7 @@ public class AttachmentCacheService {
         summary.put("maxCacheBytes", Long.valueOf(MAX_CACHE_BYTES));
         summary.put("cacheBytesSizeChecked", Boolean.TRUE);
         summary.put("safeOriginalNameSanitized", Boolean.TRUE);
+        summary.put("safeOriginalNameSecretRedacted", Boolean.TRUE);
         summary.put("mimeSniffingEnabled", Boolean.TRUE);
         summary.put("kindNormalized", Boolean.TRUE);
         summary.put("fromLocalFileRequiresRuntimeCache", Boolean.TRUE);
@@ -454,6 +459,25 @@ public class AttachmentCacheService {
             cleaned.append(Character.isISOControl(ch) ? '_' : ch);
         }
         value = cleaned.toString().trim();
+        if (value.length() > 120) {
+            value = value.substring(0, 120);
+        }
+        if (value.length() == 0) {
+            value = "attachment.bin";
+        }
+        value = REDACTED_TOKEN_FILE_PART.matcher(SecretRedactor.redact(value, 120))
+                .replaceAll("redacted");
+        value =
+                value.replace("\\", "_")
+                        .replace("/", "_")
+                        .replace(":", "_")
+                        .replace("*", "_")
+                        .replace("?", "_")
+                        .replace("\"", "_")
+                        .replace("<", "_")
+                        .replace(">", "_")
+                        .replace("|", "_")
+                        .trim();
         if (value.length() > 120) {
             value = value.substring(0, 120);
         }

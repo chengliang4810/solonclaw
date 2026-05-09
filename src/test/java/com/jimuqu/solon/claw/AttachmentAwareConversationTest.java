@@ -118,6 +118,7 @@ public class AttachmentAwareConversationTest {
         assertThat(summary.get("mediaReferencePrefix")).isEqualTo("media://");
         assertThat(summary.get("cacheBytesSizeChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("safeOriginalNameSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("safeOriginalNameSecretRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("fromLocalFileRequiresRuntimeCache")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("fromMediaCacheRequiresMediaRoot")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("mediaReferenceTraversalBlocked")).isEqualTo(Boolean.TRUE);

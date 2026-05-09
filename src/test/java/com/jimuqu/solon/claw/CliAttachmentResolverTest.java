@@ -36,6 +36,29 @@ public class CliAttachmentResolverTest {
     }
 
     @Test
+    void shouldRedactSecretLikeAttachmentNameAfterResolvingLocalPath() throws Exception {
+        AppConfig config = testConfig();
+        File file = new File(config.getRuntime().getHome(), "report-ghp_attachmentsecret12345.txt");
+        Files.write(file.toPath(), "hello".getBytes("UTF-8"));
+        CliAttachmentResolver resolver = resolver(config);
+
+        CliAttachmentResolver.ResolvedInput resolved =
+                resolver.resolve("请看 " + file.getAbsolutePath());
+
+        assertThat(resolved.getText())
+                .contains("[附件: report-redacted.txt]")
+                .doesNotContain("ghp_attachmentsecret12345")
+                .doesNotContain(file.getAbsolutePath());
+        assertThat(resolved.getAttachments()).hasSize(1);
+        MessageAttachment attachment = resolved.getAttachments().get(0);
+        assertThat(attachment.getOriginalName())
+                .isEqualTo("report-redacted.txt")
+                .doesNotContain("ghp_attachmentsecret12345");
+        assertThat(new File(attachment.getLocalPath()).getName())
+                .doesNotContain("ghp_attachmentsecret12345");
+    }
+
+    @Test
     void shouldResolveFileUriIntoAttachment() throws Exception {
         AppConfig config = testConfig();
         File file = new File(config.getRuntime().getHome(), "diagram.png");

@@ -64,10 +64,11 @@ public class CliAttachmentResolver {
         summary.put("credentialPathBlocked", Boolean.TRUE);
         summary.put("blockedPreviewRedacted", Boolean.TRUE);
         summary.put("missingPreviewRedacted", Boolean.TRUE);
+        summary.put("resolvedDisplayNameRedacted", Boolean.TRUE);
         summary.put("rawPathHiddenInPrompt", Boolean.TRUE);
         summary.put("maxAttachmentPaths", Integer.valueOf(MAX_ATTACHMENT_PATHS));
         summary.put("maxAttachmentBytes", Long.valueOf(MAX_ATTACHMENT_BYTES));
-        summary.put("description", "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; blocked and missing previews are secret-redacted.");
+        summary.put("description", "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; resolved attachment labels, blocked previews, and missing previews are secret-redacted.");
         return summary;
     }
 
@@ -111,7 +112,7 @@ public class CliAttachmentResolver {
                     replaceToken(
                             resolvedText,
                             candidate.originalToken,
-                            "[附件: " + attachment.getOriginalName() + "]");
+                            "[附件: " + safeName(attachment.getOriginalName()) + "]");
         }
 
         if (attachments.isEmpty()) {
