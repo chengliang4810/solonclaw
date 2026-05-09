@@ -1883,6 +1883,8 @@ public class DangerousCommandApprovalServiceTest {
                         "az login --cert cert.pem --key key.pem",
                         "rsync -e 'ssh -i deploy_key' ./ user@example.com:/tmp/",
                         "rsync -e \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
+                        "rsync --rsh='ssh -i deploy_key' ./ user@example.com:/tmp/",
+                        "rsync --rsh \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
                         "npm --userconfig .npmrc whoami");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
