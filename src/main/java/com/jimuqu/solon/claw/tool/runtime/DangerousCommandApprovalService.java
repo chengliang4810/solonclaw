@@ -437,7 +437,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "\\s*:|(?:--proxy-header)\\s*(?:=\\s*)?[\"']?\\s*"
+                                                    + "\\s*:|(?:--proxy-header\\s*(?:=\\s*)?)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--proxy-header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME

@@ -1601,6 +1601,7 @@ public class DangerousCommandApprovalServiceTest {
                         "curl -HAuthorization:Bearer-token-a https://example.com",
                         "curl --header='X-API-Key: token-a' https://example.com",
                         "curl --proxy-header 'Proxy-Authorization: Basic abc' https://example.com",
+                        "curl --proxy-headerProxy-Authorization:Basic https://example.com",
                         "curl --proxy-header=Proxy-Authorization:Basic https://example.com",
                         "wget --header 'Cookie: session=a' https://example.com",
                         "http GET https://example.com Authorization:'Bearer token-a'",
