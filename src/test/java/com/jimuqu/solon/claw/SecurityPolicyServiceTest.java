@@ -685,8 +685,13 @@ public class SecurityPolicyServiceTest {
         assertCommandPathDenied(policy, "Get-Content $env:USERPROFILE\\.npmrc", "$env:USERPROFILE\\.npmrc");
         assertCommandPathDenied(policy, "type %USERPROFILE%\\.netrc", "%USERPROFILE%\\.netrc");
         assertCommandPathDenied(policy, "cat ~/.aws/credentials", "~/.aws/credentials");
+        assertCommandPathDenied(policy, "cat config/.env", "config/.env");
+        assertCommandPathDenied(policy, "cat secrets/token.json", "secrets/token.json");
+        assertCommandPathDenied(policy, "cat keys/private-api-key.pem", "keys/private-api-key.pem");
+        assertCommandPathDenied(policy, "Get-Content .\\config\\.npmrc", ".\\config\\.npmrc");
 
         assertThat(policy.checkCommandPaths("cat .env.example").isAllowed()).isTrue();
+        assertThat(policy.checkCommandPaths("cat docs/.env.example").isAllowed()).isTrue();
     }
 
     @Test
