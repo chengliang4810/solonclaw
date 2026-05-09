@@ -2358,6 +2358,53 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardWebsearchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        policy,
+                        new WebsearchTool() {
+                            @Override
+                            public Document websearch(
+                                    String query,
+                                    Integer numResults,
+                                    String livecrawl,
+                                    String type,
+                                    Integer contextMaxCharacters) {
+                                return new Document(
+                                                "{\"assets\":[{\"browser_download_url\":\"https://blocked.example/releases/app.jar?token=secret123\"}]}")
+                                        .title("result");
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "allowed search",
+                                        Integer.valueOf(1),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
     void shouldUseBraveFreeSearchBackendWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("brave-free");

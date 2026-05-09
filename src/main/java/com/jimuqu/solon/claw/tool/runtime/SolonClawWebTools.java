@@ -108,10 +108,11 @@ public class SolonClawWebTools {
         visited.add(value);
         if (value instanceof Document) {
             checkFinalDocumentUrls(securityPolicyService, (Document) value);
+            checkReturnedUrls(securityPolicyService, ((Document) value).getContent(), visited);
             return;
         }
         if (value instanceof CharSequence) {
-            checkUrl(securityPolicyService, value.toString());
+            checkReturnedTextUrls(securityPolicyService, value.toString());
             return;
         }
         if (value instanceof Collection) {
@@ -132,6 +133,15 @@ public class SolonClawWebTools {
             for (Object item : ((Map<?, ?>) value).values()) {
                 checkReturnedUrls(securityPolicyService, item, visited);
             }
+        }
+    }
+
+    private static void checkReturnedTextUrls(SecurityPolicyService securityPolicyService, String text) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        for (String url : securityPolicyService.extractUrlishValues(text)) {
+            checkUrl(securityPolicyService, url);
         }
     }
 
