@@ -70,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.snack4.ONode;
 
 /** 默认 slash 命令实现，统一承接 Jimuqu 风格的会话控制命令。 */
 public class DefaultCommandService implements CommandService {
@@ -2071,6 +2072,12 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.ok(formatCronNext(message.sourceKey(), options.all, limit));
         }
 
+        if ("guide".equals(action) || "tutorial".equals(action) || "capabilities".equals(action)) {
+            CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
+            Map<String, Object> guide = cronJobService.guide();
+            return GatewayReply.ok(options.json ? ONode.serialize(guide) : formatCronGuide(guide));
+        }
+
         if ("tick".equals(action)) {
             if (cronScheduler == null) {
                 return GatewayReply.error("当前运行环境未启用 Cron scheduler，无法手动 tick。");
@@ -2182,7 +2189,94 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
+                        + " [list [--all]|inspect|show|next|guide|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
+    }
+
+    private String formatCronGuide(Map<String, Object> guide) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("Cron 自动化指南");
+        buffer.append('\n').append("目标：").append(guide.get("objective"));
+        buffer.append('\n').append("调度类型：").append(joinGuideList(guide.get("schedule_types")));
+        buffer.append('\n').append("可编辑字段：").append(joinGuideList(guide.get("editable_fields")));
+        buffer.append('\n').append("动作：").append(joinGuideMapKeys(guide.get("actions")));
+        buffer.append('\n').append("别名：");
+        appendGuideMap(buffer, guide.get("aliases"));
+        buffer.append('\n').append("技能绑定：");
+        appendGuideMap(buffer, guide.get("skill_binding"));
+        buffer.append('\n').append("投递策略：");
+        appendGuideMap(buffer, guide.get("delivery"));
+        buffer.append('\n').append("运行模式：");
+        appendGuideMap(buffer, guide.get("runtime_modes"));
+        buffer.append('\n').append("历史与状态：");
+        appendGuideMap(buffer, guide.get("history_and_status"));
+        buffer.append('\n').append("安全策略：");
+        appendGuideMap(buffer, guide.get("security"));
+        buffer.append('\n').append("示例：");
+        appendGuideListLines(buffer, guide.get("slash_examples"));
+        return buffer.toString();
+    }
+
+    private void appendGuideMap(StringBuilder buffer, Object value) {
+        if (!(value instanceof Map)) {
+            buffer.append(' ').append(String.valueOf(value));
+            return;
+        }
+        Map<?, ?> map = (Map<?, ?>) value;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            buffer.append('\n')
+                    .append("- ")
+                    .append(String.valueOf(entry.getKey()))
+                    .append(": ")
+                    .append(joinGuideValue(entry.getValue()));
+        }
+    }
+
+    private void appendGuideListLines(StringBuilder buffer, Object value) {
+        if (!(value instanceof Iterable)) {
+            buffer.append('\n').append("- ").append(String.valueOf(value));
+            return;
+        }
+        for (Object item : (Iterable<?>) value) {
+            buffer.append('\n').append("- ").append(String.valueOf(item));
+        }
+    }
+
+    private String joinGuideMapKeys(Object value) {
+        if (!(value instanceof Map)) {
+            return String.valueOf(value);
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (Object key : ((Map<?, ?>) value).keySet()) {
+            if (buffer.length() > 0) {
+                buffer.append(", ");
+            }
+            buffer.append(String.valueOf(key));
+        }
+        return buffer.toString();
+    }
+
+    private String joinGuideList(Object value) {
+        if (!(value instanceof Iterable)) {
+            return String.valueOf(value);
+        }
+        StringBuilder buffer = new StringBuilder();
+        for (Object item : (Iterable<?>) value) {
+            if (buffer.length() > 0) {
+                buffer.append(", ");
+            }
+            buffer.append(String.valueOf(item));
+        }
+        return buffer.toString();
+    }
+
+    private String joinGuideValue(Object value) {
+        if (value instanceof Iterable) {
+            return joinGuideList(value);
+        }
+        if (value instanceof Map) {
+            return joinGuideMapKeys(value);
+        }
+        return String.valueOf(value);
     }
 
     private String cronOverview(String listText) {
@@ -2193,6 +2287,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron list --all - 查看全部定时任务，包括已暂停任务\n")
                 .append("/cron inspect <job-id> - 查看单个任务详情\n")
                 .append("/cron next [--all] [--limit 5] - 查看即将运行的任务\n")
+                .append("/cron guide [--json] - 查看自动化能力、字段、别名、投递、技能绑定和安全策略\n")
                 .append("/cron status [--all] - 查看任务计数、到期任务、最近失败与下次运行\n")
                 .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
                 .append("/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\" - 编辑定时任务\n")
@@ -2893,6 +2988,8 @@ public class DefaultCommandService implements CommandService {
                     || "--no-wrap".equals(token)
                     || "--no-wrap-response".equals(token)) {
                 options.raw = true;
+            } else if ("--json".equals(token)) {
+                options.json = true;
             } else {
                 options.positionals.add(token);
             }
@@ -4063,6 +4160,7 @@ public class DefaultCommandService implements CommandService {
         private boolean agent;
         private boolean wrapResponse;
         private boolean raw;
+        private boolean json;
         private final List<String> positionals = new ArrayList<String>();
     }
 

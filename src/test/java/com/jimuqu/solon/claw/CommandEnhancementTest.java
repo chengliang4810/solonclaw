@@ -36,6 +36,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.snack4.ONode;
 
 public class CommandEnhancementTest {
     private static final Pattern SLASH_CONFIRM_ID =
@@ -752,6 +753,36 @@ public class CommandEnhancementTest {
                 .doesNotContain(paused.getJobId());
         assertThat(allNext.getContent().indexOf(soon.getJobId()))
                 .isLessThan(allNext.getContent().indexOf(later.getJobId()));
+    }
+
+    @Test
+    void shouldShowCronAutomationGuideCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply guide = env.send("admin-chat", "admin-user", "/cron guide");
+
+        assertThat(guide.getContent())
+                .contains("Cron 自动化指南")
+                .contains("可编辑字段：")
+                .contains("deliver_chat_id")
+                .contains("技能绑定：")
+                .contains("--remove-skill name")
+                .contains("投递策略：")
+                .contains("feishu")
+                .contains("运行模式：")
+                .contains("no_agent")
+                .contains("安全策略：")
+                .contains("prompt_injection")
+                .contains("/cron history <job-id> --limit 20");
+
+        GatewayReply json = env.send("admin-chat", "admin-user", "/cron capabilities --json");
+
+        ONode data = ONode.ofJson(json.getContent());
+        assertThat(data.get("editable_fields").toJson()).contains("wrap_response");
+        assertThat(data.get("aliases").get("pause").toJson()).contains("disable").contains("stop");
+        assertThat(data.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
+        assertThat(data.get("security").get("script_validation").getString()).contains("script");
     }
 
     @Test

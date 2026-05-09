@@ -54,6 +54,10 @@ public class DashboardCronService {
         return result;
     }
 
+    public Map<String, Object> guide() {
+        return cronJobService.guide();
+    }
+
     public List<Map<String, Object>> nextJobs(int limit) throws Exception {
         return nextJobs(limit, true);
     }

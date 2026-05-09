@@ -31,6 +31,16 @@ public class DashboardCronController {
         return apiJobsResponse(cronService.listJobs(includeDisabled));
     }
 
+    @Mapping(value = "/api/cron/jobs/guide", method = MethodType.GET)
+    public Map<String, Object> guide() throws Exception {
+        return DashboardResponse.ok(cronService.guide());
+    }
+
+    @Mapping(value = "/api/jobs/guide", method = MethodType.GET)
+    public Map<String, Object> apiGuide() throws Exception {
+        return cronService.guide();
+    }
+
     @Mapping(value = "/api/cron/jobs/next", method = MethodType.GET)
     public Map<String, Object> next(Context context, @Param(defaultValue = "5") Integer limit) throws Exception {
         boolean includeDisabled = Boolean.parseBoolean(context.param("include_disabled"));

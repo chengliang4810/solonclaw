@@ -1588,6 +1588,21 @@ public class DashboardControllerHttpTest {
         assertThat(list.status).isEqualTo(200);
         assertThat(list.body).contains("\"jobs\"").contains("compat-cron");
 
+        HttpResult dashboardGuide = request("GET", "/api/cron/jobs/guide", null, token);
+        assertThat(dashboardGuide.status).isEqualTo(200);
+        ONode dashboardGuideData = ONode.ofJson(dashboardGuide.body).get("data");
+        assertThat(dashboardGuideData.get("editable_fields").toJson())
+                .contains("deliver_chat_id")
+                .contains("wrap_response");
+        assertThat(dashboardGuideData.get("skill_binding").get("remove").toJson()).contains("--remove-skill");
+        assertThat(dashboardGuideData.get("security").get("prompt_scan").toJson()).contains("prompt_injection");
+
+        HttpResult apiGuide = request("GET", "/api/jobs/guide", null, token);
+        assertThat(apiGuide.status).isEqualTo(200);
+        ONode apiGuideData = ONode.ofJson(apiGuide.body);
+        assertThat(apiGuideData.get("aliases").get("run").toJson()).contains("retry").contains("rerun");
+        assertThat(apiGuideData.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
+
         HttpResult get = request("GET", "/api/jobs/" + jobId, null, token);
         assertThat(get.status).isEqualTo(200);
         assertThat(get.body).contains("\"job\"").contains("compat prompt");

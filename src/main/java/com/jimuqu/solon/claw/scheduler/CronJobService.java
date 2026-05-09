@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -426,6 +427,147 @@ public class CronJobService {
         result.put("paused_at", record.getPausedAt() <= 0 ? null : Long.valueOf(record.getPausedAt()));
         result.put("paused_reason", record.getPausedReason());
         result.put("created_at", Long.valueOf(record.getCreatedAt()));
+        return result;
+    }
+
+    public Map<String, Object> guide() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("objective", "通过 Cron 自动化创建、编辑、暂停、恢复、立即运行和复核任务，并把结果投递到本地或指定国内渠道。");
+        result.put("schedule_types", Arrays.asList("interval", "cron", "once"));
+        result.put(
+                "editable_fields",
+                Arrays.asList(
+                        "name",
+                        "schedule",
+                        "prompt",
+                        "skills",
+                        "deliver",
+                        "deliver_chat_id",
+                        "deliver_thread_id",
+                        "repeat",
+                        "script",
+                        "workdir",
+                        "no_agent",
+                        "context_from",
+                        "depends_on",
+                        "enabled_toolsets",
+                        "model",
+                        "provider",
+                        "base_url",
+                        "wrap_response",
+                        "enabled"));
+        result.put("actions", cronGuideActions());
+        result.put("aliases", cronGuideAliases());
+        result.put("skill_binding", cronGuideSkillBinding());
+        result.put("delivery", cronGuideDelivery());
+        result.put("runtime_modes", cronGuideRuntimeModes());
+        result.put("history_and_status", cronGuideHistoryAndStatus());
+        result.put("security", cronGuideSecurity());
+        result.put(
+                "slash_examples",
+                Arrays.asList(
+                        "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher",
+                        "/cron edit <job-id> --schedule \"every 4h\" --prompt \"New task\"",
+                        "/cron edit <job-id> --skill blogwatcher --skill maps",
+                        "/cron edit <job-id> --remove-skill blogwatcher",
+                        "/cron edit <job-id> --clear-skills",
+                        "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread",
+                        "/cron edit <job-id> --no-agent --script collect.py --workdir runtime/projects/demo",
+                        "/cron run <job-id>",
+                        "/cron history <job-id> --limit 20"));
+        result.put(
+                "api_routes",
+                Arrays.asList(
+                        "GET /api/cron/jobs/guide",
+                        "GET /api/cron/jobs",
+                        "POST /api/cron/jobs",
+                        "PUT /api/cron/jobs/{id}",
+                        "POST /api/cron/jobs/{id}/pause",
+                        "POST /api/cron/jobs/{id}/resume",
+                        "POST /api/cron/jobs/{id}/run",
+                        "GET /api/cron/jobs/{id}/runs",
+                        "GET /api/jobs/guide"));
+        return result;
+    }
+
+    private Map<String, Object> cronGuideActions() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("list", "查看当前会话或全部任务");
+        result.put("inspect", "查看单个任务详情、动作标记和运行摘要");
+        result.put("next", "按 next_run_at 查看即将运行的任务");
+        result.put("status", "查看任务计数、到期任务、最近失败和下次运行");
+        result.put("add", "创建自动化任务");
+        result.put("edit", "编辑调度、提示词、技能、投递、脚本、模型和包装策略");
+        result.put("pause", "暂停任务并保留暂停原因");
+        result.put("resume", "恢复任务并重新计算下次运行时间");
+        result.put("run", "立即触发任务");
+        result.put("retry", "重跑最近失败或需要复核的任务");
+        result.put("history", "查看执行历史、输出、错误和投递结果");
+        result.put("remove", "删除任务");
+        return result;
+    }
+
+    private Map<String, Object> cronGuideAliases() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("add", Arrays.asList("create"));
+        result.put("edit", Arrays.asList("update"));
+        result.put("pause", Arrays.asList("disable", "stop"));
+        result.put("resume", Arrays.asList("enable", "start"));
+        result.put("run", Arrays.asList("trigger", "retry", "rerun"));
+        result.put("inspect", Arrays.asList("show", "detail"));
+        result.put("remove", Arrays.asList("delete", "rm"));
+        result.put("next", Arrays.asList("upcoming"));
+        return result;
+    }
+
+    private Map<String, Object> cronGuideSkillBinding() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("fields", Arrays.asList("skill", "skills"));
+        result.put("replace", Arrays.asList("--skill name", "--skills a,b"));
+        result.put("append", Arrays.asList("--add-skill name", "--add-skills a,b"));
+        result.put("remove", Arrays.asList("--remove-skill name", "--remove-skills a,b"));
+        result.put("clear", Arrays.asList("--clear-skills"));
+        result.put("dedupe", Boolean.TRUE);
+        return result;
+    }
+
+    private Map<String, Object> cronGuideDelivery() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("targets", Arrays.asList("origin", "local", "feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
+        result.put("fields", Arrays.asList("deliver", "deliver_chat_id", "deliver_thread_id", "wrap_response"));
+        result.put("default_from_slash", "origin");
+        result.put("default_from_dashboard", "local");
+        result.put("clear_flags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
+        result.put("multi_target", "deliver 支持逗号分隔或平台:目标形式，创建和编辑时会校验平台名称。");
+        return result;
+    }
+
+    private Map<String, Object> cronGuideRuntimeModes() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("agent", "默认模式，使用 prompt 和 skills 进入 Agent 主循环。");
+        result.put("no_agent", "脚本直投模式，必须提供 script，stdout 可按投递策略发送。");
+        result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
+        result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
+        result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));
+        return result;
+    }
+
+    private Map<String, Object> cronGuideHistoryAndStatus() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("status_fields", Arrays.asList("total", "active", "paused", "completed", "due", "next", "recent_failures"));
+        result.put("run_fields", Arrays.asList("run_id", "trigger", "attempt", "status", "output", "error", "delivery_result", "summary"));
+        result.put("action_flags", Arrays.asList("can_inspect", "can_edit", "can_pause", "can_resume", "can_run", "can_retry", "can_history"));
+        result.put("limits", "status、next、history 和 inspect 的 limit 会限制到安全范围。");
+        return result;
+    }
+
+    private Map<String, Object> cronGuideSecurity() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("prompt_scan", Arrays.asList("prompt_injection", "deception_hide", "sys_prompt_override", "disregard_rules", "exfil_curl", "exfil_wget", "read_secrets", "ssh_backdoor", "sudoers_mod", "destructive_root_rm"));
+        result.put("script_validation", "script 禁止绝对路径、父目录跳转、shell 片段、控制字符和 URL。");
+        result.put("workdir_validation", "workdir 会规范化到 runtime home 内部，禁止逃逸工作目录。");
+        result.put("delivery_validation", "deliver 只允许本地、origin 或已支持平台。");
+        result.put("approval_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
 
