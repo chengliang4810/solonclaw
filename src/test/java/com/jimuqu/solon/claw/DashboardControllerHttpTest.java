@@ -637,6 +637,24 @@ public class DashboardControllerHttpTest {
         assertThat(mcpList.body).contains("\"capabilities\"");
         assertThat(mcpList.body).contains("\"last_tools_hash\"");
 
+        HttpResult secretToolMcp =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"secret-tool-docs\",\"name\":\"Secret Tool Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"tools\":[{\"name\":\"docs_secret\",\"title\":\"Read with token=secret-title-token\",\"description\":\"Use bearer ghp_toolsecret12345\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"api_key\":{\"type\":\"string\",\"description\":\"OPENAI_API_KEY=sk-test-tool-secret\"}}},\"output_schema\":{\"type\":\"object\",\"properties\":{\"access_token\":{\"type\":\"string\",\"description\":\"secret-output-token\"}}}}]}",
+                        token);
+        assertThat(secretToolMcp.status).isEqualTo(200);
+        HttpResult secretToolMcpList = request("GET", "/api/jimuqu/mcp", null, token);
+        assertThat(secretToolMcpList.status).isEqualTo(200);
+        assertThat(secretToolMcpList.body)
+                .contains("token=***")
+                .contains("bearer ***")
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("secret-title-token")
+                .doesNotContain("ghp_toolsecret12345")
+                .doesNotContain("sk-test-tool-secret")
+                .doesNotContain("secret-output-token");
+
         HttpResult secretMcp =
                 request(
                         "POST",

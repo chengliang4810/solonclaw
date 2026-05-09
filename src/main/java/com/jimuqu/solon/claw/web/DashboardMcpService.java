@@ -714,7 +714,7 @@ public class DashboardMcpService {
         map.put("oauth", sanitizeOAuth(parseMap(resultSet.getString("oauth_json"))));
         map.put("capabilities", parse(resultSet.getString("capabilities_json")));
         map.put("status", resultSet.getString("status"));
-        map.put("tools", parse(resultSet.getString("tools_json")));
+        map.put("tools", redactParsed(parse(resultSet.getString("tools_json"))));
         map.put("last_tools_hash", resultSet.getString("last_tools_hash"));
         map.put("last_error", SecretRedactor.redact(resultSet.getString("last_error"), 1000));
         map.put("enabled", resultSet.getInt("enabled") != 0);
