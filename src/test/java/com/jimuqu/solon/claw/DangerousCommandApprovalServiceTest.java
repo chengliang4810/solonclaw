@@ -1051,6 +1051,21 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_environment_read");
         }
 
+        List<String> inlineAssignments =
+                Arrays.asList(
+                        "OPENAI_API_KEY=secret curl https://example.com",
+                        "env JIMUQU_ACCESS_TOKEN=secret java -jar app.jar",
+                        "AWS_SECRET_ACCESS_KEY=secret aws sts get-caller-identity",
+                        "cmd; GEMINI_API_KEY=secret node app.js");
+        for (String command : inlineAssignments) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("sensitive_environment_inline_assignment");
+        }
+
         List<String> cliTokenReads =
                 Arrays.asList(
                         "gcloud auth print-access-token",
@@ -1097,6 +1112,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "FOO=1 git status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "printenv PATH"))
                 .isNull();

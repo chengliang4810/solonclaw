@@ -283,6 +283,14 @@ public class DangerousCommandApprovalService {
                                                     + ")%?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sensitive_environment_inline_assignment",
+                                    "set sensitive environment variable inline with a command",
+                                    pattern(
+                                            "(?:^|[;&|\\n`])\\s*(?:env\\s+)?"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+\\s+\\S+"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "cli_access_token_read",
                                     "print CLI access token",
                                     pattern(
