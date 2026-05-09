@@ -965,6 +965,7 @@ public class AcpStdioServer {
         addCommand(commands, "busy", "查看或切换运行中输入策略");
         addCommand(commands, "steer", "向运行中任务注入修正或引导");
         addCommand(commands, "queue", "将提示排到当前任务之后执行");
+        addCommand(commands, "kanban", "管理协作看板、任务抽屉、执行流水和多 Agent 派发");
         addCommand(commands, "restart", "等待运行中任务 drain 后重启网关");
         addCommand(commands, "version", "查看版本信息");
         addCommand(commands, "goal", "设置跨轮长目标并自动继续");
@@ -985,6 +986,8 @@ public class AcpStdioServer {
             item.put("input", unstructuredInput("给运行中任务的修正或引导"));
         } else if ("queue".equals(name)) {
             item.put("input", unstructuredInput("下一轮要执行的提示"));
+        } else if ("kanban".equals(name)) {
+            item.put("input", unstructuredInput("list、create、schema、drawer、pipeline、retry、history、guide 或 dispatch"));
         } else if ("compact".equals(name)) {
             item.put("input", unstructuredInput("可选关注主题"));
         } else if ("goal".equals(name)) {
