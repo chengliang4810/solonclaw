@@ -2684,6 +2684,7 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "history -c",
+                        "history -w /dev/null",
                         "rm ~/.bash_history",
                         "rm -f ~/.zsh_history",
                         "rm ~/.mysql_history",
@@ -2694,12 +2695,14 @@ public class DangerousCommandApprovalServiceTest {
                         "del %USERPROFILE%\\.node_repl_history",
                         "Clear-History",
                         "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+                        "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\*",
                         "Set-PSReadLineOption -HistorySaveStyle SaveNothing",
                         "unset HISTFILE",
                         "export HISTFILE=/dev/null",
                         "HISTFILE=''",
                         "HISTSIZE=0",
                         "export HISTFILESIZE=0",
+                        "fc -p /dev/null",
                         "set +o history");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -2718,6 +2721,7 @@ public class DangerousCommandApprovalServiceTest {
                         "truncate -s 0 /var/lib/systemd/journal/system.journal",
                         "wevtutil cl Security",
                         "wevtutil clear-log Application",
+                        "wevtutil clear System",
                         "Clear-EventLog -LogName Security",
                         "auditctl -D");
         for (String command : auditLogErasures) {
