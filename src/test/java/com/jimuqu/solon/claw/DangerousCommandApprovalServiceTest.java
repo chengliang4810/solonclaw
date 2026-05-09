@@ -1541,6 +1541,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectSystemTrustStoreChanges() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "update-ca-certificates",
+                        "trust anchor --store local-ca.pem",
+                        "update-ca-trust extract",
+                        "security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain local-ca.pem",
+                        "certutil -addstore Root local-ca.cer",
+                        "Import-Certificate -FilePath local-ca.cer -CertStoreLocation Cert:\\LocalMachine\\Root");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("system_trust_store_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl x509 -in local-ca.pem -text -noout"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "certutil -dump local-ca.cer"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Import-Certificate -FilePath user.cer -CertStoreLocation Cert:\\CurrentUser\\Root"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeTlsCertificateVerificationBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
