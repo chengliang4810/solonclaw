@@ -3251,13 +3251,15 @@ public class DefaultCommandService implements CommandService {
             buffer.append('#')
                     .append(i + 1)
                     .append(' ')
-                    .append(StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()))
+                    .append(safeApprovalPreview(
+                            StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()),
+                            120))
                     .append(" tool=")
-                    .append(pending.getToolName())
+                    .append(safeApprovalPreview(pending.getToolName(), 120))
                     .append(" reason=")
-                    .append(SecretRedactor.redact(pending.getDescription(), 1000))
+                    .append(safeApprovalPreview(pending.getDescription(), 1000))
                     .append(" command_preview=")
-                    .append(SecretRedactor.redact(pending.getCommand(), 800))
+                    .append(safeApprovalPreview(pending.getCommand(), 800))
                     .append(" scopes=")
                     .append(approvalScopes(pending))
                     .append(" expires_in=")
@@ -3265,7 +3267,7 @@ public class DefaultCommandService implements CommandService {
                     .append("s expired=")
                     .append(isExpired(pending.getExpiresAt()))
                     .append(" key=")
-                    .append(SecretRedactor.redact(pending.approvalKey(), 1000))
+                    .append(safeApprovalPreview(pending.approvalKey(), 1000))
                     .append('\n');
         }
         buffer.append("session_approvals=")
@@ -3276,6 +3278,10 @@ public class DefaultCommandService implements CommandService {
                 .append(SecretRedactor.redact(
                         String.valueOf(dangerousCommandApprovalService.listAlwaysApprovals()), 2000));
         return buffer.toString();
+    }
+
+    private String safeApprovalPreview(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private String approvalScopes(DangerousCommandApprovalService.PendingApproval pending) {
@@ -3327,7 +3333,7 @@ public class DefaultCommandService implements CommandService {
         if (StrUtil.isBlank(selector)) {
             return pendingApprovals.get(0);
         }
-        String value = selector.trim();
+        String value = SecretRedactor.stripDisplayControls(selector).trim();
         if (value.startsWith("#")) {
             value = value.substring(1);
         }

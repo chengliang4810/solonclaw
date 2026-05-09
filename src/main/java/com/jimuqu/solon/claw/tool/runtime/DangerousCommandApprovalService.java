@@ -3200,7 +3200,7 @@ public class DangerousCommandApprovalService {
         if (StrUtil.isBlank(selector)) {
             return pending.get(0);
         }
-        String normalized = selector.trim();
+        String normalized = SecretRedactor.stripDisplayControls(selector).trim();
         if (normalized.startsWith("#")) {
             normalized = normalized.substring(1);
         }
@@ -3213,7 +3213,7 @@ public class DangerousCommandApprovalService {
             // fall through to id/key matching
         }
         for (PendingApproval item : pending) {
-            if (selectorMatches(item, selector)) {
+            if (selectorMatches(item, normalized)) {
                 return item;
             }
         }
@@ -3224,7 +3224,7 @@ public class DangerousCommandApprovalService {
         if (item == null || StrUtil.isBlank(selector)) {
             return false;
         }
-        String value = selector.trim();
+        String value = SecretRedactor.stripDisplayControls(selector).trim();
         String approvalId = item.getApprovalId();
         String approvalKey = item.approvalKey();
         String opaqueSelector = approvalSelector(item);

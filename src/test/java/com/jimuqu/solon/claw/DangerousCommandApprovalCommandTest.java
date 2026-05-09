@@ -196,6 +196,42 @@ public class DangerousCommandApprovalCommandTest {
     }
 
     @Test
+    void shouldStripDisplayControlsFromApprovalListAndSelector() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-control-list", "user-control-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-control-list", "user-control-list", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-control-list:user-control-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell\u202E",
+                "recursive_delete",
+                "Security scan\u202E reason",
+                "rm -rf runtime/cache\u202E --token ghp_commandsecret123");
+
+        GatewayReply list = env.send("room-control-list", "user-control-list", "/approve list");
+        String approvalId =
+                env.dangerousCommandApprovalService
+                        .getPendingApproval(agentSession)
+                        .getApprovalId();
+        String disguisedApprovalId =
+                approvalId.substring(0, 8) + "\u202E" + approvalId.substring(8);
+        GatewayReply approved =
+                env.send("room-control-list", "user-control-list", "/approve " + disguisedApprovalId);
+
+        assertThat(list.getContent())
+                .contains("tool=execute_shell")
+                .contains("reason=Security scan reason")
+                .contains("command_preview=rm -rf runtime/cache --token ***")
+                .doesNotContain("\u202E")
+                .doesNotContain("ghp_commandsecret123");
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+    }
+
+    @Test
     void shouldListTirithPendingApprovalWithoutAlwaysScope() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-tirith-list", "user-tirith-list", "hello"));

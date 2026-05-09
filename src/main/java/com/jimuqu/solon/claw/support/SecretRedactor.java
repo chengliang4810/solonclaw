@@ -95,7 +95,7 @@ public final class SecretRedactor {
         if (text == null) {
             return null;
         }
-        String result = DISPLAY_CONTROL.matcher(text).replaceAll("");
+        String result = stripDisplayControls(text);
         result = BEARER.matcher(result).replaceAll("$1***");
         result = ENV_ASSIGNMENT.matcher(result).replaceAll("$1$2$3***$3");
         result = SHELL_KEY_VALUE.matcher(result).replaceAll("$1$2***");
@@ -145,11 +145,18 @@ public final class SecretRedactor {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        String result = DISPLAY_CONTROL.matcher(value).replaceAll("");
+        String result = stripDisplayControls(value);
         result = redactUrlUserinfo(result);
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         return PREFIX_SECRET.matcher(result).replaceAll("***");
+    }
+
+    public static String stripDisplayControls(String value) {
+        if (value == null) {
+            return null;
+        }
+        return DISPLAY_CONTROL.matcher(value).replaceAll("");
     }
 
     private static String redactUrlUserinfo(String value) {
