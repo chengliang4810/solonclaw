@@ -351,6 +351,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key)(?:=|\\s+)\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "tls_certificate_check_disabled",
+                                    "TLS certificate verification disabled",
+                                    pattern(
+                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(
