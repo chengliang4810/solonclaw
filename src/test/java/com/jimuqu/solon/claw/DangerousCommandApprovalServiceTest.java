@@ -5748,6 +5748,30 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldStripTerminalControlsFromApprovalCardExtras() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setToolName("execute_shell");
+        pending.setPatternKey("shell_command_flag");
+        pending.setDescription("remote call\u001b]8;;https://evil.example\u0007link\u001b]8;;\u0007");
+        pending.setCommand("echo safe\u001b[31m red\u001b[0m \u202Etxt");
+        pending.setApprovalId("approval-controls");
+
+        Map<String, Object> extras =
+                env.dangerousCommandApprovalService.buildDeliveryExtras(
+                        PlatformType.FEISHU, pending);
+
+        assertThat(extras.get("approvalCommand").toString())
+                .doesNotContain("\u001b")
+                .doesNotContain("\u202E")
+                .contains("echo safe red txt");
+        assertThat(extras.get("approvalDescription").toString())
+                .doesNotContain("\u001b")
+                .doesNotContain("https://evil.example");
+    }
+
+    @Test
     void shouldExpirePendingApprovalLikeJimuquGatewayTimeout() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setGatewayTimeoutSeconds(1);

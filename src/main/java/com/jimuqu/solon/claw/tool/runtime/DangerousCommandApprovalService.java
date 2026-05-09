@@ -3519,7 +3519,10 @@ public class DangerousCommandApprovalService {
     }
 
     private String redactApprovalDisplay(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
+        String normalized =
+                SecretRedactor.stripDisplayControls(
+                        TerminalAnsiSanitizer.stripAnsi(StrUtil.nullToEmpty(value)));
+        return SecretRedactor.redact(normalized, maxLength);
     }
 
     private static String redactedApprover(String approver) {
