@@ -828,6 +828,12 @@ public class DangerousCommandApprovalService {
                                     pattern("require\\s*\\(\\s*['\"]child_process['\"]\\s*\\)"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "js_dynamic_code_execution",
+                                    "Node dynamic code execution",
+                                    pattern(
+                                            "\\b(?:eval|Function)\\s*\\(|\\bnew\\s+Function\\s*\\(|\\bvm\\.runIn(?:ThisContext|NewContext|Context)\\s*\\("),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "js_fs_remove",
                                     "Node file delete",
                                     pattern("\\bfs\\.(rm|rmSync|unlink|unlinkSync)\\s*\\("),

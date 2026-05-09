@@ -1379,6 +1379,35 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectJavaScriptDynamicCodeExecution() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "eval(userInput)",
+                        "new Function(source)()",
+                        "Function(source)()",
+                        "vm.runInThisContext(code)",
+                        "vm.runInNewContext(code, sandbox)",
+                        "vm.runInContext(code, context)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_dynamic_code_execution");
+        }
+
+        assertThat(env.dangerousCommandApprovalService.detect("execute_js", "JSON.parse(payload)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "eval(user_input)"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
