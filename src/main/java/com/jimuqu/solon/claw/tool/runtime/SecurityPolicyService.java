@@ -213,6 +213,8 @@ public class SecurityPolicyService {
                     "-i");
     private static final List<String> COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES =
             Arrays.asList("-i", "-F", "-K");
+    private static final List<String> NETWORK_CREDENTIAL_SHORT_OPTIONS =
+            Arrays.asList("-b", "-c", "-E", "-K");
     private static final List<String> SSH_FILE_CONFIG_OPTION_NAMES =
             Arrays.asList(
                     "IdentityFile",
@@ -700,6 +702,18 @@ public class SecurityPolicyService {
         for (int i = 0; i < tokens.size(); i++) {
             String token = cleanUrlToken(tokens.get(i));
             String path = credentialPathOptionValue(token);
+            if (StrUtil.isBlank(path)
+                    && isNetworkToolToken(token)
+                    && i + 1 < tokens.size()) {
+                String option = cleanUrlToken(tokens.get(i + 1));
+                path = networkCredentialShortOptionValue(option);
+                if (StrUtil.isNotBlank(path)) {
+                    i++;
+                } else if (isDetachedNetworkCredentialShortOption(option) && i + 2 < tokens.size()) {
+                    path = cleanUrlToken(tokens.get(i + 2));
+                    i += 2;
+                }
+            }
             if (StrUtil.isBlank(path) && "-o".equals(token) && i + 1 < tokens.size()) {
                 path = sshFileConfigOptionValue(cleanUrlToken(tokens.get(++i)));
             }
@@ -755,6 +769,26 @@ public class SecurityPolicyService {
             }
         }
         return "";
+    }
+
+    private boolean isNetworkToolToken(String token) {
+        return "curl".equalsIgnoreCase(token) || "wget".equalsIgnoreCase(token);
+    }
+
+    private String networkCredentialShortOptionValue(String token) {
+        if (StrUtil.isBlank(token)) {
+            return "";
+        }
+        for (String option : NETWORK_CREDENTIAL_SHORT_OPTIONS) {
+            if (token.startsWith(option) && token.length() > option.length()) {
+                return token.substring(option.length());
+            }
+        }
+        return "";
+    }
+
+    private boolean isDetachedNetworkCredentialShortOption(String token) {
+        return NETWORK_CREDENTIAL_SHORT_OPTIONS.contains(token);
     }
 
     private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {

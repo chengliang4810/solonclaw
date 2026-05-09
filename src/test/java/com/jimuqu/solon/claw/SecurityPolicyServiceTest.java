@@ -774,6 +774,11 @@ public class SecurityPolicyServiceTest {
                 "ssh -oHostKeyAlias=known-host-entry host.example",
                 "known-host-entry");
         assertCommandCredentialOptionDenied(policy, "curl -K.curlrc https://example.invalid", ".curlrc");
+        assertCommandCredentialOptionDenied(policy, "curl -b cookies.txt https://example.invalid", "cookies.txt");
+        assertCommandCredentialOptionDenied(policy, "curl -bcookies.txt https://example.invalid", "cookies.txt");
+        assertCommandCredentialOptionDenied(policy, "curl -c cookies.txt https://example.invalid", "cookies.txt");
+        assertCommandCredentialOptionDenied(policy, "curl -E client.pem https://example.invalid", "client.pem");
+        assertCommandCredentialOptionDenied(policy, "wget --load-cookies cookies.txt https://example.invalid", "cookies.txt");
         assertCommandCredentialOptionDenied(
                 policy,
                 "kubectl --kubeconfig kubeconfig get pods",
