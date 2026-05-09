@@ -1348,6 +1348,37 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectPythonUnsafeDeserialization() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "import pickle\npickle.loads(payload)",
+                        "import cPickle\ncPickle.load(stream)",
+                        "import dill\ndill.loads(payload)",
+                        "import yaml\nyaml.load(payload)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_unsafe_deserialization");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "import yaml\nyaml.load(payload, Loader=yaml.SafeLoader)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "import json\njson.loads(payload)"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

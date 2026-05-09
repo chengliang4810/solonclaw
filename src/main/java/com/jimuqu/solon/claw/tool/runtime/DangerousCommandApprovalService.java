@@ -811,6 +811,12 @@ public class DangerousCommandApprovalService {
                                             "\\bsubprocess\\.(run|Popen|call|check_call|check_output)\\s*\\("),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_unsafe_deserialization",
+                                    "Python unsafe deserialization",
+                                    pattern(
+                                            "\\b(?:pickle|cPickle|dill)\\.loads?\\s*\\(|\\byaml\\.load\\s*\\((?![^\\n)]*SafeLoader)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "js_child_process",
                                     "Node child_process execution",
                                     pattern(
