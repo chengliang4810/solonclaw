@@ -661,11 +661,17 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect("execute_shell", "DROP TABLE users");
         DangerousCommandApprovalService.DetectionResult deleteWithoutWhere =
                 env.dangerousCommandApprovalService.detect("execute_shell", "DELETE FROM users");
+        DangerousCommandApprovalService.DetectionResult updateWithoutWhere =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "UPDATE users SET admin = true");
         DangerousCommandApprovalService.DetectionResult truncate =
                 env.dangerousCommandApprovalService.detect("execute_shell", "TRUNCATE TABLE users");
         DangerousCommandApprovalService.DetectionResult deleteWithWhere =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "DELETE FROM users WHERE id = 1");
+        DangerousCommandApprovalService.DetectionResult updateWithWhere =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "UPDATE users SET admin = true WHERE id = 1");
 
         assertThat(bashLcNewline).isNotNull();
         assertThat(bashLcNewline.getPatternKey()).isEqualTo("shell_command_flag");
@@ -675,9 +681,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dropTable.getPatternKey()).isEqualTo("sql_drop");
         assertThat(deleteWithoutWhere).isNotNull();
         assertThat(deleteWithoutWhere.getPatternKey()).isEqualTo("sql_delete_no_where");
+        assertThat(updateWithoutWhere).isNotNull();
+        assertThat(updateWithoutWhere.getPatternKey()).isEqualTo("sql_update_no_where");
         assertThat(truncate).isNotNull();
         assertThat(truncate.getPatternKey()).isEqualTo("sql_truncate");
         assertThat(deleteWithWhere).isNull();
+        assertThat(updateWithWhere).isNull();
     }
 
     @Test

@@ -901,6 +901,13 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "sql_update_no_where",
+                                    "SQL UPDATE without WHERE",
+                                    pattern("\\bUPDATE\\s+[A-Za-z0-9_.`\"\\[\\]-]+\\s+SET\\b(?!.*\\bWHERE\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "sql_truncate",
                                     "SQL TRUNCATE",
                                     pattern("\\bTRUNCATE\\s+(TABLE)?\\s*\\w"),
