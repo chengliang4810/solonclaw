@@ -1881,6 +1881,8 @@ public class DangerousCommandApprovalServiceTest {
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
                         "az login --cert cert.pem --key key.pem",
+                        "ansible all --private-key deploy_key -m ping",
+                        "ansible-playbook site.yml --key-file=deploy_key",
                         "rsync -e 'ssh -i deploy_key' ./ user@example.com:/tmp/",
                         "rsync -e \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
                         "rsync --rsh='ssh -i deploy_key' ./ user@example.com:/tmp/",
@@ -1907,6 +1909,10 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell",
                                 "git -c core.sshCommand='ssh -o StrictHostKeyChecking=yes' fetch origin"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ansible-inventory --list"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
