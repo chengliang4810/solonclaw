@@ -601,7 +601,7 @@ public class DangerousCommandApprovalService {
                                     "windows_powershell_remote_execute",
                                     "PowerShell remote content execution",
                                     pattern(
-                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b"),
+                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_invoke_expression",
