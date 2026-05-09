@@ -296,6 +296,14 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldStripDisplayControlCharactersFromTerminalOutputLikeJimuqu() {
+        assertThat(TerminalAnsiSanitizer.stripAnsi("safe\u0007\u0008hidden\rnext\u007F"))
+                .isEqualTo("safehiddennext");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("line1\n\tline2"))
+                .isEqualTo("line1\n\tline2");
+    }
+
+    @Test
     void shouldResolveDefaultShellInitFilesInJimuquOrder() throws Exception {
         Path home = Files.createTempDirectory("jimuqu-shell-init-home");
         Path profile = home.resolve(".profile");
