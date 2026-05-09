@@ -1016,6 +1016,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\breg(?:\\.exe)?\\s+delete\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_security_registry_weaken",
+                                    "Windows security registry policy weakened",
+                                    pattern(
+                                            "\\breg(?:\\.exe)?\\s+add\\b[^\\n]*(?:(?:Windows Defender|DisableAntiSpyware|DisableRealtimeMonitoring|DisableBehaviorMonitoring)|(?:Policies\\\\System\\b[^\\n]*EnableLUA\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0))|(?:PowerShell\\\\\\d+\\\\PowerShellEngine\\b[^\\n]*ExecutionPolicy\\b[^\\n]*(?:Bypass|Unrestricted)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_take_ownership",
                                     "Windows ownership takeover",
                                     pattern("\\btakeown\\b(?=[^\\n]*(?:[-/]r\\b|[-/]f\\b))"),
@@ -1042,7 +1048,7 @@ public class DangerousCommandApprovalService {
                                     "windows_powershell_remote_execute",
                                     "PowerShell remote content execution",
                                     pattern(
-                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b"),
+                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b|\\bDownloadFile\\s*\\([^\\n]*(?:https?://)[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|cmd\\s+/c|powershell|pwsh)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_invoke_expression",
@@ -1053,7 +1059,7 @@ public class DangerousCommandApprovalService {
                                     "windows_lolbin_remote_execution",
                                     "Windows signed binary remote execution",
                                     pattern(
-                                            "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll))"),
+                                            "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin|msiexec|installutil|regasm)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll|/i\\s+https?://))|\\bwmic(?:\\.exe)?\\s+process\\s+call\\s+create\\b(?=[^\\n]*(?:https?://|powershell|cmd\\s+/c))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_firewall",
@@ -1065,7 +1071,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_defender",
                                     "Windows Defender protection disabled",
                                     pattern(
-                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+(?:\\$?true|1)\\b|-DisableBehaviorMonitoring\\s+(?:\\$?true|1)\\b|-DisableIOAVProtection\\s+(?:\\$?true|1)\\b))"),
+                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-(?:DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableIOAVProtection|DisableScriptScanning|DisableIntrusionPreventionSystem|DisableEmailScanning|DisableBlockAtFirstSeen|DisableArchiveScanning|DisableRemovableDriveScanning|DisableScanningMappedNetworkDrivesForFullScan)\\s+(?:\\$?true|1)\\b|-EnableControlledFolderAccess\\s+(?:Disabled|0)\\b|-SubmitSamplesConsent\\s+(?:NeverSend|2)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_defender_exclusion",
