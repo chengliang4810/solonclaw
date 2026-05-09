@@ -169,6 +169,20 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeApprovalManagementFormsInSlashHelp() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+
+        assertThat(help.getContent())
+                .contains("/approve [#序号|审批ID|all] [session|always]")
+                .contains("/approve list|status|clear session|clear always|clear all")
+                .contains("/deny [#序号|审批ID|all]")
+                .contains("/deny list|status|all");
+    }
+
+    @Test
     void shouldExposeAcpStatusCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
