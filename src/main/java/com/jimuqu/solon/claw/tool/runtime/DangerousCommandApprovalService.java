@@ -631,7 +631,7 @@ public class DangerousCommandApprovalService {
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(
-                                            "\\b(?:ufw\\s+disable|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
+                                            "\\b(?:ufw\\s+(?:disable|reset)|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|iptables\\s+-P\\s+(?:INPUT|FORWARD|OUTPUT)\\s+ACCEPT\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_mac_policy",
@@ -1059,7 +1059,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
-                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
+                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+(?:allprofiles|currentprofile|domainprofile|privateprofile|publicprofile)\\s+state\\s+off|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b[^\\n]*\\bnew\\s+enable\\s*=\\s*no\\b|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_defender",

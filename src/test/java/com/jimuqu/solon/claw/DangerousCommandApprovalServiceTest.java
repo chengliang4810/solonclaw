@@ -568,8 +568,12 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "echo /tmp/hook.so | tee /etc/ld.so.preload");
         DangerousCommandApprovalService.DetectionResult ufwDisable =
                 env.dangerousCommandApprovalService.detect("execute_shell", "ufw disable");
+        DangerousCommandApprovalService.DetectionResult ufwReset =
+                env.dangerousCommandApprovalService.detect("execute_shell", "ufw reset");
         DangerousCommandApprovalService.DetectionResult iptablesFlush =
                 env.dangerousCommandApprovalService.detect("execute_shell", "iptables -F");
+        DangerousCommandApprovalService.DetectionResult iptablesPolicyAccept =
+                env.dangerousCommandApprovalService.detect("execute_shell", "iptables -P INPUT ACCEPT");
         DangerousCommandApprovalService.DetectionResult nftFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "nft flush ruleset");
@@ -629,8 +633,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(ldSoPreloadWrite.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
         assertThat(ufwDisable).isNotNull();
         assertThat(ufwDisable.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(ufwReset).isNotNull();
+        assertThat(ufwReset.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(iptablesFlush).isNotNull();
         assertThat(iptablesFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(iptablesPolicyAccept).isNotNull();
+        assertThat(iptablesPolicyAccept.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(nftFlush).isNotNull();
         assertThat(nftFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(setenforce).isNotNull();
@@ -1203,6 +1211,14 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "netsh advfirewall set allprofiles state off",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall set publicprofile state off",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall firewall set rule name=\"OpenSSH\" new enable=no",
                 "windows_disable_firewall");
         assertDangerPattern(
                 env,
