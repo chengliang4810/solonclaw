@@ -183,6 +183,20 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeKanbanAdvancedCommandsInSlashHelp() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+
+        assertThat(help.getContent())
+                .contains("/kanban [list|create|schema|show|drawer|move|assign|comment|boards|pipeline|retry|history|guide|stats|watch|dispatch]")
+                .contains("任务抽屉")
+                .contains("执行流水")
+                .contains("多 Agent 派发");
+    }
+
+    @Test
     void shouldExposeAcpStatusCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
