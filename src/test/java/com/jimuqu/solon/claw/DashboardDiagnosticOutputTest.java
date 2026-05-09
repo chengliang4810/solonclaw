@@ -357,10 +357,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
         assertThat(json).doesNotContain("\\u202E");
         assertThat(json).doesNotContain("historypattern123");
+        assertThat(json).doesNotContain("\"approval_key\":");
         assertThat(json).contains("\"session_id\":\"session-audit\"");
         assertThat(json).contains("\"tool_name\":\"execute_shell\"");
         assertThat(json).contains("token_ghp_***");
-        assertThat(json).contains("\"approval_key\":\"execute_shell:recursive_delete:***\"");
         assertThat(json).contains("\"command_hash\":\"***\"");
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
     }
