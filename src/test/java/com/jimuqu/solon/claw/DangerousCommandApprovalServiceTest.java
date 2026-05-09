@@ -1400,6 +1400,20 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
         }
 
+        List<String> keychainPasswordReads =
+                Arrays.asList(
+                        "security find-generic-password -a deploy -s api-token -w",
+                        "security find-internet-password -s example.com -g",
+                        "security find-generic-password --password -s app");
+        for (String command : keychainPasswordReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("macos_keychain_password_read");
+        }
+
         List<String> sshAddPrivateKeys =
                 Arrays.asList(
                         "ssh-add ~/.ssh/id_rsa",
@@ -1493,6 +1507,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "security find-certificate -a login.keychain-db"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "ssh-add -l"))
                 .isNull();
