@@ -1416,7 +1416,7 @@ public class McpRuntimeService implements Closeable {
                                 throw new IllegalStateException(
                                         "MCP tool not found after reconnect: " + remoteToolName);
                             }
-                            return tool.call(args);
+                            return redactForToolResult(tool.handle(args));
                         }
                     });
         }

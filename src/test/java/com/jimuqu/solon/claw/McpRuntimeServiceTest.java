@@ -359,6 +359,7 @@ public class McpRuntimeServiceTest {
                 new McpRuntimeService(env.appConfig, env.sqliteDatabase, new SecretMcpFactory());
 
         ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool remoteTool = toolByName(provider, "mcp_local-docs_docs_fetch");
         FunctionTool listResources = toolByName(provider, "mcp_local-docs_list_resources");
         FunctionTool readResource = toolByName(provider, "mcp_local-docs_read_resource");
         FunctionTool listPrompts = toolByName(provider, "mcp_local-docs_list_prompts");
@@ -369,11 +370,17 @@ public class McpRuntimeServiceTest {
         promptArgs.put("name", "summarize");
         promptArgs.put("arguments", Collections.singletonMap("topic", "release"));
 
+        String remote = String.valueOf(remoteTool.handle(Collections.<String, Object>emptyMap()));
         String resources = String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
         String resource = String.valueOf(readResource.handle(resourceArgs));
         String prompts = String.valueOf(listPrompts.handle(Collections.<String, Object>emptyMap()));
         String prompt = String.valueOf(getPrompt.handle(promptArgs));
 
+        assertThat(remote)
+                .contains("Authorization: Bearer ***")
+                .contains("access_token=***")
+                .doesNotContain("ghp_remotetool12345")
+                .doesNotContain("secret-remote-token");
         assertThat(resources)
                 .contains("token=***")
                 .contains("Authorization: Bearer ***")
@@ -919,6 +926,22 @@ public class McpRuntimeServiceTest {
     }
 
     private static class SecretMcpClientProvider extends FakeMcpClientProvider {
+        @Override
+        public Collection<FunctionTool> getTools() {
+            FunctionToolDesc fetch = new FunctionToolDesc("docs_fetch");
+            fetch.title("Secret Docs Fetch");
+            fetch.description("Fetch docs");
+            fetch.inputSchema("{\"type\":\"object\",\"properties\":{}}");
+            fetch.doHandle(
+                    args -> {
+                        Map<String, Object> result = new LinkedHashMap<String, Object>();
+                        result.put("content", "Authorization: Bearer ghp_remotetool12345");
+                        result.put("access_token", "secret-remote-token");
+                        return result;
+                    });
+            return Collections.<FunctionTool>singletonList(fetch);
+        }
+
         @Override
         public Collection<FunctionResource> getResources() {
             FunctionResourceDesc resource = new FunctionResourceDesc("guide");
