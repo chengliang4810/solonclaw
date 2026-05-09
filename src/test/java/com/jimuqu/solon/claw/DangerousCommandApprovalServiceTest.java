@@ -513,6 +513,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult setcap =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "setcap cap_net_bind_service+ep ./server");
+        DangerousCommandApprovalService.DetectionResult setfaclWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setfacl -m u:deploy:rw /etc/app.conf");
+        DangerousCommandApprovalService.DetectionResult setfaclReadOnly =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setfacl -m u:deploy:r-- ./notes.txt");
+        DangerousCommandApprovalService.DetectionResult chattrRemoveImmutable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chattr -i /etc/passwd");
+        DangerousCommandApprovalService.DetectionResult chattrList =
+                env.dangerousCommandApprovalService.detect("execute_shell", "lsattr /etc/passwd");
         DangerousCommandApprovalService.DetectionResult ldPreload =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "LD_PRELOAD=./hook.so ./server");
@@ -571,6 +582,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chmodNumericSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
         assertThat(setcap).isNotNull();
         assertThat(setcap.getPatternKey()).isEqualTo("setcap_privilege");
+        assertThat(setfaclWrite).isNotNull();
+        assertThat(setfaclWrite.getPatternKey()).isEqualTo("linux_acl_permission_widen");
+        assertThat(setfaclReadOnly).isNull();
+        assertThat(chattrRemoveImmutable).isNotNull();
+        assertThat(chattrRemoveImmutable.getPatternKey()).isEqualTo("linux_immutable_flag_removed");
+        assertThat(chattrList).isNull();
         assertThat(ldPreload).isNotNull();
         assertThat(ldPreload.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
         assertThat(dyldPreload).isNotNull();
@@ -655,6 +672,32 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "echo '* * * * * payload' | crontab -");
         DangerousCommandApprovalService.DetectionResult crontabList =
                 env.dangerousCommandApprovalService.detect("execute_shell", "crontab -l");
+        DangerousCommandApprovalService.DetectionResult sudoersTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo 'deploy ALL=(ALL) NOPASSWD:ALL' | tee /etc/sudoers.d/deploy");
+        DangerousCommandApprovalService.DetectionResult sudoersAppend =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '%admin ALL=(ALL) ALL' >> /etc/sudoers");
+        DangerousCommandApprovalService.DetectionResult doasWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'permit nopass deploy' > /etc/doas.conf");
+        DangerousCommandApprovalService.DetectionResult visudo =
+                env.dangerousCommandApprovalService.detect("execute_shell", "visudo");
+        DangerousCommandApprovalService.DetectionResult sudoersFixture =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo note > fixtures/sudoers");
+        DangerousCommandApprovalService.DetectionResult systemdServiceWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat app.service | tee /etc/systemd/system/app.service");
+        DangerousCommandApprovalService.DetectionResult systemdTimerInstall =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "install app.timer /usr/lib/systemd/system/app.timer");
+        DangerousCommandApprovalService.DetectionResult launchAgentWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp com.example.agent.plist ~/Library/LaunchAgents/com.example.agent.plist");
+        DangerousCommandApprovalService.DetectionResult localServiceFixture =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp app.service fixtures/app.service");
         DangerousCommandApprovalService.DetectionResult usermodSudo =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "usermod -aG sudo deploy");
@@ -843,6 +886,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(crontabPipe).isNotNull();
         assertThat(crontabPipe.getPatternKey()).isEqualTo("unix_cron_persistence_change");
         assertThat(crontabList).isNull();
+        assertThat(sudoersTee).isNotNull();
+        assertThat(sudoersTee.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(sudoersAppend).isNotNull();
+        assertThat(sudoersAppend.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(doasWrite).isNotNull();
+        assertThat(doasWrite.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(visudo).isNotNull();
+        assertThat(visudo.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(sudoersFixture).isNull();
+        assertThat(systemdServiceWrite).isNotNull();
+        assertThat(systemdServiceWrite.getPatternKey())
+                .isEqualTo("service_persistence_registration");
+        assertThat(systemdTimerInstall).isNotNull();
+        assertThat(systemdTimerInstall.getPatternKey())
+                .isEqualTo("service_persistence_registration");
+        assertThat(launchAgentWrite).isNotNull();
+        assertThat(launchAgentWrite.getPatternKey()).isEqualTo("service_persistence_registration");
+        assertThat(localServiceFixture).isNull();
         assertThat(usermodSudo).isNotNull();
         assertThat(usermodSudo.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(gpasswdDocker).isNotNull();
@@ -1114,6 +1175,11 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Export-PfxCertificate -Cert $cert -FilePath cert.pfx",
                 "windows_export_credentials");
+        assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
+        assertDangerPattern(
+                env, "vaultcmd /listcreds:\"Windows Credentials\"", "windows_credential_manager_read");
+        assertDangerPattern(
+                env, "rundll32 keymgr.dll,KRShowKeyMgr", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
                 "Set-Content -Path .envrc -Value layout",
@@ -1355,6 +1421,20 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
         }
 
+        List<String> keychainPasswordReads =
+                Arrays.asList(
+                        "security find-generic-password -a deploy -s api-token -w",
+                        "security find-internet-password -s example.com -g",
+                        "security find-generic-password --password -s app");
+        for (String command : keychainPasswordReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("macos_keychain_password_read");
+        }
+
         List<String> sshAddPrivateKeys =
                 Arrays.asList(
                         "ssh-add ~/.ssh/id_rsa",
@@ -1448,6 +1528,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "security find-certificate -a login.keychain-db"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "ssh-add -l"))
                 .isNull();

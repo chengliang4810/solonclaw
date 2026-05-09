@@ -192,6 +192,17 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bsetcap\\b[^\\n]*\\bcap_[a-z0-9_,+-]+\\+ep\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_acl_permission_widen",
+                                    "Linux ACL permission widened",
+                                    pattern(
+                                            "\\bsetfacl\\b(?=[^\\n]*(?:-m|--modify)\\b)[^\\n]*(?::(?:rwx|rw-|r-x|[rwx-]{3})\\b|:[^\\s,]+:[rwx-]*w[rwx-]*\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "linux_immutable_flag_removed",
+                                    "Linux immutable flag removed",
+                                    pattern("\\bchattr\\b[^\\n]*-i\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "dynamic_library_preload_injection",
                                     "dynamic library preload injection",
                                     pattern(
@@ -241,6 +252,18 @@ public class DangerousCommandApprovalService {
                                     "persistent proxy configuration changed",
                                     pattern(
                                             "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.proxy\\s+\\S+|\\bnpm\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\byarn\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sudoers_policy_change",
+                                    "sudoers or privilege policy changed",
+                                    pattern(
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:/etc/sudoers\\b|/etc/sudoers\\.d/|/etc/doas\\.conf\\b)|\\bvisudo\\b|\\b(?:install|cp|mv)\\b[^\\n]*(?:/etc/sudoers\\b|/etc/sudoers\\.d/|/etc/doas\\.conf\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "service_persistence_registration",
+                                    "service persistence registration",
+                                    pattern(
+                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "overwrite_etc",
@@ -358,6 +381,12 @@ public class DangerousCommandApprovalService {
                                     "read secret manager value",
                                     pattern(
                                             "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "macos_keychain_password_read",
+                                    "macOS keychain password read",
+                                    pattern(
+                                            "\\bsecurity\\s+find-(?:generic|internet)-password\\b(?=[^\\n]*(?:\\s-w\\b|\\s-g\\b|--password\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "ssh_add_private_key",
@@ -917,6 +946,12 @@ public class DangerousCommandApprovalService {
                                     "Windows credential or certificate export",
                                     pattern(
                                             "\\b(?:Export-PfxCertificate|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_credential_manager_read",
+                                    "Windows credential manager read",
+                                    pattern(
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_sensitive_file_write",
