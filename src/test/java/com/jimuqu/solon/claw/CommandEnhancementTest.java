@@ -1046,7 +1046,7 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/approve " + extractSlashConfirmId(promptAgain) + " yes");
+                        "/approve " + disguisedConfirmId(extractSlashConfirmId(promptAgain)) + " yes");
         assertThat(approvedWithAlias.getContent())
                 .contains("MCP reload completed")
                 .contains("tools=1");
@@ -1068,7 +1068,7 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/approve always " + extractSlashConfirmId(alwaysPrompt));
+                        "/approve always " + disguisedConfirmId(extractSlashConfirmId(alwaysPrompt)));
         assertThat(always.getContent()).contains("已永久确认 /reload-mcp");
         assertThat(env.appConfig.getApprovals().isMcpReloadConfirm()).isFalse();
         assertThat(RuntimeConfigResolver.initialize(env.appConfig.getRuntime().getHome())
@@ -1241,6 +1241,10 @@ public class CommandEnhancementTest {
         Matcher matcher = SLASH_CONFIRM_ID.matcher(reply.getContent());
         assertThat(matcher.find()).isTrue();
         return matcher.group(1);
+    }
+
+    private String disguisedConfirmId(String confirmId) {
+        return confirmId.substring(0, 8) + "\u202E" + confirmId.substring(8);
     }
 
     private static class SteerAwareSlowLlmGateway implements LlmGateway {

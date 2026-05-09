@@ -1457,7 +1457,9 @@ public class DashboardControllerHttpTest {
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
                         "{\"confirmId\":\""
-                                + jsonEscape(confirmId)
+                                + jsonEscape(confirmId.substring(0, 8)
+                                        + "\u202E"
+                                        + confirmId.substring(8))
                                 + "\",\"action\":\"deny\"}",
                         token);
         assertThat(resolve.status).isEqualTo(200);

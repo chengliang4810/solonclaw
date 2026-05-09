@@ -706,7 +706,8 @@ public class DashboardDiagnosticsService {
         if (slashConfirmService == null) {
             return null;
         }
-        String expected = StrUtil.nullToEmpty(confirmId).trim();
+        String expected =
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(confirmId)).trim();
         for (SlashConfirmService.PendingConfirm pending : slashConfirmService.listPending()) {
             if (StrUtil.equals(expected, pending.getConfirmId())) {
                 return pending;

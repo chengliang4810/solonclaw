@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.gateway.command;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -94,8 +95,8 @@ public class SlashConfirmService {
         }
         if (requireConfirmId
                 && !StrUtil.equals(
-                        StrUtil.nullToEmpty(confirm.getConfirmId()),
-                        StrUtil.nullToEmpty(confirmId))) {
+                        cleanDisplay(confirm.getConfirmId()),
+                        cleanDisplay(confirmId))) {
             return null;
         }
         pendingBySource.remove(key);
@@ -171,11 +172,15 @@ public class SlashConfirmService {
     }
 
     private String normalizeCommand(String command) {
-        String value = StrUtil.nullToEmpty(command).trim().toLowerCase();
+        String value = cleanDisplay(command).trim().toLowerCase();
         while (value.startsWith("/")) {
             value = value.substring(1);
         }
         return value;
+    }
+
+    private String cleanDisplay(String value) {
+        return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value));
     }
 
     public static class PendingConfirm {
