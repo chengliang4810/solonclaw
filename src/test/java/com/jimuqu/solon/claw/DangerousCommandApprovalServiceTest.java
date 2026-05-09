@@ -196,6 +196,44 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldExposeTirithApprovalPolicySummary() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding("shortened_url", "MEDIUM", "Short URL", "")),
+                                "shortened URL"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+
+        Map<String, Object> summary = service.tirithApprovalPolicySummary();
+
+        assertThat(summary.get("scannerConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("scanRunsInApprovalMode")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("patternKeyPrefix")).isEqualTo("tirith:");
+        assertThat(summary.get("emptyFindingsPatternKey")).isEqualTo("tirith:security_scan");
+        assertThat(summary.get("findingsBecomePatternKeys")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("combinedWithLocalDangerRules")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("permanentApprovalAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("alwaysScopeDowngradedToSession")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalCardAlwaysHidden")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("smartApprovalCanApproveSessionOnly")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("smartApprovalCanDeny")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pendingMessageBlocksAlwaysScope")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("descriptionRedacted")).isEqualTo(Boolean.TRUE);
+
+        env.appConfig.getApprovals().setMode("off");
+        assertThat(service.tirithApprovalPolicySummary().get("scanRunsInApprovalMode"))
+                .isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
     void shouldExposeHardlinePolicySummaryWithoutAllowingApprovalBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

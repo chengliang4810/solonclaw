@@ -178,6 +178,27 @@ public class TirithSecurityService {
                 summary);
     }
 
+    public Map<String, Object> policySummary() {
+        Diagnostic diagnostic = diagnose();
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("enabled", Boolean.valueOf(diagnostic.isEnabled()));
+        summary.put("configured", Boolean.valueOf(diagnostic.isConfigured()));
+        summary.put("available", Boolean.valueOf(diagnostic.isAvailable()));
+        summary.put("timeoutSeconds", Integer.valueOf(diagnostic.getTimeoutSeconds()));
+        summary.put("failOpen", Boolean.valueOf(diagnostic.isFailOpen()));
+        summary.put("diagnostic", diagnostic.toMap());
+        summary.put("actions", java.util.Arrays.asList("allow", "warn", "block"));
+        summary.put("warnRequiresApproval", Boolean.TRUE);
+        summary.put("blockRequiresApproval", Boolean.TRUE);
+        summary.put("findingLimit", Integer.valueOf(MAX_FINDINGS));
+        summary.put("summaryLimit", Integer.valueOf(MAX_SUMMARY_LENGTH));
+        summary.put("secretRedaction", Boolean.TRUE);
+        summary.put("shellDetection", java.util.Arrays.asList("posix", "powershell", "cmd"));
+        summary.put("failOpenMode", diagnostic.isFailOpen() ? "allow_on_operational_failure" : "block_on_operational_failure");
+        summary.put("description", "Tirith scans command text through an external checker, maps warn/block findings into approval-required security results, and redacts diagnostics before exposing them.");
+        return summary;
+    }
+
     private String shellForToolCommand(String toolName, String command) {
         String tool = StrUtil.nullToEmpty(toolName).toLowerCase(Locale.ROOT);
         String text = StrUtil.nullToEmpty(command).trim().toLowerCase(Locale.ROOT);

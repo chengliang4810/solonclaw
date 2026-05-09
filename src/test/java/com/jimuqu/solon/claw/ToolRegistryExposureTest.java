@@ -294,6 +294,26 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("security").get("tirithDiagnostic").get("summary").getString())
                 .contains("unavailable");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("tirithPolicy")
+                                .get("warnRequiresApproval")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("tirithPolicy")
+                                .get("secretRedaction")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("security").get("tirithPolicy")))
+                .contains("failOpenMode")
+                .contains("powershell")
+                .contains("cmd");
         assertThat(policyStatus.get("policy").get("approvals").get("mode").getString())
                 .isEqualTo("smart");
         assertThat(policyStatus.get("policy").get("approvals").get("smartMode").getBoolean())
@@ -376,6 +396,25 @@ public class ToolRegistryExposureTest {
                 .contains("deny")
                 .contains("tirithFindingsIncluded")
                 .contains("terminalGuardrailPrechecked");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("tirithApprovalPolicy")
+                                .get("alwaysScopeDowngradedToSession")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("tirithApprovalPolicy")
+                                .get("permanentApprovalAllowed")
+                                .getBoolean())
+                .isFalse();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("tirithApprovalPolicy")))
+                .contains("tirith:")
+                .contains("tirith:security_scan");
         assertThat(
                         policyStatus
                                 .get("policy")
@@ -633,6 +672,14 @@ public class ToolRegistryExposureTest {
                                 .getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("tirithSmartApproval").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("tirithPolicy")
+                                .get("blockRequiresApproval")
+                                .getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("cronApprovalPolicy").getBoolean())
                 .isTrue();

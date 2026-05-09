@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class TirithSecurityServiceTest {
@@ -172,6 +173,37 @@ public class TirithSecurityServiceTest {
         assertThat(diagnostic.getConfiguredPath()).contains("***").doesNotContain(token);
         assertThat(diagnostic.getResolvedPath()).contains("***").doesNotContain(token);
         assertThat(String.valueOf(diagnostic.toMap())).contains("***").doesNotContain(token);
+    }
+
+    @Test
+    void shouldExposeTirithPolicySummaryWithoutSecrets() {
+        String token = "sk-1234567890abcdef";
+        AppConfig config = config(missingAbsolutePath(token));
+        config.getSecurity().setTirithTimeoutSeconds(7);
+        config.getSecurity().setTirithFailOpen(false);
+
+        Map<String, Object> summary = new TirithSecurityService(config).policySummary();
+
+        assertThat(summary.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("configured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("available")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("timeoutSeconds")).isEqualTo(Integer.valueOf(7));
+        assertThat(summary.get("failOpen")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(summary.get("actions")))
+                .contains("allow")
+                .contains("warn")
+                .contains("block");
+        assertThat(summary.get("warnRequiresApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("blockRequiresApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("findingLimit")).isEqualTo(Integer.valueOf(50));
+        assertThat(summary.get("summaryLimit")).isEqualTo(Integer.valueOf(500));
+        assertThat(summary.get("secretRedaction")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("shellDetection")))
+                .contains("posix")
+                .contains("powershell")
+                .contains("cmd");
+        assertThat(summary.get("failOpenMode")).isEqualTo("block_on_operational_failure");
+        assertThat(String.valueOf(summary)).contains("***").doesNotContain(token);
     }
 
     @Test

@@ -121,6 +121,7 @@ public class SecurityAuditTools {
             approvals.put("cronApprovalPolicy", approvalService.cronApprovalPolicySummary());
             approvals.put("subagentApprovalPolicy", approvalService.subagentApprovalPolicySummary());
             approvals.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
+            approvals.put("tirithApprovalPolicy", approvalService.tirithApprovalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             approvals.put("auditLogPolicy", approvalService.approvalAuditPolicySummary());
             approvals.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
@@ -141,6 +142,9 @@ public class SecurityAuditTools {
         if (tirithDiagnostic != null) {
             security.put("tirithAvailable", Boolean.valueOf(tirithDiagnostic.isAvailable()));
             security.put("tirithDiagnostic", tirithDiagnostic.toMap());
+        }
+        if (tirithSecurityService != null) {
+            security.put("tirithPolicy", tirithSecurityService.policySummary());
         }
         security.put(
                 "websiteBlocklistEnabled",
@@ -210,6 +214,9 @@ public class SecurityAuditTools {
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));
         coverage.put("mcpToolChangeNotice", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
+        if (tirithSecurityService != null) {
+            coverage.put("tirithPolicy", tirithSecurityService.policySummary());
+        }
         coverage.put("readOnlyAuditTool", Boolean.TRUE);
         result.policy.put("coverage", coverage);
 

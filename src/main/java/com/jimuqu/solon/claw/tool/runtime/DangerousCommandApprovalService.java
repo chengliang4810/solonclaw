@@ -1294,6 +1294,7 @@ public class DangerousCommandApprovalService {
         summary.put("subagentApprovalPolicy", subagentApprovalPolicySummary());
         summary.put("smartJudgeConfigured", Boolean.valueOf(hasSmartApprovalJudge()));
         summary.put("smartApprovalPolicy", smartApprovalPolicySummary());
+        summary.put("tirithApprovalPolicy", tirithApprovalPolicySummary());
         summary.put("dangerousRuleCount", Integer.valueOf(RULES.size()));
         summary.put("hardlineRuleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
         summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
@@ -1380,6 +1381,25 @@ public class DangerousCommandApprovalService {
         summary.put("reasonStoredInBlockMessage", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("description", "Smart approval only evaluates commands that remain approvable after hardline, file, URL, and terminal guardrail checks; approvals become session-scoped while escalations fall back to human confirmation.");
+        return summary;
+    }
+
+    public Map<String, Object> tirithApprovalPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("scannerConfigured", Boolean.valueOf(tirithSecurityService != null));
+        summary.put("scanRunsInApprovalMode", Boolean.valueOf(!"off".equals(approvalMode())));
+        summary.put("patternKeyPrefix", "tirith:");
+        summary.put("emptyFindingsPatternKey", "tirith:security_scan");
+        summary.put("findingsBecomePatternKeys", Boolean.TRUE);
+        summary.put("combinedWithLocalDangerRules", Boolean.TRUE);
+        summary.put("permanentApprovalAllowed", Boolean.FALSE);
+        summary.put("alwaysScopeDowngradedToSession", Boolean.TRUE);
+        summary.put("approvalCardAlwaysHidden", Boolean.TRUE);
+        summary.put("smartApprovalCanApproveSessionOnly", Boolean.TRUE);
+        summary.put("smartApprovalCanDeny", Boolean.TRUE);
+        summary.put("pendingMessageBlocksAlwaysScope", Boolean.TRUE);
+        summary.put("descriptionRedacted", Boolean.TRUE);
+        summary.put("description", "Tirith findings are converted into tirith:* approval patterns, can be combined with local dangerous rules, and never create permanent approvals.");
         return summary;
     }
 
