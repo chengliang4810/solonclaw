@@ -1065,7 +1065,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_defender",
                                     "Windows Defender protection disabled",
                                     pattern(
-                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+(?:\\$?true|1)\\b|-DisableBehaviorMonitoring\\s+(?:\\$?true|1)\\b|-DisableIOAVProtection\\s+(?:\\$?true|1)\\b))"),
+                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-(?:DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableIOAVProtection|DisableScriptScanning|DisableIntrusionPreventionSystem|DisableEmailScanning)\\s+(?:\\$?true|1)\\b|-EnableControlledFolderAccess\\s+(?:Disabled|0)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_defender_exclusion",

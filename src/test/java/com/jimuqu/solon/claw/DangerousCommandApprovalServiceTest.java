@@ -1257,6 +1257,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Set-MpPreference -DisableScriptScanning $true",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -DisableIntrusionPreventionSystem 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -EnableControlledFolderAccess Disabled",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
                 "windows_defender_exclusion");
         assertDangerPattern(
