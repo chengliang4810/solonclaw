@@ -495,13 +495,19 @@ public class DangerousCommandApprovalService {
                                     "package_manager_source_change",
                                     "package manager source configuration changed",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:registry|npmRegistryServer)\\s+(?!https://registry\\.npmjs\\.org/?(?:\\s|$))\\S+|pip\\s+config\\s+set\\s+(?:global\\.)?(?:index-url|extra-index-url|trusted-host)\\s+\\S+)"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:registry|npmRegistryServer)\\s+(?!https://registry\\.npmjs\\.org/?(?:\\s|$))\\S+|pip\\s+config\\s+set\\s+(?:global\\.)?(?:index-url|extra-index-url|trusted-host)\\s+\\S+|poetry\\s+source\\s+(?:add|remove)\\b|cargo\\s+login\\b|cargo\\s+owner\\s+--add\\b|gem\\s+sources\\s+(?:--add|--remove)\\b|nuget\\s+sources\\s+(?:add|update|remove)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "package_manager_script_policy_change",
+                                    "package manager install script policy changed",
+                                    pattern(
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:ignore-scripts\\s+false|unsafe-perm\\s+true|enableScripts\\s+true)\\b|pnpm\\s+approve-builds\\b|bun\\s+pm\\s+trust\\b|yarn\\s+config\\s+set\\s+enableScripts\\s+true\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_remote_execute",
                                     "package manager remote package execution",
                                     pattern(
-                                            "\\b(?:npx|uvx)\\b|\\bnpm\\s+exec\\b|\\bpnpm\\s+(?:dlx|exec)\\b|\\byarn\\s+dlx\\b|\\bpipx\\s+run\\b"),
+                                            "\\b(?:npx|uvx|bunx)\\b|\\bnpm\\s+exec\\b|\\bpnpm\\s+(?:dlx|exec)\\b|\\byarn\\s+dlx\\b|\\bpipx\\s+run\\b|\\bdeno\\s+run\\b(?=[^\\n]*(?:https?://|jsr:|npm:))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_http_header_send",
@@ -767,13 +773,13 @@ public class DangerousCommandApprovalService {
                                     "docker_force_remove",
                                     "Docker force remove",
                                     pattern(
-                                            "\\bdocker\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
+                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "docker_privileged_or_host_mount",
                                     "Docker privileged container or host mount",
                                     pattern(
-                                            "\\bdocker\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
+                                            "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kubectl_delete",
