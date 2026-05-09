@@ -11,6 +11,7 @@ public final class TerminalCommandCatalog {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/title", "/goal", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
                 "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp",
+                "/model pick", "/skin classic", "/skin mono", "/skin contrast",
                 "/busy status", "/busy queue", "/busy steer", "/busy interrupt", "/busy reject",
                 "/approve list", "/approve status", "/approve all", "/approve all session",
                 "/approve all always", "/approve session", "/approve always",
