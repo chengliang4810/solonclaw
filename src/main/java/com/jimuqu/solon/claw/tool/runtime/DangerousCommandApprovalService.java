@@ -1053,7 +1053,7 @@ public class DangerousCommandApprovalService {
                                     "windows_lolbin_remote_execution",
                                     "Windows signed binary remote execution",
                                     pattern(
-                                            "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll))"),
+                                            "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin|msiexec|installutil|regasm)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll|/i\\s+https?://))|\\bwmic(?:\\.exe)?\\s+process\\s+call\\s+create\\b(?=[^\\n]*(?:https?://|powershell|cmd\\s+/c))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_firewall",
