@@ -451,7 +451,7 @@ public class DangerousCommandApprovalService {
                                     "network_credential_send",
                                     "send credential through network command option",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s(?:(?:https?|wss?)://|//)?[^\\s/@]+(?::|%3a)[^\\s/@]+@[^\\s/]+|\\s-u(?:\\s+\\S|\\S+)|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--oauth2-bearer(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--form(?:-string)?|-F|--url-query)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s(?:(?:https?|wss?)://|//)?[^\\s/@]+(?::|%3a)[^\\s/@]+@[^\\s/]+|\\s-u(?:\\s+\\S|\\S+)|\\s--(?:user|password|http-user|http-password|ftp-user|ftp-password|proxy-user|proxy-password|oauth2-bearer)(?:=|\\s+)\\S|\\s--ask-password\\b|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--form(?:-string)?|-F|--url-query)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*=\\s*\\S+|\\s--json(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME

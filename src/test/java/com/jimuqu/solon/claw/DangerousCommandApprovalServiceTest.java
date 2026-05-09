@@ -1645,7 +1645,10 @@ public class DangerousCommandApprovalServiceTest {
                         "curl user:password@example.com/private",
                         "curl --user user:password https://example.com/private",
                         "wget --user user --password password https://example.com/private",
+                        "wget --http-user=user --http-password=password https://example.com/private",
                         "wget --http-password=password https://example.com/private",
+                        "wget --ftp-user user --ftp-password password ftp://example.com/private",
+                        "wget --ask-password --user user https://example.com/private",
                         "curl --proxy-user user:password https://example.com/private",
                         "curl --proxy-password password https://example.com/private",
                         "wget --proxy-user=user --proxy-password=password https://example.com/private",
@@ -1725,6 +1728,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "http --timeout 5 GET https://example.com/private"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "wget --tries=3 https://example.com/file"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
