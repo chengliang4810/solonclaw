@@ -1816,6 +1816,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockSensitiveUrlParameterNamesBeforeNetworkAccess() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "https://example.com/callback?access_token=short",
+                        "https://example.com/callback?client_secret=abc",
+                        "https://example.com/callback?password=p",
+                        "https://example.com/callback?x-amz-signature=abc",
+                        "https://example.com/callback?api%5Fkey=abc",
+                        "https://example.com/callback#refresh_token=short");
+
+        for (String url : blocked) {
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("敏感凭据参数");
+        }
+
+        SecurityPolicyService.UrlVerdict ordinaryToken =
+                securityPolicyService.checkUrl("https://example.com/list?token=page");
+        SecurityPolicyService.UrlVerdict ordinaryCode =
+                securityPolicyService.checkUrl("https://example.com/callback?code=1234");
+
+        assertThat(ordinaryToken.isAllowed()).isTrue();
+        assertThat(ordinaryCode.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockUrlUserinfoCredentialsBeforeNetworkAccess() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
