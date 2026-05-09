@@ -206,10 +206,61 @@ public class CronJobService {
                 record.setPausedReason(null);
             }
         }
+        if (body.containsKey("status") || body.containsKey("state")) {
+            applyEditableStatus(record, string(body.get("status"), string(body.get("state"), null)));
+        }
+        if (body.containsKey("paused_reason") || body.containsKey("pausedReason")) {
+            String reason =
+                    string(body.get("paused_reason"), string(body.get("pausedReason"), null));
+            if (STATUS_PAUSED.equalsIgnoreCase(record.getStatus())) {
+                record.setPausedReason(StrUtil.blankToDefault(reason, "paused from edit"));
+                if (record.getPausedAt() <= 0L) {
+                    record.setPausedAt(System.currentTimeMillis());
+                }
+            }
+        }
         if (record.isNoAgent() && StrUtil.isBlank(record.getScript())) {
             throw new IllegalStateException("no_agent requires script");
         }
         return cronJobRepository.update(record);
+    }
+
+    private void applyEditableStatus(CronJobRecord record, String rawStatus) {
+        String status = StrUtil.nullToEmpty(rawStatus).trim().toLowerCase(Locale.ROOT);
+        if (StrUtil.isBlank(status)) {
+            return;
+        }
+        if ("active".equals(status)
+                || "enabled".equals(status)
+                || "enable".equals(status)
+                || "running".equals(status)
+                || "resume".equals(status)
+                || "resumed".equals(status)) {
+            record.setStatus(STATUS_ACTIVE);
+            record.setPausedAt(0L);
+            record.setPausedReason(null);
+            if (record.getNextRunAt() <= System.currentTimeMillis()) {
+                record.setNextRunAt(
+                        CronSupport.nextRunAt(record.getCronExpr(), System.currentTimeMillis()));
+            }
+            return;
+        }
+        if ("paused".equals(status)
+                || "pause".equals(status)
+                || "disabled".equals(status)
+                || "disable".equals(status)
+                || "stopped".equals(status)
+                || "stop".equals(status)) {
+            record.setStatus(STATUS_PAUSED);
+            record.setPausedAt(System.currentTimeMillis());
+            return;
+        }
+        if ("completed".equals(status) || "complete".equals(status)) {
+            record.setStatus(STATUS_COMPLETED);
+            record.setNextRunAt(0L);
+            return;
+        }
+        throw new IllegalStateException("unsupported cron job status: " + rawStatus);
     }
 
     public List<CronJobRecord> listAll(boolean includeDisabled) throws Exception {
@@ -455,7 +506,10 @@ public class CronJobService {
                         "provider",
                         "base_url",
                         "wrap_response",
-                        "enabled"));
+                        "enabled",
+                        "status",
+                        "state",
+                        "paused_reason"));
         result.put("actions", cronGuideActions());
         result.put("aliases", cronGuideAliases());
         result.put("skill_binding", cronGuideSkillBinding());

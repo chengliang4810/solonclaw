@@ -5645,6 +5645,8 @@ public class DangerousCommandApprovalServiceTest {
                         new SecurityPolicyService(compatibilityYoloEnv.appConfig),
                         "1");
         assertHardlineBlocked(compatibilityYoloService, "pwsh Stop-Computer");
+        assertHardlineBlocked(compatibilityYoloService, "shutdown.exe /p");
+        assertHardlineBlocked(compatibilityYoloService, "cmd /c shutdown /g /t 0");
     }
 
     @Test

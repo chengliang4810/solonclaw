@@ -1633,6 +1633,24 @@ public class DashboardControllerHttpTest {
         assertThat(patch.body).doesNotContain("evil_field");
         assertThat(patch.body).doesNotContain("__proto__");
 
+        HttpResult patchPaused =
+                request(
+                        "PATCH",
+                        "/api/jobs/" + jobId,
+                        "{\"status\":\"paused\",\"paused_reason\":\"maintenance\"}",
+                        token);
+        assertThat(patchPaused.status).isEqualTo(200);
+        assertThat(patchPaused.body)
+                .contains("\"enabled\":false")
+                .contains("\"paused_reason\":\"maintenance\"");
+
+        HttpResult patchResumed =
+                request("PATCH", "/api/jobs/" + jobId, "{\"state\":\"active\"}", token);
+        assertThat(patchResumed.status).isEqualTo(200);
+        assertThat(patchResumed.body)
+                .contains("\"enabled\":true")
+                .doesNotContain("maintenance");
+
         HttpResult pause = request("POST", "/api/jobs/" + jobId + "/pause", "{}", token);
         assertThat(pause.status).isEqualTo(200);
         assertThat(pause.body).contains("\"enabled\":false");
