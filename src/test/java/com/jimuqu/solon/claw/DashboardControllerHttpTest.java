@@ -1268,8 +1268,8 @@ public class DashboardControllerHttpTest {
                 "dashboard-approval-chat",
                 "MEMORY:dashboard-approval-chat:dashboard-user",
                 "Dashboard approval session",
-                "printf api_key=sk-test-secret-token-value",
-                "需要确认危险命令 Authorization: Bearer ghp_dashboardsecret12345");
+                "printf api_key=sk-test-secret-token-value\u202E",
+                "需要确认危险命令 Authorization: Bearer ghp_dashboardsecret12345\u202E");
 
         HttpResult pending =
                 request("GET", "/api/diagnostics/approvals?limit=20", null, token);
@@ -1304,6 +1304,7 @@ public class DashboardControllerHttpTest {
         assertThat(historyBefore.body)
                 .contains("\"event_type\":\"request\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
+                .doesNotContain("\\u202E")
                 .doesNotContain("sk-test-secret-token-value")
                 .doesNotContain("ghp_dashboardsecret12345")
                 .contains("Authorization: Bearer ***");
@@ -1330,6 +1331,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"choice\":\"deny\"")
                 .contains("\"approver\":\"dashboard\"")
                 .contains("\"command_preview\":\"printf api_key=***\"")
+                .doesNotContain("\\u202E")
                 .doesNotContain("sk-test-secret-token-value")
                 .doesNotContain("ghp_dashboardsecret12345")
                 .contains("Authorization: Bearer ***");
