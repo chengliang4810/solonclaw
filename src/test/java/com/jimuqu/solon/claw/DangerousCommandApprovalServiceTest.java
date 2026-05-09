@@ -607,6 +607,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult systemctlRestart =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl --user restart Jimuqu-gateway");
+        DangerousCommandApprovalService.DetectionResult serviceStop =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "service nginx stop");
+        DangerousCommandApprovalService.DetectionResult launchctlBootout =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "launchctl bootout system/com.example.daemon");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -698,6 +704,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(safeColon).isNull();
         assertThat(systemctlRestart).isNotNull();
         assertThat(systemctlRestart.getPatternKey()).isEqualTo("stop_service");
+        assertThat(serviceStop).isNotNull();
+        assertThat(serviceStop.getPatternKey()).isEqualTo("stop_service");
+        assertThat(launchctlBootout).isNotNull();
+        assertThat(launchctlBootout.getPatternKey()).isEqualTo("stop_service");
         assertThat(killallGateway).isNotNull();
         assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(pkillUnrelated).isNull();

@@ -416,7 +416,7 @@ public class DangerousCommandApprovalService {
                                     "stop_service",
                                     "stop/restart system service",
                                     pattern(
-                                            "\\bsystemctl\\s+(-[^\\s]+\\s+)*(stop|restart|disable|mask)\\b"),
+                                            "\\b(?:systemctl\\s+(-[^\\s]+\\s+)*(stop|restart|disable|mask)|service\\s+\\S+\\s+(?:stop|restart)|launchctl\\s+(?:bootout|unload|disable))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_all",
