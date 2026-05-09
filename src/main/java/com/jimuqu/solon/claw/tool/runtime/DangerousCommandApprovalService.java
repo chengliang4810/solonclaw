@@ -796,7 +796,7 @@ public class DangerousCommandApprovalService {
                                     "system shutdown/reboot",
                                     pattern(
                                             HARDLINE_COMMAND_POSITION
-                                                    + "(shutdown(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
+                                                    + "(shutdown(?!\\.exe)(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_kill_all",
@@ -853,7 +853,7 @@ public class DangerousCommandApprovalService {
                                     "hardline_windows_shutdown",
                                     "Windows shutdown/reboot",
                                     pattern(
-                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c\\s+)|(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?))?(?:shutdown\\s+/[rs]|Restart-Computer|Stop-Computer)\\b"),
+                                            "(?:^|[;&|\\n`])\\s*(?:(?:cmd(?:\\.exe)?\\s+/c\\s+)|(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?))?(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL)));
     private static final Map<String, Set<String>> APPROVAL_KEY_ALIASES =
             buildApprovalKeyAliases();
