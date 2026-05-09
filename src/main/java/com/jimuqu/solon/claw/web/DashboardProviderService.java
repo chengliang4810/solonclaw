@@ -252,6 +252,7 @@ public class DashboardProviderService {
         if (StrUtil.isBlank(baseUrl)) {
             throw new IllegalArgumentException("baseUrl 不能为空。");
         }
+        assertSafeProviderBaseUrl(baseUrl);
         if (StrUtil.isBlank(dialect) || !LlmProviderSupport.isSupportedDialect(dialect)) {
             throw new IllegalArgumentException("不支持的 dialect：" + dialect);
         }
@@ -431,6 +432,7 @@ public class DashboardProviderService {
         if (StrUtil.isBlank(baseUrl)) {
             throw new IllegalArgumentException("baseUrl 不能为空。");
         }
+        assertSafeProviderBaseUrl(baseUrl);
         if (StrUtil.isBlank(dialect) || !LlmProviderSupport.isSupportedDialect(dialect)) {
             throw new IllegalArgumentException("不支持的 dialect：" + dialect);
         }
@@ -449,6 +451,28 @@ public class DashboardProviderService {
         result.put("defaultModel", StrUtil.nullToEmpty(defaultModel).trim());
         result.put("dialect", dialect);
         return result;
+    }
+
+    private void assertSafeProviderBaseUrl(String baseUrl) {
+        try {
+            LlmProviderSupport.validateBaseUrl(baseUrl);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "provider.baseUrl 配置无效："
+                            + SecretRedactor.maskUrl(StrUtil.nullToEmpty(baseUrl))
+                            + "，"
+                            + e.getMessage(),
+                    e);
+        }
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkAlwaysBlockedUrl(baseUrl);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "provider.baseUrl 被 URL 安全底线阻止："
+                            + verdict.getMessage()
+                            + " URL: "
+                            + SecretRedactor.maskUrl(verdict.getUrl()));
+        }
     }
 
     @SuppressWarnings("unchecked")

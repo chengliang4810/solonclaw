@@ -2194,13 +2194,27 @@ public class DashboardControllerHttpTest {
     void shouldRejectPlaceholderSecrets() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
+        HttpResult unsafeProviderUrl =
+                request(
+                        "POST",
+                        "/api/providers",
+                        "{\"providerKey\":\"unsafe-url-provider\",\"name\":\"危险 URL Provider\",\"baseUrl\":\"http://169.254.169.254/latest/meta-data/?token=provider-url-secret\",\"apiKey\":\"test-key\",\"defaultModel\":\"gpt-5-mini\",\"dialect\":\"openai\"}",
+                        token);
+        assertThat(unsafeProviderUrl.status).isEqualTo(400);
+        assertThat(unsafeProviderUrl.body)
+                .contains("provider.baseUrl")
+                .contains("token=***")
+                .doesNotContain("provider-url-secret");
+        assertThat(request("GET", "/api/providers", null, token).body)
+                .doesNotContain("unsafe-url-provider");
+
         HttpResult createProvider =
                 request(
                         "POST",
                         "/api/providers",
                         "{\"providerKey\":\"placeholder-provider\",\"name\":\"占位 Provider\",\"baseUrl\":\"https://api.example.com\",\"apiKey\":\"  Your-API-Key  \",\"defaultModel\":\"gpt-5-mini\",\"dialect\":\"openai\"}",
                         token);
-        assertThat(createProvider.status).isEqualTo(500);
+        assertThat(createProvider.status).isEqualTo(400);
         assertThat(request("GET", "/api/providers", null, token).body)
                 .doesNotContain("placeholder-provider");
 

@@ -35,8 +35,13 @@ public class DashboardProviderController {
 
     @Mapping(value = "/api/providers", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
-        return providerService.createProvider(
-                ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+        try {
+            return providerService.createProvider(
+                    ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/providers/models", method = MethodType.POST)
@@ -57,9 +62,14 @@ public class DashboardProviderController {
 
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.PUT)
     public Map<String, Object> update(String providerKey, Context context) throws Exception {
-        return providerService.updateProvider(
-                providerKey,
-                ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+        try {
+            return providerService.updateProvider(
+                    providerKey,
+                    ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.DELETE)
