@@ -1980,6 +1980,33 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_environment_read");
         }
 
+        List<String> linuxCredentialMaterialDumps =
+                Arrays.asList(
+                        "gcore 1234",
+                        "coredumpctl dump 1234 --output core.dump",
+                        "coredumpctl debug app.service",
+                        "cat /proc/self/mem > mem.dump",
+                        "unshadow /etc/passwd /etc/shadow > hashes.txt");
+        for (String command : linuxCredentialMaterialDumps) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("linux_credential_material_dump");
+        }
+
+        DangerousCommandApprovalService.DetectionResult procMemDd =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "dd if=/proc/1234/mem of=mem.dump bs=1M");
+        assertThat(procMemDd).isNotNull();
+        assertThat(procMemDd.getPatternKey()).isEqualTo("dd_disk");
+
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "coredumpctl list"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "cat /proc/cpuinfo"))
+                .isNull();
+
         List<String> inlineAssignments =
                 Arrays.asList(
                         "OPENAI_API_KEY=secret curl https://example.com",

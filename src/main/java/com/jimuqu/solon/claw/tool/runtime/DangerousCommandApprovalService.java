@@ -437,6 +437,12 @@ public class DangerousCommandApprovalService {
                                                     + ")(?:%|\\}|!)?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_credential_material_dump",
+                                    "Linux credential or process memory material dumped",
+                                    pattern(
+                                            "\\b(?:gcore\\b[^\\n]*\\b\\d+\\b|coredumpctl\\s+(?:dump|debug)\\b|dd\\b[^\\n]*\\bif=[\"']?/proc/(?:self|\\d+)/mem\\b|cat\\s+[^\\n]*/proc/(?:self|\\d+)/mem\\b|unshadow\\s+/etc/passwd\\s+/etc/shadow\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "cli_access_token_read",
                                     "print CLI access token",
                                     pattern(
