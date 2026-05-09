@@ -1445,13 +1445,37 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "gcloud auth print-access-token",
                         "gcloud auth application-default print-access-token",
+                        "gcloud auth print-identity-token",
                         "az account get-access-token",
-                        "gh auth token");
+                        "gh auth token",
+                        "aws ecr get-login-password",
+                        "aws codeartifact get-authorization-token --domain internal",
+                        "aws sts get-session-token",
+                        "kubectl create token deployer",
+                        "kubectl -n prod create token deployer",
+                        "vault token lookup",
+                        "doctl auth list",
+                        "flyctl auth token",
+                        "heroku auth:token");
         for (String command : cliTokenReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("cli_access_token_read");
+        }
+
+        List<String> cliTokenSafeCommands =
+                Arrays.asList(
+                        "aws sts get-caller-identity",
+                        "kubectl get serviceaccount deployer",
+                        "vault token capabilities secret/data/prod",
+                        "doctl auth init",
+                        "flyctl auth whoami",
+                        "heroku auth:whoami");
+        for (String command : cliTokenSafeCommands) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
         }
 
         List<String> secretStoreReads =

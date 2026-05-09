@@ -106,6 +106,8 @@ public class DangerousCommandApprovalService {
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final String SHELL_COMMAND_START =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
+    private static final String KUBECTL_OPTION_PREFIX =
+            "(?:\\s+(?:--?[A-Za-z0-9-]+)(?:=\\S+|\\s+\\S+)?)*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
@@ -387,7 +389,9 @@ public class DangerousCommandApprovalService {
                                     "cli_access_token_read",
                                     "print CLI access token",
                                     pattern(
-                                            "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-access-token|az\\s+account\\s+get-access-token|gh\\s+auth\\s+token)\\b"),
+                                            "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+account\\s+get-access-token|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+get-session-token)|kubectl"
+                                                    + KUBECTL_OPTION_PREFIX
+                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_read",
