@@ -563,6 +563,12 @@ public class DangerousCommandApprovalService {
                                             "\\baws\\s+s3\\s+rm\\b(?=[^\\n]*(?:--recursive\\b|s3://))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "cloud_iam_permission_change",
+                                    "Cloud IAM permission change",
+                                    pattern(
+                                            "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "gcloud_delete",
                                     "Google Cloud resource delete",
                                     pattern(

@@ -672,18 +672,27 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsS3RecursiveRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3 rm s3://prod-data --recursive");
+        DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
         DangerousCommandApprovalService.DetectionResult awsStsRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws sts get-caller-identity");
         DangerousCommandApprovalService.DetectionResult gcloudDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud compute instances delete prod-vm --zone asia-east1-a");
+        DangerousCommandApprovalService.DetectionResult gcloudIamBinding =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gcloud projects add-iam-policy-binding prod --member user:a@example.com --role roles/owner");
         DangerousCommandApprovalService.DetectionResult gcloudList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud compute instances list");
         DangerousCommandApprovalService.DetectionResult azureDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group delete --name prod --yes");
+        DangerousCommandApprovalService.DetectionResult azureRoleAssign =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "az role assignment create --assignee app --role Owner");
         DangerousCommandApprovalService.DetectionResult azureList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group list");
@@ -767,12 +776,18 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsTerminateInstances.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsS3RecursiveRemove).isNotNull();
         assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
+        assertThat(awsAttachPolicy).isNotNull();
+        assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsStsRead).isNull();
         assertThat(gcloudDelete).isNotNull();
         assertThat(gcloudDelete.getPatternKey()).isEqualTo("gcloud_delete");
+        assertThat(gcloudIamBinding).isNotNull();
+        assertThat(gcloudIamBinding.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(gcloudList).isNull();
         assertThat(azureDelete).isNotNull();
         assertThat(azureDelete.getPatternKey()).isEqualTo("azure_delete");
+        assertThat(azureRoleAssign).isNotNull();
+        assertThat(azureRoleAssign.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(azureList).isNull();
         assertThat(dropdb).isNotNull();
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");
