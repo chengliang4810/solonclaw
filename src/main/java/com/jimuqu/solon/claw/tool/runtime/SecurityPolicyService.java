@@ -1056,6 +1056,7 @@ public class SecurityPolicyService {
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
         extractCurlDohUrls(text, urls);
+        extractCurlDnsServers(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1201,6 +1202,35 @@ public class SecurityPolicyService {
             }
             if (StrUtil.isNotBlank(value)) {
                 urls.add(cleanUrlToken(value));
+            }
+        }
+    }
+
+    private void extractCurlDnsServers(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--dns-servers".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--dns-servers=")) {
+                value = token.substring("--dns-servers=".length());
+            }
+            addDnsServerHosts(value, urls);
+        }
+    }
+
+    private void addDnsServerHosts(String raw, List<String> urls) {
+        String value = cleanUrlToken(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        for (String host : value.split(",")) {
+            String normalized = cleanUrlToken(host);
+            if (StrUtil.isNotBlank(normalized)) {
+                urls.add(normalized);
             }
         }
     }
