@@ -1460,7 +1460,12 @@ public class DangerousCommandApprovalServiceTest {
                         "vault token lookup",
                         "doctl auth list",
                         "flyctl auth token",
-                        "heroku auth:token");
+                        "heroku auth:token",
+                        "aliyun configure get access_key_secret",
+                        "aliyun configure export",
+                        "tccli configure list",
+                        "qcloud configure list",
+                        "huaweicloud configure show");
         for (String command : cliTokenReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1477,7 +1482,10 @@ public class DangerousCommandApprovalServiceTest {
                         "vault token capabilities secret/data/prod",
                         "doctl auth init",
                         "flyctl auth whoami",
-                        "heroku auth:whoami");
+                        "heroku auth:whoami",
+                        "aliyun configure list",
+                        "tccli configure get region",
+                        "huaweicloud configure list");
         for (String command : cliTokenSafeCommands) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)
@@ -1668,11 +1676,31 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("cloud_cli_credential_config_change");
         }
 
+        List<String> domesticCloudCredentialConfigChanges =
+                Arrays.asList(
+                        "aliyun configure set --access-key-id AKID --access-key-secret secret",
+                        "aliyun configure set --sts-token token",
+                        "tccli configure set secretId id secretKey key",
+                        "qcloud configure set token token",
+                        "huaweicloud configure set access_key id secret_key key",
+                        "huaweicloud configure set security_token token");
+        for (String command : domesticCloudCredentialConfigChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("domestic_cloud_cli_credential_config_change");
+        }
+
         List<String> cloudNonCredentialConfigChanges =
                 Arrays.asList(
                         "aws configure set region us-east-1",
                         "gcloud config set project prod-project",
-                        "az configure --defaults location=eastus");
+                        "az configure --defaults location=eastus",
+                        "aliyun configure set --region cn-hangzhou",
+                        "tccli configure set region ap-shanghai",
+                        "huaweicloud configure set region cn-north-4");
         for (String command : cloudNonCredentialConfigChanges) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)

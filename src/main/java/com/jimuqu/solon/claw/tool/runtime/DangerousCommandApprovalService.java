@@ -401,7 +401,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+(?:account\\s+get-access-token|acr\\s+login\\b(?=[^\\n]*--expose-token\\b))|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+(?:get-session-token|get-federation-token)|sso\\s+get-role-credentials|configure\\s+export-credentials)|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
-                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b)"),
+                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b|aliyun\\s+configure\\s+(?:get|export)\\b|(?:tccli|qcloud)\\s+configure\\s+list\\b|huaweicloud\\s+configure\\s+show\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_read",
@@ -434,6 +434,12 @@ public class DangerousCommandApprovalService {
                                     "cloud CLI credential configuration changed",
                                     pattern(
                                             "\\b(?:aws\\s+configure\\s+set\\s+(?:aws_access_key_id|aws_secret_access_key|aws_session_token|sso_start_url|credential_process)\\b|gcloud\\s+auth\\s+login\\b(?=[^\\n]*--cred-file\\b)|gcloud\\s+config\\s+set\\s+(?:auth/credential_file_override|account)\\b|az\\s+ad\\s+app\\s+credential\\s+reset\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "domestic_cloud_cli_credential_config_change",
+                                    "domestic cloud CLI credential configuration changed",
+                                    pattern(
+                                            "\\b(?:aliyun\\s+configure\\s+set\\b(?=[^\\n]*(?:--access-key-id|--access-key-secret|--sts-token)\\b)|(?:tccli|qcloud)\\s+configure\\s+set\\b(?=[^\\n]*(?:secretId|secretKey|token)\\b)|huaweicloud\\s+configure\\s+set\\b(?=[^\\n]*(?:access_key|secret_key|security_token)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_keychain_password_read",
