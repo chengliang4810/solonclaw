@@ -273,6 +273,12 @@ public class DangerousCommandApprovalService {
                                             "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*/etc/resolv\\.conf\\b|\\bnmcli\\s+connection\\s+modify\\b[^\\n]*\\bipv[46]\\.dns\\b|\\bnetworksetup\\s+-setdnsservers\\b|\\bSet-DnsClientServerAddress\\b|\\bnetsh\\s+interface\\s+ip\\s+set\\s+dns\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "network_route_or_portproxy_change",
+                                    "network route or port proxy changed",
+                                    pattern(
+                                            "\\b(?:ip\\s+route\\s+(?:add|replace|del|delete)|route\\s+(?:add|delete|del)|netsh\\s+interface\\s+portproxy\\s+(?:add|delete|del|reset))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "persistent_proxy_configuration_change",
                                     "persistent proxy configuration changed",
                                     pattern(
@@ -295,6 +301,18 @@ public class DangerousCommandApprovalService {
                                     "Git hook persistence changed",
                                     pattern(
                                             "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv|chmod)\\b)[^\\n]*(?:(?:^|[/\\\\])\\.git|\\.git)[/\\\\]hooks[/\\\\][^\\s\"'`]+|\\bgit\\s+config\\s+(?:--global\\s+)?core\\.hooksPath\\s+\\S+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "linux_kernel_policy_change",
+                                    "Linux kernel or kernel module policy changed",
+                                    pattern(
+                                            "\\b(?:modprobe|insmod|rmmod)\\b|\\bsysctl\\s+(?:-w\\s+|--write\\s+)[A-Za-z0-9_.]+\\s*=|(?:>>?|\\btee\\b(?:\\s+-a)?)\\s*[^\\n]*(?:/etc/sysctl\\.conf\\b|/etc/sysctl\\.d/[^\\s\"'`]+\\.conf\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "filesystem_mount_policy_change",
+                                    "filesystem mount policy changed",
+                                    pattern(
+                                            "\\bmount\\b(?=[^\\n]*(?:\\s-o\\s+[^\\n]*(?:remount|rw)|--options\\s+[^\\n]*(?:remount|rw)|\\s(?:/dev/[A-Za-z0-9_.-]+|/sys|/proc|/boot|/)\\b))|\\bumount\\b(?=[^\\n]*(?:\\s/(?:boot|etc|var|usr|sys|proc)\\b|\\s/dev/[A-Za-z0-9_.-]+\\b))|(?:>>?|\\btee\\b(?:\\s+-a)?)\\s*[^\\n]*/etc/fstab\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "overwrite_etc",
@@ -635,6 +653,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:journalctl\\b(?=[^\\n]*--vacuum-(?:time|size|files)\\b)|rm\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|truncate\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|wevtutil\\s+(?:cl|clear-log|clear)\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_audit_policy_disabled",
+                                    "Linux audit policy or service disabled",
+                                    pattern(
+                                            "\\b(?:auditctl\\s+-e\\s*0\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+auditd(?:\\.service)?\\b|service\\s+auditd\\s+(?:stop|disable)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "git_remote_credential_url",
                                     "Git remote URL contains credentials",
                                     pattern(
@@ -797,7 +821,7 @@ public class DangerousCommandApprovalService {
                                     "docker_privileged_or_host_mount",
                                     "Docker privileged container or host mount",
                                     pattern(
-                                            "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))|\\b(?:docker|podman|nerdctl)\\s+exec\\b(?=[^\\n]*(?:--privileged\\b|(?:-u|--user)(?:=|\\s+)root\\b))"),
+                                            "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--(?:pid|ipc|uts|network)(?:=|\\s+)host\\b|--cap-add(?:=|\\s+)(?:SYS_ADMIN|ALL)\\b|--security-opt(?:=|\\s+)(?:seccomp|apparmor)=(?:unconfined|disabled)\\b|--device(?:=|\\s+)/dev/|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))|\\b(?:docker|podman|nerdctl)\\s+exec\\b(?=[^\\n]*(?:--privileged\\b|(?:-u|--user)(?:=|\\s+)root\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "container_secret_exposure",

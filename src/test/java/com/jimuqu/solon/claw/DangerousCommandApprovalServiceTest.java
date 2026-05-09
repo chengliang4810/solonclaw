@@ -594,6 +594,29 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult aaDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aa-disable /etc/apparmor.d/usr.bin.app");
+        DangerousCommandApprovalService.DetectionResult modprobeTun =
+                env.dangerousCommandApprovalService.detect("execute_shell", "modprobe tun");
+        DangerousCommandApprovalService.DetectionResult rmmodOverlay =
+                env.dangerousCommandApprovalService.detect("execute_shell", "rmmod overlay");
+        DangerousCommandApprovalService.DetectionResult sysctlWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sysctl -w kernel.kptr_restrict=0");
+        DangerousCommandApprovalService.DetectionResult sysctlConfigWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo 'kernel.unprivileged_bpf_disabled=0' >> /etc/sysctl.d/99-debug.conf");
+        DangerousCommandApprovalService.DetectionResult sysctlRead =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sysctl kernel.kptr_restrict");
+        DangerousCommandApprovalService.DetectionResult mountRootRw =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mount -o remount,rw /");
+        DangerousCommandApprovalService.DetectionResult umountBoot =
+                env.dangerousCommandApprovalService.detect("execute_shell", "umount /boot");
+        DangerousCommandApprovalService.DetectionResult fstabWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '/dev/sdb1 /data ext4 defaults 0 0' >> /etc/fstab");
+        DangerousCommandApprovalService.DetectionResult mountList =
+                env.dangerousCommandApprovalService.detect("execute_shell", "mount");
         DangerousCommandApprovalService.DetectionResult spctlDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "spctl --master-disable");
@@ -669,6 +692,22 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(aaDisable).isNotNull();
         assertThat(aaDisable.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(modprobeTun).isNotNull();
+        assertThat(modprobeTun.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(rmmodOverlay).isNotNull();
+        assertThat(rmmodOverlay.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(sysctlWrite).isNotNull();
+        assertThat(sysctlWrite.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(sysctlConfigWrite).isNotNull();
+        assertThat(sysctlConfigWrite.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(sysctlRead).isNull();
+        assertThat(mountRootRw).isNotNull();
+        assertThat(mountRootRw.getPatternKey()).isEqualTo("filesystem_mount_policy_change");
+        assertThat(umountBoot).isNotNull();
+        assertThat(umountBoot.getPatternKey()).isEqualTo("filesystem_mount_policy_change");
+        assertThat(fstabWrite).isNotNull();
+        assertThat(fstabWrite.getPatternKey()).isEqualTo("filesystem_mount_policy_change");
+        assertThat(mountList).isNull();
         assertThat(spctlDisable).isNotNull();
         assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(spctlGlobalDisable).isNotNull();
@@ -860,6 +899,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerHostNetwork =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --network=host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCapAddSysAdmin =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cap-add SYS_ADMIN alpine");
+        DangerousCommandApprovalService.DetectionResult podmanSeccompUnconfined =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --security-opt seccomp=unconfined alpine");
+        DangerousCommandApprovalService.DetectionResult nerdctlDevice =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl run --device /dev/kvm alpine");
+        DangerousCommandApprovalService.DetectionResult dockerIpcHost =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --ipc=host alpine");
         DangerousCommandApprovalService.DetectionResult podmanPrivileged =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run --privileged alpine");
@@ -1213,6 +1264,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerHostRootMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerHostNetwork).isNotNull();
         assertThat(dockerHostNetwork.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCapAddSysAdmin).isNotNull();
+        assertThat(dockerCapAddSysAdmin.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanSeccompUnconfined).isNotNull();
+        assertThat(podmanSeccompUnconfined.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(nerdctlDevice).isNotNull();
+        assertThat(nerdctlDevice.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerIpcHost).isNotNull();
+        assertThat(dockerIpcHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(podmanPrivileged).isNotNull();
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
@@ -3251,6 +3312,22 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("audit_log_erasure");
         }
 
+        List<String> linuxAuditPolicyDisables =
+                Arrays.asList(
+                        "auditctl -e 0",
+                        "systemctl stop auditd",
+                        "systemctl disable auditd.service",
+                        "systemctl mask auditd",
+                        "service auditd stop");
+        for (String command : linuxAuditPolicyDisables) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("linux_audit_policy_disabled");
+        }
+
         List<String> gitRemoteCredentialUrls =
                 Arrays.asList(
                         "git remote add origin https://user:token@example.com/repo.git",
@@ -3299,6 +3376,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "journalctl -u app.service --since today"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "auditctl -s"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
@@ -3472,6 +3553,18 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
                         "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult ipRouteAdd =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ip route add 169.254.169.254 via 10.0.0.1");
+        DangerousCommandApprovalService.DetectionResult routeDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "route delete default");
+        DangerousCommandApprovalService.DetectionResult windowsPortProxy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "netsh interface portproxy add v4tov4 listenport=8080 connectaddress=127.0.0.1 connectport=80");
+        DangerousCommandApprovalService.DetectionResult ipRouteShow =
+                env.dangerousCommandApprovalService.detect("execute_shell", "ip route show");
         DangerousCommandApprovalService.DetectionResult projectResolvWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo nameserver > fixtures/resolv.conf");
@@ -3610,6 +3703,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(macosDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
         assertThat(windowsDnsWrite).isNotNull();
         assertThat(windowsDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(ipRouteAdd).isNotNull();
+        assertThat(ipRouteAdd.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
+        assertThat(routeDelete).isNotNull();
+        assertThat(routeDelete.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
+        assertThat(windowsPortProxy).isNotNull();
+        assertThat(windowsPortProxy.getPatternKey())
+                .isEqualTo("network_route_or_portproxy_change");
+        assertThat(ipRouteShow).isNull();
         assertThat(projectResolvWrite).isNull();
         assertThat(gitProxyWrite).isNotNull();
         assertThat(gitProxyWrite.getPatternKey())
