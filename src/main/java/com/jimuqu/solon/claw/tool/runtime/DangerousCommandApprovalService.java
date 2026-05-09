@@ -401,6 +401,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "audit_log_erasure",
+                                    "audit or event log erasure",
+                                    pattern(
+                                            "\\b(?:journalctl\\s+--vacuum-(?:time|size|files)\\b|rm\\s+[^\\n]*(?:/var/log|/var/audit)|truncate\\s+[^\\n]*(?:/var/log|/var/audit)|wevtutil\\s+cl\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "git_remote_credential_url",
                                     "Git remote URL contains credentials",
                                     pattern(
@@ -429,6 +435,18 @@ public class DangerousCommandApprovalService {
                                     "stop/restart system service",
                                     pattern(
                                             "\\b(?:systemctl\\s+(-[^\\s]+\\s+)*(stop|restart|disable|mask)|service\\s+\\S+\\s+(?:stop|restart)|launchctl\\s+(?:bootout|unload|disable))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "unix_cron_persistence_change",
+                                    "Unix cron persistence change",
+                                    pattern(
+                                            "(?:\\bcrontab\\s+(?:-[er]\\b|-u\\s+\\S+\\s+-[er]\\b|-(?:\\s|$))|\\|\\s*crontab\\s+-?(?:\\s|$))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "local_admin_permission_change",
+                                    "local administrator or sudo permission change",
+                                    pattern(
+                                            "\\b(?:usermod\\b(?=[^\\n]*(?:-aG|--append\\s+--groups)[^\\n]*(?:sudo|wheel|admin|docker)\\b)|gpasswd\\s+-a\\s+\\S+\\s+(?:sudo|wheel|admin|docker)\\b|net(?:\\.exe)?\\s+localgroup\\s+Administrators\\b|dscl\\s+\\.\\s+-append\\s+/Groups/(?:admin|wheel)\\s+GroupMembership\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_all",
@@ -770,6 +788,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\b(?:Invoke-Expression|IEX)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_lolbin_remote_execution",
+                                    "Windows signed binary remote execution",
+                                    pattern(
+                                            "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
@@ -792,6 +816,12 @@ public class DangerousCommandApprovalService {
                                     "Windows service stopped or disabled",
                                     pattern(
                                             "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_persistence_registration",
+                                    "Windows scheduled task or startup persistence",
+                                    pattern(
+                                            "\\b(?:schtasks(?:\\.exe)?\\s+/create|Register-ScheduledTask\\b|New-ScheduledTask\\b|reg(?:\\.exe)?\\s+(?:add|copy)\\b[^\\n]*(?:\\\\CurrentVersion\\\\Run(?:Once)?\\b|\\\\RunServices(?:Once)?\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_export_credentials",
