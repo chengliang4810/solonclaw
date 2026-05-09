@@ -1061,6 +1061,7 @@ public class SecurityPolicyService {
         extractCurlConnectionOverrideHosts(text, urls);
         extractCurlDohUrls(text, urls);
         extractCurlDnsServers(text, urls);
+        extractLocalBindAddresses(text, urls);
         extractJavaProxyOptionsAssignments(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
@@ -1320,6 +1321,28 @@ public class SecurityPolicyService {
                 value = token.substring("--dns-ipv4-addr=".length());
             } else if (token.startsWith("--dns-ipv6-addr=")) {
                 value = token.substring("--dns-ipv6-addr=".length());
+            }
+            addDnsServerHosts(value, urls);
+        }
+    }
+
+    private void extractLocalBindAddresses(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--interface".equals(token)
+                    || "--local-address".equals(token)
+                    || "--source-address".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--interface=")) {
+                value = token.substring("--interface=".length());
+            } else if (token.startsWith("--local-address=")) {
+                value = token.substring("--local-address=".length());
+            } else if (token.startsWith("--source-address=")) {
+                value = token.substring("--source-address=".length());
             }
             addDnsServerHosts(value, urls);
         }
