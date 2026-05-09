@@ -1156,9 +1156,26 @@ public class ToolRegistryExposureTest {
                                 .get("resultRefReturned")
                                 .getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("persistedOutputRedacted")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("fullOutputSavedRaw")
+                                .getBoolean())
+                .isFalse();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolResultStoragePolicy")))
                 .contains("read_file")
                 .contains("previewRedacted")
+                .contains("persistedOutputRedacted")
                 .contains("pathSegmentsSanitized")
                 .contains(".jimuqu/tool-results")
                 .doesNotContain(env.appConfig.getRuntime().getHome());
