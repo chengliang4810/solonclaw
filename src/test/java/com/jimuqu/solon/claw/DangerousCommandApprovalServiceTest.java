@@ -1214,6 +1214,10 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env, "rundll32 keymgr.dll,KRShowKeyMgr", "windows_credential_manager_read");
         assertDangerPattern(
+                env, "Get-StoredCredential -Target server.example", "windows_credential_manager_read");
+        assertDangerPattern(env, "Get-Secret prod-db", "windows_credential_manager_read");
+        assertDangerPattern(env, "Get-SecretInfo", "windows_credential_manager_read");
+        assertDangerPattern(
                 env,
                 "cmdkey /add:server.example /user:deploy /pass:secret",
                 "windows_credential_manager_change");
@@ -1224,6 +1228,9 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_credential_manager_change");
         assertDangerPattern(
                 env, "Remove-StoredCredential -Target server.example", "windows_credential_manager_change");
+        assertDangerPattern(env, "vaultcmd /deletecreds:\"Windows Credentials\"", "windows_credential_manager_change");
+        assertDangerPattern(env, "Set-Secret prod-db secret", "windows_credential_manager_change");
+        assertDangerPattern(env, "Remove-Secret prod-db", "windows_credential_manager_change");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
