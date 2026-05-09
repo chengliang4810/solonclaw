@@ -3195,7 +3195,7 @@ public class DefaultCommandService implements CommandService {
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         String normalizedArgs = StrUtil.nullToEmpty(args).trim().toLowerCase();
-        if ("list".equals(normalizedArgs)) {
+        if ("list".equals(normalizedArgs) || "status".equals(normalizedArgs)) {
             return GatewayReply.ok(formatApprovalList(agentSession));
         }
         if (normalizedArgs.startsWith("clear")) {

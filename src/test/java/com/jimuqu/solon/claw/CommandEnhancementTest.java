@@ -1228,6 +1228,27 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeDangerousApprovalStatusAlias() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset hard needs approval",
+                "git reset --hard origin/main");
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/approve status");
+        GatewayReply denyStatus = env.send("admin-chat", "admin-user", "/deny status");
+
+        assertThat(status.getContent()).contains("pending=1").contains("git_reset_hard");
+        assertThat(denyStatus.getContent()).contains("pending=1").contains("git_reset_hard");
+    }
+
+    @Test
     void shouldPrioritizeDangerousApprovalWhenCancelIsUsedLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
