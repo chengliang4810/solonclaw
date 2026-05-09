@@ -267,6 +267,9 @@ public class SecurityAuditTools {
         coverage.put("websitePolicy", Boolean.valueOf(securityPolicyService != null));
         coverage.put("credentialFilePolicy", Boolean.valueOf(securityPolicyService != null));
         coverage.put("credentialMountPolicy", Boolean.TRUE);
+        coverage.put(
+                "credentialMountPolicyDetails",
+                new SkillCredentialFileService(appConfig).policySummary());
         coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("schemaSanitizer", Boolean.TRUE);

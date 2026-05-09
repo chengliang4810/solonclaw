@@ -908,6 +908,18 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialMountPolicy").getBoolean())
                 .isTrue();
+        ONode credentialMountPolicyDetails =
+                policyStatus.get("policy").get("coverage").get("credentialMountPolicyDetails");
+        assertThat(credentialMountPolicyDetails.get("configCredentialFileCount").getInt()).isEqualTo(1);
+        assertThat(credentialMountPolicyDetails.get("runtimeRelativeOnly").getBoolean()).isTrue();
+        assertThat(credentialMountPolicyDetails.get("absolutePathRejected").getBoolean()).isTrue();
+        assertThat(credentialMountPolicyDetails.get("pathTraversalRejected").getBoolean()).isTrue();
+        assertThat(credentialMountPolicyDetails.get("hostPathsOmittedFromMetadata").getBoolean()).isTrue();
+        assertThat(String.valueOf(credentialMountPolicyDetails))
+                .contains("required_credential_files")
+                .contains("terminal.credentialFiles")
+                .contains("tool-results")
+                .doesNotContain("credentials/oauth.json");
         ONode pathPolicyDetails =
                 policyStatus.get("policy").get("coverage").get("pathPolicyDetails");
         assertThat(pathPolicyDetails.get("traversalBlocked").getBoolean()).isTrue();
