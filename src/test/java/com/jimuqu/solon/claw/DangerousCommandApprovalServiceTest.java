@@ -1163,6 +1163,23 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("package_manager_secret_write");
         }
 
+        List<String> packageManagerRemoteExecutes =
+                Arrays.asList(
+                        "npx cowsay hello",
+                        "npm exec playwright install",
+                        "pnpm dlx create-vite app",
+                        "yarn dlx eslint .",
+                        "pipx run black .",
+                        "uvx ruff check .");
+        for (String command : packageManagerRemoteExecutes) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_remote_execute");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
@@ -1186,6 +1203,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config set registry https://registry.npmjs.org/"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "npm run build"))
                 .isNull();
     }
 
