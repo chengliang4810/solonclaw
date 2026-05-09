@@ -756,24 +756,34 @@ public class AcpStdioServerTest {
                 new SqliteAgentSession(session, env.sessionRepository);
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
-                "execute_shell",
-                "recursive_delete",
-                "recursive delete",
-                "rm -rf runtime/cache");
+                "execute_shell\u202E",
+                "token_ghp_acppattern123\u202E",
+                "recursive token=ghp_acpdesc123\u202E",
+                "rm -rf runtime/cache --token ghp_acpcommand123\u202E");
 
         String listed =
                 server.handle(
                         "{\"jsonrpc\":\"2.0\",\"id\":28,\"method\":\"permissions_list_open\",\"params\":{\"sessionId\":\""
                                 + sessionId
                                 + "\"}}");
+        assertThat(listed)
+                .contains("\"tool_name\":\"execute_shell\"")
+                .contains("token_ghp_***")
+                .contains("token=***")
+                .doesNotContain("\\u202E")
+                .doesNotContain("acppattern123")
+                .doesNotContain("ghp_acpdesc123")
+                .doesNotContain("ghp_acpcommand123");
         String approvalId = extractJsonString(listed, "approval_id");
+        String disguisedApprovalId =
+                approvalId.substring(0, 8) + "\u202E" + approvalId.substring(8);
 
         String denied =
                 server.handle(
                         "{\"jsonrpc\":\"2.0\",\"id\":29,\"method\":\"permissions_respond\",\"params\":{\"sessionId\":\""
                                 + sessionId
                                 + "\",\"permission_id\":\""
-                                + approvalId
+                                + disguisedApprovalId
                                 + "\",\"outcome\":\"reject_once\"}}");
 
         SessionRecord updated = env.sessionRepository.findById(sessionId);

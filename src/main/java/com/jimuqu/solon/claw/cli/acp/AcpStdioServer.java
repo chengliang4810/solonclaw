@@ -766,18 +766,18 @@ public class AcpStdioServer {
             DangerousCommandApprovalService.PendingApproval pending, int index) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         String id = StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
-        item.put("id", id);
-        item.put("approval_id", pending.getApprovalId());
-        item.put("approvalId", pending.getApprovalId());
+        item.put("id", safePermissionPreview(id, 160));
+        item.put("approval_id", safePermissionPreview(pending.getApprovalId(), 160));
+        item.put("approvalId", safePermissionPreview(pending.getApprovalId(), 160));
         item.put("index", Integer.valueOf(index));
-        item.put("tool_name", pending.getToolName());
-        item.put("toolName", pending.getToolName());
-        item.put("command", SecretRedactor.redact(pending.getCommand(), 3000));
-        item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
-        item.put("pattern_key", pending.getPatternKey());
-        item.put("patternKey", pending.getPatternKey());
-        item.put("pattern_keys", pending.effectivePatternKeys());
-        item.put("patternKeys", pending.effectivePatternKeys());
+        item.put("tool_name", safePermissionPreview(pending.getToolName(), 160));
+        item.put("toolName", safePermissionPreview(pending.getToolName(), 160));
+        item.put("command", safePermissionPreview(pending.getCommand(), 3000));
+        item.put("description", safePermissionPreview(pending.getDescription(), 1000));
+        item.put("pattern_key", safePermissionPreview(pending.getPatternKey(), 400));
+        item.put("patternKey", safePermissionPreview(pending.getPatternKey(), 400));
+        item.put("pattern_keys", safePermissionList(pending.effectivePatternKeys(), 400));
+        item.put("patternKeys", safePermissionList(pending.effectivePatternKeys(), 400));
         String redactedApprovalKey = redactedApprovalKey(pending.approvalKey());
         item.put("approval_key", redactedApprovalKey);
         item.put("approvalKey", redactedApprovalKey);
@@ -794,6 +794,23 @@ public class AcpStdioServer {
         item.put("permanentAllowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
         item.put("options", permissionOptions(pending));
         return item;
+    }
+
+    private String safePermissionPreview(String value, int maxLength) {
+        return StrUtil.nullToEmpty(SecretRedactor.redact(value, maxLength));
+    }
+
+    private List<String> safePermissionList(List<String> values, int maxLength) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value)) {
+                result.add(safePermissionPreview(value, maxLength));
+            }
+        }
+        return result;
     }
 
     private String redactedApprovalKey(String approvalKey) {
@@ -852,7 +869,8 @@ public class AcpStdioServer {
 
     private String approvalCommand(String selector, String outcome) {
         String normalized = normalizedPermissionOutcome(outcome);
-        String target = StrUtil.blankToDefault(selector, "").trim();
+        String target =
+                SecretRedactor.stripDisplayControls(StrUtil.blankToDefault(selector, "")).trim();
         if ("deny".equals(normalized)) {
             return StrUtil.isBlank(target) ? "/deny" : "/deny " + target;
         }
