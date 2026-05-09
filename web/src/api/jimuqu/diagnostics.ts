@@ -82,7 +82,6 @@ export interface ApprovalAuditEvent {
   choice?: string
   approver?: string
   tool_name?: string
-  approval_id?: string
   command_hash?: string
   command_preview?: string
   description?: string

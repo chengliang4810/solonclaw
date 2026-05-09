@@ -579,7 +579,6 @@ public class DashboardDiagnosticsService {
         item.put("choice", safeAuditPreview(event.getChoice(), 80));
         item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
         item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
-        item.put("approval_id", safeAuditPreview(event.getApprovalId(), 160));
         item.put("command_hash", redactedIdentifier(event.getCommandHash()));
         item.put("command_preview", safeAuditPreview(event.getCommandPreview(), 800));
         item.put("description", safeAuditPreview(event.getDescription(), 1000));

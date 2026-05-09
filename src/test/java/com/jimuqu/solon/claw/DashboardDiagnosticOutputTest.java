@@ -356,6 +356,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
         assertThat(json).doesNotContain("\\u202E");
         assertThat(json).doesNotContain("historypattern123");
+        assertThat(json).doesNotContain("\"approval_id\":");
         assertThat(json).doesNotContain("\"approval_key\":");
         assertThat(json).contains("\"session_id\":\"session-audit\"");
         assertThat(json).contains("\"tool_name\":\"execute_shell\"");

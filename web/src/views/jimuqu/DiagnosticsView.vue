@@ -685,7 +685,7 @@ onMounted(load)
                 <div class="approval-meta">
                   <span>{{ timeText(item.created_at) }}</span>
                   <span v-if="item.approver">审批人：{{ item.approver }}</span>
-                  <span>{{ item.approval_id || item.command_hash || '-' }}</span>
+                  <span>{{ item.command_hash || '-' }}</span>
                 </div>
               </article>
             </div>
