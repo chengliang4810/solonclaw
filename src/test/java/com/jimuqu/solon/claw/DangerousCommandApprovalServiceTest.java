@@ -933,6 +933,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult azureNsgRuleCreate =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az network nsg rule create --name open-ssh --source-address-prefixes Internet --destination-port-ranges 22");
+        DangerousCommandApprovalService.DetectionResult aliyunSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aliyun ecs AuthorizeSecurityGroup --SecurityGroupId sg-prod --IpProtocol tcp --PortRange 22/22 --SourceCidrIp 0.0.0.0/0");
+        DangerousCommandApprovalService.DetectionResult tccliSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccli cvm AuthorizeSecurityGroupIngress --SecurityGroupId sg-prod --IpProtocol tcp --Port 22");
+        DangerousCommandApprovalService.DetectionResult huaweicloudSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "huaweicloud vpc AddSecurityGroupRule --security_group_id sg-prod --protocol tcp");
         DangerousCommandApprovalService.DetectionResult azureList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group list");
@@ -1134,6 +1143,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(azureRoleAssign.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(azureNsgRuleCreate).isNotNull();
         assertThat(azureNsgRuleCreate.getPatternKey()).isEqualTo("cloud_network_exposure_change");
+        assertThat(aliyunSecurityGroupIngress).isNotNull();
+        assertThat(aliyunSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
+        assertThat(tccliSecurityGroupIngress).isNotNull();
+        assertThat(tccliSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
+        assertThat(huaweicloudSecurityGroupIngress).isNotNull();
+        assertThat(huaweicloudSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(azureList).isNull();
         assertThat(dropdb).isNotNull();
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");

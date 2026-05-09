@@ -844,7 +844,7 @@ public class DangerousCommandApprovalService {
                                     "cloud_network_exposure_change",
                                     "Cloud network exposure rule changed",
                                     pattern(
-                                            "\\b(?:aws\\s+ec2\\s+(?:authorize-security-group-ingress|modify-security-group-rules)\\b|gcloud\\s+compute\\s+firewall-rules\\s+(?:create|update)\\b|az\\s+network\\s+nsg\\s+rule\\s+(?:create|update)\\b)"),
+                                            "\\b(?:aws\\s+ec2\\s+(?:authorize-security-group-ingress|modify-security-group-rules)\\b|gcloud\\s+compute\\s+firewall-rules\\s+(?:create|update)\\b|az\\s+network\\s+nsg\\s+rule\\s+(?:create|update)\\b|aliyun\\s+ecs\\s+(?:AuthorizeSecurityGroup|ModifySecurityGroupRule)\\b|(?:tccli|qcloud)\\s+cvm\\s+(?:AuthorizeSecurityGroupIngress|ModifySecurityGroupPolicies)\\b|huaweicloud\\s+(?:vpc\\s+AddSecurityGroupRule|ecs\\s+NovaCreateSecurityGroupRule)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gcloud_delete",
