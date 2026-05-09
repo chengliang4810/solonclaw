@@ -151,12 +151,12 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "recursive_delete",
                                     "recursive delete",
-                                    pattern("\\brm\\s+-(?!-)[^\\s]*r"),
+                                    pattern(SHELL_COMMAND_START + "rm\\s+-(?!-)[^\\s]*r"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "recursive_delete_long_flag",
                                     "recursive delete (long flag)",
-                                    pattern("\\brm\\s+--recursive\\b"),
+                                    pattern(SHELL_COMMAND_START + "rm\\s+--recursive\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "find_delete",
@@ -288,7 +288,13 @@ public class DangerousCommandApprovalService {
                                     "service_persistence_registration",
                                     "service persistence registration",
                                     pattern(
-                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b"),
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b|\\bsystemctl\\s+(?:-[^\\s]+\\s+)*(?:enable|reenable|preset|preset-all|link)\\b|\\blaunchctl\\s+(?:bootstrap|load)\\b|\\bupdate-rc\\.d\\s+\\S+\\s+(?:defaults|enable)\\b|\\bchkconfig\\s+\\S+\\s+on\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "git_hook_persistence_change",
+                                    "Git hook persistence changed",
+                                    pattern(
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv|chmod)\\b)[^\\n]*(?:(?:^|[/\\\\])\\.git|\\.git)[/\\\\]hooks[/\\\\][^\\s\"'`]+|\\bgit\\s+config\\s+(?:--global\\s+)?core\\.hooksPath\\s+\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "overwrite_etc",
@@ -507,7 +513,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_remote_execute",
                                     "package manager remote package execution",
                                     pattern(
-                                            "\\b(?:npx|uvx|bunx)\\b|\\bnpm\\s+exec\\b|\\bpnpm\\s+(?:dlx|exec)\\b|\\byarn\\s+dlx\\b|\\bpipx\\s+run\\b|\\bdeno\\s+run\\b(?=[^\\n]*(?:https?://|jsr:|npm:))"),
+                                            "\\b(?:npx|uvx|bunx)\\b|\\bnpm\\s+(?:exec|create)\\b|\\bpnpm\\s+(?:dlx|exec|create)\\b|\\byarn\\s+(?:dlx|create)\\b|\\bbun\\s+create\\b|\\bpipx\\s+run\\b|\\bdeno\\s+run\\b(?=[^\\n]*(?:https?://|jsr:|npm:))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_http_header_send",
@@ -649,7 +655,7 @@ public class DangerousCommandApprovalService {
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(
-                                            "\\b(?:ufw\\s+(?:disable|reset)|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|iptables\\s+-P\\s+(?:INPUT|FORWARD|OUTPUT)\\s+ACCEPT\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
+                                            "\\b(?:ufw\\s+(?:disable|reset)|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|iptables\\s+-P\\s+(?:INPUT|FORWARD|OUTPUT)\\s+ACCEPT\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b|pfctl\\s+(?:-d\\b|-F\\s+(?:all|rules|nat|states)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_mac_policy",
@@ -797,7 +803,7 @@ public class DangerousCommandApprovalService {
                                     "container_secret_exposure",
                                     "container command exposes secret material",
                                     pattern(
-                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:build|buildx\\s+build|run|create)\\b(?=[^\\n]*(?:(?:--build-arg|--env|-e)(?:=|\\s+)[A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY)[A-Za-z0-9_]*\\s*=\\s*\\S+|--env-file(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*|--secret(?:=|\\s+)\\S*(?:src|source|env)\\s*=\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*|--ssh(?:=|\\s+)\\S*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]\\S*))"),
+                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:build|buildx\\s+build|run|create)\\b(?=[^\\n]*(?:(?:--build-arg|--env|-e)(?:=|\\s+)[A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY)[A-Za-z0-9_]*\\s*=\\s*\\S+|--env-file(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|--secret(?:=|\\s+)\\S*(?:src|source|env)\\s*=\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|--ssh(?:=|\\s+)\\S*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]\\S*))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kubectl_delete",
@@ -934,13 +940,6 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\bchmod\\s+\\+x\\b.*[;&|]+\\s*(?:(?:bash|sh|zsh|ksh)\\s+[^\\s;&|]+|(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "sql_drop",
-                                    "SQL DROP",
-                                    pattern("\\bDROP\\s+(TABLE|DATABASE)\\b"),
-                                    ToolNameConstants.EXECUTE_SHELL,
-                                    ToolNameConstants.EXECUTE_PYTHON,
-                                    ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "sql_delete_no_where",
                                     "SQL DELETE without WHERE",
@@ -1096,7 +1095,7 @@ public class DangerousCommandApprovalService {
                                     "windows_powershell_remote_execute",
                                     "PowerShell remote content execution",
                                     pattern(
-                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b|\\bDownloadFile\\s*\\([^\\n]*(?:https?://)[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|cmd\\s+/c|powershell|pwsh)"),
+                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b|\\bDownloadFile\\s*\\([^\\n]*(?:https?://)[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|cmd\\s+/c|powershell|pwsh)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer)\\b[^\\n]*(?:https?://)[^\\n]*(?:-(?:OutFile|Destination)\\s+|-(?:OutFile|Destination):)\\S*\\.(?:ps1|psm1|bat|cmd|exe|msi|vbs|js|hta)\\b[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|powershell|pwsh|cmd\\s+/c)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_invoke_expression",
