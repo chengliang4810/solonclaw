@@ -190,6 +190,18 @@ public class TirithSecurityService {
         summary.put("actions", java.util.Arrays.asList("allow", "warn", "block"));
         summary.put("warnRequiresApproval", Boolean.TRUE);
         summary.put("blockRequiresApproval", Boolean.TRUE);
+        summary.put("commandPassedAsSingleArgument", Boolean.TRUE);
+        summary.put("nonInteractiveMode", Boolean.TRUE);
+        summary.put("jsonOutputMode", Boolean.TRUE);
+        summary.put("subprocessEnvironmentSanitized", Boolean.TRUE);
+        summary.put("timeoutKillsProcess", Boolean.TRUE);
+        summary.put("stdoutStderrCollectedSeparately", Boolean.TRUE);
+        summary.put("exitCodeZeroAllows", Boolean.TRUE);
+        summary.put("exitCodeOneBlocks", Boolean.TRUE);
+        summary.put("exitCodeTwoWarns", Boolean.TRUE);
+        summary.put("unexpectedExitCodeUsesFailureMode", Boolean.TRUE);
+        summary.put("parseFailureKeepsDecision", Boolean.TRUE);
+        summary.put("toolShellDetectionApplied", Boolean.TRUE);
         summary.put("findingLimit", Integer.valueOf(MAX_FINDINGS));
         summary.put("summaryLimit", Integer.valueOf(MAX_SUMMARY_LENGTH));
         summary.put("secretRedaction", Boolean.TRUE);

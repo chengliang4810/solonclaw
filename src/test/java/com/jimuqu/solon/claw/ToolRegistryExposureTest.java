@@ -823,6 +823,19 @@ public class ToolRegistryExposureTest {
                                 .get("blockRequiresApproval")
                                 .getBoolean())
                 .isTrue();
+        ONode tirithPolicy = policyStatus.get("policy").get("coverage").get("tirithPolicy");
+        assertThat(tirithPolicy.get("commandPassedAsSingleArgument").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("nonInteractiveMode").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("jsonOutputMode").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("subprocessEnvironmentSanitized").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("timeoutKillsProcess").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("stdoutStderrCollectedSeparately").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("exitCodeZeroAllows").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("exitCodeOneBlocks").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("exitCodeTwoWarns").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("unexpectedExitCodeUsesFailureMode").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("parseFailureKeepsDecision").getBoolean()).isTrue();
+        assertThat(tirithPolicy.get("toolShellDetectionApplied").getBoolean()).isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("cronApprovalPolicy").getBoolean())
                 .isTrue();
         assertThat(
