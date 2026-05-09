@@ -323,6 +323,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+get\\s+\\S*(?:_authToken|_auth|password|token)|pip\\s+config\\s+get\\s+\\S*(?:password|token|credential|secret))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "package_manager_secret_write",
+                                    "write package manager credential",
+                                    pattern(
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_http_header_send",
                                     "send credential through HTTP header",
                                     pattern(
@@ -351,10 +357,34 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key)(?:=|\\s+)\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "tls_certificate_check_disabled",
+                                    "TLS certificate verification disabled",
+                                    pattern(
+                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "git_tls_certificate_check_disabled",
+                                    "Git TLS certificate verification disabled",
+                                    pattern(
+                                            "(?:^|[;&|\\n`])\\s*(?:GIT_SSL_NO_VERIFY\\s*=\\s*(?:true|1|yes)\\s+git\\b|git\\s+-c\\s+http\\.sslVerify\\s*=\\s*false\\b|git\\s+config\\s+(?:--global\\s+)?http\\.sslVerify\\s+false\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(
                                             "\\b(?:sshpass\\s+-(?:p|P)\\s+\\S+|mysql(?:admin|dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|mariadb(?:-dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|psql\\b[^\\n]*(?:\\s-W\\s+\\S+|\\s--password(?:=|\\s+)\\S+)|redis-cli\\b[^\\n]*(?:\\s-a\\s+\\S+|\\s--pass(?:=|\\s+)\\S+)|PGPASSWORD=\\S+\\s+psql\\b|MYSQL_PWD=\\S+\\s+mysql\\b|REDISCLI_AUTH=\\S+\\s+redis-cli\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "cli_login_credential_option",
+                                    "login command includes credential option",
+                                    pattern(
+                                            "\\b(?:docker\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|gh\\s+auth\\s+login\\b[^\\n]*--with-token\\b|npm\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--auth-type\\s+legacy)|az\\s+login\\b[^\\n]*--password(?:=|\\s+)\\S+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "credential_history_erasure",
+                                    "erase shell or credential command history",
+                                    pattern(
+                                            "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "ssh_host_key_check_disabled",

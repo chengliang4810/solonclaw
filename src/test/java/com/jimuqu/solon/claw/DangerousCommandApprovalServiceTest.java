@@ -1112,6 +1112,22 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("package_manager_secret_read");
         }
 
+        List<String> packageManagerSecretWrites =
+                Arrays.asList(
+                        "npm config set //registry.npmjs.org/:_authToken npm-token",
+                        "pnpm config set //registry.npmjs.org/:_authToken npm-token",
+                        "yarn config set npmAuthToken npm-token",
+                        "pip config set global.password pip-password",
+                        "pip config set global.token pip-token");
+        for (String command : packageManagerSecretWrites) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_secret_write");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
@@ -1131,6 +1147,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config get registry"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "npm config set registry https://registry.npmjs.org/"))
                 .isNull();
     }
 
@@ -1229,6 +1249,64 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectTlsCertificateVerificationBypassCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "curl -k https://example.com",
+                        "curl --insecure https://example.com",
+                        "wget --no-check-certificate https://example.com/file",
+                        "wget --check-certificate=off https://example.com/file",
+                        "aria2c --allow-untrusted https://example.com/file");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("tls_certificate_check_disabled");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl https://example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "wget --check-certificate=on https://example.com"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectGitTlsCertificateVerificationBypassCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "GIT_SSL_NO_VERIFY=true git clone https://example.com/repo.git",
+                        "GIT_SSL_NO_VERIFY=1 git fetch origin",
+                        "git -c http.sslVerify=false clone https://example.com/repo.git",
+                        "git config http.sslVerify false",
+                        "git config --global http.sslVerify false");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("git_tls_certificate_check_disabled");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git -c http.sslVerify=true fetch origin"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "git status"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -1259,6 +1337,69 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "redis-cli ping"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectCliLoginCredentialOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "docker login --username user --password password registry.example",
+                        "docker login -u user -p password registry.example",
+                        "echo token | docker login --username user --password-stdin registry.example",
+                        "gh auth login --with-token < token.txt",
+                        "npm login --auth-type legacy --password password",
+                        "az login --service-principal --username app --password password");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("cli_login_credential_option");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "docker login registry.example"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "gh auth status"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectCredentialHistoryErasureCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "history -c",
+                        "rm ~/.bash_history",
+                        "rm -f ~/.zsh_history",
+                        "rm ~/.mysql_history",
+                        "Clear-History",
+                        "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+                        "Set-PSReadLineOption -HistorySaveStyle SaveNothing");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_history_erasure");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat ~/.bash_history | tail"))
                 .isNull();
     }
 
