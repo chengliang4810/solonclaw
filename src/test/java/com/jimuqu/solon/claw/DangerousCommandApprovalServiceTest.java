@@ -2259,6 +2259,8 @@ public class DangerousCommandApprovalServiceTest {
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
                         "az login --cert cert.pem --key key.pem",
+                        "openssl s_client -connect example.com:443 -key client.key",
+                        "openssl s_client -connect example.com:443 -cert client.pem -CAfile ca.pem",
                         "ansible all --private-key deploy_key -m ping",
                         "ansible-playbook site.yml --key-file=deploy_key",
                         "rsync -e 'ssh -i deploy_key' ./ user@example.com:/tmp/",
@@ -2269,7 +2271,8 @@ public class DangerousCommandApprovalServiceTest {
                         "git -c core.sshCommand=\"ssh -oIdentityFile=deploy_key\" fetch origin",
                         "npm --userconfig .npmrc whoami",
                         "rclone --config rclone.conf copy remote:bucket .",
-                        "s3cmd --config=.s3cfg ls s3://bucket");
+                        "s3cmd --config=.s3cfg ls s3://bucket",
+                        "coscli --config ~/.cos.yaml ls cos://bucket");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2609,7 +2612,9 @@ public class DangerousCommandApprovalServiceTest {
                         "flyctl auth login --access-token=token",
                         "vercel login --token token",
                         "netlify login --auth token",
-                        "wrangler login --api-token token");
+                        "wrangler login --api-token token",
+                        "aliyun configure --access-key-id AKID --access-key-secret secret",
+                        "aliyun configure --sts-token token");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2643,6 +2648,10 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "netlify login"))
                 .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "aliyun configure --region cn-hangzhou"))
+                .isNull();
     }
 
     @Test
@@ -2655,6 +2664,11 @@ public class DangerousCommandApprovalServiceTest {
                         "rm ~/.bash_history",
                         "rm -f ~/.zsh_history",
                         "rm ~/.mysql_history",
+                        "rm ~/.psql_history",
+                        "rm ~/.rediscli_history",
+                        "rm ~/.sqlite_history",
+                        "rm ~/.python_history",
+                        "del %USERPROFILE%\\.node_repl_history",
                         "Clear-History",
                         "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
                         "Set-PSReadLineOption -HistorySaveStyle SaveNothing",
@@ -2676,8 +2690,11 @@ public class DangerousCommandApprovalServiceTest {
         List<String> auditLogErasures =
                 Arrays.asList(
                         "journalctl --vacuum-time=1s",
+                        "journalctl --rotate --vacuum-size=1M",
                         "truncate -s 0 /var/log/auth.log",
+                        "truncate -s 0 /var/lib/systemd/journal/system.journal",
                         "wevtutil cl Security",
+                        "wevtutil clear-log Application",
                         "Clear-EventLog -LogName Security",
                         "auditctl -D");
         for (String command : auditLogErasures) {
@@ -2801,6 +2818,7 @@ public class DangerousCommandApprovalServiceTest {
                         "echo $OPENAI_API_KEY | pbcopy",
                         "printf %s $JIMUQU_ACCESS_TOKEN | xclip -selection clipboard",
                         "printenv ANTHROPIC_API_KEY | xsel --clipboard",
+                        "printf %s $OPENAI_API_KEY | wl-copy",
                         "echo %OPENAI_API_KEY% | clip.exe",
                         "Set-Clipboard $env:OPENAI_API_KEY",
                         "scb %JIMUQU_ACCESS_TOKEN%");
