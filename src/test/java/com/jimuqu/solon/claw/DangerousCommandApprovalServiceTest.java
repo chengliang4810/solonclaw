@@ -2179,6 +2179,9 @@ public class DangerousCommandApprovalServiceTest {
                         "pip config set global.token pip-token",
                         "poetry config http-basic.internal user password",
                         "poetry config pypi-token.internal pypi-token",
+                        "uv publish --token uv-token",
+                        "pdm publish --username user --password pdm-password",
+                        "hatch publish --token hatch-token",
                         "cargo login crate-token",
                         "gem push pkg.gem -k private",
                         "nuget sources add -Name internal -Source https://nuget.example -Password token",
@@ -2196,6 +2199,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "poetry config virtualenvs.in-project true",
                         "twine check dist/*",
+                        "uv publish --dry-run",
+                        "pdm publish --repository internal",
+                        "hatch publish --repo internal",
                         "cargo owner --list crate-name",
                         "gem list",
                         "nuget sources list");

@@ -489,7 +489,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_secret_write",
                                     "write package manager credential",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+|poetry\\s+config\\s+(?:http-basic\\.|pypi-token\\.)\\S+\\s+\\S+|cargo\\s+login\\b|gem\\s+push\\b(?=[^\\n]*(?:\\s-k\\s+\\S+|--key\\s+\\S+))|nuget\\s+sources\\s+(?:add|update)\\b(?=[^\\n]*(?:-Password\\s+\\S+|-StorePasswordInClearText\\b)))"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+|poetry\\s+config\\s+(?:http-basic\\.|pypi-token\\.)\\S+\\s+\\S+|(?:uv|pdm|hatch)\\s+publish\\b(?=[^\\n]*(?:--token(?:=|\\s+)\\S+|--password(?:=|\\s+)\\S+|--username(?:=|\\s+)\\S+))|cargo\\s+login\\b|gem\\s+push\\b(?=[^\\n]*(?:\\s-k\\s+\\S+|--key\\s+\\S+))|nuget\\s+sources\\s+(?:add|update)\\b(?=[^\\n]*(?:-Password\\s+\\S+|-StorePasswordInClearText\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_source_change",
