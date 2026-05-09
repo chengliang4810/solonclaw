@@ -1773,7 +1773,11 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "curl --netrc https://example.com/private",
+                        "curl --netrc-optional https://example.com/private",
                         "curl --netrc-file ~/.netrc https://example.com/private",
+                        "curl --netrc-file=~/.netrc https://example.com/private",
+                        "curl --config ~/.curlrc https://example.com/private",
+                        "curl -K.curlrc https://example.com/private",
                         "wget --load-cookies cookies.txt https://example.com/private",
                         "curl --cert client.pem --key client.key https://example.com/private",
                         "curl --proxy-cert=client.pem --proxy-key=client.key https://example.com/private",
