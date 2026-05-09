@@ -1975,6 +1975,21 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult projectResolvWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo nameserver > fixtures/resolv.conf");
+        DangerousCommandApprovalService.DetectionResult gitProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --global http.proxy http://127.0.0.1:8080");
+        DangerousCommandApprovalService.DetectionResult npmProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "npm config set https-proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult winHttpProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "netsh winhttp set proxy 127.0.0.1:8080");
+        DangerousCommandApprovalService.DetectionResult macosProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "networksetup -setwebproxy Wi-Fi 127.0.0.1 8080");
+        DangerousCommandApprovalService.DetectionResult gitProxyRead =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --global --get http.proxy");
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
@@ -2072,6 +2087,19 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsDnsWrite).isNotNull();
         assertThat(windowsDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
         assertThat(projectResolvWrite).isNull();
+        assertThat(gitProxyWrite).isNotNull();
+        assertThat(gitProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(npmProxyWrite).isNotNull();
+        assertThat(npmProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(winHttpProxyWrite).isNotNull();
+        assertThat(winHttpProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(macosProxyWrite).isNotNull();
+        assertThat(macosProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(gitProxyRead).isNull();
         assertThat(shellRc).isNotNull();
         assertThat(shellRc.getPatternKey()).isEqualTo("shell_profile_persistence_injection");
         assertThat(shellProfileRedirect).isNotNull();
