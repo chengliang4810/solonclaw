@@ -1448,6 +1448,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectPermissiveCredentialFileChmodCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "chmod 777 ~/.ssh/id_rsa",
+                        "chmod 666 .env",
+                        "chmod o+r ~/.aws/credentials",
+                        "chmod a+rw $env:USERPROFILE\\.ssh\\id_ed25519",
+                        "chmod o+rw %USERPROFILE%\\.docker\\config.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_permissive_chmod");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "chmod 755 scripts/run-local.ps1"))
+                .isNull();
+    }
+
+    @Test
     void shouldProtectGatewayLifecycleAndSelfTerminationCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

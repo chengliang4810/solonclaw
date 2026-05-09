@@ -82,6 +82,8 @@ public class DangerousCommandApprovalService {
             "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|token\\.json))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
+    private static final String CREDENTIAL_PERMISSION_TARGET =
+            "(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.config[/\\\\](?:gh|gcloud))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|credentials(?:\\.json)?|auth\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -153,6 +155,14 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bxargs\\s+.*\\brm\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_permissive_chmod",
+                                    "credential file permission widened",
+                                    pattern(
+                                            "\\bchmod\\b(?=[^\\n]*(?:777|666|o\\+[rwx]*[rw]|a\\+[rwx]*[rw]))[^\\n]*[\"']?"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + "[\"']?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "world_writable",
                                     "world/other-writable permissions",
                                     pattern(
@@ -168,7 +178,7 @@ public class DangerousCommandApprovalService {
                                     "chmod_setuid_setgid",
                                     "setuid/setgid permission change",
                                     pattern(
-                                            "\\bchmod\\s+(-[^\\s]*\\s+)*(?:[ug]\\+s|[2467][0-7]{3})\\b"),
+                                            "\\bchmod\\s+(-[^\\s]*\\s+)*(?:[ug]\\+s|[2467][0-7]{3}(?!\\s+~?[/\\\\.]?\\.?(?:ssh|aws|gnupg|kube|docker|azure)\\b))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "setcap_privilege",
