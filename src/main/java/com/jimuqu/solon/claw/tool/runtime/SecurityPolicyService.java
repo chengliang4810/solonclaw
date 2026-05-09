@@ -263,7 +263,19 @@ public class SecurityPolicyService {
                     "secret",
                     "jwt",
                     "signature",
-                    "x-amz-signature");
+                    "x-amz-signature",
+                    "x-amz-credential",
+                    "x-amz-security-token",
+                    "x-goog-signature",
+                    "x-goog-credential",
+                    "x-oss-signature",
+                    "x-oss-security-token",
+                    "x-cos-signature",
+                    "x-cos-security-token",
+                    "x-obs-signature",
+                    "x-obs-security-token",
+                    "x-ms-signature",
+                    "security-token");
 
     private final AppConfig appConfig;
 
