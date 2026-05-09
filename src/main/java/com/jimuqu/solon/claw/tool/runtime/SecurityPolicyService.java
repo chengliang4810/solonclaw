@@ -1166,6 +1166,8 @@ public class SecurityPolicyService {
         return "http_proxy".equals(name)
                 || "https_proxy".equals(name)
                 || "ftp_proxy".equals(name)
+                || "npm_config_proxy".equals(name)
+                || "npm_config_https_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 

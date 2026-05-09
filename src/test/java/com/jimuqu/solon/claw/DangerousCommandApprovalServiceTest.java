@@ -3654,6 +3654,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict nodeProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "node app.js --proxy-server socks5://169.254.169.254:1080");
+        SecurityPolicyService.UrlVerdict npmProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "npm_config_proxy=http://127.0.0.1:8080 npm install");
+        SecurityPolicyService.UrlVerdict npmHttpsProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "npm_config_https_proxy=http://169.254.169.254:8080 npm install");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3725,6 +3731,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chromiumProxyPrivate.getMessage()).contains("内网");
         assertThat(nodeProxyMetadata.isAllowed()).isFalse();
         assertThat(nodeProxyMetadata.getMessage()).contains("元数据");
+        assertThat(npmProxyPrivate.isAllowed()).isFalse();
+        assertThat(npmProxyPrivate.getMessage()).contains("内网");
+        assertThat(npmHttpsProxyMetadata.isAllowed()).isFalse();
+        assertThat(npmHttpsProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test
