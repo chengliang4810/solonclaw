@@ -91,6 +91,82 @@ public class ProcessRegistryTest {
     }
 
     @Test
+    void shouldRedactManagedProcessDefaultMapViewWithoutMutatingRawOutput() throws Exception {
+        Process process =
+                new Process() {
+                    @Override
+                    public OutputStream getOutputStream() {
+                        return new OutputStream() {
+                            @Override
+                            public void write(int b) {}
+                        };
+                    }
+
+                    @Override
+                    public InputStream getInputStream() {
+                        return new InputStream() {
+                            private final byte[] data =
+                                    "api_key=sk-test1234567890abcdef token=secret123\n"
+                                            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                            private int index;
+
+                            @Override
+                            public int read() {
+                                if (index >= data.length) {
+                                    return -1;
+                                }
+                                return data[index++];
+                            }
+                        };
+                    }
+
+                    @Override
+                    public InputStream getErrorStream() {
+                        return new InputStream() {
+                            @Override
+                            public int read() {
+                                return -1;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public int waitFor() {
+                        return 0;
+                    }
+
+                    @Override
+                    public int exitValue() {
+                        return 0;
+                    }
+
+                    @Override
+                    public void destroy() {}
+                };
+        ProcessRegistry registry = new ProcessRegistry();
+        String id = registry.add(process);
+        ProcessRegistry.ManagedProcess managed = registry.get(id);
+        managed.startReader();
+
+        Thread.sleep(200L);
+
+        Map<String, Object> view = managed.toMap();
+        assertThat(String.valueOf(view.get("output")))
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test1234567890abcdef")
+                .doesNotContain("secret123");
+        assertThat(String.valueOf(view.get("output_preview")))
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test1234567890abcdef")
+                .doesNotContain("secret123");
+        assertThat(managed.getOutput())
+                .contains("sk-test1234567890abcdef")
+                .contains("secret123");
+    }
+
+    @Test
     void shouldRewriteCompoundBackgroundTailLikeJimuqu() {
         assertThat(
                         ProcessRegistry.rewriteCompoundBackground(

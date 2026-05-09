@@ -586,8 +586,8 @@ public class DashboardDiagnosticsService {
         item.put("approval_id", safeAuditPreview(event.getApprovalId(), 160));
         item.put("approval_key", redactedApprovalKey(event.getApprovalKey()));
         item.put("command_hash", redactedIdentifier(event.getCommandHash()));
-        item.put("command_preview", SecretRedactor.redact(event.getCommandPreview(), 800));
-        item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
+        item.put("command_preview", safeAuditPreview(event.getCommandPreview(), 800));
+        item.put("description", safeAuditPreview(event.getDescription(), 1000));
         item.put("pattern_keys", redactedJsonList(event.getPatternKeysJson(), 400));
         item.put("created_at", Long.valueOf(event.getCreatedAt()));
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));

@@ -2390,10 +2390,10 @@ public class DefaultCommandService implements CommandService {
                         .append(" status=")
                         .append(StrUtil.blankToDefault(job.getLastStatus(), "ok"));
                 if (StrUtil.isNotBlank(job.getLastError())) {
-                    buffer.append(" error=").append(StrUtil.maxLength(job.getLastError(), 120));
+                    buffer.append(" error=").append(safeCronText(job.getLastError(), 120));
                 }
                 if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
-                    buffer.append(" delivery=").append(StrUtil.maxLength(job.getLastDeliveryError(), 120));
+                    buffer.append(" delivery=").append(safeCronText(job.getLastDeliveryError(), 120));
                 }
             }
         }
@@ -2503,16 +2503,20 @@ public class DefaultCommandService implements CommandService {
                     .append(" Finished: ")
                     .append(run.getFinishedAt());
             if (StrUtil.isNotBlank(run.getError())) {
-                buffer.append('\n').append("Error: ").append(run.getError());
+                buffer.append('\n').append("Error: ").append(safeCronText(run.getError(), 1000));
             }
             if (StrUtil.isNotBlank(run.getDeliveryError())) {
-                buffer.append('\n').append("Delivery error: ").append(run.getDeliveryError());
+                buffer.append('\n').append("Delivery error: ").append(safeCronText(run.getDeliveryError(), 1000));
             }
             if (StrUtil.isNotBlank(run.getOutput())) {
-                buffer.append('\n').append("Output: ").append(StrUtil.maxLength(run.getOutput(), 300));
+                buffer.append('\n').append("Output: ").append(safeCronText(run.getOutput(), 300));
             }
         }
         return buffer.toString();
+    }
+
+    private String safeCronText(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private String formatCronDetail(CronJobRecord job) {
@@ -2615,7 +2619,7 @@ public class DefaultCommandService implements CommandService {
                         .append(")");
             }
             if (StrUtil.isNotBlank(job.getLastDeliveryError())) {
-                buffer.append('\n').append("Delivery failed: ").append(job.getLastDeliveryError());
+                buffer.append('\n').append("Delivery failed: ").append(safeCronText(job.getLastDeliveryError(), 1000));
             }
         }
         return buffer.toString();

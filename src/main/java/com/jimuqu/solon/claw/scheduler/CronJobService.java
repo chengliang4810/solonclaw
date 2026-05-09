@@ -402,11 +402,11 @@ public class CronJobService {
         result.put("finished", Boolean.valueOf(record.getFinishedAt() > 0));
         result.put("duration_ms", durationMillis(record));
         result.put("status", record.getStatus());
-        result.put("output", record.getOutput());
-        result.put("error", record.getError());
-        result.put("delivery_error", record.getDeliveryError());
-        result.put("delivery_result", parse(record.getDeliveryResultJson()));
-        result.put("summary", record.getSummary());
+        result.put("output", safeViewText(record.getOutput()));
+        result.put("error", safeViewText(record.getError()));
+        result.put("delivery_error", safeViewText(record.getDeliveryError()));
+        result.put("delivery_result", safeViewValue(parse(record.getDeliveryResultJson())));
+        result.put("summary", safeViewText(record.getSummary()));
         return result;
     }
 
@@ -444,8 +444,8 @@ public class CronJobService {
         result.put("id", record.getJobId());
         result.put("job_id", record.getJobId());
         result.put("name", record.getName());
-        result.put("prompt", record.getPrompt());
-        result.put("prompt_preview", StrUtil.maxLength(record.getPrompt(), 120));
+        result.put("prompt", safeViewText(record.getPrompt()));
+        result.put("prompt_preview", safeViewText(StrUtil.maxLength(record.getPrompt(), 120)));
         result.put("cron_expr", record.getCronExpr());
         result.put("schedule", schedule);
         result.put("schedule_display", schedule.get("display"));
@@ -473,9 +473,9 @@ public class CronJobService {
         result.put("last_run_at", record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
         result.put("next_run_at", record.getNextRunAt() <= 0 ? null : Long.valueOf(record.getNextRunAt()));
         result.put("last_status", record.getLastStatus());
-        result.put("last_error", record.getLastError());
-        result.put("last_delivery_error", record.getLastDeliveryError());
-        result.put("last_output", record.getLastOutput());
+        result.put("last_error", safeViewText(record.getLastError()));
+        result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
+        result.put("last_output", safeViewText(record.getLastOutput()));
         result.put("paused_at", record.getPausedAt() <= 0 ? null : Long.valueOf(record.getPausedAt()));
         result.put("paused_reason", record.getPausedReason());
         result.put("created_at", Long.valueOf(record.getCreatedAt()));
@@ -950,6 +950,32 @@ public class CronJobService {
             return null;
         }
         return ONode.ofJson(json).toData();
+    }
+
+    private String safeViewText(String value) {
+        return SecretRedactor.redact(value);
+    }
+
+    private Object safeViewValue(Object value) {
+        if (value instanceof String) {
+            return safeViewText((String) value);
+        }
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                result.put(String.valueOf(entry.getKey()), safeViewValue(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof Iterable) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object item : (Iterable<?>) value) {
+                result.add(safeViewValue(item));
+            }
+            return result;
+        }
+        return value;
     }
 
     private List<String> parseList(String json) {
