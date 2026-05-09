@@ -1451,6 +1451,10 @@ public class DangerousCommandApprovalServiceTest {
                         "aws ecr get-login-password",
                         "aws codeartifact get-authorization-token --domain internal",
                         "aws sts get-session-token",
+                        "aws sts get-federation-token --name deployer",
+                        "aws sso get-role-credentials --account-id 123 --role-name Admin",
+                        "aws configure export-credentials --profile prod",
+                        "az acr login --name registry --expose-token",
                         "kubectl create token deployer",
                         "kubectl -n prod create token deployer",
                         "vault token lookup",
@@ -1467,6 +1471,8 @@ public class DangerousCommandApprovalServiceTest {
         List<String> cliTokenSafeCommands =
                 Arrays.asList(
                         "aws sts get-caller-identity",
+                        "aws configure list",
+                        "az acr login --name registry",
                         "kubectl get serviceaccount deployer",
                         "vault token capabilities secret/data/prod",
                         "doctl auth init",
@@ -1493,7 +1499,18 @@ public class DangerousCommandApprovalServiceTest {
                         "bw get item prod-db",
                         "pass show prod/db",
                         "gopass prod/db",
-                        "secret-tool lookup service prod-db");
+                        "secret-tool lookup service prod-db",
+                        "gh secret list --repo org/repo",
+                        "gh secret view API_TOKEN --repo org/repo",
+                        "vercel env ls",
+                        "vercel env pull .env.local",
+                        "netlify env list",
+                        "netlify env get API_TOKEN",
+                        "doppler secrets get API_TOKEN",
+                        "doppler secrets download",
+                        "fly secrets list",
+                        "flyctl secrets list",
+                        "wrangler secret list");
         for (String command : secretStoreReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1531,6 +1548,11 @@ public class DangerousCommandApprovalServiceTest {
                         "bw list items",
                         "pass git status",
                         "secret-tool search service prod-db",
+                        "vercel projects ls",
+                        "netlify sites:list",
+                        "doppler projects",
+                        "fly apps list",
+                        "wrangler whoami",
                         "sops --encrypt secrets.yaml",
                         "ansible-vault edit group_vars/prod/vault.yml",
                         "gpg --list-keys",
@@ -1564,7 +1586,17 @@ public class DangerousCommandApprovalServiceTest {
                         "bw edit item item-id '{\"notes\":\"secret\"}'",
                         "pass insert prod/db",
                         "gopass generate prod/db",
-                        "secret-tool store --label prod-db service prod-db");
+                        "secret-tool store --label prod-db service prod-db",
+                        "gh secret set API_TOKEN --body token",
+                        "vercel env add API_TOKEN production",
+                        "vercel env import .env.production",
+                        "netlify env set API_TOKEN token",
+                        "netlify env import .env",
+                        "doppler secrets set API_TOKEN=token",
+                        "doppler secrets upload .env",
+                        "fly secrets set API_TOKEN=token",
+                        "flyctl secrets set API_TOKEN=token",
+                        "wrangler secret put API_TOKEN");
         for (String command : secretStoreWrites) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1599,7 +1631,14 @@ public class DangerousCommandApprovalServiceTest {
                         "bw delete item item-id",
                         "pass rm prod/db",
                         "gopass remove prod/db",
-                        "secret-tool clear service prod-db");
+                        "secret-tool clear service prod-db",
+                        "gh secret delete API_TOKEN --repo org/repo",
+                        "vercel env remove API_TOKEN production",
+                        "netlify env delete API_TOKEN",
+                        "doppler secrets unset API_TOKEN",
+                        "fly secrets unset API_TOKEN",
+                        "flyctl secrets unset API_TOKEN",
+                        "wrangler secret delete API_TOKEN");
         for (String command : secretStoreDestroys) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1683,6 +1722,32 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_add_private_key");
         }
+
+        List<String> privateKeyMaterialExports =
+                Arrays.asList(
+                        "gpg --export-secret-keys deploy@example.com",
+                        "gpg2 --export-secret-keys KEYID > secret.asc",
+                        "openssl rsa -in private-prod.pem -out private-unprotected.pem",
+                        "openssl pkey -in id_rsa -out id_rsa.unprotected -nocrypt",
+                        "openssl pkcs12 -export -inkey private.key -out cert.pfx -nodes",
+                        "ssh-keygen -p -P oldpass -N '' -f ~/.ssh/id_rsa");
+        for (String command : privateKeyMaterialExports) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("private_key_material_export");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "gpg --export deploy@example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl x509 -in public-cert.pem -text -noout"))
+                .isNull();
 
         List<String> packageManagerSecretReads =
                 Arrays.asList(
@@ -2421,6 +2486,11 @@ public class DangerousCommandApprovalServiceTest {
                         "mysql --password=password -e 'select 1'",
                         "mysqldump -ppassword db",
                         "mariadb --password password -e 'select 1'",
+                        "pg_dump --password password dbname",
+                        "pg_restore --password=password dumpfile",
+                        "mongo --username user --password password admin",
+                        "mongosh --password=password mongodb://db.example/admin",
+                        "cockroach sql --password password --host db.example",
                         "redis-cli -a password ping",
                         "redis-cli --pass=password ping",
                         "PGPASSWORD=password psql -h db.example -c 'select 1'",
@@ -2435,6 +2505,11 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("plaintext_cli_password_option");
         }
 
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "PGPASSWORD=password pg_dump dbname"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("sensitive_environment_inline_assignment");
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "mysql --protocol=tcp -e 'select 1'"))
@@ -2464,7 +2539,13 @@ public class DangerousCommandApprovalServiceTest {
                         "skopeo login registry.example --password token",
                         "gh auth login --with-token < token.txt",
                         "npm login --auth-type legacy --password password",
-                        "az login --service-principal --username app --password password");
+                        "az login --service-principal --username app --password password",
+                        "doctl auth init --access-token token",
+                        "fly auth login --access-token token",
+                        "flyctl auth login --access-token=token",
+                        "vercel login --token token",
+                        "netlify login --auth token",
+                        "wrangler login --api-token token");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2489,6 +2570,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "gh auth status"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "vercel login"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "netlify login"))
                 .isNull();
     }
 

@@ -399,7 +399,7 @@ public class DangerousCommandApprovalService {
                                     "cli_access_token_read",
                                     "print CLI access token",
                                     pattern(
-                                            "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+account\\s+get-access-token|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+get-session-token)|kubectl"
+                                            "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+(?:account\\s+get-access-token|acr\\s+login\\b(?=[^\\n]*--expose-token\\b))|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+(?:get-session-token|get-federation-token)|sso\\s+get-role-credentials|configure\\s+export-credentials)|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
                                                     + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -407,7 +407,7 @@ public class DangerousCommandApprovalService {
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "encrypted_secret_file_decrypt",
@@ -421,13 +421,13 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
-                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
+                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b|gh\\s+secret\\s+set\\b|vercel\\s+env\\s+(?:add|import)\\b|netlify\\s+env\\s+(?:set|import|clone)\\b|doppler\\s+secrets\\s+(?:set|upload)\\b|fly(?:ctl)?\\s+secrets\\s+set\\b|wrangler\\s+secret\\s+put\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_destroy",
                                     "delete or destroy secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b|gh\\s+secret\\s+(?:delete|remove)\\b|vercel\\s+env\\s+(?:rm|remove)\\b|netlify\\s+env\\s+(?:unset|delete)\\b|doppler\\s+secrets\\s+(?:delete|unset)\\b|fly(?:ctl)?\\s+secrets\\s+unset\\b|wrangler\\s+secret\\s+delete\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_cli_credential_config_change",
@@ -452,6 +452,12 @@ public class DangerousCommandApprovalService {
                                     "load SSH private key into agent",
                                     pattern(
                                             "\\bssh-add\\b(?=[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\][^\\s\"'`]*(?:id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|\\.pem)\\b)(?![^\\n]*\\s-[lLdD]\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "private_key_material_export",
+                                    "export or unprotect private key material",
+                                    pattern(
+                                            "\\b(?:gpg(?:2)?\\s+--export-secret-keys\\b|openssl\\s+(?:rsa|pkey|pkcs12)\\b(?=[^\\n]*(?:\\s-out\\s+\\S+|\\s-export\\b))(?=[^\\n]*(?:\\s-nodes\\b|\\s-nocrypt\\b|\\s-passout\\s+pass:|\\s-in\\s+\\S*(?:id_(?:rsa|ed25519|ecdsa|dsa)|private|key|\\.pem)\\S*))|ssh-keygen\\s+-p\\b(?=[^\\n]*(?:\\s-N\\s+['\"]{0,2}|\\s-P\\s+\\S+)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_secret_read",
@@ -564,13 +570,13 @@ public class DangerousCommandApprovalService {
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(
-                                            "\\b(?:sshpass\\s+-(?:p|P)\\s+\\S+|mysql(?:admin|dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|mariadb(?:-dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|psql\\b[^\\n]*(?:\\s-W\\s+\\S+|\\s--password(?:=|\\s+)\\S+)|redis-cli\\b[^\\n]*(?:\\s-a\\s+\\S+|\\s--pass(?:=|\\s+)\\S+)|PGPASSWORD=\\S+\\s+psql\\b|MYSQL_PWD=\\S+\\s+mysql\\b|REDISCLI_AUTH=\\S+\\s+redis-cli\\b)"),
+                                            "\\b(?:sshpass\\s+-(?:p|P)\\s+\\S+|mysql(?:admin|dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|mariadb(?:-dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|(?:psql|pg_dump|pg_restore)\\b[^\\n]*(?:\\s-W\\s+\\S+|\\s--password(?:=|\\s+)\\S+)|(?:mongo|mongosh)\\b[^\\n]*(?:\\s-p\\s+\\S+|\\s--password(?:=|\\s+)\\S+)|cockroach\\b[^\\n]*(?:\\s--password(?:=|\\s+)\\S+)|redis-cli\\b[^\\n]*(?:\\s-a\\s+\\S+|\\s--pass(?:=|\\s+)\\S+)|PGPASSWORD=\\S+\\s+(?:psql|pg_dump|pg_restore)\\b|MYSQL_PWD=\\S+\\s+mysql\\b|REDISCLI_AUTH=\\S+\\s+redis-cli\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cli_login_credential_option",
                                     "login command includes credential option",
                                     pattern(
-                                            "\\b(?:(?:docker|podman|nerdctl|buildah)\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|helm\\s+registry\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--password-stdin\\b)|(?:oras|crane|skopeo)\\s+(?:login|auth\\s+login)\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|gh\\s+auth\\s+login\\b[^\\n]*--with-token\\b|npm\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--auth-type\\s+legacy)|az\\s+login\\b[^\\n]*--password(?:=|\\s+)\\S+)"),
+                                            "\\b(?:(?:docker|podman|nerdctl|buildah)\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|helm\\s+registry\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--password-stdin\\b)|(?:oras|crane|skopeo)\\s+(?:login|auth\\s+login)\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|gh\\s+auth\\s+login\\b[^\\n]*--with-token\\b|npm\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--auth-type\\s+legacy)|az\\s+login\\b[^\\n]*--password(?:=|\\s+)\\S+|doctl\\s+auth\\s+init\\b[^\\n]*--access-token(?:=|\\s+)\\S+|fly(?:ctl)?\\s+auth\\s+login\\b[^\\n]*--access-token(?:=|\\s+)\\S+|vercel\\s+login\\b[^\\n]*--token(?:=|\\s+)\\S+|netlify\\s+login\\b[^\\n]*--auth(?:=|\\s+)\\S+|wrangler\\s+login\\b[^\\n]*--api-token(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_history_erasure",
