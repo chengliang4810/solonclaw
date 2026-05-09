@@ -20,6 +20,10 @@ public class TerminalTipsTest {
                 .contains("/queue")
                 .contains("/steer")
                 .contains("/events")
+                .contains("/goal")
+                .contains("/recap")
+                .contains("/trajectory save")
+                .contains("/compact")
                 .contains("/attachments")
                 .contains("/approve")
                 .contains("/deny");

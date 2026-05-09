@@ -66,7 +66,9 @@ public class TerminalSessionBrowserTest {
                 .contains("messages: 2")
                 .contains("tokens: last=9 cumulative=42 input=11 output=22 reasoning=3")
                 .contains("summary: 已生成周报摘要")
-                .contains("建议：/resume session-alpha-0001");
+                .contains("建议：/resume session-alpha-0001")
+                .contains("/goal status")
+                .contains("/compact");
         assertThat(browser.resolveCommand("/session show 1")).isEmpty();
     }
 

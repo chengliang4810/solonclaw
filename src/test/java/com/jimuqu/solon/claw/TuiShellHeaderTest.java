@@ -67,7 +67,7 @@ public class TuiShellHeaderTest {
 
         String header = renderHeader(shell, "tui");
 
-        assertThat(header).contains("tip: ").contains("/tips");
+        assertThat(header).contains("tip: ").contains("/tips").contains("/goal").contains("/recap");
     }
 
     @Test

@@ -3903,7 +3903,7 @@ public class DefaultCommandService implements CommandService {
                         helpLine(GatewayCommandConstants.SLASH_USAGE, "查看当前会话运行信息"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_GOAL
-                                        + " [status|pause|resume|clear|<目标>]",
+                                        + " [status|pause|resume|clear|<目标> --max-turns N|--max N]",
                                 "设置跨轮长目标并由 judge 驱动自动继续"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_BUSY
