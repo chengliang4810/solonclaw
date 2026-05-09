@@ -1154,6 +1154,11 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Export-PfxCertificate -Cert $cert -FilePath cert.pfx",
                 "windows_export_credentials");
+        assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
+        assertDangerPattern(
+                env, "vaultcmd /listcreds:\"Windows Credentials\"", "windows_credential_manager_read");
+        assertDangerPattern(
+                env, "rundll32 keymgr.dll,KRShowKeyMgr", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
                 "Set-Content -Path .envrc -Value layout",

@@ -936,6 +936,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:Export-PfxCertificate|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_credential_manager_read",
+                                    "Windows credential manager read",
+                                    pattern(
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "powershell_sensitive_file_write",
                                     "PowerShell write to sensitive credential file",
                                     pattern(
