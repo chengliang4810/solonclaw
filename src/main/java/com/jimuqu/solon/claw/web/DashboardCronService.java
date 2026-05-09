@@ -386,6 +386,10 @@ public class DashboardCronService {
         copyIfPresent(body, result, "wrap_response");
         copyIfPresent(body, result, "wrapResponse");
         copyIfPresent(body, result, "enabled");
+        copyIfPresent(body, result, "status");
+        copyIfPresent(body, result, "state");
+        copyIfPresent(body, result, "paused_reason");
+        copyIfPresent(body, result, "pausedReason");
         return result;
     }
 
