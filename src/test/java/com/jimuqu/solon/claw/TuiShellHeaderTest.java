@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.ConsoleEventSink;
 import com.jimuqu.solon.claw.cli.LocalTerminalTaskRunner;
+import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.cli.TuiShell;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.PrintWriter;
@@ -70,12 +71,12 @@ public class TuiShellHeaderTest {
     }
 
     @Test
-    void shouldExposeCliParityCommandsInCompletion() throws Exception {
+    void shouldUseSharedTerminalCommandCatalogForCompletion() throws Exception {
         Field field = TuiShell.class.getDeclaredField("COMMANDS");
         field.setAccessible(true);
         String[] commands = (String[]) field.get(null);
 
-        assertThat(commands).contains("/reasoning", "/platforms", "/quit");
+        assertThat(commands).containsExactly(TerminalCommandCatalog.SLASH_COMMANDS);
     }
 
     @Test

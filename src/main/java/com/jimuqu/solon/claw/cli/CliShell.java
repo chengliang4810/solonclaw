@@ -17,15 +17,7 @@ import org.jline.terminal.TerminalBuilder;
 /** Jimuqu line-oriented CLI. */
 public class CliShell {
     private static final String PROMPT = "\u001B[36mjimuqu>\u001B[0m ";
-    private static final String[] COMMANDS =
-            new String[] {
-                "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
-                "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
-                "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp", "/restart", "/stop", "/compress",
-                "/rollback", "/version", "/platforms", "/models", "/sessions", "/session",
-                "/history", "/events", "/tasks", "/attachments", "/transcript", "/tips", "/skin", "/copy", "/exit", "/quit",
-                "/exit!", "/quit!"
-            };
+    private static final String[] COMMANDS = TerminalCommandCatalog.SLASH_COMMANDS;
 
     private final CliRuntime cliRuntime;
     private final CliMode mode;

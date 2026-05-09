@@ -15,52 +15,7 @@ public class ShellCompletionGenerator {
     private static final List<String> OPTIONS =
             Collections.unmodifiableList(
                     Arrays.asList("--cli", "--tui", "--acp", "--session", "--ask", "-p"));
-    private static final List<String> LOCAL_SLASH_COMMANDS =
-            Collections.unmodifiableList(
-                    Arrays.asList(
-                            "/help",
-                            "/new",
-                            "/retry",
-                            "/undo",
-                            "/branch",
-                            "/resume",
-                            "/status",
-                            "/usage",
-                            "/title",
-                            "/busy",
-                            "/model",
-                            "/reasoning",
-                            "/tools",
-                            "/skills",
-                            "/agent",
-                            "/cron",
-                            "/approve",
-                            "/kanban",
-                            "/deny",
-                            "/queue",
-                            "/steer",
-                            "/acp",
-                            "/restart",
-                            "/stop",
-                            "/compress",
-                            "/rollback",
-                            "/version",
-                            "/platforms",
-                            "/models",
-                            "/sessions",
-                            "/session",
-                            "/history",
-                            "/events",
-                            "/tasks",
-                            "/attachments",
-                            "/transcript",
-                            "/tips",
-                            "/skin",
-                            "/copy",
-                            "/exit",
-                            "/quit",
-                            "/exit!",
-                            "/quit!"));
+    private static final List<String> LOCAL_SLASH_COMMANDS = TerminalCommandCatalog.slashCommands();
 
     public int write(String shell, PrintStream out, PrintStream err) {
         String normalized = StrUtil.blankToDefault(shell, "bash").trim().toLowerCase();
