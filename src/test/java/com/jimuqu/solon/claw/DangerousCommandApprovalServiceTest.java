@@ -2319,9 +2319,13 @@ public class DangerousCommandApprovalServiceTest {
                         "npx cowsay hello",
                         "npm exec playwright install",
                         "pnpm dlx create-vite app",
+                        "pnpm create vite app",
                         "yarn dlx eslint .",
+                        "yarn create vite app",
+                        "npm create vite@latest app",
                         "pipx run black .",
                         "uvx ruff check .",
+                        "bun create vite app",
                         "bunx create-vite app",
                         "deno run https://example.invalid/install.ts",
                         "deno run jsr:@scope/tool");
