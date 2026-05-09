@@ -291,6 +291,12 @@ public class DangerousCommandApprovalService {
                                             "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b|\\bsystemctl\\s+(?:-[^\\s]+\\s+)*(?:enable|reenable|preset|preset-all|link)\\b|\\blaunchctl\\s+(?:bootstrap|load)\\b|\\bupdate-rc\\.d\\s+\\S+\\s+(?:defaults|enable)\\b|\\bchkconfig\\s+\\S+\\s+on\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "git_hook_persistence_change",
+                                    "Git hook persistence changed",
+                                    pattern(
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv|chmod)\\b)[^\\n]*(?:(?:^|[/\\\\])\\.git|\\.git)[/\\\\]hooks[/\\\\][^\\s\"'`]+|\\bgit\\s+config\\s+(?:--global\\s+)?core\\.hooksPath\\s+\\S+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),

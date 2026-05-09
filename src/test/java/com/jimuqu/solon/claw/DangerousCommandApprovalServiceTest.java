@@ -775,6 +775,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult systemctlStatus =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl status app.service");
+        DangerousCommandApprovalService.DetectionResult gitHookWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf '#!/bin/sh\\nid' > .git/hooks/pre-commit");
+        DangerousCommandApprovalService.DetectionResult gitHookInstall =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "install pre-push .git/hooks/pre-push");
+        DangerousCommandApprovalService.DetectionResult gitHooksPath =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config core.hooksPath .githooks");
+        DangerousCommandApprovalService.DetectionResult gitConfigList =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --list");
         DangerousCommandApprovalService.DetectionResult localServiceFixture =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cp app.service fixtures/app.service");
@@ -1143,6 +1155,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chkconfigOn).isNotNull();
         assertThat(chkconfigOn.getPatternKey()).isEqualTo("service_persistence_registration");
         assertThat(systemctlStatus).isNull();
+        assertThat(gitHookWrite).isNotNull();
+        assertThat(gitHookWrite.getPatternKey()).isEqualTo("git_hook_persistence_change");
+        assertThat(gitHookInstall).isNotNull();
+        assertThat(gitHookInstall.getPatternKey()).isEqualTo("git_hook_persistence_change");
+        assertThat(gitHooksPath).isNotNull();
+        assertThat(gitHooksPath.getPatternKey()).isEqualTo("git_hook_persistence_change");
+        assertThat(gitConfigList).isNull();
         assertThat(localServiceFixture).isNull();
         assertThat(usermodSudo).isNotNull();
         assertThat(usermodSudo.getPatternKey()).isEqualTo("local_admin_permission_change");
