@@ -1779,6 +1779,8 @@ public class DangerousCommandApprovalService {
         summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
         summary.put("pendingListShowsPatternKey", Boolean.TRUE);
+        summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
+        summary.put("alwaysApprovalListShowsCountOnly", Boolean.TRUE);
         summary.put("approvalCardDeliveryMode", DELIVERY_MODE_APPROVAL_CARD);
         summary.put("approvalCardPlatforms", Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
         summary.put("approvalCardActionKey", CARD_ACTION_KEY);

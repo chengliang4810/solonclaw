@@ -96,6 +96,17 @@ public class DangerousCommandApprovalCommandTest {
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",
+                "temporary_session_pattern",
+                "temporary session approval",
+                "echo temp");
+        env.dangerousCommandApprovalService.approve(
+                agentSession,
+                "",
+                com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService.ApprovalScope.SESSION,
+                "tester");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
                 "recursive_delete",
                 "recursive delete",
                 "rm -rf runtime/cache");
@@ -121,6 +132,10 @@ public class DangerousCommandApprovalCommandTest {
                 .contains("scopes=once,session,always")
                 .contains("expires_in=")
                 .contains("expired=false")
+                .contains("session_approvals_count=1")
+                .contains("always_approvals_count=")
+                .doesNotContain("session_approvals=[")
+                .doesNotContain("always_approvals=[")
                 .doesNotContain(" key=")
                 .doesNotContain(secondApprovalKey);
 

@@ -3282,13 +3282,11 @@ public class DefaultCommandService implements CommandService {
                     .append(isExpired(pending.getExpiresAt()))
                     .append('\n');
         }
-        buffer.append("session_approvals=")
-                .append(SecretRedactor.redact(
-                        String.valueOf(dangerousCommandApprovalService.listSessionApprovals(agentSession)), 2000))
+        buffer.append("session_approvals_count=")
+                .append(dangerousCommandApprovalService.listSessionApprovals(agentSession).size())
                 .append('\n');
-        buffer.append("always_approvals=")
-                .append(SecretRedactor.redact(
-                        String.valueOf(dangerousCommandApprovalService.listAlwaysApprovals()), 2000));
+        buffer.append("always_approvals_count=")
+                .append(dangerousCommandApprovalService.listAlwaysApprovals().size());
         return buffer.toString();
     }
 
