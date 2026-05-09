@@ -31,6 +31,7 @@ public class ShellCompletionGenerator {
                             "/tips",
                             "/queue",
                             "/steer",
+                            "/acp",
                             "/skin",
                             "/copy",
                             "/exit",

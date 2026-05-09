@@ -18,7 +18,7 @@ public class CliShellTipsTest {
     void shouldHandleTipsLocallyAndExposeCompletion() throws Exception {
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
 
-        assertThat(commandList()).contains("/tips", "/skin");
+        assertThat(commandList()).contains("/tips", "/skin", "/queue", "/steer", "/acp");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
 
