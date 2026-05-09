@@ -453,10 +453,12 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s(?:(?:https?|wss?)://|//)?[^\\s/@]+(?::|%3a)[^\\s/@]+@[^\\s/]+|\\s-u(?:\\s+\\S|\\S+)|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--oauth2-bearer(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--form(?:-string)?|-F|--url-query)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "\\s*=\\s*\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
+                                                    + "\\s*=\\s*\\S+|\\s--json(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "[\"']?\\s*:\\s*[\"']?\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
                                                     + "(?:--auth(?:=|\\s+)\\S+|-a(?:=|\\s+)?\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
+                                                    + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--json)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-(?:Credential|ProxyCredential|Token|Certificate|CertificateThumbprint)\\b\\s*(?::|=|\\s+)\\S|\\s-(?:UseDefaultCredentials|ProxyUseDefaultCredentials)\\b(?!\\s*:\\s*\\$?false\\b)|\\s-Body\\b\\s*(?::|=|\\s+)\\s*(?:@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
