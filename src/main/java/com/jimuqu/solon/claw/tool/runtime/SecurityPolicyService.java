@@ -725,6 +725,8 @@ public class SecurityPolicyService {
                 value = token.substring("--socks5=".length());
             } else if (token.startsWith("--socks5-hostname=")) {
                 value = token.substring("--socks5-hostname=".length());
+            } else if (token.startsWith("-x") && token.length() > 2) {
+                value = token.substring(2);
             } else if (isProxyEnvironmentAssignment(token)) {
                 value = token.substring(token.indexOf('=') + 1);
             }
@@ -750,6 +752,10 @@ public class SecurityPolicyService {
         String value = cleanUrlToken(raw);
         if (StrUtil.isBlank(value)) {
             return;
+        }
+        int at = value.lastIndexOf('@');
+        if (at >= 0 && at + 1 < value.length()) {
+            value = value.substring(at + 1);
         }
         String host = extractSchemelessHost(value);
         if (StrUtil.isBlank(host)) {
