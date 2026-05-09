@@ -3195,7 +3195,7 @@ public class DefaultCommandService implements CommandService {
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         String normalizedArgs = StrUtil.nullToEmpty(args).trim().toLowerCase();
-        if ("list".equals(normalizedArgs)) {
+        if ("list".equals(normalizedArgs) || "status".equals(normalizedArgs)) {
             return GatewayReply.ok(formatApprovalList(agentSession));
         }
         if (normalizedArgs.startsWith("clear")) {
@@ -3971,8 +3971,16 @@ public class DefaultCommandService implements CommandService {
                                         + " [#序号|审批ID|all] [session|always]",
                                 "批准待审批危险命令"),
                         helpLine(
-                                GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID|all]",
+                                GatewayCommandConstants.SLASH_APPROVE
+                                        + " list|status|clear session|clear always|clear all",
+                                "查看或清理审批授权"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_DENY
+                                        + " [#序号|审批ID|all]",
                                 "拒绝待审批危险命令"),
+                        helpLine(
+                                GatewayCommandConstants.SLASH_DENY + " list|status|all",
+                                "查看或批量拒绝待审批命令"),
                         helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"),
                         helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息")));
     }

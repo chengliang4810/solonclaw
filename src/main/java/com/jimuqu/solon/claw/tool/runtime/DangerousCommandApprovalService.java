@@ -1754,10 +1754,26 @@ public class DangerousCommandApprovalService {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("commands", Arrays.asList("/approve", "/deny"));
         summary.put("selectorSupported", Boolean.TRUE);
+        summary.put("listSupported", Boolean.TRUE);
+        summary.put("statusAliasSupported", Boolean.TRUE);
         summary.put("approveAllSupported", Boolean.TRUE);
         summary.put("denyAllSupported", Boolean.TRUE);
+        summary.put("clearSessionSupported", Boolean.TRUE);
+        summary.put("clearAlwaysSupported", Boolean.TRUE);
+        summary.put("clearAllSupported", Boolean.TRUE);
         summary.put("scopes", Arrays.asList("once", "session", "always"));
         summary.put("defaultScope", "once");
+        summary.put(
+                "managementCommands",
+                Arrays.asList(
+                        "/approve list",
+                        "/approve status",
+                        "/approve clear session",
+                        "/approve clear always",
+                        "/approve clear all",
+                        "/deny list",
+                        "/deny status",
+                        "/deny all"));
         summary.put("pendingQueueSupported", Boolean.TRUE);
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
         summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
@@ -1855,8 +1871,13 @@ public class DangerousCommandApprovalService {
         summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListPrunedBeforeRead", Boolean.TRUE);
         summary.put("selectorSupported", Boolean.TRUE);
+        summary.put("listSupported", Boolean.TRUE);
+        summary.put("statusAliasSupported", Boolean.TRUE);
         summary.put("approveAllSupported", Boolean.TRUE);
         summary.put("rejectAllSupported", Boolean.TRUE);
+        summary.put("clearSessionSupported", Boolean.TRUE);
+        summary.put("clearAlwaysSupported", Boolean.TRUE);
+        summary.put("clearAllSupported", Boolean.TRUE);
         summary.put("scopes", Arrays.asList("once", "session", "always"));
         summary.put("onceScopeStoresContextKey", CONTEXT_ONCE_APPROVALS);
         summary.put("sessionScopeStoresContextKey", CONTEXT_SESSION_APPROVALS);

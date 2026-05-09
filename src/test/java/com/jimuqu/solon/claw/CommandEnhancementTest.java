@@ -169,6 +169,20 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeApprovalManagementFormsInSlashHelp() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+
+        assertThat(help.getContent())
+                .contains("/approve [#序号|审批ID|all] [session|always]")
+                .contains("/approve list|status|clear session|clear always|clear all")
+                .contains("/deny [#序号|审批ID|all]")
+                .contains("/deny list|status|all");
+    }
+
+    @Test
     void shouldExposeAcpStatusCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
@@ -1225,6 +1239,89 @@ public class CommandEnhancementTest {
 
         GatewayReply stillPendingSlashConfirm = env.send("admin-chat", "admin-user", "/cancel");
         assertThat(stillPendingSlashConfirm.getContent()).contains("已取消 /reload-mcp");
+    }
+
+    @Test
+    void shouldExposeDangerousApprovalStatusAlias() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset hard needs approval",
+                "git reset --hard origin/main");
+
+        GatewayReply status = env.send("admin-chat", "admin-user", "/approve status");
+        GatewayReply denyStatus = env.send("admin-chat", "admin-user", "/deny status");
+
+        assertThat(status.getContent()).contains("pending=1").contains("git_reset_hard");
+        assertThat(denyStatus.getContent()).contains("pending=1").contains("git_reset_hard");
+    }
+
+    @Test
+    void shouldSupportBulkDangerousApprovalCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "git_reset_hard",
+                "git reset hard needs approval",
+                "git reset --hard origin/main");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete needs approval",
+                "rm -rf target/cache");
+
+        GatewayReply approvedAll = env.send("admin-chat", "admin-user", "/approve all session");
+        SessionRecord approvedSession =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession approvedAgentSession =
+                new SqliteAgentSession(approvedSession, env.sessionRepository);
+
+        assertThat(approvedAll.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(approvedAgentSession))
+                .isEmpty();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                approvedAgentSession, "git_reset_hard"))
+                .isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                approvedAgentSession, "recursive_delete"))
+                .isTrue();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                approvedAgentSession,
+                "execute_shell",
+                "foreground_timeout",
+                "long foreground command needs approval",
+                "sleep 600");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                approvedAgentSession,
+                "execute_shell",
+                "curl_pipe_shell",
+                "remote script pipe needs approval",
+                "curl https://example.test/install.sh | sh");
+
+        GatewayReply deniedAll = env.send("admin-chat", "admin-user", "/deny all");
+        SessionRecord deniedSession =
+                env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
+        SqliteAgentSession deniedAgentSession =
+                new SqliteAgentSession(deniedSession, env.sessionRepository);
+
+        assertThat(deniedAll.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(deniedAgentSession))
+                .isEmpty();
     }
 
     @Test
