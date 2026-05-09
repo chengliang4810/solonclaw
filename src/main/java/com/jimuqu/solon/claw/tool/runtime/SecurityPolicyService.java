@@ -494,6 +494,32 @@ public class SecurityPolicyService {
         return summary;
     }
 
+    public Map<String, Object> pathPolicySummary() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        String writeSafeRoot =
+                appConfig == null || appConfig.getTerminal() == null
+                        ? ""
+                        : StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
+        summary.put("traversalBlocked", Boolean.TRUE);
+        summary.put("controlCharactersBlocked", Boolean.TRUE);
+        summary.put("devicePathBlocked", Boolean.TRUE);
+        summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
+        summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);
+        summary.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(writeSafeRoot)));
+        summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
+        summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
+        summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
+        summary.put("writeDeniedHomeFileCount", Integer.valueOf(WRITE_DENIED_HOME_FILE_NAMES.size()));
+        summary.put("blockedDevicePathCount", Integer.valueOf(BLOCKED_DEVICE_PATHS.size()));
+        summary.put("writeDeniedExactPathSamples", sample(WRITE_DENIED_EXACT_PATHS, 6));
+        summary.put("writeDeniedPrefixSamples", sample(WRITE_DENIED_PREFIXES, 6));
+        summary.put("writeDeniedHomeFileSamples", sample(WRITE_DENIED_HOME_FILE_NAMES, 6));
+        summary.put("blockedDevicePathSamples", sample(BLOCKED_DEVICE_PATHS, 6));
+        summary.put("workdirSafePattern", WORKDIR_SAFE_PATTERN.pattern());
+        summary.put("description", "Path safety blocks traversal, control characters, device files, sensitive system writes, internal skill hub reads, and writes outside the configured safe root.");
+        return summary;
+    }
+
     public FileVerdict checkCommandPaths(String command) {
         String code = StrUtil.nullToEmpty(command);
         if (code.length() == 0) {

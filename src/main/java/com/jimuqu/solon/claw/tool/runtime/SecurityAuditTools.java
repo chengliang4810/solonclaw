@@ -148,6 +148,7 @@ public class SecurityAuditTools {
         terminal.put("credentialFileCount", Integer.valueOf(size(appConfig.getTerminal().getCredentialFiles())));
         if (securityPolicyService != null) {
             terminal.put("credentialPolicy", securityPolicyService.credentialPolicySummary());
+            terminal.put("pathPolicy", securityPolicyService.pathPolicySummary());
         }
         terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
         terminal.put("sudoPasswordConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())));

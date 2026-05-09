@@ -372,6 +372,19 @@ public class ToolRegistryExposureTest {
                 .contains(".ssh")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("credentials/oauth.json");
+        assertThat(policyStatus.get("policy").get("terminal").get("pathPolicy").get("traversalBlocked").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("pathPolicy")
+                                .get("writeSafeRootConfigured")
+                                .getBoolean())
+                .isFalse();
+        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("pathPolicy")))
+                .contains("/etc/passwd")
+                .contains("/dev/zero");
         assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())
@@ -406,7 +419,9 @@ public class ToolRegistryExposureTest {
                 .contains("websitePolicy")
                 .contains("credentialFilePolicy")
                 .contains("mcpOauthUrlSafety");
-        assertThat(policyStatus.toJson()).doesNotContain("secret-sudo").doesNotContain("TENOR_API_KEY");
+        assertThat(policyStatus.toJson())
+                .doesNotContain("secret-sudo")
+                .doesNotContain("TENOR_API_KEY");
     }
 
     @Test

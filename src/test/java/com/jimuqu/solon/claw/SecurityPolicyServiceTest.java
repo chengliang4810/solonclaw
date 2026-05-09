@@ -651,6 +651,32 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldExposePathPolicySummaryWithoutLeakingSafeRootSecrets() {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setWriteSafeRoot("/tmp/workspace-sk-1234567890abcdef");
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        Map<String, Object> summary = policy.pathPolicySummary();
+
+        assertThat(summary.get("traversalBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("controlCharactersBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("devicePathBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rawBlockDeviceWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("writeSafeRootConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("writeSafeRoot")))
+                .contains("workspace-sk-***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(((Integer) summary.get("writeDeniedExactPathCount")).intValue()).isGreaterThan(0);
+        assertThat(((Integer) summary.get("writeDeniedPrefixCount")).intValue()).isGreaterThan(0);
+        assertThat(((Integer) summary.get("writeDeniedHomeFileCount")).intValue()).isGreaterThan(0);
+        assertThat(((Integer) summary.get("blockedDevicePathCount")).intValue()).isGreaterThan(0);
+        assertThat(String.valueOf(summary.get("writeDeniedExactPathSamples"))).contains("/etc/passwd");
+        assertThat(String.valueOf(summary.get("blockedDevicePathSamples"))).contains("/dev/zero");
+        assertThat(String.valueOf(summary.get("workdirSafePattern"))).contains("A-Za-z0-9");
+    }
+
+    @Test
     void shouldDenyPatchDiffsTargetingSensitiveCredentialPaths() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         Map<String, Object> addFileArgs = new LinkedHashMap<String, Object>();
