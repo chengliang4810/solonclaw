@@ -749,6 +749,23 @@ public class ToolRegistryExposureTest {
                 .contains("hardlinePolicy")
                 .contains("slashConfirmPolicy")
                 .doesNotContain("secret-sudo");
+        ONode approvalLifecyclePolicy =
+                policyStatus.get("policy").get("coverage").get("approvalLifecyclePolicy");
+        assertThat(approvalLifecyclePolicy.get("pendingListPrunedBeforeRead").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("approveAllSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("rejectAllSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("alwaysScopeUsesGlobalSettings").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("tirithAlwaysScopeDowngradedToSession").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("currentThreadApprovalTtlMillis").getLong())
+                .isEqualTo(30000L);
+        assertThat(approvalLifecyclePolicy.get("sessionSnapshotUpdated").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("approvalRequestObserved").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("approvalResponseObserved").getBoolean()).isTrue();
+        assertThat(String.valueOf(approvalLifecyclePolicy))
+                .contains("once")
+                .contains("session")
+                .contains("always")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("slashApprovalConfirm").getBoolean())
                 .isTrue();
         ONode slashConfirmPolicy =

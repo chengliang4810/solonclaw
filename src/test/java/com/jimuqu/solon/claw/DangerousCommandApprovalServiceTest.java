@@ -372,6 +372,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldExposeApprovalLifecyclePolicySummaryWithoutSecrets() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        Map<String, Object> summary =
+                env.dangerousCommandApprovalService.approvalLifecyclePolicySummary();
+
+        assertThat(summary.get("pendingListPrunedBeforeRead")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("selectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rejectAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("scopes")))
+                .contains("once")
+                .contains("session")
+                .contains("always");
+        assertThat(summary.get("alwaysScopeUsesGlobalSettings")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tirithAlwaysScopeDowngradedToSession")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("currentThreadApprovalTtlMillis")).isEqualTo(Long.valueOf(30000L));
+        assertThat(summary.get("currentThreadApprovalEnabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approveRemovesPendingApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rejectRemovesPendingApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sessionSnapshotUpdated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalRequestObserved")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalResponseObserved")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approverRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalKeyRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.toString())
+                .contains("_dangerous_command_pending_queue_")
+                .contains("_dangerous_command_session_approvals_")
+                .doesNotContain("secret")
+                .doesNotContain("token=");
+    }
+
+    @Test
     void shouldExposeMcpReloadPolicySummary() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

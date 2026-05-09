@@ -1316,6 +1316,7 @@ public class DangerousCommandApprovalService {
         summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
         summary.put("auditLogPolicy", approvalAuditPolicySummary());
         summary.put("mcpReloadPolicy", mcpReloadPolicySummary());
+        summary.put("approvalLifecyclePolicy", approvalLifecyclePolicySummary());
         summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
         return summary;
     }
@@ -1511,6 +1512,33 @@ public class DangerousCommandApprovalService {
         summary.put("oauthUrlSafetyCovered", Boolean.TRUE);
         summary.put("reloadHistoryNoticeRedacted", Boolean.TRUE);
         summary.put("description", "MCP reload can require slash confirmation, supports now/always overrides, persists the confirmation flag, and records tool-change notices for the next model turn.");
+        return summary;
+    }
+
+    public Map<String, Object> approvalLifecyclePolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
+        summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
+        summary.put("pendingListPrunedBeforeRead", Boolean.TRUE);
+        summary.put("selectorSupported", Boolean.TRUE);
+        summary.put("approveAllSupported", Boolean.TRUE);
+        summary.put("rejectAllSupported", Boolean.TRUE);
+        summary.put("scopes", Arrays.asList("once", "session", "always"));
+        summary.put("onceScopeStoresContextKey", CONTEXT_ONCE_APPROVALS);
+        summary.put("sessionScopeStoresContextKey", CONTEXT_SESSION_APPROVALS);
+        summary.put("alwaysScopeUsesGlobalSettings", Boolean.TRUE);
+        summary.put("tirithAlwaysScopeDowngradedToSession", Boolean.TRUE);
+        summary.put("currentThreadApprovalTtlMillis", Long.valueOf(CURRENT_THREAD_APPROVAL_TTL_MILLIS));
+        summary.put("currentThreadApprovalEnabled", Boolean.TRUE);
+        summary.put("approveRemovesPendingApproval", Boolean.TRUE);
+        summary.put("rejectRemovesPendingApproval", Boolean.TRUE);
+        summary.put("sessionSnapshotUpdated", Boolean.TRUE);
+        summary.put("approvalRequestObserved", Boolean.TRUE);
+        summary.put("approvalResponseObserved", Boolean.TRUE);
+        summary.put("approverRedacted", Boolean.TRUE);
+        summary.put("approvalKeyRedacted", Boolean.TRUE);
+        summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("description", "Approval lifecycle stores queued approvals in session context, supports once/session/always scopes, downgrades scanner findings to session scope, updates snapshots, and emits redacted request/response events.");
         return summary;
     }
 

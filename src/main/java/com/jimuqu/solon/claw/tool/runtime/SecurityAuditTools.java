@@ -228,6 +228,7 @@ public class SecurityAuditTools {
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         if (approvalService != null) {
             coverage.put("dangerousCommandApprovalPolicy", approvalService.approvalPolicySummary());
+            coverage.put("approvalLifecyclePolicy", approvalService.approvalLifecyclePolicySummary());
             coverage.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             coverage.put("approvalAuditPolicy", approvalService.approvalAuditPolicySummary());
             coverage.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
