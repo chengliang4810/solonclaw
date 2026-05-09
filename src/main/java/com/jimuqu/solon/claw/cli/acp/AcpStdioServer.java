@@ -509,31 +509,33 @@ public class AcpStdioServer {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", state.getSessionId());
         result.put("sessionId", state.getSessionId());
-        result.put("cwd", state.getCwd());
+        result.put("cwd", safeAcpText(state.getCwd()));
         result.put("updated_at", state.getUpdatedAt());
         result.put("updatedAt", state.getUpdatedAt());
         if (StrUtil.isNotBlank(state.getTitle())) {
-            result.put("title", state.getTitle());
+            result.put("title", safeAcpText(state.getTitle()));
         }
         result.put("history", safeAcpList(state.getHistory()));
         result.put("models", modelState(state));
         result.put(
                 "source_key",
-                StrUtil.blankToDefault(state.getSourceKey(), cliRuntime.sourceKey(state.getSessionId())));
-        result.put("mcp_servers", state.getMcpServers());
+                safeAcpText(
+                        StrUtil.blankToDefault(
+                                state.getSourceKey(), cliRuntime.sourceKey(state.getSessionId()))));
+        result.put("mcp_servers", safeAcpList(state.getMcpServers()));
         result.put("mcp_tool_count", state.getMcpToolCount());
-        result.put("mcp_changed_servers", state.getMcpChangedServers());
+        result.put("mcp_changed_servers", safeAcpList(state.getMcpChangedServers()));
         if (StrUtil.isNotBlank(state.getModelId())) {
-            result.put("model_id", state.getModelId());
-            result.put("modelId", state.getModelId());
+            result.put("model_id", safeAcpText(state.getModelId()));
+            result.put("modelId", safeAcpText(state.getModelId()));
         }
         if (StrUtil.isNotBlank(state.getModeId())) {
-            result.put("mode_id", state.getModeId());
-            result.put("modeId", state.getModeId());
+            result.put("mode_id", safeAcpText(state.getModeId()));
+            result.put("modeId", safeAcpText(state.getModeId()));
         }
         if (!state.getConfigOptions().isEmpty()) {
-            result.put("config_options", state.getConfigOptions());
-            result.put("configOptions", state.getConfigOptions());
+            result.put("config_options", safeAcpMap(state.getConfigOptions()));
+            result.put("configOptions", safeAcpMap(state.getConfigOptions()));
         }
         return result;
     }
@@ -710,9 +712,9 @@ public class AcpStdioServer {
         result.put("sessionId", state.getSessionId());
         result.put("config_id", configId.trim());
         result.put("configId", configId.trim());
-        result.put("value", value);
-        result.put("config_options", state.getConfigOptions());
-        result.put("configOptions", state.getConfigOptions());
+        result.put("value", safeAcpValue(value));
+        result.put("config_options", safeAcpMap(state.getConfigOptions()));
+        result.put("configOptions", safeAcpMap(state.getConfigOptions()));
         return result;
     }
 
@@ -1050,7 +1052,7 @@ public class AcpStdioServer {
                             "session_update",
                             "user".equals(role) ? "user_message_chunk" : "agent_message_chunk");
                     update.put("type", update.get("session_update"));
-                    update.put("content", textBlock(text));
+                    update.put("content", textBlock(safeAcpText(text)));
                     updates.add(update);
                 }
             }
@@ -1647,7 +1649,11 @@ public class AcpStdioServer {
                     uri,
                     name,
                     title,
-                    "[File read failed: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()) + "]");
+                    "[File read failed: "
+                            + safeAcpResourceText(
+                                    StrUtil.blankToDefault(
+                                            e.getMessage(), e.getClass().getSimpleName()))
+                            + "]");
         }
     }
 
@@ -1683,7 +1689,7 @@ public class AcpStdioServer {
                                 + "]");
             }
             return "[Attached image: " + resourceDisplayName(uri, name, title) + "]"
-                    + (StrUtil.isBlank(uri) ? "" : "\nURI: " + uri)
+                    + (StrUtil.isBlank(uri) ? "" : "\nURI: " + safeAcpResourceText(uri))
                     + "\nMIME: "
                     + imageMime
                     + "\nBytes: "
@@ -1726,7 +1732,7 @@ public class AcpStdioServer {
         StringBuilder note = new StringBuilder();
         note.append("[Attached image: ").append(resourceDisplayName(uri, name, title)).append(']');
         if (StrUtil.isNotBlank(uri)) {
-            note.append("\nURI: ").append(uri);
+            note.append("\nURI: ").append(safeAcpResourceText(uri));
         }
         note.append("\nMIME: ").append(mimeType);
         if (bytes > 0) {
@@ -1753,7 +1759,7 @@ public class AcpStdioServer {
             return "[Attached image: "
                     + resourceDisplayName(uri, name, title)
                     + "]\nURI: "
-                    + uri
+                    + safeAcpResourceText(uri)
                     + "\nMIME: "
                     + imageMime
                     + "\nBytes: "
@@ -1763,7 +1769,11 @@ public class AcpStdioServer {
                     uri,
                     name,
                     title,
-                    "[Image read failed: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()) + "]");
+                    "[Image read failed: "
+                            + safeAcpResourceText(
+                                    StrUtil.blankToDefault(
+                                            e.getMessage(), e.getClass().getSimpleName()))
+                            + "]");
         }
     }
 
@@ -1771,7 +1781,7 @@ public class AcpStdioServer {
         StringBuilder result = new StringBuilder();
         result.append("[Attached file: ").append(resourceDisplayName(uri, name, title)).append(']');
         if (StrUtil.isNotBlank(uri)) {
-            result.append("\nURI: ").append(uri);
+            result.append("\nURI: ").append(safeAcpResourceText(uri));
         }
         result.append("\n\n").append(StrUtil.nullToEmpty(body));
         return result.toString();
@@ -1779,24 +1789,28 @@ public class AcpStdioServer {
 
     private String resourceDisplayName(String uri, String name, String title) {
         if (StrUtil.isNotBlank(title) && StrUtil.isNotBlank(name) && !title.trim().equals(name.trim())) {
-            return title.trim() + " (" + name.trim() + ")";
+            return safeAcpResourceText(title.trim()) + " (" + safeAcpResourceText(name.trim()) + ")";
         }
         if (StrUtil.isNotBlank(title)) {
-            return title.trim();
+            return safeAcpResourceText(title.trim());
         }
         if (StrUtil.isNotBlank(name)) {
-            return name.trim();
+            return safeAcpResourceText(name.trim());
         }
         Path path = localResourcePath(uri);
         if (path != null && path.getFileName() != null) {
-            return path.getFileName().toString();
+            return safeAcpResourceText(path.getFileName().toString());
         }
         String value = StrUtil.nullToEmpty(uri).trim();
         int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
         if (slash >= 0 && slash + 1 < value.length()) {
-            return value.substring(slash + 1);
+            return safeAcpResourceText(value.substring(slash + 1));
         }
-        return StrUtil.blankToDefault(value, "attachment");
+        return safeAcpResourceText(StrUtil.blankToDefault(value, "attachment"));
+    }
+
+    private String safeAcpResourceText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
     }
 
     private String readMimeType(ONode node) {

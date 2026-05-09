@@ -163,6 +163,40 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactAcpResourceDisplayMetadata(@TempDir Path tempDir) throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        Path attached = tempDir.resolve("token=ghp_acpfiletoken12345.txt");
+        Files.write(attached, "visible body".getBytes(StandardCharsets.UTF_8));
+        String sessionId = extractSessionId(newAcpSession(server, 65));
+
+        String prompted =
+                prompt(
+                        server,
+                        66,
+                        sessionId,
+                        "[{\"type\":\"resource_link\","
+                                + "\"name\":\"notes-token=ghp_acpnametoken12345.txt\","
+                                + "\"title\":\"Title api_key=sk-test-acptitle12345\","
+                                + "\"uri\":\""
+                                + jsonEscape(attached.toUri().toString())
+                                + "\",\"mimeType\":\"text/plain\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":66")
+                .contains("Title api_key=***")
+                .contains("token=***")
+                .contains("visible body")
+                .doesNotContain("sk-test-acptitle12345")
+                .doesNotContain("ghp_acpnametoken12345")
+                .doesNotContain("ghp_acpfiletoken12345");
+    }
+
+    @Test
     void shouldPreserveAcpResourceLinkImageFileAsAttachmentNote(@TempDir Path tempDir)
             throws Exception {
         AcpAttachmentGateway gateway = new AcpAttachmentGateway();
@@ -199,6 +233,45 @@ public class AcpStdioServerTest {
         assertThat(gateway.lastAttachments.get(0).getMimeType()).isEqualTo("image/png");
         assertThat(gateway.lastAttachments.get(0).getData())
                 .isEqualTo(Base64.getEncoder().encodeToString(ONE_PX_PNG));
+    }
+
+    @Test
+    void shouldRedactAcpImageResourceDisplayMetadata() throws Exception {
+        AcpAttachmentGateway gateway = new AcpAttachmentGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        String sessionId = extractSessionId(newAcpSession(server, 67));
+        String b64 = Base64.getEncoder().encodeToString(ONE_PX_PNG);
+
+        String prompted =
+                prompt(
+                        server,
+                        68,
+                        sessionId,
+                        "[{\"type\":\"image\","
+                                + "\"name\":\"shot-token=ghp_acpimagename12345.png\","
+                                + "\"title\":\"Image api_key=sk-test-acpimage12345\","
+                                + "\"uri\":\"file:///tmp/shot.png?token=ghp_acpimageuri12345\","
+                                + "\"mimeType\":\"image/png\","
+                                + "\"data\":\""
+                                + b64
+                                + "\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":68")
+                .contains("Image api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test-acpimage12345")
+                .doesNotContain("ghp_acpimagename12345")
+                .doesNotContain("ghp_acpimageuri12345");
+        assertThat(gateway.lastAttachments).hasSize(1);
+        assertThat(gateway.lastAttachments.get(0).getOriginalName())
+                .contains("Image api_key=***")
+                .doesNotContain("sk-test-acpimage12345");
     }
 
     @Test
@@ -601,6 +674,69 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactAcpSessionMetadataViews() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        mcpService);
+
+        String created =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":69,\"method\":\"session/new\","
+                                + "\"params\":{\"cwd\":\"D:/workspace/token=ghp_acpcwd12345\","
+                                + "\"mcp_servers\":[{\"name\":\"docs\","
+                                + "\"command\":\"node server.js --api_key=sk-test-acpmcp12345\","
+                                + "\"args\":[\"--token=ghp_acpmcparg12345\"],"
+                                + "\"auth\":{\"header\":\"Authorization: Bearer ghp_acpmcpauth12345\"},"
+                                + "\"tools\":[{\"name\":\"read_file\"}]}]}}");
+
+        assertThat(created)
+                .contains("\"id\":69")
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("Bearer ***")
+                .doesNotContain("ghp_acpcwd12345")
+                .doesNotContain("sk-test-acpmcp12345")
+                .doesNotContain("ghp_acpmcparg12345")
+                .doesNotContain("ghp_acpmcpauth12345");
+
+        String sessionId = extractSessionId(created);
+        String config =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":70,\"method\":\"session/set_config_option\","
+                                + "\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"config_id\":\"runtime.token\","
+                                + "\"value\":{\"access_token\":\"ghp_acpconfig12345\","
+                                + "\"nested\":{\"api_key\":\"sk-test-acpconfig12345\"}}}}");
+
+        assertThat(config)
+                .contains("\"id\":70")
+                .contains("\"access_token\":\"***\"")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_acpconfig12345")
+                .doesNotContain("sk-test-acpconfig12345");
+
+        String listed =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":71,\"method\":\"session/list\","
+                                + "\"params\":{\"cwd\":\"D:/workspace/token=ghp_acpcwd12345\"}}");
+        assertThat(listed)
+                .contains("\"id\":71")
+                .contains(sessionId)
+                .contains("token=***")
+                .doesNotContain("ghp_acpcwd12345")
+                .doesNotContain("sk-test-acpmcp12345")
+                .doesNotContain("ghp_acpmcparg12345")
+                .doesNotContain("ghp_acpmcpauth12345")
+                .doesNotContain("ghp_acpconfig12345")
+                .doesNotContain("sk-test-acpconfig12345");
+    }
+
+    @Test
     void shouldIsolateDangerousApprovalBetweenAcpSessions() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =
@@ -995,6 +1131,42 @@ public class AcpStdioServerTest {
                 .contains("\"id\":9")
                 .contains(record.getSessionId())
                 .doesNotContain("\"session_updates\"");
+    }
+
+    @Test
+    void shouldRedactSecretsFromPersistedAcpMessageHistoryReplay() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord record = env.sessionRepository.bindNewSession("MEMORY:cli:persisted-acp-secret-history");
+        record.setTitle("Persisted ACP Secret History");
+        record.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser(
+                                        "user api_key=sk-test-acpuserhistory12345"),
+                                ChatMessage.ofAssistant(
+                                        "assistant bearer ghp_acpassistanthistory12345"))));
+        env.sessionRepository.save(record);
+
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":75,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + record.getSessionId()
+                                + "\",\"cwd\":\"D:/projects/jimuqu-agent\"}}");
+
+        assertThat(loaded)
+                .contains("\"id\":75")
+                .contains("\"user_message_chunk\"")
+                .contains("\"agent_message_chunk\"")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .doesNotContain("sk-test-acpuserhistory12345")
+                .doesNotContain("ghp_acpassistanthistory12345");
     }
 
     @Test

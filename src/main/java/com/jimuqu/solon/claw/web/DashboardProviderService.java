@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -271,7 +272,7 @@ public class DashboardProviderService {
 
         List<String> models = parseModels(body, dialect);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("url", url);
+        result.put("url", SecretRedactor.maskUrl(url));
         result.put("models", models);
         return result;
     }
@@ -373,7 +374,7 @@ public class DashboardProviderService {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("providerKey", providerKey);
         item.put("name", StrUtil.blankToDefault(provider.getName(), providerKey));
-        item.put("baseUrl", StrUtil.nullToEmpty(provider.getBaseUrl()));
+        item.put("baseUrl", SecretRedactor.maskUrl(StrUtil.nullToEmpty(provider.getBaseUrl())));
         item.put("defaultModel", StrUtil.nullToEmpty(provider.getDefaultModel()));
         item.put("dialect", StrUtil.nullToEmpty(provider.getDialect()));
         item.put("hasApiKey", SecretValueGuard.hasUsableSecret(provider.getApiKey()));
