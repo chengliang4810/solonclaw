@@ -612,7 +612,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
-                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+\\$?false\\b))"),
+                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_defender",

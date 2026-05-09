@@ -383,6 +383,10 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_firewall");
         assertDangerPattern(
                 env,
+                "Set-NetFirewallProfile -Profile Public -Enabled 0",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
                 "Set-MpPreference -DisableRealtimeMonitoring $true",
                 "windows_disable_defender");
         assertDangerPattern(
