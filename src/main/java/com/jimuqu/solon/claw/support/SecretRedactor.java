@@ -81,6 +81,8 @@ public final class SecretRedactor {
     private static final Pattern EMBEDDED_PREFIX_SECRET =
             Pattern.compile(
                     "(?i)((?:^|[^A-Za-z0-9])(?:[A-Za-z0-9_.-]{0,80})(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_))[A-Za-z0-9_-]{10,}");
+    private static final Pattern DISPLAY_CONTROL =
+            Pattern.compile("[\\u0000-\\u0008\\u000B-\\u001F\\u007F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]");
     private static final int DEFAULT_MAX_LENGTH = 8000;
 
     private SecretRedactor() {}
@@ -93,7 +95,8 @@ public final class SecretRedactor {
         if (text == null) {
             return null;
         }
-        String result = BEARER.matcher(text).replaceAll("$1***");
+        String result = DISPLAY_CONTROL.matcher(text).replaceAll("");
+        result = BEARER.matcher(result).replaceAll("$1***");
         result = ENV_ASSIGNMENT.matcher(result).replaceAll("$1$2$3***$3");
         result = SHELL_KEY_VALUE.matcher(result).replaceAll("$1$2***");
         result = JSON_FIELD.matcher(result).replaceAll("$1$2***$4");
@@ -142,7 +145,8 @@ public final class SecretRedactor {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        String result = redactUrlUserinfo(value);
+        String result = DISPLAY_CONTROL.matcher(value).replaceAll("");
+        result = redactUrlUserinfo(result);
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         return PREFIX_SECRET.matcher(result).replaceAll("***");

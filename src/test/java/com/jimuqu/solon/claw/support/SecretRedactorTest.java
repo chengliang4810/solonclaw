@@ -113,4 +113,26 @@ class SecretRedactorTest {
                 .contains("npm-package-npm_***")
                 .doesNotContain("1234567890abcdef");
     }
+
+    @Test
+    void shouldStripDisplayControlsBeforeReturningRedactedText() {
+        String result =
+                SecretRedactor.redact(
+                        "approve\u202Ecod.exe\u2069 OPENAI_API_KEY=sk-proj-abc123def456ghi789jkl012\rhidden");
+        String maskedUrl =
+                SecretRedactor.maskUrl(
+                        "https://example.com/path?token=opaque\u202Etoken123456789");
+
+        assertThat(result)
+                .contains("approvecod.exe")
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("\u202E")
+                .doesNotContain("\u2069")
+                .doesNotContain("\r")
+                .doesNotContain("abc123def456");
+        assertThat(maskedUrl)
+                .isEqualTo("https://example.com/path?token=***")
+                .doesNotContain("\u202E")
+                .doesNotContain("opaque");
+    }
 }
