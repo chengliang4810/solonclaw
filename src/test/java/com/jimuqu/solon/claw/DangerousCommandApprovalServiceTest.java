@@ -1215,6 +1215,18 @@ public class DangerousCommandApprovalServiceTest {
                 env, "rundll32 keymgr.dll,KRShowKeyMgr", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
+                "cmdkey /add:server.example /user:deploy /pass:secret",
+                "windows_credential_manager_change");
+        assertDangerPattern(env, "cmdkey /delete:server.example", "windows_credential_manager_change");
+        assertDangerPattern(
+                env,
+                "New-StoredCredential -Target server.example -UserName deploy -Password secret",
+                "windows_credential_manager_change");
+        assertDangerPattern(
+                env, "Remove-StoredCredential -Target server.example", "windows_credential_manager_change");
+        assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
+        assertDangerPattern(
+                env,
                 "Set-Content -Path .envrc -Value layout",
                 "powershell_sensitive_file_write");
         assertDangerPattern(

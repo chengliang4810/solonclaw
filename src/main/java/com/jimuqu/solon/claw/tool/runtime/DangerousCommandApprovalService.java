@@ -104,6 +104,8 @@ public class DangerousCommandApprovalService {
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+    private static final String SHELL_COMMAND_START =
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
@@ -488,7 +490,9 @@ public class DangerousCommandApprovalService {
                                     "credential_path_option",
                                     "credential file passed through command option",
                                     pattern(
-                                            "(?:\\b(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\brsync\\b[^\\n]*(?:\\s-e\\s*[\"']?ssh\\b|\\s--rsh(?:=|\\s+)[\"']?ssh\\b)[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\bgit\\b[^\\n]*\\s-c\\s+core\\.sshCommand\\s*=\\s*[\"']?ssh\\b[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:(?-i:-[bcEK])\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies|config)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\b(?:ansible|ansible-playbook)\\b[^\\n]*\\s--(?:private-key|key-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+|\\b(?:rclone|s3cmd)\\b[^\\n]*\\s--config(?:=|\\s+)\\S+)"),
+                                            "(?:"
+                                                    + SHELL_COMMAND_START
+                                                    + "(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\brsync\\b[^\\n]*(?:\\s-e\\s*[\"']?ssh\\b|\\s--rsh(?:=|\\s+)[\"']?ssh\\b)[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\bgit\\b[^\\n]*\\s-c\\s+core\\.sshCommand\\s*=\\s*[\"']?ssh\\b[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:(?-i:-[bcEK])\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies|config)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\b(?:ansible|ansible-playbook)\\b[^\\n]*\\s--(?:private-key|key-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+|\\b(?:rclone|s3cmd)\\b[^\\n]*\\s--config(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "tls_certificate_check_disabled",
@@ -996,6 +1000,12 @@ public class DangerousCommandApprovalService {
                                     "Windows credential manager read",
                                     pattern(
                                             "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_credential_manager_change",
+                                    "Windows credential manager changed",
+                                    pattern(
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/(?:add|delete)\\b|(?:New|Set|Remove)-StoredCredential\\b|New-Credential\\b|Remove-VaultCredential\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_sensitive_file_write",
