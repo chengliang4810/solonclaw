@@ -782,6 +782,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "container_secret_exposure",
+                                    "container command exposes secret material",
+                                    pattern(
+                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:build|buildx\\s+build|run|create)\\b(?=[^\\n]*(?:(?:--build-arg|--env|-e)(?:=|\\s+)[A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY)[A-Za-z0-9_]*\\s*=\\s*\\S+|--env-file(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "kubectl_delete",
                                     "Kubernetes resource delete",
                                     pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*delete\\b"),

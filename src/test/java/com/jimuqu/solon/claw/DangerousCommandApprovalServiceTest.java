@@ -828,6 +828,23 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult nerdctlSocketMount =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "nerdctl run -v /var/run/docker.sock:/var/run/docker.sock alpine");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretArg =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --build-arg API_TOKEN=abc .");
+        DangerousCommandApprovalService.DetectionResult buildahSecretArg =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "buildah build --build-arg DB_PASSWORD=abc .");
+        DangerousCommandApprovalService.DetectionResult dockerEnvFile =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --env-file .env.production app");
+        DangerousCommandApprovalService.DetectionResult podmanSecretEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run -e CLIENT_SECRET=abc app");
+        DangerousCommandApprovalService.DetectionResult dockerPlainBuild =
+                env.dangerousCommandApprovalService.detect("execute_shell", "docker build .");
+        DangerousCommandApprovalService.DetectionResult dockerNonSecretBuildArg =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --build-arg VERSION=1.0 .");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
@@ -1110,6 +1127,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
         assertThat(nerdctlSocketMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerBuildSecretArg).isNotNull();
+        assertThat(dockerBuildSecretArg.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(buildahSecretArg).isNotNull();
+        assertThat(buildahSecretArg.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerEnvFile).isNotNull();
+        assertThat(dockerEnvFile.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(podmanSecretEnv).isNotNull();
+        assertThat(podmanSecretEnv.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerPlainBuild).isNull();
+        assertThat(dockerNonSecretBuildArg).isNull();
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
