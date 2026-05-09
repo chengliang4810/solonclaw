@@ -1355,6 +1355,19 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
         }
 
+        List<String> sshAddPrivateKeys =
+                Arrays.asList(
+                        "ssh-add ~/.ssh/id_rsa",
+                        "ssh-add $HOME/.ssh/id_ed25519",
+                        "ssh-add $env:HOME/.ssh/id_ecdsa_sk",
+                        "ssh-add %USERPROFILE%\\.ssh\\id_dsa");
+        for (String command : sshAddPrivateKeys) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_add_private_key");
+        }
+
         List<String> packageManagerSecretReads =
                 Arrays.asList(
                         "npm config get //registry.npmjs.org/:_authToken",
@@ -1435,6 +1448,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "ssh-add -l"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh-add runtime/keys/test_key"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

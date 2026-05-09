@@ -354,6 +354,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "ssh_add_private_key",
+                                    "load SSH private key into agent",
+                                    pattern(
+                                            "\\bssh-add\\b(?=[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\][^\\s\"'`]*(?:id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|\\.pem)\\b)(?![^\\n]*\\s-[lLdD]\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "package_manager_secret_read",
                                     "read package manager credential",
                                     pattern(
