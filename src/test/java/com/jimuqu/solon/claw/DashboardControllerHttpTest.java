@@ -1599,6 +1599,7 @@ public class DashboardControllerHttpTest {
                 .contains("--context-from job-id")
                 .contains("--clear-context-from");
         assertThat(dashboardGuideData.get("runtime_modes").get("clear_flags").toJson())
+                .contains("--clear-repeat")
                 .contains("--clear-script")
                 .contains("--clear-enabled-toolsets");
         assertThat(dashboardGuideData.get("security").get("prompt_scan").toJson()).contains("prompt_injection");

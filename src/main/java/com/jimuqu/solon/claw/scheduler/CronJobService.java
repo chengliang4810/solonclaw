@@ -525,6 +525,7 @@ public class CronJobService {
                         "/cron edit <job-id> --skill blogwatcher --skill maps",
                         "/cron edit <job-id> --remove-skill blogwatcher",
                         "/cron edit <job-id> --clear-skills",
+                        "/cron edit <job-id> --clear-repeat",
                         "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread",
                         "/cron edit <job-id> --no-agent --script collect.py --workdir runtime/projects/demo",
                         "/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal",
@@ -626,6 +627,7 @@ public class CronJobService {
         result.put(
                 "clear_flags",
                 Arrays.asList(
+                        "--clear-repeat",
                         "--clear-script",
                         "--clear-workdir",
                         "--clear-toolsets",

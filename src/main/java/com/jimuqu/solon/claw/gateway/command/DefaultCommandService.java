@@ -2294,6 +2294,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --skill blogwatcher --skill maps - 替换绑定技能\n")
                 .append("/cron edit <job-id> --remove-skill blogwatcher - 移除绑定技能\n")
                 .append("/cron edit <job-id> --clear-skills - 清空绑定技能\n")
+                .append("/cron edit <job-id> --clear-repeat - 清空重复次数上限，恢复无限重复\n")
                 .append("/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append("/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
                 .append("/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
@@ -2792,6 +2793,8 @@ public class DefaultCommandService implements CommandService {
                 body.put("deliver_thread_id", null);
             } else if (field.startsWith("--repeat ")) {
                 body.put("repeat", Integer.valueOf(field.substring("--repeat ".length()).trim()));
+            } else if ("--clear-repeat".equals(field)) {
+                body.put("repeat", Integer.valueOf(0));
             } else if (field.startsWith("--script ")) {
                 body.put("script", field.substring("--script ".length()).trim());
             } else if ("--clear-script".equals(field)) {
@@ -2863,6 +2866,9 @@ public class DefaultCommandService implements CommandService {
         }
         if (options.repeat != null) {
             body.put("repeat", options.repeat);
+        }
+        if (options.clearRepeat) {
+            body.put("repeat", Integer.valueOf(0));
         }
         putCronStringOption(body, "script", options.script);
         putCronStringOption(body, "workdir", options.workdir);
@@ -2936,6 +2942,8 @@ public class DefaultCommandService implements CommandService {
                 options.clearDeliverThreadId = true;
             } else if ("--repeat".equals(token) && i + 1 < tokens.size()) {
                 options.repeat = Integer.valueOf(tokens.get(++i));
+            } else if ("--clear-repeat".equals(token)) {
+                options.clearRepeat = true;
             } else if ("--limit".equals(token) && i + 1 < tokens.size()) {
                 options.limit = Integer.valueOf(tokens.get(++i));
             } else if ("--reason".equals(token) && i + 1 < tokens.size()) {
@@ -4149,6 +4157,7 @@ public class DefaultCommandService implements CommandService {
         private boolean clearDeliverChatId;
         private boolean clearDeliverThreadId;
         private Integer repeat;
+        private boolean clearRepeat;
         private Integer limit;
         private String reason;
         private final List<String> skills = new ArrayList<String>();
