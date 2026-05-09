@@ -440,6 +440,23 @@ public class SecurityPolicyService {
         return FileVerdict.allow();
     }
 
+    public Map<String, Object> credentialPolicySummary() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        summary.put("directorySegmentCount", Integer.valueOf(CREDENTIAL_DIR_SEGMENTS.size()));
+        summary.put("fileNameCount", Integer.valueOf(CREDENTIAL_FILE_NAMES.size()));
+        summary.put("pathSuffixCount", Integer.valueOf(CREDENTIAL_PATH_SUFFIXES.size()));
+        summary.put("keyFileExtensionCount", Integer.valueOf(SENSITIVE_KEY_FILE_EXTENSIONS.size()));
+        summary.put("keyFileMarkerCount", Integer.valueOf(SENSITIVE_KEY_FILE_MARKERS.size()));
+        summary.put("configuredCredentialFileCount", Integer.valueOf(configuredCredentialFiles().size()));
+        summary.put("directorySegmentSamples", sample(CREDENTIAL_DIR_SEGMENTS, 6));
+        summary.put("fileNameSamples", sample(CREDENTIAL_FILE_NAMES, 8));
+        summary.put("pathSuffixSamples", sample(CREDENTIAL_PATH_SUFFIXES, 4));
+        summary.put("configuredCredentialFileSamples", redactSample(configuredCredentialFiles(), 6));
+        summary.put("envExampleFilesAllowed", Boolean.TRUE);
+        summary.put("description", "Credential paths are blocked for file tools, patch targets, command reads, archives, uploads, and compact output paths.");
+        return summary;
+    }
+
     public FileVerdict checkCommandPaths(String command) {
         String code = StrUtil.nullToEmpty(command);
         if (code.length() == 0) {
@@ -1696,6 +1713,48 @@ public class SecurityPolicyService {
             return value;
         }
         return stripKnownPrefix(value);
+    }
+
+    private List<String> configuredCredentialFiles() {
+        if (appConfig == null || appConfig.getTerminal() == null) {
+            return Collections.emptyList();
+        }
+        List<String> values = appConfig.getTerminal().getCredentialFiles();
+        return values == null ? Collections.<String>emptyList() : values;
+    }
+
+    private static List<String> sample(List<String> values, int max) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        int limit = Math.max(0, max);
+        for (String value : values) {
+            if (result.size() >= limit) {
+                break;
+            }
+            if (StrUtil.isNotBlank(value)) {
+                result.add(value);
+            }
+        }
+        return result;
+    }
+
+    private static List<String> redactSample(List<String> values, int max) {
+        List<String> result = new ArrayList<String>();
+        if (values == null) {
+            return result;
+        }
+        int limit = Math.max(0, max);
+        for (String value : values) {
+            if (result.size() >= limit) {
+                break;
+            }
+            if (StrUtil.isNotBlank(value)) {
+                result.add(SecretRedactor.redact(value, 400));
+            }
+        }
+        return result;
     }
 
     private String normalizeRuntimeFilePath(String relativePath) {

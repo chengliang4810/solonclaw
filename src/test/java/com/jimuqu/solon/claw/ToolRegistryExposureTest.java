@@ -290,6 +290,28 @@ public class ToolRegistryExposureTest {
                 .isEqualTo("deny");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);
+        assertThat(policyStatus.get("policy").get("terminal").get("credentialPolicy").get("fileNameCount").getInt())
+                .isGreaterThan(20);
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("credentialPolicy")
+                                .get("configuredCredentialFileCount")
+                                .getInt())
+                .isEqualTo(1);
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("credentialPolicy")
+                                .get("envExampleFilesAllowed")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("credentialPolicy")))
+                .contains(".ssh")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("credentials/oauth.json");
         assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())

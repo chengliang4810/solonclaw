@@ -573,6 +573,35 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldExposeCredentialPolicySummaryWithoutLeakingConfiguredPaths() {
+        AppConfig config = new AppConfig();
+        config.getTerminal()
+                .setCredentialFiles(
+                        Arrays.asList(
+                                "credentials/oauth.json",
+                                "runtime/secret-sk-1234567890abcdef.json"));
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        Map<String, Object> summary = policy.credentialPolicySummary();
+
+        assertThat(((Integer) summary.get("directorySegmentCount")).intValue()).isGreaterThanOrEqualTo(10);
+        assertThat(((Integer) summary.get("fileNameCount")).intValue()).isGreaterThanOrEqualTo(30);
+        assertThat(((Integer) summary.get("pathSuffixCount")).intValue()).isGreaterThanOrEqualTo(4);
+        assertThat(summary.get("configuredCredentialFileCount")).isEqualTo(2);
+        assertThat(String.valueOf(summary.get("directorySegmentSamples"))).contains(".ssh", ".aws");
+        assertThat(String.valueOf(summary.get("fileNameSamples"))).contains(".env", ".netrc");
+        assertThat(String.valueOf(summary.get("pathSuffixSamples"))).contains(".credentials.json");
+        assertThat(String.valueOf(summary.get("configuredCredentialFileSamples")))
+                .contains("[REDACTED_PATH]")
+                .contains("secret-sk-***")
+                .doesNotContain("credentials/oauth.json")
+                .doesNotContain("1234567890abcdef");
+        assertThat(summary.get("envExampleFilesAllowed")).isEqualTo(Boolean.TRUE);
+        assertThat(policy.checkPath(".env", false).isAllowed()).isFalse();
+        assertThat(policy.checkPath(".env.example", false).isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldDenyPatchDiffsTargetingSensitiveCredentialPaths() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         Map<String, Object> addFileArgs = new LinkedHashMap<String, Object>();

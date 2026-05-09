@@ -140,6 +140,9 @@ public class SecurityAuditTools {
 
         Map<String, Object> terminal = new LinkedHashMap<String, Object>();
         terminal.put("credentialFileCount", Integer.valueOf(size(appConfig.getTerminal().getCredentialFiles())));
+        if (securityPolicyService != null) {
+            terminal.put("credentialPolicy", securityPolicyService.credentialPolicySummary());
+        }
         terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
         terminal.put("sudoPasswordConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())));
         terminal.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
