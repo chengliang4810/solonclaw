@@ -77,7 +77,11 @@ public class McpRuntimeService implements Closeable {
                             "dir",
                             "dirname",
                             "directory",
+                            "output_file",
+                            "destination",
+                            "dest",
                             "*_path",
+                            "*_file",
                             "*path"));
 
     private final AppConfig appConfig;
@@ -1786,78 +1790,18 @@ public class McpRuntimeService implements Closeable {
             if (securityPolicyService == null || args == null || args.isEmpty()) {
                 return;
             }
-            List<String> paths = new ArrayList<String>();
-            collectPathish(args, paths);
-            for (String path : paths) {
-                SecurityPolicyService.FileVerdict verdict =
-                        securityPolicyService.checkPath(path, true);
-                if (!verdict.isAllowed()) {
-                    throw new IllegalArgumentException(
-                            "BLOCKED: MCP tool "
-                                    + config.getName()
-                                    + "/"
-                                    + remoteToolName
-                                    + " 文件安全策略阻止访问："
-                                    + verdict.getMessage()
-                                    + "\n路径："
-                                    + SecretRedactor.redact(verdict.getPath(), 400));
-                }
-            }
-        }
-
-        @SuppressWarnings("unchecked")
-        private void collectPathish(Object raw, List<String> paths) {
-            if (raw == null) {
-                return;
-            }
-            if (raw instanceof Map) {
-                for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
-                    String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
-                    Object value = entry.getValue();
-                    if (looksLikePathKey(key)) {
-                        addPathValue(value, paths);
-                    } else {
-                        collectPathish(value, paths);
-                    }
-                }
-                return;
-            }
-            if (raw instanceof Iterable) {
-                for (Object value : (Iterable<?>) raw) {
-                    collectPathish(value, paths);
-                }
-            }
-        }
-
-        private boolean looksLikePathKey(String key) {
-            String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
-            return "path".equals(normalized)
-                    || "file".equals(normalized)
-                    || "filename".equals(normalized)
-                    || "file_name".equals(normalized)
-                    || "file_path".equals(normalized)
-                    || "filepath".equals(normalized)
-                    || "dir".equals(normalized)
-                    || "dirname".equals(normalized)
-                    || "directory".equals(normalized)
-                    || normalized.endsWith("_path")
-                    || normalized.endsWith("path");
-        }
-
-        @SuppressWarnings("unchecked")
-        private void addPathValue(Object raw, List<String> paths) {
-            if (raw == null) {
-                return;
-            }
-            if (raw instanceof Iterable) {
-                for (Object item : (Iterable<?>) raw) {
-                    addPathValue(item, paths);
-                }
-                return;
-            }
-            String value = String.valueOf(raw).trim();
-            if (StrUtil.isNotBlank(value)) {
-                paths.add(value);
+            SecurityPolicyService.FileVerdict verdict =
+                    securityPolicyService.checkFileToolArgs("mcp_remote_tool", args);
+            if (!verdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        "BLOCKED: MCP tool "
+                                + config.getName()
+                                + "/"
+                                + remoteToolName
+                                + " 文件安全策略阻止访问："
+                                + verdict.getMessage()
+                                + "\n路径："
+                                + SecretRedactor.redact(verdict.getPath(), 400));
             }
         }
 

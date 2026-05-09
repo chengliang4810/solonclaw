@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -327,6 +328,17 @@ public class McpRuntimeServiceTest {
                 .hasMessageContaining("文件安全策略")
                 .hasMessageContaining("[REDACTED_PATH]")
                 .hasMessageNotContaining(".env");
+
+        env.appConfig.getTerminal().setWriteSafeRoot(
+                new File(env.appConfig.getRuntime().getHome()).getAbsolutePath());
+        Map<String, Object> unsafeOutputFile = new LinkedHashMap<String, Object>();
+        unsafeOutputFile.put("action", "save");
+        unsafeOutputFile.put("output_file", "D:/outside/generated.txt");
+        assertThatThrownBy(() -> docsFetch.handle(unsafeOutputFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("文件安全策略")
+                .hasMessageContaining("安全写入根")
+                .hasMessageContaining("D:/outside/generated.txt");
 
         Map<String, Object> nestedUnsafeUrl = new LinkedHashMap<String, Object>();
         Map<String, Object> metadata = new LinkedHashMap<String, Object>();
