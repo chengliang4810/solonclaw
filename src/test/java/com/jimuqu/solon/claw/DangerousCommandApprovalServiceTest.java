@@ -1585,6 +1585,28 @@ public class DangerousCommandApprovalServiceTest {
             }
         }
 
+        List<String> secretStoreDestroys =
+                Arrays.asList(
+                        "aws secretsmanager delete-secret --secret-id prod/db",
+                        "gcloud secrets delete prod-db",
+                        "gcloud secrets versions destroy 1 --secret prod-db",
+                        "az keyvault secret delete --vault-name prod --name db-password",
+                        "az keyvault secret purge --vault-name prod --name db-password",
+                        "vault kv delete secret/prod",
+                        "vault kv destroy -versions=2 secret/prod",
+                        "vault kv metadata delete secret/prod",
+                        "op item delete prod-db",
+                        "bw delete item item-id",
+                        "pass rm prod/db",
+                        "gopass remove prod/db",
+                        "secret-tool clear service prod-db");
+        for (String command : secretStoreDestroys) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_destroy");
+        }
+
         List<String> cloudCredentialConfigChanges =
                 Arrays.asList(
                         "aws configure set aws_access_key_id AKIAEXAMPLE",
