@@ -391,6 +391,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Set-MpPreference -DisableBehaviorMonitoring 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -DisableIOAVProtection True",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
                 "windows_take_ownership");
         assertDangerPattern(
