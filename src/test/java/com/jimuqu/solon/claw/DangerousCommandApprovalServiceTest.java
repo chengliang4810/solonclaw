@@ -1478,6 +1478,28 @@ public class DangerousCommandApprovalServiceTest {
                     .isNull();
         }
 
+        List<String> secretStoreWrites =
+                Arrays.asList(
+                        "aws secretsmanager put-secret-value --secret-id prod/db --secret-string password",
+                        "gcloud secrets versions add prod-db --data-file=secret.txt",
+                        "az keyvault secret set --vault-name prod --name db-password --value password",
+                        "kubectl create secret generic app-token --from-literal=token=abc",
+                        "vault kv put secret/prod password=abc",
+                        "vault kv patch secret/prod token=abc",
+                        "op item create --category login --title prod-db password=abc",
+                        "op item edit prod-db password=abc",
+                        "bw create item '{\"name\":\"prod-db\"}'",
+                        "bw edit item item-id '{\"notes\":\"secret\"}'",
+                        "pass insert prod/db",
+                        "gopass generate prod/db",
+                        "secret-tool store --label prod-db service prod-db");
+        for (String command : secretStoreWrites) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_write");
+        }
+
         List<String> keychainPasswordReads =
                 Arrays.asList(
                         "security find-generic-password -a deploy -s api-token -w",
