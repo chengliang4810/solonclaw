@@ -213,6 +213,11 @@ public class DashboardRunServiceTest {
         }
 
         @Override
+        public int countQueuedMessages(String sourceKey, String sessionId) {
+            return 0;
+        }
+
+        @Override
         public void markQueuedMessage(String queueId, String status, long timestamp, String error) {}
 
         @Override

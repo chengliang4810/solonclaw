@@ -980,7 +980,7 @@ public class AcpStdioServer {
         if ("model".equals(name)) {
             item.put("input", unstructuredInput("模型 ID，例如 openai:gpt-5.1"));
         } else if ("busy".equals(name)) {
-            item.put("input", unstructuredInput("queue、steer 或 interrupt"));
+            item.put("input", unstructuredInput("status、queue、steer、interrupt 或 reject"));
         } else if ("steer".equals(name)) {
             item.put("input", unstructuredInput("给运行中任务的修正或引导"));
         } else if ("queue".equals(name)) {

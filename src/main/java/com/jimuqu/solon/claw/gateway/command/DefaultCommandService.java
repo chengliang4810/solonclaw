@@ -2180,7 +2180,7 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run|retry <job-id>");
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run|trigger|retry|rerun <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.require(jobId);
@@ -2195,7 +2195,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|inspect|show|next|guide|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
+                        + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
     }
 
     private String formatCronGuide(Map<String, Object> guide) {
@@ -3566,6 +3566,9 @@ public class DefaultCommandService implements CommandService {
 
     private String formatBusyStatus(String sourceKey) {
         String policy = StrUtil.blankToDefault(appConfig.getTask().getBusyPolicy(), "queue");
+        SessionRecord session = findBoundSessionQuietly(sourceKey);
+        Map<String, Object> activeRun =
+                agentRunControlService == null ? null : agentRunControlService.activeRunSummary(sourceKey);
         StringBuilder buffer = new StringBuilder();
         buffer.append("busy_policy=").append(policy).append('\n');
         buffer.append("source_running=")
@@ -3574,11 +3577,49 @@ public class DefaultCommandService implements CommandService {
         buffer.append("any_running=")
                 .append(agentRunControlService != null && agentRunControlService.hasRunningRuns())
                 .append('\n');
+        buffer.append("active_run_id=")
+                .append(activeRun == null ? "-" : valueOrDash(activeRun.get("run_id")))
+                .append('\n');
+        if (activeRun != null) {
+            buffer.append("active_run_phase=")
+                    .append(valueOrDash(activeRun.get("phase")))
+                    .append('\n');
+            buffer.append("active_run_idle_seconds=")
+                    .append(valueOrDash(activeRun.get("seconds_since_activity")))
+                    .append('\n');
+        }
+        buffer.append("queue_pending=")
+                .append(countQueuedMessagesQuietly(sourceKey, session))
+                .append('\n');
         buffer.append(formatBusyPolicyDescription(policy)).append('\n');
         buffer.append("用法：")
                 .append(GatewayCommandConstants.SLASH_BUSY)
                 .append(" [status|queue|steer|interrupt|reject]");
         return buffer.toString();
+    }
+
+    private SessionRecord findBoundSessionQuietly(String sourceKey) {
+        try {
+            return sessionRepository.getBoundSession(sourceKey);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int countQueuedMessagesQuietly(String sourceKey, SessionRecord session) {
+        if (agentRunRepository == null || session == null || StrUtil.isBlank(session.getSessionId())) {
+            return 0;
+        }
+        try {
+            return agentRunRepository.countQueuedMessages(sourceKey, session.getSessionId());
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private String valueOrDash(Object value) {
+        String text = value == null ? "" : String.valueOf(value);
+        return StrUtil.blankToDefault(text, "-");
     }
 
     private String formatBusyPolicyDescription(String policy) {
@@ -3947,7 +3988,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]",
+                                        + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN

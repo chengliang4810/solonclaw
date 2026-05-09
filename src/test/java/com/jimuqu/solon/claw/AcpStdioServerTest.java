@@ -68,6 +68,7 @@ public class AcpStdioServerTest {
                 .contains("查看 ACP 本地适配器能力快照")
                 .contains("给运行中任务的修正或引导")
                 .contains("下一轮要执行的提示")
+                .contains("status、queue、steer、interrupt 或 reject")
                 .doesNotContain("\"name\":\"compress\"")
                 .contains("reload-mcp");
 
@@ -607,6 +608,7 @@ public class AcpStdioServerTest {
                 .contains("\"name\":\"queue\"")
                 .contains("\"name\":\"version\"")
                 .contains("\"name\":\"acp\"")
+                .contains("status、queue、steer、interrupt 或 reject")
                 .contains("\"tool_call_start\"")
                 .contains("\"tool_call_update\"")
                 .contains("\"agent_thought_chunk\"")

@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.cli.LocalTerminalTaskRunner;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.cli.TuiShell;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -50,6 +51,37 @@ public class TuiShellHeaderTest {
                 .contains("provider=default")
                 .contains("model=-")
                 .contains("reasoning=-");
+    }
+
+    @Test
+    void shouldRenderBusySnapshotWhenRuntimeIsAvailable() throws Exception {
+        TuiShell shell =
+                new TuiShell(
+                        new BusySnapshotRuntime(),
+                        new CliMode(CliMode.Kind.TUI, null, "work"));
+
+        String line = statusLine(shell, "work");
+
+        assertThat(line)
+                .contains("session=work")
+                .contains("busy=steer")
+                .contains("run=run-active")
+                .contains("queue=2");
+    }
+
+    @Test
+    void shouldRenderBusySnapshotFromRealCliRuntime() throws Exception {
+        com.jimuqu.solon.claw.support.TestEnvironment env =
+                com.jimuqu.solon.claw.support.TestEnvironment.withFakeLlm();
+        com.jimuqu.solon.claw.cli.CliRuntime runtime =
+                new com.jimuqu.solon.claw.cli.CliRuntime(
+                        env.commandService, env.conversationOrchestrator);
+        runtime.send("work", "hello", null);
+        TuiShell shell = new TuiShell(runtime, new CliMode(CliMode.Kind.TUI, null, "work"));
+
+        String line = statusLine(shell, "work");
+
+        assertThat(line).contains("busy=interrupt").contains("run=-").contains("queue=0");
     }
 
     @Test
@@ -191,5 +223,23 @@ public class TuiShellHeaderTest {
                         int.class, int.class, int.class, java.util.List.class);
         constructor.setAccessible(true);
         return constructor.newInstance(total, tools, failures, events);
+    }
+
+    private static class BusySnapshotRuntime extends com.jimuqu.solon.claw.cli.CliRuntime {
+        private BusySnapshotRuntime() {
+            super(null, null);
+        }
+
+        @Override
+        public GatewayReply send(
+                String sessionId,
+                String input,
+                com.jimuqu.solon.claw.core.service.ConversationEventSink eventSink) {
+            return GatewayReply.ok(
+                    "busy_policy=steer\n"
+                            + "source_running=true\n"
+                            + "active_run_id=run-active\n"
+                            + "queue_pending=2");
+        }
     }
 }

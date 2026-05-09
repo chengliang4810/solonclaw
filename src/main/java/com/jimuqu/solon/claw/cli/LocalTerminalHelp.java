@@ -27,6 +27,8 @@ public final class LocalTerminalHelp {
                 + "/tips - 查看终端提示\n"
                 + "/queue <提示> - 将新输入排到当前任务之后执行\n"
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
+                + "/busy [status|queue|steer|interrupt|reject] - 查看或切换运行中输入策略\n"
+                + "/cron guide|capabilities [--json] - 查看自动化字段、别名、技能绑定和投递策略\n"
                 + "/approve [确认编号|all] [session|always] - 批准危险命令审批\n"
                 + "/deny [确认编号] - 拒绝危险命令审批\n"
                 + "/approve list|status|clear session|clear always|clear all - 查看或清理审批授权\n"

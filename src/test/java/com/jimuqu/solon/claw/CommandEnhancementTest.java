@@ -148,7 +148,11 @@ public class CommandEnhancementTest {
         bootstrapAdmin(env);
 
         GatewayReply status = env.send("admin-chat", "admin-user", "/busy");
-        assertThat(status.getContent()).contains("busy_policy=interrupt").contains("source_running=false");
+        assertThat(status.getContent())
+                .contains("busy_policy=interrupt")
+                .contains("source_running=false")
+                .contains("active_run_id=-")
+                .contains("queue_pending=0");
 
         GatewayReply steer = env.send("admin-chat", "admin-user", "/busy steer");
         assertThat(steer.getContent()).contains("已切换运行中输入策略为 steer");
@@ -269,6 +273,9 @@ public class CommandEnhancementTest {
         assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
                 .doesNotContain("run tests next");
 
+        GatewayReply busyWithQueue = env.send("admin-chat", "admin-user", "/busy status");
+        assertThat(busyWithQueue.getContent()).contains("queue_pending=1");
+
         GatewayReply idleSteer = env.send("admin-chat", "admin-user", "/steer summarize README");
 
         assertThat(idleSteer.getContent()).contains("echo:summarize README");
@@ -294,6 +301,8 @@ public class CommandEnhancementTest {
         assertThat(steer.getContent()).contains("steer").contains("注入");
         assertThat(steer.getRuntimeMetadata()).containsEntry("busy_status", "steered");
         String runId = String.valueOf(steer.getRuntimeMetadata().get("run_id"));
+        GatewayReply busy = env.send("admin-chat", "admin-user", "/busy status");
+        assertThat(busy.getContent()).contains("active_run_id=" + runId);
         RunControlCommand pending =
                 env.agentRunRepository.findLatestPendingCommand(runId, "steer");
         assertThat(pending).isNotNull();
@@ -623,7 +632,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]");
+                .contains("/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
     }
 
     @Test
@@ -695,6 +704,8 @@ public class CommandEnhancementTest {
         GatewayReply stop = env.send("admin-chat", "admin-user", "/cron stop");
         GatewayReply run = env.send("admin-chat", "admin-user", "/cron run");
         GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry");
+        GatewayReply trigger = env.send("admin-chat", "admin-user", "/cron trigger");
+        GatewayReply rerun = env.send("admin-chat", "admin-user", "/cron rerun");
         GatewayReply remove = env.send("admin-chat", "admin-user", "/cron remove");
 
         assertThat(resume.isError()).isTrue();
@@ -704,9 +715,11 @@ public class CommandEnhancementTest {
         assertThat(stop.isError()).isTrue();
         assertThat(stop.getContent()).contains("用法：/cron pause|disable|stop <job-id>");
         assertThat(run.isError()).isTrue();
-        assertThat(run.getContent()).contains("用法：/cron run|retry <job-id>");
+        assertThat(run.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
         assertThat(retry.isError()).isTrue();
-        assertThat(retry.getContent()).contains("用法：/cron run|retry <job-id>");
+        assertThat(retry.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
+        assertThat(trigger.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
+        assertThat(rerun.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
         assertThat(remove.isError()).isTrue();
         assertThat(remove.getContent()).contains("用法：/cron remove <job-id>");
     }
