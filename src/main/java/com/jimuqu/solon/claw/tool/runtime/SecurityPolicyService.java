@@ -213,6 +213,15 @@ public class SecurityPolicyService {
                     "-i");
     private static final List<String> COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES =
             Arrays.asList("-i", "-F", "-K");
+    private static final List<String> SSH_FILE_CONFIG_OPTION_NAMES =
+            Arrays.asList(
+                    "IdentityFile",
+                    "CertificateFile",
+                    "UserKnownHostsFile",
+                    "GlobalKnownHostsFile",
+                    "HostKey",
+                    "HostCertificate",
+                    "HostKeyAlias");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
@@ -692,7 +701,7 @@ public class SecurityPolicyService {
             String token = cleanUrlToken(tokens.get(i));
             String path = credentialPathOptionValue(token);
             if (StrUtil.isBlank(path) && "-o".equals(token) && i + 1 < tokens.size()) {
-                path = sshIdentityFileOptionValue(cleanUrlToken(tokens.get(++i)));
+                path = sshFileConfigOptionValue(cleanUrlToken(tokens.get(++i)));
             }
             if (StrUtil.isBlank(path) && isCredentialPathOption(token) && i + 1 < tokens.size()) {
                 path = cleanUrlToken(tokens.get(++i));
@@ -716,9 +725,9 @@ public class SecurityPolicyService {
                 return token.substring(option.length());
             }
         }
-        String sshIdentityFilePath = sshCompactIdentityFileOptionValue(token);
-        if (StrUtil.isNotBlank(sshIdentityFilePath)) {
-            return sshIdentityFilePath;
+        String sshFileConfigPath = sshCompactFileConfigOptionValue(token);
+        if (StrUtil.isNotBlank(sshFileConfigPath)) {
+            return sshFileConfigPath;
         }
         return "";
     }
@@ -727,20 +736,23 @@ public class SecurityPolicyService {
         return CREDENTIAL_PATH_OPTION_NAMES.contains(token);
     }
 
-    private String sshCompactIdentityFileOptionValue(String token) {
+    private String sshCompactFileConfigOptionValue(String token) {
         if (!token.startsWith("-o") || token.length() <= 2) {
             return "";
         }
-        return sshIdentityFileOptionValue(token.substring(2));
+        return sshFileConfigOptionValue(token.substring(2));
     }
 
-    private String sshIdentityFileOptionValue(String value) {
+    private String sshFileConfigOptionValue(String value) {
         if (StrUtil.isBlank(value)) {
             return "";
         }
         String normalized = value.trim();
-        if (normalized.regionMatches(true, 0, "IdentityFile=", 0, "IdentityFile=".length())) {
-            return normalized.substring("IdentityFile=".length());
+        for (String option : SSH_FILE_CONFIG_OPTION_NAMES) {
+            String prefix = option + "=";
+            if (normalized.regionMatches(true, 0, prefix, 0, prefix.length())) {
+                return normalized.substring(prefix.length());
+            }
         }
         return "";
     }

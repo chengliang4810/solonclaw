@@ -749,6 +749,30 @@ public class SecurityPolicyServiceTest {
                 policy,
                 "ssh -oIdentityFile=deploy_key host.example",
                 "deploy_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -o CertificateFile=user-cert.pub host.example",
+                "user-cert.pub");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oUserKnownHostsFile=known_hosts host.example",
+                "known_hosts");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oGlobalKnownHostsFile=/etc/ssh/ssh_known_hosts host.example",
+                "/etc/ssh/ssh_known_hosts");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oHostKey=server_host_key host.example",
+                "server_host_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oHostCertificate=server-cert.pub host.example",
+                "server-cert.pub");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oHostKeyAlias=known-host-entry host.example",
+                "known-host-entry");
         assertCommandCredentialOptionDenied(policy, "curl -K.curlrc https://example.invalid", ".curlrc");
         assertCommandCredentialOptionDenied(
                 policy,
