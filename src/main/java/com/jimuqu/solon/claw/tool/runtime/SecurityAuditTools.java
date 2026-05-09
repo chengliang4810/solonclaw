@@ -202,6 +202,7 @@ public class SecurityAuditTools {
         }
         coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());
         coverage.put("patchParserPolicy", SolonClawPatchTools.patchParserPolicySummary());
+        coverage.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
         if (toolResultStorageService != null) {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
         }
@@ -238,6 +239,7 @@ public class SecurityAuditTools {
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("schemaSanitizer", Boolean.TRUE);
         coverage.put("patchParser", Boolean.TRUE);
+        coverage.put("subprocessEnvironmentSanitizer", Boolean.TRUE);
         coverage.put("toolResultStorage", Boolean.valueOf(toolResultStorageService != null));
         coverage.put("codeExecutionGuardrails", Boolean.valueOf(approvalService != null || securityPolicyService != null));
         coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));

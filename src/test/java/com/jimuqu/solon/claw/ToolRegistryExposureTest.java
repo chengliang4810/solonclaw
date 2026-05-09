@@ -819,6 +819,27 @@ public class ToolRegistryExposureTest {
                 .contains("moveWillNotOverwriteDestination")
                 .contains("symlinkEscapeBlocked")
                 .contains("credentialPolicyPrechecked");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("subprocessEnvironmentSanitizer")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("subprocessEnvironmentPolicy")
+                                .get("providerBlocklistOverridesPassthrough")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("subprocessEnvironmentPolicy")))
+                .contains("skillScopedPassthroughSupported")
+                .contains("toolBackendSecretsBlocked")
+                .contains("pathFallbackEnabledForPosix")
+                .doesNotContain("OPENAI_API_KEY")
+                .doesNotContain("TENOR_API_KEY");
         assertThat(policyStatus.get("policy").get("coverage").get("toolResultStorage").getBoolean())
                 .isTrue();
         assertThat(

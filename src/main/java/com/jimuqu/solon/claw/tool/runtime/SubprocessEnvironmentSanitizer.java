@@ -39,6 +39,31 @@ public final class SubprocessEnvironmentSanitizer {
 
     private SubprocessEnvironmentSanitizer() {}
 
+    public static Map<String, Object> policySummary(AppConfig appConfig) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("enabled", Boolean.TRUE);
+        summary.put("defaultDenyUnknownEnv", Boolean.TRUE);
+        summary.put("safePrefixCount", Integer.valueOf(SAFE_ENV_PREFIXES.length));
+        summary.put("safeContextEnvCount", Integer.valueOf(SAFE_CONTEXT_ENV_NAMES.length));
+        summary.put("secretSubstringCount", Integer.valueOf(SECRET_ENV_SUBSTRINGS.length));
+        summary.put("providerBlocklistCount", Integer.valueOf(PROVIDER_ENV_BLOCKLIST.size()));
+        summary.put("configuredPassthroughCount", Integer.valueOf(envPassthrough(appConfig).size()));
+        summary.put("skillScopedPassthroughSupported", Boolean.TRUE);
+        summary.put("skillScopedPassthroughThreadLocal", Boolean.TRUE);
+        summary.put("providerBlocklistOverridesPassthrough", Boolean.TRUE);
+        summary.put("forcePrefixSupported", Boolean.TRUE);
+        summary.put("forcePrefix", FORCE_PREFIX);
+        summary.put("forcePrefixRequiresValidEnvName", Boolean.TRUE);
+        summary.put("secretNameSubstringsBlocked", Boolean.TRUE);
+        summary.put("runtimeSafetyTogglesBlocked", Boolean.TRUE);
+        summary.put("channelSecretsBlocked", Boolean.TRUE);
+        summary.put("toolBackendSecretsBlocked", Boolean.TRUE);
+        summary.put("gatewaySecretsBlocked", Boolean.TRUE);
+        summary.put("pathFallbackEnabledForPosix", Boolean.TRUE);
+        summary.put("windowsPathFallbackDisabled", Boolean.TRUE);
+        return summary;
+    }
+
     public static void sanitize(Map<String, String> env) {
         sanitize(env, null);
     }

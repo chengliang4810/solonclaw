@@ -10,6 +10,28 @@ import org.junit.jupiter.api.Test;
 
 public class SubprocessEnvironmentSanitizerTest {
     @Test
+    void shouldExposeEnvironmentSanitizerPolicyWithoutSecretNames() {
+        AppConfig config = new AppConfig();
+        config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
+        config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
+
+        Map<String, Object> summary = SubprocessEnvironmentSanitizer.policySummary(config);
+
+        assertThat(summary.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("defaultDenyUnknownEnv")).isEqualTo(Boolean.TRUE);
+        assertThat(((Integer) summary.get("providerBlocklistCount")).intValue()).isGreaterThan(50);
+        assertThat(summary.get("configuredPassthroughCount")).isEqualTo(Integer.valueOf(2));
+        assertThat(summary.get("providerBlocklistOverridesPassthrough")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("forcePrefix")).isEqualTo(SubprocessEnvironmentSanitizer.FORCE_PREFIX);
+        assertThat(String.valueOf(summary))
+                .contains("skillScopedPassthroughSupported")
+                .contains("toolBackendSecretsBlocked")
+                .contains("pathFallbackEnabledForPosix")
+                .doesNotContain("OPENAI_API_KEY")
+                .doesNotContain("TENOR_API_KEY");
+    }
+
+    @Test
     void shouldStripProviderToolAndGatewaySecretsFromSubprocessEnvLikeJimuqu() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
