@@ -71,6 +71,11 @@ public class CronjobTools {
             @Param(name = "model", description = "任务固定模型；支持字符串或 {provider, model} 对象", required = false) Object model,
             @Param(name = "provider", description = "任务固定 provider", required = false) String provider,
             @Param(name = "base_url", description = "任务固定模型 API base URL", required = false) String baseUrl,
+            @Param(name = "enabled", description = "编辑任务启用状态；false 会暂停，true 会恢复", required = false) Boolean enabled,
+            @Param(name = "status", description = "编辑任务状态：active、paused、completed 等", required = false) String jobStatus,
+            @Param(name = "state", description = "status 的别名；编辑任务状态", required = false) String state,
+            @Param(name = "paused_reason", description = "任务暂停原因；仅暂停状态下生效", required = false)
+                    String pausedReason,
             @Param(name = "limit", description = "history 返回条数", required = false) Integer limit,
             @Param(name = "reason", description = "pause 时记录的暂停原因", required = false) String reason)
             throws Exception {
@@ -170,7 +175,11 @@ public class CronjobTools {
                             enabledToolsets,
                             model,
                             provider,
-                            baseUrl);
+                            baseUrl,
+                            enabled,
+                            jobStatus,
+                            state,
+                            pausedReason);
             applyDefaultOriginDelivery(createBody);
             CronJobRecord job = cronJobService.create(sourceKey, createBody);
             Map<String, Object> view = formattedView(job);
@@ -242,7 +251,11 @@ public class CronjobTools {
                             enabledToolsets,
                             model,
                             provider,
-                            baseUrl);
+                            baseUrl,
+                            enabled,
+                            jobStatus,
+                            state,
+                            pausedReason);
             if (updateBody.isEmpty()) {
                 return ToolResultEnvelope.error("No updates provided.").toJson();
             }
@@ -422,7 +435,68 @@ public class CronjobTools {
                 provider,
                 baseUrl,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null);
+    }
+
+    public String cronjob(
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            String deliverChatId,
+            String deliverThreadId,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object dependsOn,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Integer limit,
+            String reason)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                null,
+                null,
+                null,
+                null,
+                limit,
+                reason);
     }
 
     public String cronjob(
@@ -470,6 +544,10 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
+                null,
+                null,
+                null,
                 limit,
                 null);
     }
@@ -520,6 +598,10 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
+                null,
+                null,
+                null,
+                null,
                 limit,
                 reason);
     }
@@ -543,7 +625,11 @@ public class CronjobTools {
             Object enabledToolsets,
             Object model,
             String provider,
-            String baseUrl) {
+            String baseUrl,
+            Boolean enabled,
+            String status,
+            String state,
+            String pausedReason) {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         put(body, "name", name);
         put(body, "schedule", schedule);
@@ -570,6 +656,12 @@ public class CronjobTools {
         put(body, "model", model);
         put(body, "provider", provider);
         put(body, "base_url", baseUrl);
+        if (enabled != null) {
+            body.put("enabled", enabled);
+        }
+        put(body, "status", status);
+        put(body, "state", state);
+        put(body, "paused_reason", pausedReason);
         return body;
     }
 

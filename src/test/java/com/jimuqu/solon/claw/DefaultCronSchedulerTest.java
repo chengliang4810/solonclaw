@@ -2293,6 +2293,115 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldEditCronjobToolStateFields() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-state-room:user");
+
+        Map<?, ?> createPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-state-target",
+                                                "30m",
+                                                "state prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        String jobId = String.valueOf(createPayload.get("job_id"));
+
+        Map<?, ?> pausedPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "update",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Boolean.FALSE,
+                                                null,
+                                                null,
+                                                "waiting on upstream",
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> pausedJob = (Map<?, ?>) pausedPayload.get("job");
+        assertThat(pausedJob.get("enabled")).isEqualTo(Boolean.FALSE);
+        assertThat(pausedJob.get("state")).isEqualTo("paused");
+        assertThat(pausedJob.get("paused_reason")).isEqualTo("waiting on upstream");
+
+        Map<?, ?> resumedPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "update",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                "active",
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> resumedJob = (Map<?, ?>) resumedPayload.get("job");
+        assertThat(resumedJob.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(resumedJob.get("state")).isEqualTo("scheduled");
+        assertThat(resumedJob.get("paused_reason")).isNull();
+    }
+
+    @Test
     void shouldExposeUpcomingCronJobsThroughCronjobTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
