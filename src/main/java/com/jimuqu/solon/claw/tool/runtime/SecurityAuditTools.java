@@ -213,6 +213,7 @@ public class SecurityAuditTools {
         }
         coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());
         coverage.put("patchParserPolicy", SolonClawPatchTools.patchParserPolicySummary());
+        coverage.put("readOnlyAuditPolicy", readOnlyAuditPolicySummary());
         coverage.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
         coverage.put("codeExecutionPolicy", SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig));
         coverage.put("mcpRuntimePolicy", McpRuntimeService.policySummary(appConfig));
@@ -322,6 +323,7 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "mcpToolChangeNotice", true);
         addSurface(activeSurfaces, "attachmentPolicy", true);
         addSurface(activeSurfaces, "tirithSecurity", appConfig.getSecurity().isTirithEnabled());
+        addSurface(activeSurfaces, "readOnlyAuditTool", true);
         result.policy.put("activeSurfaces", activeSurfaces);
 
         result.summary = "Security policy status is available without exposing secret values.";
@@ -706,6 +708,21 @@ public class SecurityAuditTools {
         if (enabled) {
             surfaces.add(name);
         }
+    }
+
+    private static Map<String, Object> readOnlyAuditPolicySummary() {
+        Map<String, Object> policy = new LinkedHashMap<String, Object>();
+        policy.put("toolName", "security_audit");
+        policy.put("executesCommand", Boolean.FALSE);
+        policy.put("opensNetworkConnection", Boolean.FALSE);
+        policy.put("readsTargetUrl", Boolean.FALSE);
+        policy.put("writesFile", Boolean.FALSE);
+        policy.put("storesAuditInput", Boolean.FALSE);
+        policy.put("secretRedactionApplied", Boolean.TRUE);
+        policy.put("commandPreviewLimitChars", Integer.valueOf(400));
+        policy.put("findingMessageLimitChars", Integer.valueOf(1000));
+        policy.put("supportsActions", "command,url,path,tool_args,policy,status");
+        return policy;
     }
 
     private static String normalizeApprovalMode(String value) {

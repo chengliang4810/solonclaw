@@ -992,6 +992,28 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("coverage")
+                                .get("readOnlyAuditPolicy")
+                                .get("executesCommand")
+                                .getBoolean())
+                .isFalse();
+        ONode readOnlyAuditPolicy =
+                policyStatus.get("policy").get("coverage").get("readOnlyAuditPolicy");
+        assertThat(readOnlyAuditPolicy.get("opensNetworkConnection").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("readsTargetUrl").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("writesFile").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("storesAuditInput").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("commandPreviewLimitChars").getInt()).isEqualTo(400);
+        assertThat(readOnlyAuditPolicy.get("findingMessageLimitChars").getInt()).isEqualTo(1000);
+        assertThat(String.valueOf(readOnlyAuditPolicy))
+                .contains("security_audit")
+                .contains("tool_args")
+                .contains("policy")
+                .doesNotContain("secret-sudo");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
                                 .get("subprocessEnvironmentSanitizer")
                                 .getBoolean())
                 .isTrue();
@@ -1154,7 +1176,8 @@ public class ToolRegistryExposureTest {
                 .contains("mcpOauthPolicy")
                 .contains("mcpReloadConfirmation")
                 .contains("mcpToolChangeNotice")
-                .contains("attachmentPolicy");
+                .contains("attachmentPolicy")
+                .contains("readOnlyAuditTool");
         assertThat(policyStatus.toJson())
                 .doesNotContain("secret-sudo")
                 .doesNotContain("TENOR_API_KEY");
