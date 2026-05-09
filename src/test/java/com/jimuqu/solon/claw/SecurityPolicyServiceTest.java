@@ -381,6 +381,26 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldRejectUnsupportedNetworkSchemesInCommands() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict ftp =
+                policy.checkCommandUrls("curl ftp://example.com/secret.txt");
+        SecurityPolicyService.UrlVerdict sftp =
+                policy.checkCommandUrls("curl sftp://example.com/secret.txt");
+        SecurityPolicyService.UrlVerdict scp =
+                policy.checkCommandUrls("curl scp://example.com/secret.txt");
+
+        assertThat(ftp.isAllowed()).isFalse();
+        assertThat(ftp.getMessage()).contains("仅允许");
+        assertThat(sftp.isAllowed()).isFalse();
+        assertThat(sftp.getMessage()).contains("仅允许");
+        assertThat(scp.isAllowed()).isFalse();
+        assertThat(scp.getMessage()).contains("仅允许");
+    }
+
+    @Test
     void shouldCheckCurlPreproxyCommandTargets() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
@@ -783,6 +803,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("downloadOutputDetachedOptionChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("unsupportedNetworkSchemeChecked")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("urlKeySamples"))).contains("url", "endpoint", "*_url");
         assertThat(String.valueOf(summary.get("returnedUrlKeySamples"))).contains("browser_download_url", "href");
         assertThat(String.valueOf(summary.get("pathKeySamples"))).contains("path", "file_path", "*_path");

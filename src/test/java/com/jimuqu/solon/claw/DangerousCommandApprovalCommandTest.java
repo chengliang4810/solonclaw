@@ -96,6 +96,17 @@ public class DangerousCommandApprovalCommandTest {
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",
+                "temporary_session_pattern",
+                "temporary session approval",
+                "echo temp");
+        env.dangerousCommandApprovalService.approve(
+                agentSession,
+                "",
+                com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService.ApprovalScope.SESSION,
+                "tester");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
                 "recursive_delete",
                 "recursive delete",
                 "rm -rf runtime/cache");
@@ -107,16 +118,28 @@ public class DangerousCommandApprovalCommandTest {
                 "git reset --hard origin/main");
 
         GatewayReply list = env.send("room-queue", "user-queue", "/approve list");
+        String secondApprovalKey =
+                env.dangerousCommandApprovalService
+                        .listPendingApprovals(agentSession)
+                        .get(1)
+                        .approvalKey();
         assertThat(list.getContent())
                 .contains("pending=2")
                 .contains("#1")
                 .contains("#2")
+                .contains("pattern=recursive_delete")
                 .contains("command_preview=rm -rf runtime/cache")
                 .contains("scopes=once,session,always")
                 .contains("expires_in=")
-                .contains("expired=false");
+                .contains("expired=false")
+                .contains("session_approvals_count=1")
+                .contains("always_approvals_count=")
+                .doesNotContain("session_approvals=[")
+                .doesNotContain("always_approvals=[")
+                .doesNotContain(" key=")
+                .doesNotContain(secondApprovalKey);
 
-        GatewayReply approved = env.send("room-queue", "user-queue", "/approve #2 session");
+        GatewayReply approved = env.send("room-queue", "user-queue", "/approve " + secondApprovalKey + " session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
         SqliteAgentSession updatedAgentSession =
                 new SqliteAgentSession(updated, env.sessionRepository);

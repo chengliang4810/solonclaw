@@ -1777,6 +1777,10 @@ public class DangerousCommandApprovalService {
         summary.put("pendingQueueSupported", Boolean.TRUE);
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
         summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
+        summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
+        summary.put("pendingListShowsPatternKey", Boolean.TRUE);
+        summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
+        summary.put("alwaysApprovalListShowsCountOnly", Boolean.TRUE);
         summary.put("approvalCardDeliveryMode", DELIVERY_MODE_APPROVAL_CARD);
         summary.put("approvalCardPlatforms", Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
         summary.put("approvalCardActionKey", CARD_ACTION_KEY);
@@ -1791,7 +1795,7 @@ public class DangerousCommandApprovalService {
         summary.put("observerEventsRedacted", Boolean.TRUE);
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
-        summary.put("description", "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes and redacted approval metadata.");
+        summary.put("description", "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes, hidden approval keys in list output, and redacted approval metadata.");
         return summary;
     }
 

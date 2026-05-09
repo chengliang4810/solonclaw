@@ -447,8 +447,9 @@ public class DashboardDiagnosticOutputTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
         Map<String, Object> item = items.get(0);
 
-        assertThat(String.valueOf(item.get("approval"))).endsWith(":***");
-        assertThat(String.valueOf(item.get("approval"))).doesNotContain("alwayspattern123");
+        assertThat(item).doesNotContainKey("approval");
+        assertThat(String.valueOf(item)).doesNotContain("execute_shell:token_ghp_");
+        assertThat(String.valueOf(item)).doesNotContain("alwayspattern123");
         assertThat(String.valueOf(item.get("approval_id"))).isNotBlank();
         assertThat(String.valueOf(item.get("tool_name"))).isEqualTo("execute_shell");
         assertThat(String.valueOf(item.get("pattern_key")))

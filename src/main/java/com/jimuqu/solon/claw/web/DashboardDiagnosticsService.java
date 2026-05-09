@@ -233,7 +233,6 @@ public class DashboardDiagnosticsService {
         }
         appendAlwaysApprovalRevokedAudit(approval, approver);
         Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
-        result.put("approval", redactedApprovalKey(approval));
         result.put("approval_id", alwaysApprovalId(approval));
         return result;
     }
@@ -622,7 +621,6 @@ public class DashboardDiagnosticsService {
             toolName = value.substring(0, colon);
             patternKey = value.substring(colon + 1);
         }
-        item.put("approval", redactedApprovalKey(value));
         item.put("approval_id", alwaysApprovalId(value));
         item.put("tool_name", safeAuditPreview(toolName, 160));
         item.put("pattern_key", safeAuditPreview(patternKey, 400));
