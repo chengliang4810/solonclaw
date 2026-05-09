@@ -3994,6 +3994,8 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("cat firebase-adminsdk-prod.json");
         SecurityPolicyService.FileVerdict privatePem =
                 securityPolicyService.checkCommandPaths("openssl rsa -in private-prod.pem -check");
+        SecurityPolicyService.FileVerdict rsaSecurityKey =
+                securityPolicyService.checkCommandPaths("cat ~/.ssh/id_rsa_sk");
         SecurityPolicyService.FileVerdict kubeconfig =
                 securityPolicyService.checkCommandPaths("kubectl --kubeconfig kubeconfig get pods");
         SecurityPolicyService.FileVerdict safe =
@@ -4020,6 +4022,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(firebaseAdmin.getPath()).isEqualTo("firebase-adminsdk-prod.json");
         assertThat(privatePem.isAllowed()).isFalse();
         assertThat(privatePem.getPath()).isEqualTo("private-prod.pem");
+        assertThat(rsaSecurityKey.isAllowed()).isFalse();
+        assertThat(rsaSecurityKey.getPath()).isEqualTo("~/.ssh/id_rsa_sk");
         assertThat(kubeconfig.isAllowed()).isFalse();
         assertThat(kubeconfig.getPath()).isEqualTo("kubeconfig");
         assertThat(safe.isAllowed()).isTrue();
