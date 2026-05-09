@@ -559,6 +559,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "ssh_host_key_check_disabled",
+                                    "SSH host key verification disabled",
+                                    pattern(
+                                            "\\b(?:ssh|scp|sftp|rsync)\\b[^\\n]*(?:-o\\s*StrictHostKeyChecking\\s*=\\s*(?:no|off|false|accept-new)|-o\\s*UserKnownHostsFile\\s*=\\s*(?:/dev/null|NUL|nul))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_path_option",
                                     "credential file passed through command option",
                                     pattern(
@@ -634,10 +640,10 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bgit\\s+credential\\s+(?:approve|reject|store|erase)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
-                                    "ssh_host_key_check_disabled",
-                                    "SSH host key verification disabled",
+                                    "ssh_tunnel_network_exposure",
+                                    "SSH tunnel exposes a broad listen address",
                                     pattern(
-                                            "\\b(?:ssh|scp|sftp|rsync)\\b[^\\n]*(?:-o\\s*StrictHostKeyChecking\\s*=\\s*(?:no|off|false|accept-new)|-o\\s*UserKnownHostsFile\\s*=\\s*(?:/dev/null|NUL|nul))"),
+                                            "\\bssh\\b(?=[^\\n]*(?:-o\\s*GatewayPorts\\s*=\\s*(?:yes|clientspecified)|-g\\b|-(?:L|R|D)\\s*['\"]?(?:0\\.0\\.0\\.0|\\[?:::\\]?|\\*)[:\\]]|-(?:L|R|D)\\s*['\"]?\\[[^\\]]*\\]:|-(?:L|R|D)\\s+['\"]?\\[[^\\]]*\\]:))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_firewall",

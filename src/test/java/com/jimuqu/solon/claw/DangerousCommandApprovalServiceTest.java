@@ -3275,6 +3275,20 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_config_trust_weaken");
         }
 
+        List<String> broadTunnelExposure =
+                Arrays.asList(
+                        "ssh -L 0.0.0.0:8080:localhost:80 user@example.com",
+                        "ssh -R '*:2222:localhost:22' user@example.com",
+                        "ssh -D [::]:1080 user@example.com",
+                        "ssh -g -L 8080:localhost:80 user@example.com",
+                        "ssh -o GatewayPorts=yes -R 2222:localhost:22 user@example.com");
+        for (String command : broadTunnelExposure) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_tunnel_network_exposure");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ssh -o StrictHostKeyChecking=yes user@example.com"))
@@ -3286,6 +3300,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "echo 'Host example.com' >> fixtures/ssh_config"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh -L 8080:localhost:80 user@example.com"))
                 .isNull();
     }
 
