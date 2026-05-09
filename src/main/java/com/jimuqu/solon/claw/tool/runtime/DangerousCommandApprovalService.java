@@ -501,7 +501,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_remote_execute",
                                     "package manager remote package execution",
                                     pattern(
-                                            "\\b(?:npx|uvx)\\b|\\bnpm\\s+exec\\b|\\bpnpm\\s+(?:dlx|exec)\\b|\\byarn\\s+dlx\\b|\\bpipx\\s+run\\b"),
+                                            "\\b(?:npx|uvx|bunx)\\b|\\bnpm\\s+exec\\b|\\bpnpm\\s+(?:dlx|exec)\\b|\\byarn\\s+dlx\\b|\\bpipx\\s+run\\b|\\bdeno\\s+run\\b(?=[^\\n]*(?:https?://|jsr:|npm:))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_http_header_send",

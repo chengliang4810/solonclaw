@@ -2163,7 +2163,10 @@ public class DangerousCommandApprovalServiceTest {
                         "pnpm dlx create-vite app",
                         "yarn dlx eslint .",
                         "pipx run black .",
-                        "uvx ruff check .");
+                        "uvx ruff check .",
+                        "bunx create-vite app",
+                        "deno run https://example.invalid/install.ts",
+                        "deno run jsr:@scope/tool");
         for (String command : packageManagerRemoteExecutes) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
