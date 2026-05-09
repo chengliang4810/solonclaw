@@ -184,6 +184,16 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_owner_or_acl_change",
+                                    "credential file owner or ACL changed",
+                                    pattern(
+                                            "\\b(?:chown|chgrp|takeown|icacls)\\b[^\\n]*[\"']?"
+                                                    + "(?:"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + ")"
+                                                    + "[\"']?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "world_writable",
                                     "world/other-writable permissions",
                                     pattern(

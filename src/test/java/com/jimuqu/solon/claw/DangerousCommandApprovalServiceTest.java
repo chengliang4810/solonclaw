@@ -2949,6 +2949,38 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileOwnerOrAclChanges() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "chown app ~/.ssh/id_rsa",
+                        "chown app:app .env",
+                        "chgrp developers ~/.aws/credentials",
+                        "takeown /f %USERPROFILE%\\.ssh\\id_ed25519",
+                        "icacls %USERPROFILE%\\.docker\\config.json /grant Everyone:F",
+                        "icacls .npmrc /grant Users:R");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_owner_or_acl_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "chown app logs/app.log"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "icacls C:\\ProgramData\\app /grant Users:R"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("windows_acl_rewrite");
+    }
+
+    @Test
     void shouldProtectGatewayLifecycleAndSelfTerminationCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
