@@ -1120,6 +1120,8 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "curl -H 'Authorization: Bearer token-a' https://example.com",
                         "curl --header='X-API-Key: token-a' https://example.com",
+                        "curl --proxy-header 'Proxy-Authorization: Basic abc' https://example.com",
+                        "curl --proxy-header=Proxy-Authorization:Basic https://example.com",
                         "wget --header 'Cookie: session=a' https://example.com",
                         "iwr https://example.com -Headers @{ Authorization = 'Bearer token-a' }",
                         "Invoke-RestMethod https://example.com -Headers @{ 'x-auth-token' = 'token-a' }");
@@ -1150,6 +1152,9 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --user user:password https://example.com/private",
                         "wget --user user --password password https://example.com/private",
                         "wget --http-password=password https://example.com/private",
+                        "curl --proxy-user user:password https://example.com/private",
+                        "curl --proxy-password password https://example.com/private",
+                        "wget --proxy-user=user --proxy-password=password https://example.com/private",
                         "curl --cookie session=a https://example.com/private",
                         "curl -b session=a https://example.com/private",
                         "iwr https://example.com/private -Credential $cred");

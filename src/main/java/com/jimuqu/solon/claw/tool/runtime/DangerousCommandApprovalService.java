@@ -308,6 +308,10 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:|(?:--proxy-header)\\s*(?:=\\s*)?[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:|(?:--proxy-header=)[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*[\"']?\\s*=)"),
@@ -316,7 +320,7 @@ public class DangerousCommandApprovalService {
                                     "network_credential_send",
                                     "send credential through network command option",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-Credential\\s+\\S"),
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-Credential\\s+\\S"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "network_credential_file_send",
