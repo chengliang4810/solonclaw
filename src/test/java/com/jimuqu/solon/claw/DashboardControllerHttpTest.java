@@ -1595,6 +1595,13 @@ public class DashboardControllerHttpTest {
                 .contains("deliver_chat_id")
                 .contains("wrap_response");
         assertThat(dashboardGuideData.get("skill_binding").get("remove").toJson()).contains("--remove-skill");
+        assertThat(dashboardGuideData.get("skill_binding").get("dependency_flags").toJson())
+                .contains("--context-from job-id")
+                .contains("--clear-context-from");
+        assertThat(dashboardGuideData.get("runtime_modes").get("clear_flags").toJson())
+                .contains("--clear-repeat")
+                .contains("--clear-script")
+                .contains("--clear-enabled-toolsets");
         assertThat(dashboardGuideData.get("security").get("prompt_scan").toJson()).contains("prompt_injection");
 
         HttpResult apiGuide = request("GET", "/api/jobs/guide", null, token);
@@ -1602,6 +1609,8 @@ public class DashboardControllerHttpTest {
         ONode apiGuideData = ONode.ofJson(apiGuide.body);
         assertThat(apiGuideData.get("aliases").get("run").toJson()).contains("retry").contains("rerun");
         assertThat(apiGuideData.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
+        assertThat(apiGuideData.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
+        assertThat(apiGuideData.get("delivery").get("wrap_flags").toJson()).contains("--raw");
 
         HttpResult get = request("GET", "/api/jobs/" + jobId, null, token);
         assertThat(get.status).isEqualTo(200);
@@ -1632,6 +1641,11 @@ public class DashboardControllerHttpTest {
         assertThat(patch.body).contains("compat-renamed");
         assertThat(patch.body).doesNotContain("evil_field");
         assertThat(patch.body).doesNotContain("__proto__");
+
+        HttpResult clearRepeat =
+                request("PATCH", "/api/jobs/" + jobId, "{\"repeat\":0}", token);
+        assertThat(clearRepeat.status).isEqualTo(200);
+        assertThat(clearRepeat.body).contains("\"times\":null");
 
         HttpResult patchPaused =
                 request(

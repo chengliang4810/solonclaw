@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
@@ -166,6 +167,18 @@ public class DefaultCronSchedulerTest {
         CronJobRecord job = service.create("MEMORY:cron:user", validCreate);
         assertThat(job.getDeliverPlatform()).isEqualTo("origin,FEISHU:chat-1:thread-2");
 
+        Map<String, Object> structuredTarget = new LinkedHashMap<String, Object>();
+        structuredTarget.put("platform", "MEMORY");
+        structuredTarget.put("chat_id", "structured-room");
+        structuredTarget.put("thread_id", "thread-9");
+        Map<String, Object> structuredCreate = new LinkedHashMap<String, Object>();
+        structuredCreate.put("name", "structured-deliver");
+        structuredCreate.put("schedule", "30m");
+        structuredCreate.put("prompt", "check");
+        structuredCreate.put("deliver", structuredTarget);
+        CronJobRecord structuredJob = service.create("MEMORY:cron:user", structuredCreate);
+        assertThat(structuredJob.getDeliverPlatform()).isEqualTo("MEMORY:structured-room:thread-9");
+
         Map<String, Object> invalidUpdate = new LinkedHashMap<String, Object>();
         invalidUpdate.put("deliver", "discord");
         assertThatThrownBy(
@@ -178,6 +191,13 @@ public class DefaultCronSchedulerTest {
                 .hasMessageContaining("unknown cron delivery platform: discord");
         assertThat(env.cronJobRepository.findById(job.getJobId()).getDeliverPlatform())
                 .isEqualTo("origin,FEISHU:chat-1:thread-2");
+
+        Map<String, Object> originTarget = new LinkedHashMap<String, Object>();
+        originTarget.put("platform", "origin");
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("deliver", java.util.Arrays.asList(originTarget, structuredTarget));
+        CronJobRecord updatedStructuredJob = service.update(structuredJob.getJobId(), update);
+        assertThat(updatedStructuredJob.getDeliverPlatform()).isEqualTo("origin,MEMORY:structured-room:thread-9");
     }
 
     @Test
@@ -443,6 +463,24 @@ public class DefaultCronSchedulerTest {
         assertThat(cronSchedule.get("kind")).isEqualTo("cron");
         assertThat(cronSchedule.get("expr")).isEqualTo("0 9 * * *");
         assertThat(cronSchedule.get("display")).isEqualTo("0 9 * * *");
+
+        Map<String, Object> scheduleObject = new LinkedHashMap<String, Object>();
+        scheduleObject.put("expr", "0 10 * * *");
+        Map<String, Object> scheduleObjectBody = new LinkedHashMap<String, Object>();
+        scheduleObjectBody.put("name", "cron-object");
+        scheduleObjectBody.put("schedule", scheduleObject);
+        scheduleObjectBody.put("prompt", "cron object prompt");
+        CronJobRecord cronObject = service.create("MEMORY:cron:user", scheduleObjectBody);
+        assertThat(cronObject.getCronExpr()).isEqualTo("0 10 * * *");
+
+        long runAt = System.currentTimeMillis() + 120000L;
+        Map<String, Object> runAtSchedule = new LinkedHashMap<String, Object>();
+        runAtSchedule.put("run_at", Long.valueOf(runAt));
+        Map<String, Object> scheduleUpdate = new LinkedHashMap<String, Object>();
+        scheduleUpdate.put("schedule", runAtSchedule);
+        CronJobRecord updatedCronObject = service.update(cronObject.getJobId(), scheduleUpdate);
+        assertThat(updatedCronObject.getCronExpr()).contains("T");
+        assertThat(CronSupport.isOneShot(updatedCronObject.getCronExpr())).isTrue();
     }
 
     @Test

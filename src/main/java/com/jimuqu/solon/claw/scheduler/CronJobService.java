@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -59,7 +60,7 @@ public class CronJobService {
     }
 
     public CronJobRecord create(String sourceKey, Map<String, Object> body) throws Exception {
-        String schedule = string(body.get("schedule"), string(body.get("cronExpr"), null));
+        String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), null);
         String prompt = string(body.get("prompt"), "");
         List<String> skills = canonicalSkills(body);
         String script = string(body.get("script"), null);
@@ -131,7 +132,7 @@ public class CronJobService {
             record.setPrompt(prompt);
         }
         if (body.containsKey("schedule") || body.containsKey("cronExpr")) {
-            String schedule = string(body.get("schedule"), string(body.get("cronExpr"), record.getCronExpr()));
+            String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), record.getCronExpr());
             CronSupport.validate(schedule);
             record.setCronExpr(schedule);
             record.setNextRunAt(CronSupport.nextRunAt(schedule, System.currentTimeMillis()));
@@ -525,8 +526,11 @@ public class CronJobService {
                         "/cron edit <job-id> --skill blogwatcher --skill maps",
                         "/cron edit <job-id> --remove-skill blogwatcher",
                         "/cron edit <job-id> --clear-skills",
+                        "/cron edit <job-id> --clear-repeat",
                         "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread",
                         "/cron edit <job-id> --no-agent --script collect.py --workdir runtime/projects/demo",
+                        "/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal",
+                        "/cron edit <job-id> --clear-context-from --clear-enabled-toolsets",
                         "/cron run <job-id>",
                         "/cron history <job-id> --limit 20"));
         result.put(
@@ -581,6 +585,14 @@ public class CronJobService {
         result.put("append", Arrays.asList("--add-skill name", "--add-skills a,b"));
         result.put("remove", Arrays.asList("--remove-skill name", "--remove-skills a,b"));
         result.put("clear", Arrays.asList("--clear-skills"));
+        result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
+        result.put(
+                "dependency_flags",
+                Arrays.asList(
+                        "--context-from job-id",
+                        "--depends-on job-id",
+                        "--clear-context-from",
+                        "--clear-depends-on"));
         result.put("dedupe", Boolean.TRUE);
         return result;
     }
@@ -592,6 +604,16 @@ public class CronJobService {
         result.put("default_from_slash", "origin");
         result.put("default_from_dashboard", "local");
         result.put("clear_flags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
+        result.put("wrap_flags", Arrays.asList("--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
+        result.put(
+                "target_forms",
+                Arrays.asList(
+                        "origin",
+                        "local",
+                        "platform",
+                        "platform:chat_id",
+                        "platform:chat_id:thread_id",
+                        "target1,target2"));
         result.put("multi_target", "deliver 支持逗号分隔或平台:目标形式，创建和编辑时会校验平台名称。");
         return result;
     }
@@ -603,6 +625,18 @@ public class CronJobService {
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
         result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
         result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));
+        result.put(
+                "clear_flags",
+                Arrays.asList(
+                        "--clear-repeat",
+                        "--clear-script",
+                        "--clear-workdir",
+                        "--clear-toolsets",
+                        "--clear-enabled-toolsets",
+                        "--clear-model",
+                        "--clear-provider",
+                        "--clear-base-url"));
+        result.put("mode_flags", Arrays.asList("--no-agent", "--agent"));
         return result;
     }
 
@@ -941,9 +975,17 @@ public class CronJobService {
         if (value == null) {
             return result;
         }
+        if (value instanceof Map) {
+            addString(result, structuredTarget((Map<?, ?>) value));
+            return result;
+        }
         if (value instanceof Iterable) {
             for (Object item : (Iterable<Object>) value) {
-                addString(result, item);
+                if (item instanceof Map) {
+                    addString(result, structuredTarget((Map<?, ?>) item));
+                } else {
+                    addString(result, item);
+                }
             }
             return result;
         }
@@ -952,7 +994,11 @@ public class CronJobService {
             Object data = ONode.ofJson(text).toData();
             if (data instanceof Iterable) {
                 for (Object item : (Iterable<Object>) data) {
-                    addString(result, item);
+                    if (item instanceof Map) {
+                        addString(result, structuredTarget((Map<?, ?>) item));
+                    } else {
+                        addString(result, item);
+                    }
                 }
                 return result;
             }
@@ -961,6 +1007,60 @@ public class CronJobService {
             addString(result, part);
         }
         return result;
+    }
+
+    private String scheduleValue(Object scheduleValue, Object cronExprValue, String defaultValue) {
+        String schedule = scheduleObjectValue(scheduleValue);
+        if (StrUtil.isNotBlank(schedule)) {
+            return schedule;
+        }
+        schedule = scheduleObjectValue(cronExprValue);
+        if (StrUtil.isNotBlank(schedule)) {
+            return schedule;
+        }
+        return defaultValue;
+    }
+
+    private String scheduleObjectValue(Object value) {
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            String text = firstString(map, "raw", "expr", "cron", "value", "display");
+            if (StrUtil.isNotBlank(text)) {
+                return text;
+            }
+            Object runAt = map.get("run_at");
+            if (runAt == null) {
+                runAt = map.get("runAt");
+            }
+            if (runAt instanceof Number) {
+                return Instant.ofEpochMilli(((Number) runAt).longValue()).toString();
+            }
+            return string(runAt, null);
+        }
+        return string(value, null);
+    }
+
+    private String structuredTarget(Map<?, ?> value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        String platform = firstString(value, "platform", "type", "channel");
+        String chatId = firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
+        String threadId = firstString(value, "thread_id", "threadId", "message_id", "messageId");
+        if (StrUtil.isBlank(platform)) {
+            return null;
+        }
+        if ("local".equalsIgnoreCase(platform) || "origin".equalsIgnoreCase(platform)) {
+            return platform.trim();
+        }
+        StringBuilder builder = new StringBuilder(platform.trim());
+        if (StrUtil.isNotBlank(chatId)) {
+            builder.append(':').append(chatId.trim());
+        }
+        if (StrUtil.isNotBlank(threadId)) {
+            builder.append(':').append(threadId.trim());
+        }
+        return builder.toString();
     }
 
     private void applyModelPin(CronJobRecord record, String model, String provider, String baseUrl) {

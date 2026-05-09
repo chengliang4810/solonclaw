@@ -473,6 +473,14 @@ public class CommandEnhancementTest {
         assertThat(cleared.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("skills=[]");
 
+        GatewayReply repeated = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --repeat 3");
+        assertThat(repeated.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("repeat={times=3");
+
+        GatewayReply clearedRepeat = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --clear-repeat");
+        assertThat(clearedRepeat.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId)).contains("repeat={times=null");
+
         String runtimeHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
         GatewayReply tuned =
                 env.send(
@@ -787,12 +795,19 @@ public class CommandEnhancementTest {
                 .contains("paused_reason")
                 .contains("技能绑定：")
                 .contains("--remove-skill name")
+                .contains("--context-from job-id")
+                .contains("--clear-context-from")
                 .contains("投递策略：")
                 .contains("feishu")
+                .contains("platform:chat_id:thread_id")
+                .contains("--no-wrap-response")
                 .contains("运行模式：")
                 .contains("no_agent")
+                .contains("--clear-enabled-toolsets")
                 .contains("安全策略：")
                 .contains("prompt_injection")
+                .contains("/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal")
+                .contains("/cron edit <job-id> --clear-repeat")
                 .contains("/cron history <job-id> --limit 20");
 
         GatewayReply json = env.send("admin-chat", "admin-user", "/cron capabilities --json");
@@ -805,6 +820,12 @@ public class CommandEnhancementTest {
                 .contains("paused_reason");
         assertThat(data.get("aliases").get("pause").toJson()).contains("disable").contains("stop");
         assertThat(data.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
+        assertThat(data.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
+        assertThat(data.get("delivery").get("wrap_flags").toJson()).contains("--no-wrap-response");
+        assertThat(data.get("runtime_modes").get("clear_flags").toJson())
+                .contains("--clear-repeat")
+                .contains("--clear-enabled-toolsets");
+        assertThat(data.get("skill_binding").get("dependency_flags").toJson()).contains("--depends-on job-id");
         assertThat(data.get("security").get("script_validation").getString()).contains("script");
     }
 
