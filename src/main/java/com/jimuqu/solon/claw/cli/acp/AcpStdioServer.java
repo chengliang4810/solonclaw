@@ -1647,7 +1647,11 @@ public class AcpStdioServer {
                     uri,
                     name,
                     title,
-                    "[File read failed: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()) + "]");
+                    "[File read failed: "
+                            + safeAcpResourceText(
+                                    StrUtil.blankToDefault(
+                                            e.getMessage(), e.getClass().getSimpleName()))
+                            + "]");
         }
     }
 
@@ -1683,7 +1687,7 @@ public class AcpStdioServer {
                                 + "]");
             }
             return "[Attached image: " + resourceDisplayName(uri, name, title) + "]"
-                    + (StrUtil.isBlank(uri) ? "" : "\nURI: " + uri)
+                    + (StrUtil.isBlank(uri) ? "" : "\nURI: " + safeAcpResourceText(uri))
                     + "\nMIME: "
                     + imageMime
                     + "\nBytes: "
@@ -1726,7 +1730,7 @@ public class AcpStdioServer {
         StringBuilder note = new StringBuilder();
         note.append("[Attached image: ").append(resourceDisplayName(uri, name, title)).append(']');
         if (StrUtil.isNotBlank(uri)) {
-            note.append("\nURI: ").append(uri);
+            note.append("\nURI: ").append(safeAcpResourceText(uri));
         }
         note.append("\nMIME: ").append(mimeType);
         if (bytes > 0) {
@@ -1753,7 +1757,7 @@ public class AcpStdioServer {
             return "[Attached image: "
                     + resourceDisplayName(uri, name, title)
                     + "]\nURI: "
-                    + uri
+                    + safeAcpResourceText(uri)
                     + "\nMIME: "
                     + imageMime
                     + "\nBytes: "
@@ -1763,7 +1767,11 @@ public class AcpStdioServer {
                     uri,
                     name,
                     title,
-                    "[Image read failed: " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()) + "]");
+                    "[Image read failed: "
+                            + safeAcpResourceText(
+                                    StrUtil.blankToDefault(
+                                            e.getMessage(), e.getClass().getSimpleName()))
+                            + "]");
         }
     }
 
@@ -1771,7 +1779,7 @@ public class AcpStdioServer {
         StringBuilder result = new StringBuilder();
         result.append("[Attached file: ").append(resourceDisplayName(uri, name, title)).append(']');
         if (StrUtil.isNotBlank(uri)) {
-            result.append("\nURI: ").append(uri);
+            result.append("\nURI: ").append(safeAcpResourceText(uri));
         }
         result.append("\n\n").append(StrUtil.nullToEmpty(body));
         return result.toString();
@@ -1779,24 +1787,28 @@ public class AcpStdioServer {
 
     private String resourceDisplayName(String uri, String name, String title) {
         if (StrUtil.isNotBlank(title) && StrUtil.isNotBlank(name) && !title.trim().equals(name.trim())) {
-            return title.trim() + " (" + name.trim() + ")";
+            return safeAcpResourceText(title.trim()) + " (" + safeAcpResourceText(name.trim()) + ")";
         }
         if (StrUtil.isNotBlank(title)) {
-            return title.trim();
+            return safeAcpResourceText(title.trim());
         }
         if (StrUtil.isNotBlank(name)) {
-            return name.trim();
+            return safeAcpResourceText(name.trim());
         }
         Path path = localResourcePath(uri);
         if (path != null && path.getFileName() != null) {
-            return path.getFileName().toString();
+            return safeAcpResourceText(path.getFileName().toString());
         }
         String value = StrUtil.nullToEmpty(uri).trim();
         int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
         if (slash >= 0 && slash + 1 < value.length()) {
-            return value.substring(slash + 1);
+            return safeAcpResourceText(value.substring(slash + 1));
         }
-        return StrUtil.blankToDefault(value, "attachment");
+        return safeAcpResourceText(StrUtil.blankToDefault(value, "attachment"));
+    }
+
+    private String safeAcpResourceText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
     }
 
     private String readMimeType(ONode node) {

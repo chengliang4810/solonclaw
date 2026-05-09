@@ -163,6 +163,40 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactAcpResourceDisplayMetadata(@TempDir Path tempDir) throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        Path attached = tempDir.resolve("token=ghp_acpfiletoken12345.txt");
+        Files.write(attached, "visible body".getBytes(StandardCharsets.UTF_8));
+        String sessionId = extractSessionId(newAcpSession(server, 65));
+
+        String prompted =
+                prompt(
+                        server,
+                        66,
+                        sessionId,
+                        "[{\"type\":\"resource_link\","
+                                + "\"name\":\"notes-token=ghp_acpnametoken12345.txt\","
+                                + "\"title\":\"Title api_key=sk-test-acptitle12345\","
+                                + "\"uri\":\""
+                                + jsonEscape(attached.toUri().toString())
+                                + "\",\"mimeType\":\"text/plain\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":66")
+                .contains("Title api_key=***")
+                .contains("token=***")
+                .contains("visible body")
+                .doesNotContain("sk-test-acptitle12345")
+                .doesNotContain("ghp_acpnametoken12345")
+                .doesNotContain("ghp_acpfiletoken12345");
+    }
+
+    @Test
     void shouldPreserveAcpResourceLinkImageFileAsAttachmentNote(@TempDir Path tempDir)
             throws Exception {
         AcpAttachmentGateway gateway = new AcpAttachmentGateway();
@@ -199,6 +233,45 @@ public class AcpStdioServerTest {
         assertThat(gateway.lastAttachments.get(0).getMimeType()).isEqualTo("image/png");
         assertThat(gateway.lastAttachments.get(0).getData())
                 .isEqualTo(Base64.getEncoder().encodeToString(ONE_PX_PNG));
+    }
+
+    @Test
+    void shouldRedactAcpImageResourceDisplayMetadata() throws Exception {
+        AcpAttachmentGateway gateway = new AcpAttachmentGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+        String sessionId = extractSessionId(newAcpSession(server, 67));
+        String b64 = Base64.getEncoder().encodeToString(ONE_PX_PNG);
+
+        String prompted =
+                prompt(
+                        server,
+                        68,
+                        sessionId,
+                        "[{\"type\":\"image\","
+                                + "\"name\":\"shot-token=ghp_acpimagename12345.png\","
+                                + "\"title\":\"Image api_key=sk-test-acpimage12345\","
+                                + "\"uri\":\"file:///tmp/shot.png?token=ghp_acpimageuri12345\","
+                                + "\"mimeType\":\"image/png\","
+                                + "\"data\":\""
+                                + b64
+                                + "\"}]");
+
+        assertThat(prompted)
+                .contains("\"id\":68")
+                .contains("Image api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-test-acpimage12345")
+                .doesNotContain("ghp_acpimagename12345")
+                .doesNotContain("ghp_acpimageuri12345");
+        assertThat(gateway.lastAttachments).hasSize(1);
+        assertThat(gateway.lastAttachments.get(0).getOriginalName())
+                .contains("Image api_key=***")
+                .doesNotContain("sk-test-acpimage12345");
     }
 
     @Test
