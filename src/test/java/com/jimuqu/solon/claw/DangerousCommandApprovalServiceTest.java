@@ -579,12 +579,21 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "nft flush ruleset");
         DangerousCommandApprovalService.DetectionResult setenforce =
                 env.dangerousCommandApprovalService.detect("execute_shell", "setenforce 0");
+        DangerousCommandApprovalService.DetectionResult selinuxConfigDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config");
         DangerousCommandApprovalService.DetectionResult stopAppArmor =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl disable apparmor");
+        DangerousCommandApprovalService.DetectionResult aaDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aa-disable /etc/apparmor.d/usr.bin.app");
         DangerousCommandApprovalService.DetectionResult spctlDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "spctl --master-disable");
+        DangerousCommandApprovalService.DetectionResult spctlGlobalDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "spctl --global-disable");
         DangerousCommandApprovalService.DetectionResult quarantineRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "xattr -d com.apple.quarantine ./payload");
@@ -643,10 +652,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(nftFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(setenforce).isNotNull();
         assertThat(setenforce.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(selinuxConfigDisable).isNotNull();
+        assertThat(selinuxConfigDisable.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(stopAppArmor).isNotNull();
         assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(aaDisable).isNotNull();
+        assertThat(aaDisable.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(spctlDisable).isNotNull();
         assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(spctlGlobalDisable).isNotNull();
+        assertThat(spctlGlobalDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(quarantineRemove).isNotNull();
         assertThat(quarantineRemove.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(tccReset).isNotNull();

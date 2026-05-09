@@ -637,13 +637,13 @@ public class DangerousCommandApprovalService {
                                     "linux_disable_mac_policy",
                                     "Linux mandatory access control disabled",
                                     pattern(
-                                            "\\b(?:setenforce\\s+0|aa-teardown\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+apparmor\\b)"),
+                                            "\\b(?:setenforce\\s+0|(?:sed\\b|perl\\b|tee\\b|Set-Content\\b|Out-File\\b)[^\\n]*(?:SELINUX\\s*=\\s*disabled|/etc/selinux/config)|aa-(?:teardown|disable)\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+apparmor\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_security_policy_weaken",
                                     "macOS security policy weakened",
                                     pattern(
-                                            "\\b(?:spctl\\s+--master-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
+                                            "\\b(?:spctl\\s+--(?:master|global)-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "remote_fleet_command_execution",
