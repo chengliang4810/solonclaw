@@ -828,6 +828,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult nerdctlSocketMount =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "nerdctl run -v /var/run/docker.sock:/var/run/docker.sock alpine");
+        DangerousCommandApprovalService.DetectionResult dockerExecPrivileged =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker exec --privileged app sh");
+        DangerousCommandApprovalService.DetectionResult podmanExecRoot =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman exec --user root app sh");
+        DangerousCommandApprovalService.DetectionResult nerdctlExecRoot =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl exec -u=root app sh");
         DangerousCommandApprovalService.DetectionResult dockerBuildSecretArg =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker build --build-arg API_TOKEN=abc .");
@@ -859,6 +868,8 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "docker build --secret id=cache .");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
+        DangerousCommandApprovalService.DetectionResult dockerExecUser =
+                env.dangerousCommandApprovalService.detect("execute_shell", "docker exec app id");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl delete namespace prod");
@@ -880,6 +891,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult kubectlLocalApply =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl apply -f deploy/local.yaml");
+        DangerousCommandApprovalService.DetectionResult kubectlWidePortForward =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl port-forward --address 0.0.0.0 svc/app 8080:80");
+        DangerousCommandApprovalService.DetectionResult kubectlWideProxy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl proxy --address=0.0.0.0 --accept-hosts=.*");
+        DangerousCommandApprovalService.DetectionResult kubectlLocalPortForward =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl port-forward svc/app 8080:80");
+        DangerousCommandApprovalService.DetectionResult kubectlLocalProxy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl proxy --address=127.0.0.1");
         DangerousCommandApprovalService.DetectionResult helmUninstall =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "helm uninstall payments");
@@ -1139,6 +1162,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
         assertThat(nerdctlSocketMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerExecPrivileged).isNotNull();
+        assertThat(dockerExecPrivileged.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanExecRoot).isNotNull();
+        assertThat(podmanExecRoot.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(nerdctlExecRoot).isNotNull();
+        assertThat(nerdctlExecRoot.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerBuildSecretArg).isNotNull();
         assertThat(dockerBuildSecretArg.getPatternKey()).isEqualTo("container_secret_exposure");
         assertThat(buildahSecretArg).isNotNull();
@@ -1157,6 +1187,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerNonSecretBuildArg).isNull();
         assertThat(dockerSecretIdOnly).isNull();
         assertThat(dockerPs).isNull();
+        assertThat(dockerExecUser).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
         assertThat(kubectlExec).isNotNull();
@@ -1173,6 +1204,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(kubectlDeleteContext.getPatternKey())
                 .isEqualTo("kubectl_context_or_credential_change");
         assertThat(kubectlLocalApply).isNull();
+        assertThat(kubectlWidePortForward).isNotNull();
+        assertThat(kubectlWidePortForward.getPatternKey()).isEqualTo("kubectl_network_exposure");
+        assertThat(kubectlWideProxy).isNotNull();
+        assertThat(kubectlWideProxy.getPatternKey()).isEqualTo("kubectl_network_exposure");
+        assertThat(kubectlLocalPortForward).isNull();
+        assertThat(kubectlLocalProxy).isNull();
         assertThat(helmUninstall).isNotNull();
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(helmRepoAdd).isNotNull();
@@ -2179,6 +2216,9 @@ public class DangerousCommandApprovalServiceTest {
                         "pip config set global.token pip-token",
                         "poetry config http-basic.internal user password",
                         "poetry config pypi-token.internal pypi-token",
+                        "uv publish --token uv-token",
+                        "pdm publish --username user --password pdm-password",
+                        "hatch publish --token hatch-token",
                         "cargo login crate-token",
                         "gem push pkg.gem -k private",
                         "nuget sources add -Name internal -Source https://nuget.example -Password token",
@@ -2196,6 +2236,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "poetry config virtualenvs.in-project true",
                         "twine check dist/*",
+                        "uv publish --dry-run",
+                        "pdm publish --repository internal",
+                        "hatch publish --repo internal",
                         "cargo owner --list crate-name",
                         "gem list",
                         "nuget sources list");
@@ -2230,8 +2273,11 @@ public class DangerousCommandApprovalServiceTest {
         List<String> packageManagerScriptPolicyChanges =
                 Arrays.asList(
                         "npm config set ignore-scripts false",
+                        "npm config set audit false",
                         "pnpm config set unsafe-perm true",
+                        "pnpm config set verify-store-integrity false",
                         "yarn config set enableScripts true",
+                        "yarn config set enableImmutableInstalls false",
                         "pnpm approve-builds",
                         "bun pm trust sharp");
         for (String command : packageManagerScriptPolicyChanges) {
@@ -3229,6 +3275,20 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_config_trust_weaken");
         }
 
+        List<String> broadTunnelExposure =
+                Arrays.asList(
+                        "ssh -L 0.0.0.0:8080:localhost:80 user@example.com",
+                        "ssh -R '*:2222:localhost:22' user@example.com",
+                        "ssh -D [::]:1080 user@example.com",
+                        "ssh -g -L 8080:localhost:80 user@example.com",
+                        "ssh -o GatewayPorts=yes -R 2222:localhost:22 user@example.com");
+        for (String command : broadTunnelExposure) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_tunnel_network_exposure");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ssh -o StrictHostKeyChecking=yes user@example.com"))
@@ -3240,6 +3300,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "echo 'Host example.com' >> fixtures/ssh_config"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh -L 8080:localhost:80 user@example.com"))
                 .isNull();
     }
 

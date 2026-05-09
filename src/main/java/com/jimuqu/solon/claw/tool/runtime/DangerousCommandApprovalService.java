@@ -489,7 +489,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_secret_write",
                                     "write package manager credential",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+|poetry\\s+config\\s+(?:http-basic\\.|pypi-token\\.)\\S+\\s+\\S+|cargo\\s+login\\b|gem\\s+push\\b(?=[^\\n]*(?:\\s-k\\s+\\S+|--key\\s+\\S+))|nuget\\s+sources\\s+(?:add|update)\\b(?=[^\\n]*(?:-Password\\s+\\S+|-StorePasswordInClearText\\b)))"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+|poetry\\s+config\\s+(?:http-basic\\.|pypi-token\\.)\\S+\\s+\\S+|(?:uv|pdm|hatch)\\s+publish\\b(?=[^\\n]*(?:--token(?:=|\\s+)\\S+|--password(?:=|\\s+)\\S+|--username(?:=|\\s+)\\S+))|cargo\\s+login\\b|gem\\s+push\\b(?=[^\\n]*(?:\\s-k\\s+\\S+|--key\\s+\\S+))|nuget\\s+sources\\s+(?:add|update)\\b(?=[^\\n]*(?:-Password\\s+\\S+|-StorePasswordInClearText\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_source_change",
@@ -501,7 +501,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_script_policy_change",
                                     "package manager install script policy changed",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:ignore-scripts\\s+false|unsafe-perm\\s+true|enableScripts\\s+true)\\b|pnpm\\s+approve-builds\\b|bun\\s+pm\\s+trust\\b|yarn\\s+config\\s+set\\s+enableScripts\\s+true\\b)"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:ignore-scripts\\s+false|unsafe-perm\\s+true|enableScripts\\s+true|audit\\s+false|verify-store-integrity\\s+false|enableImmutableInstalls\\s+false|enableStrictSsl\\s+false)\\b|pnpm\\s+approve-builds\\b|bun\\s+pm\\s+trust\\b|yarn\\s+config\\s+set\\s+enableScripts\\s+true\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_remote_execute",
@@ -557,6 +557,12 @@ public class DangerousCommandApprovalService {
                                     "transfer credential file with remote copy tool",
                                     pattern(
                                             "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "ssh_host_key_check_disabled",
+                                    "SSH host key verification disabled",
+                                    pattern(
+                                            "\\b(?:ssh|scp|sftp|rsync)\\b[^\\n]*(?:-o\\s*StrictHostKeyChecking\\s*=\\s*(?:no|off|false|accept-new)|-o\\s*UserKnownHostsFile\\s*=\\s*(?:/dev/null|NUL|nul))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
@@ -634,10 +640,10 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bgit\\s+credential\\s+(?:approve|reject|store|erase)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
-                                    "ssh_host_key_check_disabled",
-                                    "SSH host key verification disabled",
+                                    "ssh_tunnel_network_exposure",
+                                    "SSH tunnel exposes a broad listen address",
                                     pattern(
-                                            "\\b(?:ssh|scp|sftp|rsync)\\b[^\\n]*(?:-o\\s*StrictHostKeyChecking\\s*=\\s*(?:no|off|false|accept-new)|-o\\s*UserKnownHostsFile\\s*=\\s*(?:/dev/null|NUL|nul))"),
+                                            "\\bssh\\b(?=[^\\n]*(?:-o\\s*GatewayPorts\\s*=\\s*(?:yes|clientspecified)|-g\\b|-(?:L|R|D)\\s*['\"]?(?:0\\.0\\.0\\.0|\\[?:::\\]?|\\*)[:\\]]|-(?:L|R|D)\\s*['\"]?\\[[^\\]]*\\]:|-(?:L|R|D)\\s+['\"]?\\[[^\\]]*\\]:))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_firewall",
@@ -785,7 +791,7 @@ public class DangerousCommandApprovalService {
                                     "docker_privileged_or_host_mount",
                                     "Docker privileged container or host mount",
                                     pattern(
-                                            "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
+                                            "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))|\\b(?:docker|podman|nerdctl)\\s+exec\\b(?=[^\\n]*(?:--privileged\\b|(?:-u|--user)(?:=|\\s+)root\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "container_secret_exposure",
@@ -814,6 +820,12 @@ public class DangerousCommandApprovalService {
                                     "Kubernetes context or credential configuration changed",
                                     pattern(
                                             "\\bkubectl\\s+(?:-[^\\s]+\\s+)*config\\s+(?:set-credentials|set-context|use-context|unset|delete-context|delete-user)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kubectl_network_exposure",
+                                    "Kubernetes local proxy or port-forward exposes a broad listen address",
+                                    pattern(
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*(?:port-forward|proxy)\\b(?=[^\\n]*(?:(?:--address(?:=|\\s+)(?:0\\.0\\.0\\.0|\\[?:::\\]?|\\*)\\b)|(?:--accept-hosts(?:=|\\s+)(?:\\.\\*|['\"]?\\^?\\.\\*\\$?['\"]?|\\S*\\*\\S*))))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "helm_uninstall",
