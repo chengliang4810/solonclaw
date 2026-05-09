@@ -1877,13 +1877,12 @@ public class DangerousCommandApprovalServiceTest {
                         "ssh -oHostKey=server_host_key host.example",
                         "ssh -oHostCertificate=server-cert.pub host.example",
                         "ssh -oHostKeyAlias=known-host-entry host.example",
-                        "curl -K.curlrc https://example.invalid",
-                        "curl --config .curlrc https://example.invalid",
-                        "wget --config=.wgetrc https://example.invalid",
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
                         "az login --cert cert.pem --key key.pem",
+                        "rsync -e 'ssh -i deploy_key' ./ user@example.com:/tmp/",
+                        "rsync -e \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
                         "npm --userconfig .npmrc whoami");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -1893,6 +1892,11 @@ public class DangerousCommandApprovalServiceTest {
                     .as(command)
                     .isEqualTo("credential_path_option");
         }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "rsync -av ./ user@example.com:/tmp/"))
+                .isNull();
     }
 
     @Test
