@@ -76,11 +76,11 @@ public class DangerousCommandApprovalService {
                     + "\\.(?:netrc|pgpass|npmrc|yarnrc|pnpmrc|pypirc|curlrc|wgetrc)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:m2|gem|nuget|config"
+                    + "\\.(?:m2|gem|nuget|cargo|terraform\\.d|gemini|config"
                     + PATH_SEPARATOR
-                    + "pip)"
+                    + "(?:pip|gemini))"
                     + PATH_SEPARATOR
-                    + "(?:settings\\.xml|credentials|nuget\\.config|pip\\.conf)\\b|"
+                    + "(?:settings\\.xml|credentials|credentials\\.toml|credentials\\.tfrc\\.json|oauth_creds\\.json|nuget\\.config|pip\\.conf)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
                     + "\\.(?:jimuqu-agent|Jimuqu)"
@@ -90,7 +90,7 @@ public class DangerousCommandApprovalService {
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
-            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|token\\.json|pip\\.conf|settings\\.xml|nuget\\.config))";
+            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|config\\.ya?ml|credentials(?:\\.(?:json|toml|tfrc\\.json))?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|oauth_creds\\.json|token\\.json|pip\\.conf|settings\\.xml|nuget\\.config))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String CREDENTIAL_PERMISSION_TARGET =

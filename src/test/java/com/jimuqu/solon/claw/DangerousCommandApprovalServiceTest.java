@@ -2925,6 +2925,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult firebaseAdminCopy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cp firebase.template.json firebase-adminsdk-prod.json");
+        DangerousCommandApprovalService.DetectionResult oauthCredsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf token > oauth_creds.json");
+        DangerousCommandApprovalService.DetectionResult cargoCredentialsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf token > ~/.cargo/credentials.toml");
+        DangerousCommandApprovalService.DetectionResult terraformCredentialsCopy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp token.json ~/.terraform.d/credentials.tfrc.json");
+        DangerousCommandApprovalService.DetectionResult geminiConfigWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf token > ~/.config/gemini/oauth_creds.json");
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
@@ -3014,6 +3026,15 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("project_sensitive_redirection");
         assertThat(firebaseAdminCopy).isNotNull();
         assertThat(firebaseAdminCopy.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+        assertThat(oauthCredsWrite).isNotNull();
+        assertThat(oauthCredsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
+        assertThat(cargoCredentialsWrite).isNotNull();
+        assertThat(cargoCredentialsWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(terraformCredentialsCopy).isNotNull();
+        assertThat(terraformCredentialsCopy.getPatternKey())
+                .isEqualTo("copy_into_project_sensitive");
+        assertThat(geminiConfigWrite).isNotNull();
+        assertThat(geminiConfigWrite.getPatternKey()).isEqualTo("sensitive_redirection");
     }
 
     @Test
