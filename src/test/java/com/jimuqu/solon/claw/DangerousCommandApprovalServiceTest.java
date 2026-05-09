@@ -513,6 +513,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult setcap =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "setcap cap_net_bind_service+ep ./server");
+        DangerousCommandApprovalService.DetectionResult setfaclWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setfacl -m u:deploy:rw /etc/app.conf");
+        DangerousCommandApprovalService.DetectionResult setfaclReadOnly =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setfacl -m u:deploy:r-- ./notes.txt");
+        DangerousCommandApprovalService.DetectionResult chattrRemoveImmutable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chattr -i /etc/passwd");
+        DangerousCommandApprovalService.DetectionResult chattrList =
+                env.dangerousCommandApprovalService.detect("execute_shell", "lsattr /etc/passwd");
         DangerousCommandApprovalService.DetectionResult ldPreload =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "LD_PRELOAD=./hook.so ./server");
@@ -571,6 +582,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chmodNumericSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
         assertThat(setcap).isNotNull();
         assertThat(setcap.getPatternKey()).isEqualTo("setcap_privilege");
+        assertThat(setfaclWrite).isNotNull();
+        assertThat(setfaclWrite.getPatternKey()).isEqualTo("linux_acl_permission_widen");
+        assertThat(setfaclReadOnly).isNull();
+        assertThat(chattrRemoveImmutable).isNotNull();
+        assertThat(chattrRemoveImmutable.getPatternKey()).isEqualTo("linux_immutable_flag_removed");
+        assertThat(chattrList).isNull();
         assertThat(ldPreload).isNotNull();
         assertThat(ldPreload.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
         assertThat(dyldPreload).isNotNull();

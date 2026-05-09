@@ -192,6 +192,17 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bsetcap\\b[^\\n]*\\bcap_[a-z0-9_,+-]+\\+ep\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_acl_permission_widen",
+                                    "Linux ACL permission widened",
+                                    pattern(
+                                            "\\bsetfacl\\b(?=[^\\n]*(?:-m|--modify)\\b)[^\\n]*(?::(?:rwx|rw-|r-x|[rwx-]{3})\\b|:[^\\s,]+:[rwx-]*w[rwx-]*\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "linux_immutable_flag_removed",
+                                    "Linux immutable flag removed",
+                                    pattern("\\bchattr\\b[^\\n]*-i\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "dynamic_library_preload_injection",
                                     "dynamic library preload injection",
                                     pattern(
