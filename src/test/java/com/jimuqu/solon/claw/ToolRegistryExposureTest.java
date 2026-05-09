@@ -310,6 +310,44 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("approvals").get("subagentApprovalDefault").getString())
                 .isEqualTo("deny");
+        assertThat(policyStatus.get("policy").get("approvals").get("approvalPolicy").get("mode").getString())
+                .isEqualTo("smart");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
+                                .get("dangerousRuleCount")
+                                .getInt())
+                .isGreaterThan(50);
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
+                                .get("hardlineRuleCount")
+                                .getInt())
+                .isGreaterThan(10);
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
+                                .get("sudoRewriteConfigured")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
+                                .get("backgroundProcessGuard")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("approvalPolicy")))
+                .contains("recursive_delete")
+                .contains("long_lived_foreground")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("credentialPolicy").get("fileNameCount").getInt())

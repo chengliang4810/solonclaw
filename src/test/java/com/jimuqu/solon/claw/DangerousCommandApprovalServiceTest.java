@@ -43,6 +43,38 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldExposeApprovalPolicySummaryWithoutExecutingCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getApprovals().setSubagentAutoApprove(true);
+        env.appConfig.getTerminal().setSudoPassword("secret-sudo");
+        env.dangerousCommandApprovalService.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.escalate("audit only");
+                    }
+                });
+
+        Map<String, Object> summary = env.dangerousCommandApprovalService.approvalPolicySummary();
+
+        assertThat(summary.get("mode")).isEqualTo("smart");
+        assertThat(summary.get("cronMode")).isEqualTo("approve");
+        assertThat(summary.get("subagentAutoApprove")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("smartJudgeConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(((Integer) summary.get("dangerousRuleCount")).intValue()).isGreaterThan(50);
+        assertThat(((Integer) summary.get("hardlineRuleCount")).intValue()).isGreaterThan(10);
+        assertThat(String.valueOf(summary.get("dangerousRuleSamples"))).contains("recursive_delete");
+        assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
+        assertThat(String.valueOf(summary.get("terminalGuardrails"))).contains("long_lived_foreground");
+        assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("backgroundProcessGuard")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
     void shouldDetectJimuquStyleDangerousCommandVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

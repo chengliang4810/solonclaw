@@ -113,6 +113,9 @@ public class SecurityAuditTools {
         approvals.put(
                 "alwaysApprovalCount",
                 Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
+        if (approvalService != null) {
+            approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
+        }
         result.policy.put("approvals", approvals);
 
         Map<String, Object> security = new LinkedHashMap<String, Object>();

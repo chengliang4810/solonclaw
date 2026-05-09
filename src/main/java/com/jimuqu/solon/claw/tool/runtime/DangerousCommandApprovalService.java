@@ -1285,6 +1285,32 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
+    public Map<String, Object> approvalPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("mode", approvalMode());
+        summary.put("cronMode", cronApprovalMode());
+        summary.put("subagentAutoApprove", Boolean.valueOf(isSubagentAutoApproveEnabled()));
+        summary.put("smartJudgeConfigured", Boolean.valueOf(hasSmartApprovalJudge()));
+        summary.put("dangerousRuleCount", Integer.valueOf(RULES.size()));
+        summary.put("hardlineRuleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
+        summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
+        summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
+        summary.put("terminalGuardrailCount", Integer.valueOf(3 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
+        summary.put(
+                "terminalGuardrails",
+                Arrays.asList(
+                        "shell_level_background",
+                        "inline_background_ampersand",
+                        "long_lived_foreground"));
+        summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
+        summary.put("backgroundProcessGuard", Boolean.TRUE);
+        summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
+        summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
+        summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
+        summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
+        return summary;
+    }
+
     public Map<String, Object> buildDeliveryExtras(PlatformType platform, PendingApproval pending) {
         if ((platform != PlatformType.FEISHU && platform != PlatformType.QQBOT)
                 || pending == null) {
@@ -2332,6 +2358,12 @@ public class DangerousCommandApprovalService {
         return appConfig != null
                 && appConfig.getApprovals() != null
                 && appConfig.getApprovals().isSubagentAutoApprove();
+    }
+
+    private boolean isSudoPasswordConfigured() {
+        return appConfig != null
+                && appConfig.getTerminal() != null
+                && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
     }
 
     protected String jimuquYoloModeEnv() {
@@ -3443,6 +3475,31 @@ public class DangerousCommandApprovalService {
             }
             addApprovalKeyAliasPair(aliases, rule.getPatternKey(), rule.getDescription());
         }
+    }
+
+    private static List<String> ruleSamples(List<DangerRule> rules, int max) {
+        List<String> samples = new ArrayList<String>();
+        if (rules == null) {
+            return samples;
+        }
+        int limit = Math.max(0, max);
+        for (DangerRule rule : rules) {
+            if (samples.size() >= limit) {
+                break;
+            }
+            if (rule != null && StrUtil.isNotBlank(rule.getPatternKey())) {
+                samples.add(rule.getPatternKey());
+            }
+        }
+        return samples;
+    }
+
+    private static List<String> hardlineRuleSamples(int max) {
+        List<String> samples = ruleSamples(HARDLINE_RULES, max);
+        if (samples.size() < Math.max(0, max)) {
+            samples.add("hardline_metadata_url");
+        }
+        return samples;
     }
 
     private static void addApprovalKeyAliasPair(
