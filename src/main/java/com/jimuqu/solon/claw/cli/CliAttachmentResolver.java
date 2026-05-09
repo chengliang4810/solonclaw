@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.net.URI;
@@ -71,7 +72,8 @@ public class CliAttachmentResolver {
             SecurityPolicyService.FileVerdict verdict =
                     securityPolicyService.checkPath(file.getAbsolutePath(), false);
             if (!verdict.isAllowed()) {
-                throw new IllegalArgumentException("附件路径被安全策略阻断：" + verdict.getMessage());
+                throw new IllegalArgumentException(
+                        "附件路径被安全策略阻断：" + safeMessage(verdict.getMessage()));
             }
             if (file.length() > MAX_ATTACHMENT_BYTES) {
                 throw new IllegalArgumentException("附件文件过大：" + file.getName());
@@ -294,6 +296,14 @@ public class CliAttachmentResolver {
         return FileUtil.file(value).getName();
     }
 
+    private static String safeMessage(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
+    }
+
+    private static String safeName(String value) {
+        return SecretRedactor.redact(StrUtil.blankToDefault(value, "-"), 400);
+    }
+
     private static class Candidate {
         private final String originalToken;
         private final String path;
@@ -341,11 +351,11 @@ public class CliAttachmentResolver {
                 long sizeBytes,
                 String message) {
             this.status = status;
-            this.name = StrUtil.blankToDefault(name, "-");
+            this.name = safeName(name);
             this.kind = StrUtil.blankToDefault(kind, "-");
             this.mimeType = StrUtil.blankToDefault(mimeType, "-");
             this.sizeBytes = sizeBytes;
-            this.message = StrUtil.nullToEmpty(message);
+            this.message = safeMessage(message);
         }
 
         public static AttachmentPreview allowed(

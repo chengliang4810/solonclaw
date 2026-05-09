@@ -70,13 +70,39 @@ public class CliAttachmentResolverTest {
         AppConfig config = testConfig();
         File sshDir = new File(config.getRuntime().getHome(), ".ssh");
         Files.createDirectories(sshDir.toPath());
-        File privateKey = new File(sshDir, "id_rsa");
+        File privateKey = new File(sshDir, "id_rsa-token=ghp_attachmentsecret12345");
         Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
         CliAttachmentResolver resolver = resolver(config);
 
         assertThatThrownBy(() -> resolver.resolve("上传 " + privateKey.getAbsolutePath()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("安全策略阻断");
+                .hasMessageContaining("安全策略阻断")
+                .hasMessageNotContaining("ghp_attachmentsecret12345")
+                .hasMessageNotContaining(privateKey.getAbsolutePath());
+    }
+
+    @Test
+    void shouldRedactAttachmentPolicyMessagesBeforeReturningToTerminal() throws Exception {
+        AppConfig config = testConfig();
+        File file = new File(config.getRuntime().getHome(), "safe.txt");
+        Files.write(file.toPath(), "secret".getBytes("UTF-8"));
+        CliAttachmentResolver resolver =
+                new CliAttachmentResolver(
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config) {
+                            @Override
+                            public FileVerdict checkPath(String rawPath, boolean writeLike) {
+                                return FileVerdict.block(
+                                        rawPath,
+                                        "blocked token=ghp_attachmentpolicy12345 path=" + rawPath);
+                            }
+                        });
+
+        assertThatThrownBy(() -> resolver.resolve("上传 " + file.getAbsolutePath()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("token=***")
+                .hasMessageNotContaining("ghp_attachmentpolicy12345")
+                .hasMessageNotContaining(file.getAbsolutePath());
     }
 
     @Test
@@ -109,7 +135,7 @@ public class CliAttachmentResolverTest {
         AppConfig config = testConfig();
         File sshDir = new File(config.getRuntime().getHome(), ".ssh");
         Files.createDirectories(sshDir.toPath());
-        File privateKey = new File(sshDir, "id_ed25519");
+        File privateKey = new File(sshDir, "id_ed25519-token=ghp_previewsecret12345");
         Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
         File missing = new File(config.getRuntime().getHome(), "missing.txt");
         CliAttachmentResolver resolver = resolver(config);
@@ -118,7 +144,9 @@ public class CliAttachmentResolverTest {
 
         assertThat(preview)
                 .contains("blocked")
-                .contains("id_ed25519")
+                .contains("***")
+                .doesNotContain("ghp_previewsecret12345")
+                .doesNotContain(privateKey.getAbsolutePath())
                 .contains("missing")
                 .contains("missing.txt");
     }
