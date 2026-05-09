@@ -544,7 +544,7 @@ public class DangerousCommandApprovalService {
                                     "tls_certificate_check_disabled",
                                     "TLS certificate verification disabled",
                                     pattern(
-                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))"),
+                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:strict-ssl|strictSsl)\\s+false\\b|(?:^|[;&|\\n`])\\s*(?:PYTHONHTTPSVERIFY\\s*=\\s*0|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "git_tls_certificate_check_disabled",

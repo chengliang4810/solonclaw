@@ -2274,7 +2274,11 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --insecure https://example.com",
                         "wget --no-check-certificate https://example.com/file",
                         "wget --check-certificate=off https://example.com/file",
-                        "aria2c --allow-untrusted https://example.com/file");
+                        "aria2c --allow-untrusted https://example.com/file",
+                        "npm config set strict-ssl false",
+                        "pnpm config set strictSsl false",
+                        "yarn config set strict-ssl false",
+                        "PYTHONHTTPSVERIFY=0 python script.py");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2292,6 +2296,15 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "wget --check-certificate=on https://example.com"))
                 .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "npm config set strict-ssl true"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "NODE_TLS_REJECT_UNAUTHORIZED=0 node app.js"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("sensitive_environment_inline_assignment");
     }
 
     @Test
