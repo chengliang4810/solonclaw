@@ -208,6 +208,7 @@ public class SecurityAuditTools {
         if (securityPolicyService != null) {
             coverage.put("urlPolicyDetails", securityPolicyService.urlPolicySummary());
             coverage.put("pathPolicyDetails", securityPolicyService.pathPolicySummary());
+            coverage.put("credentialPolicyDetails", securityPolicyService.credentialPolicySummary());
             coverage.put("toolArgsPolicy", securityPolicyService.toolArgsPolicySummary());
         }
         coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());

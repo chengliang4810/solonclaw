@@ -836,6 +836,18 @@ public class ToolRegistryExposureTest {
                 .contains("/dev/zero")
                 .contains("A-Za-z0-9")
                 .doesNotContain("secret-sudo");
+        ONode credentialPolicyDetails =
+                policyStatus.get("policy").get("coverage").get("credentialPolicyDetails");
+        assertThat(credentialPolicyDetails.get("directorySegmentCount").getInt()).isGreaterThan(0);
+        assertThat(credentialPolicyDetails.get("fileNameCount").getInt()).isGreaterThan(0);
+        assertThat(credentialPolicyDetails.get("configuredCredentialFileCount").getInt()).isEqualTo(1);
+        assertThat(credentialPolicyDetails.get("envExampleFilesAllowed").getBoolean()).isTrue();
+        assertThat(String.valueOf(credentialPolicyDetails))
+                .contains(".ssh")
+                .contains(".env")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("credentials/oauth.json")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("recursiveUrlExtraction").getBoolean())
