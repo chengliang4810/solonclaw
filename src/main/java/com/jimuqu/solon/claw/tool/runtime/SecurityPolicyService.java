@@ -696,6 +696,7 @@ public class SecurityPolicyService {
         }
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
+        extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
@@ -704,6 +705,43 @@ public class SecurityPolicyService {
         }
         extractBareSecurityRelevantHosts(text, urls);
         extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    private void extractProxyHosts(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--proxy".equals(token)
+                    || "-x".equals(token)
+                    || "--socks5".equals(token)
+                    || "--socks5-hostname".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--proxy=")) {
+                value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--socks5=")) {
+                value = token.substring("--socks5=".length());
+            } else if (token.startsWith("--socks5-hostname=")) {
+                value = token.substring("--socks5-hostname=".length());
+            }
+            addProxyHost(value, urls);
+        }
+    }
+
+    private void addProxyHost(String raw, List<String> urls) {
+        String value = cleanUrlToken(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        String host = extractSchemelessHost(value);
+        if (StrUtil.isBlank(host)) {
+            return;
+        }
+        if (shouldCheckBareHost(host)) {
+            urls.add(value);
+        }
     }
 
     private void extractCurlConnectionOverrideHosts(String text, List<String> urls) {
