@@ -174,6 +174,16 @@ public class DashboardControllerHttpTest {
         assertThat(providers.body).contains("openai-direct");
         assertThat(providers.body).contains("\"hasApiKey\":true");
         assertThat(providers.body).doesNotContain("test-key");
+        AppConfig.ProviderConfig defaultProvider =
+                Solon.context().getBean(AppConfig.class).getProviders().get("default");
+        defaultProvider.setBaseUrl("https://user:provider-pass@example.com/v1?token=provider-token");
+        HttpResult maskedProviders = request("GET", "/api/providers", null, token);
+        assertThat(maskedProviders.status).isEqualTo(200);
+        assertThat(maskedProviders.body)
+                .contains("https://user:***@example.com/v1?token=***")
+                .doesNotContain("provider-pass")
+                .doesNotContain("provider-token");
+        defaultProvider.setBaseUrl("https://api.openai.com");
 
         HttpResult saveConfig =
                 request(
