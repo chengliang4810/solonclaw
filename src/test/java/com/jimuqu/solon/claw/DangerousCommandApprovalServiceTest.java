@@ -631,6 +631,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerRm =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker rm -f app-db");
+        DangerousCommandApprovalService.DetectionResult dockerPrivileged =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --privileged alpine");
+        DangerousCommandApprovalService.DetectionResult dockerSocketMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run -v /var/run/docker.sock:/var/run/docker.sock alpine");
+        DangerousCommandApprovalService.DetectionResult dockerHostRootMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --volume /:/host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerHostNetwork =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --network=host alpine");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
@@ -720,6 +732,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerPrune.getPatternKey()).isEqualTo("docker_destructive_prune");
         assertThat(dockerRm).isNotNull();
         assertThat(dockerRm.getPatternKey()).isEqualTo("docker_force_remove");
+        assertThat(dockerPrivileged).isNotNull();
+        assertThat(dockerPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerSocketMount).isNotNull();
+        assertThat(dockerSocketMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerHostRootMount).isNotNull();
+        assertThat(dockerHostRootMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerHostNetwork).isNotNull();
+        assertThat(dockerHostNetwork.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");

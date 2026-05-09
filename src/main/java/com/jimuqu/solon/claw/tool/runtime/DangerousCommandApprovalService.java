@@ -519,6 +519,12 @@ public class DangerousCommandApprovalService {
                                             "\\bdocker\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "docker_privileged_or_host_mount",
+                                    "Docker privileged container or host mount",
+                                    pattern(
+                                            "\\bdocker\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "kubectl_delete",
                                     "Kubernetes resource delete",
                                     pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*delete\\b"),
