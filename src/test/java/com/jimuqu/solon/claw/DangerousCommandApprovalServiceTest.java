@@ -648,6 +648,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl delete namespace prod");
+        DangerousCommandApprovalService.DetectionResult kubectlExec =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl exec deploy/app -- id");
+        DangerousCommandApprovalService.DetectionResult kubectlRemoteApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl apply -f https://example.invalid/install.yaml");
+        DangerousCommandApprovalService.DetectionResult kubectlLocalApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl apply -f deploy/local.yaml");
         DangerousCommandApprovalService.DetectionResult helmUninstall =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "helm uninstall payments");
@@ -743,6 +752,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
+        assertThat(kubectlExec).isNotNull();
+        assertThat(kubectlExec.getPatternKey()).isEqualTo("kubectl_exec");
+        assertThat(kubectlRemoteApply).isNotNull();
+        assertThat(kubectlRemoteApply.getPatternKey()).isEqualTo("kubectl_remote_apply");
+        assertThat(kubectlLocalApply).isNull();
         assertThat(helmUninstall).isNotNull();
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(terraformDestroy).isNotNull();

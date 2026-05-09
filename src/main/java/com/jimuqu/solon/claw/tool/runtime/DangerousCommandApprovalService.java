@@ -530,6 +530,17 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*delete\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "kubectl_exec",
+                                    "Kubernetes pod command execution",
+                                    pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*exec\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kubectl_remote_apply",
+                                    "Kubernetes remote manifest apply",
+                                    pattern(
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*apply\\b(?=[^\\n]*(?:-f|--filename)\\s+(?:https?|wss?)://)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "helm_uninstall",
                                     "Helm release uninstall",
                                     pattern("\\bhelm\\s+(?:uninstall|delete)\\b"),
