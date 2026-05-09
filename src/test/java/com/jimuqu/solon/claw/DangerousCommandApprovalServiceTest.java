@@ -1902,6 +1902,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
+        DangerousCommandApprovalService.DetectionResult shellProfileRedirect =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo 'PROMPT_COMMAND=whoami' >> ~/.profile");
+        DangerousCommandApprovalService.DetectionResult shellProfileTeeAppend =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'BASH_ENV=/tmp/hook' | tee -a $HOME/.bashrc");
+        DangerousCommandApprovalService.DetectionResult shellProfilePowerShell =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Add-Content $env:HOME/.zshrc 'alias sudo=sudo -E'");
+        DangerousCommandApprovalService.DetectionResult projectProfileWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo local > fixtures/.bashrc");
         DangerousCommandApprovalService.DetectionResult envHomeSshWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat key >> $env:HOME/.ssh/authorized_keys");
@@ -1969,7 +1981,17 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(shellRc).isNotNull();
-        assertThat(shellRc.getPatternKey()).isEqualTo("sensitive_tee");
+        assertThat(shellRc.getPatternKey()).isEqualTo("shell_profile_persistence_injection");
+        assertThat(shellProfileRedirect).isNotNull();
+        assertThat(shellProfileRedirect.getPatternKey())
+                .isEqualTo("shell_profile_persistence_injection");
+        assertThat(shellProfileTeeAppend).isNotNull();
+        assertThat(shellProfileTeeAppend.getPatternKey())
+                .isEqualTo("shell_profile_persistence_injection");
+        assertThat(shellProfilePowerShell).isNotNull();
+        assertThat(shellProfilePowerShell.getPatternKey())
+                .isEqualTo("shell_profile_persistence_injection");
+        assertThat(projectProfileWrite).isNull();
         assertThat(envHomeSshWrite).isNotNull();
         assertThat(envHomeSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(envUserProfileSshWrite).isNotNull();
