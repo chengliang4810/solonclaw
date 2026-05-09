@@ -85,6 +85,21 @@ export interface JobInspectResult {
   limit: number
 }
 
+export interface CronGuide {
+  objective: string
+  schedule_types: string[]
+  editable_fields: string[]
+  actions: Record<string, string>
+  aliases: Record<string, string[]>
+  skill_binding: Record<string, string[] | boolean>
+  delivery: Record<string, string[] | string>
+  runtime_modes: Record<string, string[] | string>
+  history_and_status: Record<string, string[] | string>
+  security: Record<string, string[] | string>
+  slash_examples: string[]
+  api_routes: string[]
+}
+
 export interface CreateJobRequest {
   name: string
   schedule: string
@@ -212,6 +227,10 @@ function unwrapSchedule(schedule: string | { kind: string; raw?: string; expr?: 
 export async function listJobs(): Promise<Job[]> {
   const jobs = await request<DashboardJob[]>('/api/cron/jobs')
   return jobs.map(mapJob)
+}
+
+export async function fetchCronGuide(): Promise<CronGuide> {
+  return request<CronGuide>('/api/cron/jobs/guide')
 }
 
 export async function getJob(jobId: string): Promise<Job> {
