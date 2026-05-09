@@ -1168,6 +1168,10 @@ public class SecurityPolicyService {
                 || "ftp_proxy".equals(name)
                 || "npm_config_proxy".equals(name)
                 || "npm_config_https_proxy".equals(name)
+                || "yarn_proxy".equals(name)
+                || "yarn_https_proxy".equals(name)
+                || "pnpm_config_proxy".equals(name)
+                || "pnpm_config_https_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 

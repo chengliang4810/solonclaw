@@ -3660,6 +3660,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict npmHttpsProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "npm_config_https_proxy=http://169.254.169.254:8080 npm install");
+        SecurityPolicyService.UrlVerdict yarnProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "YARN_PROXY=http://127.0.0.1:8080 yarn install");
+        SecurityPolicyService.UrlVerdict pnpmProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "pnpm_config_https_proxy=http://169.254.169.254:8080 pnpm install");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3735,6 +3741,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(npmProxyPrivate.getMessage()).contains("内网");
         assertThat(npmHttpsProxyMetadata.isAllowed()).isFalse();
         assertThat(npmHttpsProxyMetadata.getMessage()).contains("元数据");
+        assertThat(yarnProxyPrivate.isAllowed()).isFalse();
+        assertThat(yarnProxyPrivate.getMessage()).contains("内网");
+        assertThat(pnpmProxyMetadata.isAllowed()).isFalse();
+        assertThat(pnpmProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test
