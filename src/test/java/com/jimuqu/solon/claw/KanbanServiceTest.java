@@ -50,6 +50,24 @@ public class KanbanServiceTest {
         assertThat(commandResult).contains("已完成任务");
         assertThat(service.task(taskId).get("status")).isEqualTo("done");
 
+        Map<String, Object> guide = service.guide(null);
+        assertThat(String.valueOf(guide))
+                .contains("status_flow")
+                .contains("drawer_sections")
+                .contains("automation_actions")
+                .contains("创建或切换看板");
+        assertThat(service.handleCommand("guide", "tester"))
+                .contains("Kanban 操作指南")
+                .contains("任务抽屉")
+                .contains("恢复动作")
+                .contains("/kanban dispatch");
+        assertThat(service.handleCommand("guide --json", "tester"))
+                .contains("\"drawer_sections\"")
+                .contains("\"pipeline_overview\"")
+                .contains("\"automation_actions\"");
+        assertThatThrownBy(() -> service.guide("missing-board"))
+                .hasMessageContaining("Kanban board not found: missing-board");
+
         assertThat(service.handleCommand("boards show", "tester"))
                 .contains("当前看板")
                 .contains("demo-board");

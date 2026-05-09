@@ -1090,6 +1090,14 @@ public class DashboardControllerHttpTest {
         assertThat(kanbanStats.status).isEqualTo(200);
         assertThat(kanbanStats.body).contains("by_status").contains("next");
 
+        HttpResult kanbanGuide = request("GET", "/api/kanban/guide?board=dashboard-board", null, token);
+        assertThat(kanbanGuide.status).isEqualTo(200);
+        assertThat(kanbanGuide.body)
+                .contains("\"drawer_sections\"")
+                .contains("\"pipeline_overview\"")
+                .contains("\"automation_actions\"")
+                .contains("dashboard-board");
+
         HttpResult kanbanAssignees = request("GET", "/api/kanban/assignees", null, token);
         assertThat(kanbanAssignees.status).isEqualTo(200);
         assertThat(kanbanAssignees.body)

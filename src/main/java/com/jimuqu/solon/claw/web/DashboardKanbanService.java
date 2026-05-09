@@ -150,6 +150,10 @@ public class DashboardKanbanService {
         return kanbanService.stats();
     }
 
+    public Map<String, Object> guide(String board) throws Exception {
+        return kanbanService.guide(board);
+    }
+
     public List<Map<String, Object>> assignees(String board) throws Exception {
         return kanbanService.assignees(board);
     }

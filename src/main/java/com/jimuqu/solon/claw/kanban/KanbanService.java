@@ -490,6 +490,54 @@ public class KanbanService {
         return result;
     }
 
+    public Map<String, Object> guide(String board) throws Exception {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        Map<String, Object> selectedBoard;
+        if (StrUtil.isBlank(board)) {
+            selectedBoard = currentBoard();
+        } else {
+            KanbanBoardRecord boardRecord = repository.findBoard(board);
+            if (boardRecord == null) {
+                throw new IllegalArgumentException("Kanban board not found: " + board);
+            }
+            selectedBoard = boardWithCounts(boardRecord);
+        }
+        Map<String, Object> stats = stats();
+        result.put("board", selectedBoard);
+        result.put("status_flow", Arrays.asList("triage", "todo", "ready", "running", "blocked", "done", "archived"));
+        result.put("objective", "使用看板把需求拆成结构化任务，分配执行人，派发运行，并通过抽屉复核流水、历史、日志和通知。");
+        result.put("steps", guideSteps());
+        result.put("drawer_sections", Arrays.asList(
+                "task",
+                "pipeline_overview",
+                "execution_overview",
+                "runs",
+                "events",
+                "context",
+                "notifications",
+                "log",
+                "actions"));
+        result.put("recovery_actions", Arrays.asList(
+                "diagnostics",
+                "reclaim",
+                "retry",
+                "reassign",
+                "unblock",
+                "edit",
+                "gc"));
+        result.put("automation_actions", Arrays.asList(
+                "dispatch",
+                "daemon start",
+                "daemon stop",
+                "claim",
+                "next",
+                "heartbeat",
+                "release-stale",
+                "reclaim-timeouts"));
+        result.put("stats", stats);
+        return result;
+    }
+
     public List<Map<String, Object>> assignees() throws Exception {
         return assignees(null);
     }
@@ -867,6 +915,9 @@ public class KanbanService {
         if ("diagnostics".equals(action) || "diag".equals(action)) {
             return diagnosticsCommand(rest);
         }
+        if ("guide".equals(action) || "tutorial".equals(action)) {
+            return guideCommand(rest);
+        }
         if ("stats".equals(action)) {
             return statsCommand(rest);
         }
@@ -1145,6 +1196,15 @@ public class KanbanService {
             return ONode.serialize(result);
         }
         return formatStats(result);
+    }
+
+    private String guideCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        Map<String, Object> result = guide(StrUtil.blankToDefault(parsed.value("board"), parsed.positionalText()));
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(result);
+        }
+        return formatGuide(result);
     }
 
     private String notifyListCommand(String rest) throws Exception {
@@ -2121,6 +2181,110 @@ public class KanbanService {
     }
 
     @SuppressWarnings("unchecked")
+    private String formatGuide(Map<String, Object> guide) {
+        Map<String, Object> board = guide.get("board") instanceof Map<?, ?>
+                ? (Map<String, Object>) guide.get("board")
+                : Collections.<String, Object>emptyMap();
+        List<Map<String, Object>> steps = guide.get("steps") instanceof List<?>
+                ? (List<Map<String, Object>>) guide.get("steps")
+                : Collections.<Map<String, Object>>emptyList();
+        StringBuilder buffer = new StringBuilder("Kanban 操作指南");
+        buffer.append("\n当前看板：")
+                .append(StrUtil.blankToDefault(String.valueOf(board.get("slug")), "-"))
+                .append(" / ")
+                .append(StrUtil.blankToDefault(String.valueOf(board.get("name")), "-"));
+        buffer.append("\n目标：").append(guide.get("objective"));
+        buffer.append("\n状态流：").append(guide.get("status_flow"));
+        for (Map<String, Object> step : steps) {
+            buffer.append('\n')
+                    .append(step.get("order"))
+                    .append(". ")
+                    .append(step.get("title"))
+                    .append(" - ")
+                    .append(step.get("description"))
+                    .append("\n   命令：")
+                    .append(step.get("commands"));
+        }
+        buffer.append("\n抽屉区块：").append(guide.get("drawer_sections"));
+        buffer.append("\n恢复动作：").append(guide.get("recovery_actions"));
+        buffer.append("\n自动化动作：").append(guide.get("automation_actions"));
+        return buffer.toString();
+    }
+
+    private List<Map<String, Object>> guideSteps() {
+        List<Map<String, Object>> steps = new ArrayList<Map<String, Object>>();
+        steps.add(guideStep(
+                1,
+                "创建或切换看板",
+                "按项目拆分 board，避免不同项目的任务、执行人和自动派发互相干扰。",
+                "/kanban boards list",
+                "/kanban boards create <slug> <name>",
+                "/kanban boards switch <slug>"));
+        steps.add(guideStep(
+                2,
+                "拆分结构化任务",
+                "用 schema 或 create 记录标题、正文、执行人、技能、流程模板、当前步骤和依赖。",
+                "/kanban schema <task-json>",
+                "/kanban create <title> --assignee <agent> --skill <skill> --parent <task-id>"));
+        steps.add(guideStep(
+                3,
+                "推进到可派发状态",
+                "通过 step、assign、move 把任务从 triage/todo 推进到 ready。",
+                "/kanban step <task-id> <step-key> --workflow <template>",
+                "/kanban assign <task-id> <assignee>",
+                "/kanban move <task-id> ready"));
+        steps.add(guideStep(
+                4,
+                "派发或认领执行",
+                "手动派发、后台派发或 worker 认领 ready 任务，并持续心跳。",
+                "/kanban dispatch --max 3",
+                "/kanban daemon start --interval 60 --max 3",
+                "/kanban next <assignee>",
+                "/kanban heartbeat <task-id>"));
+        steps.add(guideStep(
+                5,
+                "复核抽屉与流水",
+                "用任务抽屉查看 pipeline、execution overview、runs、events、context、通知和日志。",
+                "/kanban drawer <task-id>",
+                "/kanban runs <task-id>",
+                "/kanban events <task-id>",
+                "/kanban context <task-id>"));
+        steps.add(guideStep(
+                6,
+                "恢复异常或修正结果",
+                "对运行中、阻塞、超时或完成结果异常的任务执行诊断、收回、重试、改派、解阻和编辑。",
+                "/kanban diagnostics <task-id>",
+                "/kanban reclaim <task-id> [reason]",
+                "/kanban retry <task-id> [reason]",
+                "/kanban reassign <task-id> <assignee> --reclaim",
+                "/kanban unblock <task-id>",
+                "/kanban edit <task-id> --result <text>"));
+        steps.add(guideStep(
+                7,
+                "通知和清理",
+                "订阅终态通知，按需查看日志并清理旧事件、旧日志和归档工作区。",
+                "/kanban notify-subscribe <task-id> <platform> <chat-id>",
+                "/kanban log <task-id>",
+                "/kanban gc"));
+        return steps;
+    }
+
+    private Map<String, Object> guideStep(
+            int order, String title, String description, String command, String... moreCommands) {
+        Map<String, Object> step = new LinkedHashMap<String, Object>();
+        List<String> commands = new ArrayList<String>();
+        commands.add(command);
+        if (moreCommands != null) {
+            commands.addAll(Arrays.asList(moreCommands));
+        }
+        step.put("order", Integer.valueOf(order));
+        step.put("title", title);
+        step.put("description", description);
+        step.put("commands", commands);
+        return step;
+    }
+
+    @SuppressWarnings("unchecked")
     private String formatAssignees(List<Map<String, Object>> assignees) {
         if (assignees.isEmpty()) {
             return "当前没有可用执行人。请先创建 Agent 或给任务分配 assignee。";
@@ -2204,6 +2368,7 @@ public class KanbanService {
                 "\n",
                 Arrays.asList(
                         "/kanban list - 查看当前看板任务",
+                        "/kanban guide [--json] - 查看看板教程化操作流程",
                         "/kanban create <title> - 创建任务",
                         "/kanban schema <task-json> - 用 JSON 创建结构化任务",
                         "/kanban show <task-id> - 查看任务详情",
