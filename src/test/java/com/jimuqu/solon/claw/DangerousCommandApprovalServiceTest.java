@@ -1051,6 +1051,24 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_environment_read");
         }
 
+        List<String> inlineAssignments =
+                Arrays.asList(
+                        "OPENAI_API_KEY=secret curl https://example.com",
+                        "env JIMUQU_ACCESS_TOKEN=secret java -jar app.jar",
+                        "AWS_SECRET_ACCESS_KEY=secret aws sts get-caller-identity",
+                        "cmd; GEMINI_API_KEY=secret node app.js",
+                        "$env:OPENAI_API_KEY='secret'; node app.js",
+                        "Set-Item Env:JIMUQU_ACCESS_TOKEN secret",
+                        "New-Item Env:GEMINI_API_KEY -Value secret");
+        for (String command : inlineAssignments) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("sensitive_environment_inline_assignment");
+        }
+
         List<String> cliTokenReads =
                 Arrays.asList(
                         "gcloud auth print-access-token",
@@ -1097,6 +1115,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "FOO=1 git status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "printenv PATH"))
                 .isNull();
@@ -1204,6 +1226,70 @@ public class DangerousCommandApprovalServiceTest {
                 .isNotNull()
                 .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
                 .isEqualTo("network_credential_send");
+    }
+
+    @Test
+    void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "sshpass -p password ssh user@example.com",
+                        "mysql --password=password -e 'select 1'",
+                        "mysqldump -ppassword db",
+                        "mariadb --password password -e 'select 1'",
+                        "redis-cli -a password ping",
+                        "redis-cli --pass=password ping",
+                        "PGPASSWORD=password psql -h db.example -c 'select 1'",
+                        "MYSQL_PWD=password mysql -e 'select 1'",
+                        "REDISCLI_AUTH=password redis-cli ping");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("plaintext_cli_password_option");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "mysql --protocol=tcp -e 'select 1'"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "redis-cli ping"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectSshHostKeyVerificationBypassCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "ssh -o StrictHostKeyChecking=no user@example.com",
+                        "scp -oStrictHostKeyChecking=off file user@example.com:/tmp/",
+                        "sftp -o StrictHostKeyChecking=false user@example.com",
+                        "rsync -e 'ssh -o UserKnownHostsFile=/dev/null' ./ user@example.com:/tmp/",
+                        "ssh -o UserKnownHostsFile=NUL user@example.com");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("ssh_host_key_check_disabled");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh -o StrictHostKeyChecking=yes user@example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh user@example.com"))
+                .isNull();
     }
 
     @Test
@@ -1389,6 +1475,32 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("project_sensitive_redirection");
         assertThat(firebaseAdminCopy).isNotNull();
         assertThat(firebaseAdminCopy.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+    }
+
+    @Test
+    void shouldDetectPermissiveCredentialFileChmodCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "chmod 777 ~/.ssh/id_rsa",
+                        "chmod 666 .env",
+                        "chmod o+r ~/.aws/credentials",
+                        "chmod a+rw $env:USERPROFILE\\.ssh\\id_ed25519",
+                        "chmod o+rw %USERPROFILE%\\.docker\\config.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_permissive_chmod");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "chmod 755 scripts/run-local.ps1"))
+                .isNull();
     }
 
     @Test

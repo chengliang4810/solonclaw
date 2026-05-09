@@ -82,6 +82,8 @@ public class DangerousCommandApprovalService {
             "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|token\\.json))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
+    private static final String CREDENTIAL_PERMISSION_TARGET =
+            "(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.config[/\\\\](?:gh|gcloud))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|credentials(?:\\.json)?|auth\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -153,6 +155,14 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bxargs\\s+.*\\brm\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_permissive_chmod",
+                                    "credential file permission widened",
+                                    pattern(
+                                            "\\bchmod\\b(?=[^\\n]*(?:777|666|o\\+[rwx]*[rw]|a\\+[rwx]*[rw]))[^\\n]*[\"']?"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + "[\"']?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "world_writable",
                                     "world/other-writable permissions",
                                     pattern(
@@ -168,7 +178,7 @@ public class DangerousCommandApprovalService {
                                     "chmod_setuid_setgid",
                                     "setuid/setgid permission change",
                                     pattern(
-                                            "\\bchmod\\s+(-[^\\s]*\\s+)*(?:[ug]\\+s|[2467][0-7]{3})\\b"),
+                                            "\\bchmod\\s+(-[^\\s]*\\s+)*(?:[ug]\\+s|[2467][0-7]{3}(?!\\s+~?[/\\\\.]?\\.?(?:ssh|aws|gnupg|kube|docker|azure)\\b))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "setcap_privilege",
@@ -275,6 +285,18 @@ public class DangerousCommandApprovalService {
                                                     + "%?)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sensitive_environment_inline_assignment",
+                                    "set sensitive environment variable inline with a command",
+                                    pattern(
+                                            "(?:^|[;&|\\n`])\\s*(?:(?:env\\s+)?"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+\\s+\\S+|\\$env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s*=\\s*\\S+|(?:Set-Item|New-Item)\\s+Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s+\\S+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
@@ -327,6 +349,18 @@ public class DangerousCommandApprovalService {
                                     "send credential from local netrc or cookie file",
                                     pattern(
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key)(?:=|\\s+)\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "plaintext_cli_password_option",
+                                    "send credential through plaintext CLI password option",
+                                    pattern(
+                                            "\\b(?:sshpass\\s+-(?:p|P)\\s+\\S+|mysql(?:admin|dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|mariadb(?:-dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|psql\\b[^\\n]*(?:\\s-W\\s+\\S+|\\s--password(?:=|\\s+)\\S+)|redis-cli\\b[^\\n]*(?:\\s-a\\s+\\S+|\\s--pass(?:=|\\s+)\\S+)|PGPASSWORD=\\S+\\s+psql\\b|MYSQL_PWD=\\S+\\s+mysql\\b|REDISCLI_AUTH=\\S+\\s+redis-cli\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "ssh_host_key_check_disabled",
+                                    "SSH host key verification disabled",
+                                    pattern(
+                                            "\\b(?:ssh|scp|sftp|rsync)\\b[^\\n]*(?:-o\\s*StrictHostKeyChecking\\s*=\\s*(?:no|off|false|accept-new)|-o\\s*UserKnownHostsFile\\s*=\\s*(?:/dev/null|NUL|nul))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_firewall",
