@@ -2053,8 +2053,11 @@ public class DefaultCommandService implements CommandService {
         if ("enable".equals(action) || "start".equals(action)) {
             action = GatewayCommandConstants.ACTION_RESUME;
         }
-        if ("retry".equals(action) || "rerun".equals(action)) {
+        if ("retry".equals(action) || "rerun".equals(action) || "trigger".equals(action)) {
             action = GatewayCommandConstants.ACTION_RUN;
+        }
+        if ("upcoming".equals(action)) {
+            action = "next";
         }
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
@@ -3942,7 +3945,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]",
+                                        + " [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
