@@ -3657,6 +3657,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict gradleOptsPrivate =
                 securityPolicyService.checkCommandUrls(
                         "GRADLE_OPTS='-Dhttps.proxyHost=127.0.0.1' gradle build");
+        SecurityPolicyService.UrlVerdict quotedJavaToolOptionsPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "JAVA_TOOL_OPTIONS=\"-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=8080\" java -jar app.jar");
+        SecurityPolicyService.UrlVerdict quotedJdkJavaOptionsMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "JDK_JAVA_OPTIONS='-DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080' java -jar app.jar");
         SecurityPolicyService.UrlVerdict chromiumProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "chromium --proxy-server=http://127.0.0.1:8080 https://safe.example");
@@ -3757,6 +3763,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(mavenOptsMetadata.getMessage()).contains("元数据");
         assertThat(gradleOptsPrivate.isAllowed()).isFalse();
         assertThat(gradleOptsPrivate.getMessage()).contains("内网");
+        assertThat(quotedJavaToolOptionsPrivate.isAllowed()).isFalse();
+        assertThat(quotedJavaToolOptionsPrivate.getMessage()).contains("内网");
+        assertThat(quotedJdkJavaOptionsMetadata.isAllowed()).isFalse();
+        assertThat(quotedJdkJavaOptionsMetadata.getMessage()).contains("元数据");
         assertThat(chromiumProxyPrivate.isAllowed()).isFalse();
         assertThat(chromiumProxyPrivate.getMessage()).contains("内网");
         assertThat(nodeProxyMetadata.isAllowed()).isFalse();

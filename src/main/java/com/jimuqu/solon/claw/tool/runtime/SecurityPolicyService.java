@@ -235,6 +235,9 @@ public class SecurityPolicyService {
                     "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|nc|netcat|ncat|telnet|socat|openssl\\s+s_client|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
     private static final Pattern DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN =
             Pattern.compile("(?iu)^(tcp|tcp4|tcp6|udp|udp4|udp6|ssl|tls|connect):(.+)$");
+    private static final Pattern JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN =
+            Pattern.compile(
+                    "(?i)(?:^|\\s)(?:JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS|MAVEN_OPTS|GRADLE_OPTS)=((?:\"[^\"]*\")|(?:'[^']*')|\\S+)");
     private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
             Arrays.asList(
                     "access_token",
@@ -1057,6 +1060,7 @@ public class SecurityPolicyService {
         extractCurlConnectionOverrideHosts(text, urls);
         extractCurlDohUrls(text, urls);
         extractCurlDnsServers(text, urls);
+        extractJavaProxyOptionsAssignments(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1181,6 +1185,25 @@ public class SecurityPolicyService {
                 addProxyHost(token.substring(token.indexOf('=') + 1), urls);
             }
         }
+    }
+
+    private void extractJavaProxyOptionsAssignments(String text, List<String> urls) {
+        Matcher matcher = JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN.matcher(text);
+        while (matcher.find()) {
+            addJavaProxyHostsFromOptions(stripOptionalQuote(matcher.group(1)), urls);
+        }
+    }
+
+    private String stripOptionalQuote(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        if (value.length() >= 2) {
+            char first = value.charAt(0);
+            char last = value.charAt(value.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                return value.substring(1, value.length() - 1);
+            }
+        }
+        return value;
     }
 
     private boolean isProxyEnvironmentAssignment(String token) {
