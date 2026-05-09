@@ -803,6 +803,21 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("urlSafety").getBoolean())
                 .isTrue();
+        ONode urlPolicyDetails =
+                policyStatus.get("policy").get("coverage").get("urlPolicyDetails");
+        assertThat(urlPolicyDetails.get("allowPrivateUrls").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("alwaysBlockedHostCount").getInt()).isGreaterThan(0);
+        assertThat(urlPolicyDetails.get("alwaysBlockedIpCount").getInt()).isGreaterThan(0);
+        assertThat(urlPolicyDetails.get("websiteBlocklistEnabled").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("websiteBlocklistDomainCount").getInt()).isEqualTo(1);
+        assertThat(urlPolicyDetails.get("userinfoBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("sensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("cloudMetadataBlocked").getBoolean()).isTrue();
+        assertThat(String.valueOf(urlPolicyDetails))
+                .contains("169.254")
+                .contains("blocked.example")
+                .contains("access_token")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialMountPolicy").getBoolean())
