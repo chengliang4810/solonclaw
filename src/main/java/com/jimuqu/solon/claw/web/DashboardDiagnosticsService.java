@@ -233,7 +233,6 @@ public class DashboardDiagnosticsService {
         }
         appendAlwaysApprovalRevokedAudit(approval, approver);
         Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
-        result.put("approval", redactedApprovalKey(approval));
         result.put("approval_id", alwaysApprovalId(approval));
         return result;
     }

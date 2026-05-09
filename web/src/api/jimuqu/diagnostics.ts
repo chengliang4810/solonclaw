@@ -101,7 +101,6 @@ export interface ApprovalHistoryResult {
 
 export interface AlwaysApproval {
   approval_id?: string
-  approval: string
   tool_name?: string
   pattern_key?: string
 }

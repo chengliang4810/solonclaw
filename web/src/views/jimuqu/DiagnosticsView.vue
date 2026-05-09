@@ -245,7 +245,7 @@ function approvalBusy(item: PendingApproval, action: string, scope = 'once') {
 }
 
 async function handleRevokeAlways(item: AlwaysApproval) {
-  const approvalId = item.approval_id || item.approval || ''
+  const approvalId = item.approval_id || ''
   revokingAlwaysKey.value = approvalId
   try {
     const result = await revokeAlwaysApproval(approvalId)
@@ -702,21 +702,22 @@ onMounted(load)
           </div>
           <NSpin :show="alwaysLoading">
             <div v-if="alwaysApprovals.length" class="approval-list">
-              <article v-for="item in alwaysApprovals" :key="item.approval_id || item.approval" class="approval-item">
+              <article v-for="item in alwaysApprovals" :key="item.approval_id || `${item.tool_name}:${item.pattern_key}`" class="approval-item">
                 <div class="approval-head">
                   <div>
-                    <strong>{{ item.pattern_key || item.approval }}</strong>
+                    <strong>{{ item.pattern_key || '-' }}</strong>
                     <span>{{ item.tool_name || '-' }}</span>
                   </div>
                   <NTag size="small" type="warning">长期放行</NTag>
                 </div>
-                <pre class="approval-command">{{ item.approval }}</pre>
+                <pre class="approval-command">{{ item.pattern_key || '-' }}</pre>
                 <div class="approval-actions">
                   <NButton
                     size="small"
                     type="error"
                     ghost
-                    :loading="revokingAlwaysKey === (item.approval_id || item.approval)"
+                    :loading="revokingAlwaysKey === item.approval_id"
+                    :disabled="!item.approval_id"
                     @click="handleRevokeAlways(item)"
                   >
                     撤销

@@ -1422,12 +1422,11 @@ public class DashboardControllerHttpTest {
         assertThat(always.status).isEqualTo(200);
         assertThat(always.body)
                 .contains("\"count\"")
-                .contains("\"tool_name\":\"execute_shell\"");
+                .contains("\"tool_name\":\"execute_shell\"")
+                .doesNotContain("\"approval\":");
         ONode alwaysData = ONode.ofJson(always.body).get("data").get("items").get(0);
-        String approval = alwaysData.get("approval").getString();
         String approvalId = alwaysData.get("approval_id").getString();
         String patternKey = alwaysData.get("pattern_key").getString();
-        assertThat(approval).startsWith("execute_shell:").endsWith(":***");
         assertThat(approvalId).isNotBlank();
         assertThat(patternKey).isNotBlank();
         assertThat(bean(DangerousCommandApprovalService.class)
@@ -1445,6 +1444,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"success\":true")
                 .contains("\"approval_id\":\"" + jsonEscape(approvalId) + "\"")
                 .contains("长期授权已撤销")
+                .doesNotContain("\"approval\":")
                 .doesNotContain("\"approval\":\"execute_shell:rm_recursive_root:");
         assertThat(bean(DangerousCommandApprovalService.class)
                         .isAlwaysApproved("execute_shell", patternKey, "rm -rf runtime/logs"))
