@@ -830,6 +830,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -ExclusionProcess powershell.exe",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Add-MpPreference -ExclusionExtension ps1",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
                 "windows_take_ownership");
         assertDangerPattern(

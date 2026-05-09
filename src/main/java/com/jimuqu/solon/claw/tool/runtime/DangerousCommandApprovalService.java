@@ -741,6 +741,12 @@ public class DangerousCommandApprovalService {
                                             "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+(?:\\$?true|1)\\b|-DisableBehaviorMonitoring\\s+(?:\\$?true|1)\\b|-DisableIOAVProtection\\s+(?:\\$?true|1)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_defender_exclusion",
+                                    "Windows Defender exclusion added",
+                                    pattern(
+                                            "\\b(?:Add-MpPreference|Set-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_export_credentials",
                                     "Windows credential or certificate export",
                                     pattern(
