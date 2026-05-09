@@ -501,7 +501,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_script_policy_change",
                                     "package manager install script policy changed",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:ignore-scripts\\s+false|unsafe-perm\\s+true|enableScripts\\s+true)\\b|pnpm\\s+approve-builds\\b|bun\\s+pm\\s+trust\\b|yarn\\s+config\\s+set\\s+enableScripts\\s+true\\b)"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:ignore-scripts\\s+false|unsafe-perm\\s+true|enableScripts\\s+true|audit\\s+false|verify-store-integrity\\s+false|enableImmutableInstalls\\s+false|enableStrictSsl\\s+false)\\b|pnpm\\s+approve-builds\\b|bun\\s+pm\\s+trust\\b|yarn\\s+config\\s+set\\s+enableScripts\\s+true\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_remote_execute",

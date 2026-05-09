@@ -2236,8 +2236,11 @@ public class DangerousCommandApprovalServiceTest {
         List<String> packageManagerScriptPolicyChanges =
                 Arrays.asList(
                         "npm config set ignore-scripts false",
+                        "npm config set audit false",
                         "pnpm config set unsafe-perm true",
+                        "pnpm config set verify-store-integrity false",
                         "yarn config set enableScripts true",
+                        "yarn config set enableImmutableInstalls false",
                         "pnpm approve-builds",
                         "bun pm trust sharp");
         for (String command : packageManagerScriptPolicyChanges) {
