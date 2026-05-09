@@ -324,6 +324,27 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("approvals")
+                                .get("smartApprovalPolicy")
+                                .get("active")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("smartApprovalPolicy")
+                                .get("escalateFallsBackToHumanApproval")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("smartApprovalPolicy")))
+                .contains("approve")
+                .contains("deny")
+                .contains("tirithFindingsIncluded")
+                .contains("terminalGuardrailPrechecked");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
                                 .get("approvalPolicy")
                                 .get("dangerousRuleCount")
                                 .getInt())
@@ -360,6 +381,15 @@ public class ToolRegistryExposureTest {
                                 .get("approvalPolicy")
                                 .get("terminalGuardrailPolicy")
                                 .get("longLivedForegroundBlocked")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
+                                .get("smartApprovalPolicy")
+                                .get("judgeFailureFallsBackToHumanApproval")
                                 .getBoolean())
                 .isTrue();
         assertThat(
@@ -558,6 +588,14 @@ public class ToolRegistryExposureTest {
         assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("smartApproval").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("smartApprovalPolicy")
+                                .get("active")
+                                .getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("tirithSmartApproval").getBoolean())
                 .isTrue();

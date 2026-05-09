@@ -1291,6 +1291,7 @@ public class DangerousCommandApprovalService {
         summary.put("cronMode", cronApprovalMode());
         summary.put("subagentAutoApprove", Boolean.valueOf(isSubagentAutoApproveEnabled()));
         summary.put("smartJudgeConfigured", Boolean.valueOf(hasSmartApprovalJudge()));
+        summary.put("smartApprovalPolicy", smartApprovalPolicySummary());
         summary.put("dangerousRuleCount", Integer.valueOf(RULES.size()));
         summary.put("hardlineRuleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
         summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
@@ -1350,6 +1351,33 @@ public class DangerousCommandApprovalService {
         summary.put("approvalRequired", Boolean.FALSE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("description", "Hardline commands are blocked before approval handling and cannot be bypassed by slash approvals, session approvals, always approvals, smart approval, or yolo mode.");
+        return summary;
+    }
+
+    public Map<String, Object> smartApprovalPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        boolean smartMode = "smart".equals(approvalMode());
+        boolean judgeConfigured = hasSmartApprovalJudge();
+        summary.put("mode", approvalMode());
+        summary.put("smartMode", Boolean.valueOf(smartMode));
+        summary.put("judgeConfigured", Boolean.valueOf(judgeConfigured));
+        summary.put("active", Boolean.valueOf(smartMode && judgeConfigured));
+        summary.put("decisionTypes", Arrays.asList("approve", "escalate", "deny"));
+        summary.put("approveWritesSessionApproval", Boolean.TRUE);
+        summary.put("approveMarksCurrentThread", Boolean.TRUE);
+        summary.put("escalateFallsBackToHumanApproval", Boolean.TRUE);
+        summary.put("denyBlocksExecution", Boolean.TRUE);
+        summary.put("judgeFailureFallsBackToHumanApproval", Boolean.TRUE);
+        summary.put("hardlinePrechecked", Boolean.TRUE);
+        summary.put("filePolicyPrechecked", Boolean.TRUE);
+        summary.put("urlPolicyPrechecked", Boolean.TRUE);
+        summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
+        summary.put("tirithFindingsIncluded", Boolean.TRUE);
+        summary.put("subagentPolicyRunsAfterSmartApproval", Boolean.TRUE);
+        summary.put("approvalCardFallback", Boolean.TRUE);
+        summary.put("reasonStoredInBlockMessage", Boolean.TRUE);
+        summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("description", "Smart approval only evaluates commands that remain approvable after hardline, file, URL, and terminal guardrail checks; approvals become session-scoped while escalations fall back to human confirmation.");
         return summary;
     }
 

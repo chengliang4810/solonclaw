@@ -64,6 +64,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("cronMode")).isEqualTo("approve");
         assertThat(summary.get("subagentAutoApprove")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("smartJudgeConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("smartApprovalPolicy")))
+                .contains("approve")
+                .contains("escalate")
+                .contains("deny")
+                .contains("hardlinePrechecked");
         assertThat(((Integer) summary.get("dangerousRuleCount")).intValue()).isGreaterThan(50);
         assertThat(((Integer) summary.get("hardlineRuleCount")).intValue()).isGreaterThan(10);
         assertThat(String.valueOf(summary.get("dangerousRuleSamples"))).contains("recursive_delete");
@@ -92,6 +97,46 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/reload-mcp")
                 .contains("toolChangeNoticeInjected");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeSmartApprovalPolicySummary() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        env.dangerousCommandApprovalService.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.escalate("audit only");
+                    }
+                });
+
+        Map<String, Object> summary =
+                env.dangerousCommandApprovalService.smartApprovalPolicySummary();
+
+        assertThat(summary.get("mode")).isEqualTo("smart");
+        assertThat(summary.get("smartMode")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("judgeConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("active")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("decisionTypes")))
+                .contains("approve")
+                .contains("escalate")
+                .contains("deny");
+        assertThat(summary.get("approveWritesSessionApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approveMarksCurrentThread")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("escalateFallsBackToHumanApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("denyBlocksExecution")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("judgeFailureFallsBackToHumanApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("filePolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("terminalGuardrailPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tirithFindingsIncluded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("subagentPolicyRunsAfterSmartApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalCardFallback")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("reasonStoredInBlockMessage")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
     }
 
     @Test

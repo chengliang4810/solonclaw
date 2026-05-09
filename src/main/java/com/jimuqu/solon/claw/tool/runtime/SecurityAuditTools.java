@@ -118,6 +118,7 @@ public class SecurityAuditTools {
                 Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
         if (approvalService != null) {
             approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
+            approvals.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             approvals.put("auditLogPolicy", approvalService.approvalAuditPolicySummary());
             approvals.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
@@ -178,6 +179,9 @@ public class SecurityAuditTools {
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         coverage.put("smartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured));
+        if (approvalService != null) {
+            coverage.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
+        }
         coverage.put("tirithSmartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
         coverage.put("cronApprovalPolicy", Boolean.TRUE);
         coverage.put("subagentApprovalPolicy", Boolean.TRUE);
