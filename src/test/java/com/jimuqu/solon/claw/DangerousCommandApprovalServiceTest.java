@@ -906,6 +906,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
+        DangerousCommandApprovalService.DetectionResult awsSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws ec2 authorize-security-group-ingress --group-id sg-123 --cidr 0.0.0.0/0 --port 22");
         DangerousCommandApprovalService.DetectionResult awsStsRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws sts get-caller-identity");
@@ -915,6 +918,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult gcloudIamBinding =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud projects add-iam-policy-binding prod --member user:a@example.com --role roles/owner");
+        DangerousCommandApprovalService.DetectionResult gcloudFirewallCreate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gcloud compute firewall-rules create open-ssh --allow tcp:22 --source-ranges 0.0.0.0/0");
         DangerousCommandApprovalService.DetectionResult gcloudList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud compute instances list");
@@ -924,6 +930,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult azureRoleAssign =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az role assignment create --assignee app --role Owner");
+        DangerousCommandApprovalService.DetectionResult azureNsgRuleCreate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "az network nsg rule create --name open-ssh --source-address-prefixes Internet --destination-port-ranges 22");
         DangerousCommandApprovalService.DetectionResult azureList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group list");
@@ -1107,16 +1116,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
         assertThat(awsAttachPolicy).isNotNull();
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(awsSecurityGroupIngress).isNotNull();
+        assertThat(awsSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(awsStsRead).isNull();
         assertThat(gcloudDelete).isNotNull();
         assertThat(gcloudDelete.getPatternKey()).isEqualTo("gcloud_delete");
         assertThat(gcloudIamBinding).isNotNull();
         assertThat(gcloudIamBinding.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(gcloudFirewallCreate).isNotNull();
+        assertThat(gcloudFirewallCreate.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(gcloudList).isNull();
         assertThat(azureDelete).isNotNull();
         assertThat(azureDelete.getPatternKey()).isEqualTo("azure_delete");
         assertThat(azureRoleAssign).isNotNull();
         assertThat(azureRoleAssign.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(azureNsgRuleCreate).isNotNull();
+        assertThat(azureNsgRuleCreate.getPatternKey()).isEqualTo("cloud_network_exposure_change");
         assertThat(azureList).isNull();
         assertThat(dropdb).isNotNull();
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");

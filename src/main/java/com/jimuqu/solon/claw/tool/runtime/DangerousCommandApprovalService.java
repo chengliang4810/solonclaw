@@ -841,6 +841,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "cloud_network_exposure_change",
+                                    "Cloud network exposure rule changed",
+                                    pattern(
+                                            "\\b(?:aws\\s+ec2\\s+(?:authorize-security-group-ingress|modify-security-group-rules)\\b|gcloud\\s+compute\\s+firewall-rules\\s+(?:create|update)\\b|az\\s+network\\s+nsg\\s+rule\\s+(?:create|update)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "gcloud_delete",
                                     "Google Cloud resource delete",
                                     pattern(
