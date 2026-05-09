@@ -407,6 +407,8 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Move-Item token.json runtime\\config.yml",
                 "powershell_sensitive_file_copy");
+        assertDangerPattern(env, "cpi template.env .env.local", "powershell_sensitive_file_copy");
+        assertDangerPattern(env, "mi token.json credentials.json", "powershell_sensitive_file_copy");
         assertDangerPattern(
                 env,
                 "copy template.env .env.local /Y",
