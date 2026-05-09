@@ -904,6 +904,33 @@ public class ToolRegistryExposureTest {
                 .contains("blocked.example")
                 .contains("access_token")
                 .doesNotContain("secret-sudo");
+        ONode privateUrlPolicyDetails =
+                policyStatus.get("policy").get("coverage").get("privateUrlPolicyDetails");
+        assertThat(privateUrlPolicyDetails.get("allowPrivateUrls").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("cloudMetadataAlwaysBlocked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("dnsResolutionRequired").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("obfuscatedIpv4Checked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("ipv4MappedIpv6Checked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("loopbackBlocked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("linkLocalBlocked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("siteLocalBlocked").getBoolean()).isTrue();
+        assertThat(privateUrlPolicyDetails.get("reservedDocumentationRangesBlocked").getBoolean()).isTrue();
+        assertThat(String.valueOf(privateUrlPolicyDetails))
+                .contains("JIMUQU_ALLOW_PRIVATE_URLS")
+                .contains("metadata.google.internal")
+                .doesNotContain("secret-sudo");
+        ONode websitePolicyDetails =
+                policyStatus.get("policy").get("coverage").get("websitePolicyDetails");
+        assertThat(websitePolicyDetails.get("enabled").getBoolean()).isTrue();
+        assertThat(websitePolicyDetails.get("configuredDomainCount").getInt()).isEqualTo(1);
+        assertThat(websitePolicyDetails.get("hostRuleNormalization").getBoolean()).isTrue();
+        assertThat(websitePolicyDetails.get("wildcardSubdomainSupported").getBoolean()).isTrue();
+        assertThat(websitePolicyDetails.get("schemeAndPathIgnoredForRules").getBoolean()).isTrue();
+        assertThat(websitePolicyDetails.get("wwwPrefixIgnored").getBoolean()).isTrue();
+        assertThat(websitePolicyDetails.get("sharedFilePathSafetyChecked").getBoolean()).isTrue();
+        assertThat(String.valueOf(websitePolicyDetails))
+                .contains("blocked.example")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialMountPolicy").getBoolean())

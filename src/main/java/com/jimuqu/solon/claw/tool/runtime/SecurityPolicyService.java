@@ -494,6 +494,57 @@ public class SecurityPolicyService {
         return summary;
     }
 
+    public Map<String, Object> privateUrlPolicySummary() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        summary.put("allowPrivateUrls", Boolean.valueOf(resolveAllowPrivateUrls()));
+        summary.put("environmentOverrideName", "JIMUQU_ALLOW_PRIVATE_URLS");
+        summary.put("cloudMetadataAlwaysBlocked", Boolean.TRUE);
+        summary.put("dnsResolutionRequired", Boolean.TRUE);
+        summary.put("obfuscatedIpv4Checked", Boolean.TRUE);
+        summary.put("ipv4MappedIpv6Checked", Boolean.TRUE);
+        summary.put("loopbackBlocked", Boolean.TRUE);
+        summary.put("linkLocalBlocked", Boolean.TRUE);
+        summary.put("siteLocalBlocked", Boolean.TRUE);
+        summary.put("multicastBlocked", Boolean.TRUE);
+        summary.put("reservedDocumentationRangesBlocked", Boolean.TRUE);
+        summary.put("trustedPrivateIpHostCount", Integer.valueOf(TRUSTED_PRIVATE_IP_HOSTS.length));
+        summary.put("trustedPrivateIpHostSamples", sample(Arrays.asList(TRUSTED_PRIVATE_IP_HOSTS), 4));
+        summary.put("alwaysBlockedHostSamples", sample(Arrays.asList(ALWAYS_BLOCKED_HOSTS), 4));
+        summary.put("alwaysBlockedIpSamples", sample(Arrays.asList(ALWAYS_BLOCKED_IPS), 4));
+        summary.put("description", "Private URL safety resolves hosts and blocks loopback, link-local, private, multicast, documentation, and cloud metadata addresses unless private URL access is explicitly allowed.");
+        return summary;
+    }
+
+    public Map<String, Object> websitePolicySummary() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        AppConfig.WebsiteBlocklistConfig blocklist = websiteBlocklistConfig();
+        List<String> configuredDomains =
+                blocklist == null || blocklist.getDomains() == null
+                        ? Collections.<String>emptyList()
+                        : blocklist.getDomains();
+        List<String> configuredSharedFiles =
+                blocklist == null || blocklist.getSharedFiles() == null
+                        ? Collections.<String>emptyList()
+                        : blocklist.getSharedFiles();
+        SharedWebsiteRuleSummary shared = sharedWebsiteRuleSummary();
+        summary.put("enabled", Boolean.valueOf(blocklist != null && blocklist.isEnabled()));
+        summary.put("configuredDomainCount", Integer.valueOf(configuredDomains.size()));
+        summary.put("configuredDomainSamples", redactSample(configuredDomains, 6));
+        summary.put("sharedFileCount", Integer.valueOf(configuredSharedFiles.size()));
+        summary.put("sharedFileSamples", redactSample(configuredSharedFiles, 6));
+        summary.put("loadedSharedFileCount", Integer.valueOf(shared.loadedFileCount));
+        summary.put("skippedSharedFileCount", Integer.valueOf(shared.skippedFileCount));
+        summary.put("sharedRuleCount", Integer.valueOf(shared.ruleCount));
+        summary.put("sharedRuleSamples", redactSample(shared.ruleSamples, 6));
+        summary.put("hostRuleNormalization", Boolean.TRUE);
+        summary.put("wildcardSubdomainSupported", Boolean.TRUE);
+        summary.put("schemeAndPathIgnoredForRules", Boolean.TRUE);
+        summary.put("wwwPrefixIgnored", Boolean.TRUE);
+        summary.put("sharedFilePathSafetyChecked", Boolean.TRUE);
+        summary.put("description", "Website policy matches normalized host rules from configured domains and safe shared files before any network access.");
+        return summary;
+    }
+
     public Map<String, Object> pathPolicySummary() {
         Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
         String writeSafeRoot =
