@@ -1717,6 +1717,32 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_add_private_key");
         }
 
+        List<String> privateKeyMaterialExports =
+                Arrays.asList(
+                        "gpg --export-secret-keys deploy@example.com",
+                        "gpg2 --export-secret-keys KEYID > secret.asc",
+                        "openssl rsa -in private-prod.pem -out private-unprotected.pem",
+                        "openssl pkey -in id_rsa -out id_rsa.unprotected -nocrypt",
+                        "openssl pkcs12 -export -inkey private.key -out cert.pfx -nodes",
+                        "ssh-keygen -p -P oldpass -N '' -f ~/.ssh/id_rsa");
+        for (String command : privateKeyMaterialExports) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("private_key_material_export");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "gpg --export deploy@example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl x509 -in public-cert.pem -text -noout"))
+                .isNull();
+
         List<String> packageManagerSecretReads =
                 Arrays.asList(
                         "npm config get //registry.npmjs.org/:_authToken",

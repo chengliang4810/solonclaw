@@ -454,6 +454,12 @@ public class DangerousCommandApprovalService {
                                             "\\bssh-add\\b(?=[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\][^\\s\"'`]*(?:id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|\\.pem)\\b)(?![^\\n]*\\s-[lLdD]\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "private_key_material_export",
+                                    "export or unprotect private key material",
+                                    pattern(
+                                            "\\b(?:gpg(?:2)?\\s+--export-secret-keys\\b|openssl\\s+(?:rsa|pkey|pkcs12)\\b(?=[^\\n]*(?:\\s-out\\s+\\S+|\\s-export\\b))(?=[^\\n]*(?:\\s-nodes\\b|\\s-nocrypt\\b|\\s-passout\\s+pass:|\\s-in\\s+\\S*(?:id_(?:rsa|ed25519|ecdsa|dsa)|private|key|\\.pem)\\S*))|ssh-keygen\\s+-p\\b(?=[^\\n]*(?:\\s-N\\s+['\"]{0,2}|\\s-P\\s+\\S+)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "package_manager_secret_read",
                                     "read package manager credential",
                                     pattern(
