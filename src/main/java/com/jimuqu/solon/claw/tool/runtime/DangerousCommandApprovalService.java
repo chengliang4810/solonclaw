@@ -2034,7 +2034,9 @@ public class DangerousCommandApprovalService {
         }
 
         String action = stringValueStatic(map.get(CARD_ACTION_KEY)).toLowerCase(Locale.ROOT);
-        String approvalId = stringValueStatic(map.get(CARD_APPROVAL_ID_KEY));
+        String approvalId =
+                SecretRedactor.stripDisplayControls(stringValueStatic(map.get(CARD_APPROVAL_ID_KEY)))
+                        .trim();
         if (CARD_ACTION_DENY.equals(action)) {
             return StrUtil.isBlank(approvalId) ? "/deny" : "/deny " + approvalId;
         }

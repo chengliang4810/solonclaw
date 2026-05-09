@@ -4797,7 +4797,7 @@ public class DangerousCommandApprovalServiceTest {
                 DangerousCommandApprovalService.CARD_ACTION_KEY,
                 DangerousCommandApprovalService.CARD_ACTION_APPROVE);
         payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "always");
-        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123");
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval\u202E-123");
 
         assertThat(extras.get("approvalId")).isEqualTo("approval-123");
         assertThat(extras.get("mode"))

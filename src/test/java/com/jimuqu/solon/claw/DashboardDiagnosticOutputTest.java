@@ -301,8 +301,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(item.get("approval_key"))).isEqualTo("execute_shell:recursive_delete:***");
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("sessionId", record.getSessionId());
-        body.put("approvalId", selector);
+        body.put("sessionId", "session-legacy\u202E-approval");
+        body.put("approvalId", selector.substring(0, 8) + "\u202E" + selector.substring(8));
         body.put("action", "deny");
         body.put("resume", Boolean.FALSE);
         Map<String, Object> resolve = diagnosticsService.resolveApproval(body);

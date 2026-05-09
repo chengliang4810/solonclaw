@@ -822,7 +822,7 @@ public class DashboardDiagnosticsService {
 
     private String text(Map<String, Object> body, String key) {
         Object value = body.get(key);
-        return value == null ? null : String.valueOf(value);
+        return value == null ? null : SecretRedactor.stripDisplayControls(String.valueOf(value));
     }
 
     private Boolean bool(Map<String, Object> body, String key) {
