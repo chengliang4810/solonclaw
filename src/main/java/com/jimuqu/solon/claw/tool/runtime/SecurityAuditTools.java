@@ -159,6 +159,9 @@ public class SecurityAuditTools {
         terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
         terminal.put("sudoPasswordConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())));
         terminal.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
+        if (approvalService != null) {
+            terminal.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
+        }
         terminal.put(
                 "maxForegroundTimeoutSeconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));

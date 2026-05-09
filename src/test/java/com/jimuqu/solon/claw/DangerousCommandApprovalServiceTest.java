@@ -71,6 +71,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(String.valueOf(summary.get("terminalGuardrails"))).contains("long_lived_foreground");
         assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("backgroundProcessGuard")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("terminalGuardrailPolicy")))
+                .contains("nohup")
+                .contains("npm run dev")
+                .contains("execute_python");
         assertThat(String.valueOf(summary.get("slashConfirmPolicy")))
                 .contains("/approve")
                 .contains("/deny")
@@ -83,6 +87,45 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(String.valueOf(summary.get("mcpReloadPolicy")))
                 .contains("/reload-mcp")
                 .contains("toolChangeNoticeInjected");
+        assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeTerminalGuardrailPolicySummaryWithoutSecrets() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setSudoPassword("secret-sudo");
+        env.appConfig.getTerminal().setMaxForegroundTimeoutSeconds(123);
+        env.appConfig.getTerminal().setForegroundMaxRetries(4);
+        env.appConfig.getTerminal().setForegroundRetryBaseDelaySeconds(5);
+
+        Map<String, Object> summary =
+                env.dangerousCommandApprovalService.terminalGuardrailPolicySummary();
+
+        assertThat(String.valueOf(summary.get("backgroundShellWrappersBlocked")))
+                .contains("nohup")
+                .contains("disown")
+                .contains("setsid");
+        assertThat(summary.get("inlineAmpersandBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("trailingAmpersandBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("longLivedForegroundBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(((Integer) summary.get("longLivedForegroundPatternCount")).intValue())
+                .isGreaterThan(0);
+        assertThat(String.valueOf(summary.get("longLivedForegroundSamples")))
+                .contains("npm run dev")
+                .contains("docker compose up")
+                .contains("python -m http.server");
+        assertThat(summary.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("codeToolShellSources")))
+                .contains("execute_code")
+                .contains("execute_python")
+                .contains("execute_js");
+        assertThat(summary.get("managedBackgroundProcessRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("processRegistryBacked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sudoPasswordRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("foregroundMaxTimeoutSeconds")).isEqualTo(Integer.valueOf(123));
+        assertThat(summary.get("foregroundMaxRetries")).isEqualTo(Integer.valueOf(4));
+        assertThat(summary.get("foregroundRetryBaseDelaySeconds")).isEqualTo(Integer.valueOf(5));
         assertThat(summary.toString()).doesNotContain("secret-sudo");
     }
 

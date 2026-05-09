@@ -1304,6 +1304,7 @@ public class DangerousCommandApprovalService {
                         "long_lived_foreground"));
         summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
         summary.put("backgroundProcessGuard", Boolean.TRUE);
+        summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
         summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
@@ -1384,6 +1385,35 @@ public class DangerousCommandApprovalService {
         summary.put("oauthUrlSafetyCovered", Boolean.TRUE);
         summary.put("reloadHistoryNoticeRedacted", Boolean.TRUE);
         summary.put("description", "MCP reload can require slash confirmation, supports now/always overrides, persists the confirmation flag, and records tool-change notices for the next model turn.");
+        return summary;
+    }
+
+    public Map<String, Object> terminalGuardrailPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("backgroundShellWrappersBlocked", Arrays.asList("nohup", "disown", "setsid"));
+        summary.put("inlineAmpersandBlocked", Boolean.TRUE);
+        summary.put("trailingAmpersandBlocked", Boolean.TRUE);
+        summary.put("longLivedForegroundBlocked", Boolean.TRUE);
+        summary.put("longLivedForegroundPatternCount", Integer.valueOf(LONG_LIVED_FOREGROUND_PATTERNS.size()));
+        summary.put(
+                "longLivedForegroundSamples",
+                Arrays.asList(
+                        "npm run dev",
+                        "docker compose up",
+                        "vite",
+                        "python -m http.server"));
+        summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
+        summary.put(
+                "codeToolShellSources",
+                Arrays.asList("execute_code", "execute_python", "execute_js"));
+        summary.put("managedBackgroundProcessRequired", Boolean.TRUE);
+        summary.put("processRegistryBacked", Boolean.TRUE);
+        summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
+        summary.put("sudoPasswordRedacted", Boolean.TRUE);
+        summary.put("foregroundMaxTimeoutSeconds", Integer.valueOf(maxForegroundTimeoutSeconds()));
+        summary.put("foregroundMaxRetries", Integer.valueOf(foregroundMaxRetries()));
+        summary.put("foregroundRetryBaseDelaySeconds", Integer.valueOf(foregroundRetryBaseDelaySeconds()));
+        summary.put("description", "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
         return summary;
     }
 
@@ -2440,6 +2470,24 @@ public class DangerousCommandApprovalService {
         return appConfig != null
                 && appConfig.getTerminal() != null
                 && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
+    }
+
+    private int maxForegroundTimeoutSeconds() {
+        return appConfig == null || appConfig.getTerminal() == null
+                ? 0
+                : appConfig.getTerminal().getMaxForegroundTimeoutSeconds();
+    }
+
+    private int foregroundMaxRetries() {
+        return appConfig == null || appConfig.getTerminal() == null
+                ? 0
+                : appConfig.getTerminal().getForegroundMaxRetries();
+    }
+
+    private int foregroundRetryBaseDelaySeconds() {
+        return appConfig == null || appConfig.getTerminal() == null
+                ? 0
+                : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();
     }
 
     protected String jimuquYoloModeEnv() {

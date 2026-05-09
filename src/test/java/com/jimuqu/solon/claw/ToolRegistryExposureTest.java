@@ -349,12 +349,22 @@ public class ToolRegistryExposureTest {
                                 .get("policy")
                                 .get("approvals")
                                 .get("approvalPolicy")
+                                .get("terminalGuardrailPolicy")
+                                .get("longLivedForegroundBlocked")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
                                 .get("backgroundProcessGuard")
                                 .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("approvalPolicy")))
                 .contains("recursive_delete")
                 .contains("long_lived_foreground")
+                .contains("terminalGuardrailPolicy")
                 .contains("slashConfirmPolicy")
                 .contains("/approve")
                 .contains("/deny")
@@ -512,6 +522,27 @@ public class ToolRegistryExposureTest {
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("terminalGuardrailPolicy")
+                                .get("sudoRewriteConfigured")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("terminalGuardrailPolicy")
+                                .get("codeToolShellExtractionCovered")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("terminalGuardrailPolicy")))
+                .contains("nohup")
+                .contains("npm run dev")
+                .contains("execute_python")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("smartApproval").getBoolean())
