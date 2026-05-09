@@ -70,6 +70,15 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldExposeCliParityCommandsInCompletion() throws Exception {
+        Field field = TuiShell.class.getDeclaredField("COMMANDS");
+        field.setAccessible(true);
+        String[] commands = (String[]) field.get(null);
+
+        assertThat(commands).contains("/reasoning", "/platforms", "/quit");
+    }
+
+    @Test
     void shouldRenderLastTerminalEvents() throws Exception {
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null));
         Field field = TuiShell.class.getDeclaredField("lastEventSnapshot");
