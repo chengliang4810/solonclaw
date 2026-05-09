@@ -666,7 +666,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_recovery",
                                     "Windows recovery disabled or boot entry removed",
                                     pattern(
-                                            "\\b(?:reagentc\\s+/disable|bcdedit\\s+/(?:delete|deletevalue|set)\\b)"),
+                                            "\\b(?:reagentc\\s+[-/]disable|bcdedit\\s+[-/](?:delete|deletevalue|set)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "python_rmtree",
