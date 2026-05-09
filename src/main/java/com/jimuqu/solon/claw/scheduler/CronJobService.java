@@ -974,9 +974,17 @@ public class CronJobService {
         if (value == null) {
             return result;
         }
+        if (value instanceof Map) {
+            addString(result, structuredTarget((Map<?, ?>) value));
+            return result;
+        }
         if (value instanceof Iterable) {
             for (Object item : (Iterable<Object>) value) {
-                addString(result, item);
+                if (item instanceof Map) {
+                    addString(result, structuredTarget((Map<?, ?>) item));
+                } else {
+                    addString(result, item);
+                }
             }
             return result;
         }
@@ -985,7 +993,11 @@ public class CronJobService {
             Object data = ONode.ofJson(text).toData();
             if (data instanceof Iterable) {
                 for (Object item : (Iterable<Object>) data) {
-                    addString(result, item);
+                    if (item instanceof Map) {
+                        addString(result, structuredTarget((Map<?, ?>) item));
+                    } else {
+                        addString(result, item);
+                    }
                 }
                 return result;
             }
@@ -994,6 +1006,29 @@ public class CronJobService {
             addString(result, part);
         }
         return result;
+    }
+
+    private String structuredTarget(Map<?, ?> value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        String platform = firstString(value, "platform", "type", "channel");
+        String chatId = firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
+        String threadId = firstString(value, "thread_id", "threadId", "message_id", "messageId");
+        if (StrUtil.isBlank(platform)) {
+            return null;
+        }
+        if ("local".equalsIgnoreCase(platform) || "origin".equalsIgnoreCase(platform)) {
+            return platform.trim();
+        }
+        StringBuilder builder = new StringBuilder(platform.trim());
+        if (StrUtil.isNotBlank(chatId)) {
+            builder.append(':').append(chatId.trim());
+        }
+        if (StrUtil.isNotBlank(threadId)) {
+            builder.append(':').append(threadId.trim());
+        }
+        return builder.toString();
     }
 
     private void applyModelPin(CronJobRecord record, String model, String provider, String baseUrl) {

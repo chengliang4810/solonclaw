@@ -166,6 +166,18 @@ public class DefaultCronSchedulerTest {
         CronJobRecord job = service.create("MEMORY:cron:user", validCreate);
         assertThat(job.getDeliverPlatform()).isEqualTo("origin,FEISHU:chat-1:thread-2");
 
+        Map<String, Object> structuredTarget = new LinkedHashMap<String, Object>();
+        structuredTarget.put("platform", "MEMORY");
+        structuredTarget.put("chat_id", "structured-room");
+        structuredTarget.put("thread_id", "thread-9");
+        Map<String, Object> structuredCreate = new LinkedHashMap<String, Object>();
+        structuredCreate.put("name", "structured-deliver");
+        structuredCreate.put("schedule", "30m");
+        structuredCreate.put("prompt", "check");
+        structuredCreate.put("deliver", structuredTarget);
+        CronJobRecord structuredJob = service.create("MEMORY:cron:user", structuredCreate);
+        assertThat(structuredJob.getDeliverPlatform()).isEqualTo("MEMORY:structured-room:thread-9");
+
         Map<String, Object> invalidUpdate = new LinkedHashMap<String, Object>();
         invalidUpdate.put("deliver", "discord");
         assertThatThrownBy(
@@ -178,6 +190,13 @@ public class DefaultCronSchedulerTest {
                 .hasMessageContaining("unknown cron delivery platform: discord");
         assertThat(env.cronJobRepository.findById(job.getJobId()).getDeliverPlatform())
                 .isEqualTo("origin,FEISHU:chat-1:thread-2");
+
+        Map<String, Object> originTarget = new LinkedHashMap<String, Object>();
+        originTarget.put("platform", "origin");
+        Map<String, Object> update = new LinkedHashMap<String, Object>();
+        update.put("deliver", java.util.Arrays.asList(originTarget, structuredTarget));
+        CronJobRecord updatedStructuredJob = service.update(structuredJob.getJobId(), update);
+        assertThat(updatedStructuredJob.getDeliverPlatform()).isEqualTo("origin,MEMORY:structured-room:thread-9");
     }
 
     @Test
