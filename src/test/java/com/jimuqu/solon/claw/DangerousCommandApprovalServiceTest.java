@@ -3642,6 +3642,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict powershellProxyServerPrivate =
                 securityPolicyService.checkCommandUrls(
                         "iwr https://safe.example -ProxyServer http://127.0.0.1:8080");
+        SecurityPolicyService.UrlVerdict javaHttpProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "java -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=8080 -jar app.jar");
+        SecurityPolicyService.UrlVerdict javaSocksProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "java -DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080 -jar app.jar");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3705,6 +3711,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(powershellProxyUriMetadata.getMessage()).contains("元数据");
         assertThat(powershellProxyServerPrivate.isAllowed()).isFalse();
         assertThat(powershellProxyServerPrivate.getMessage()).contains("内网");
+        assertThat(javaHttpProxyPrivate.isAllowed()).isFalse();
+        assertThat(javaHttpProxyPrivate.getMessage()).contains("内网");
+        assertThat(javaSocksProxyMetadata.isAllowed()).isFalse();
+        assertThat(javaSocksProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test

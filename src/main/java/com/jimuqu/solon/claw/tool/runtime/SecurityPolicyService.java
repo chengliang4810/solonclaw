@@ -1121,6 +1121,8 @@ public class SecurityPolicyService {
                 value = token.substring("-ProxyUri:".length());
             } else if (startsWithProxyOption(token, "-ProxyServer:")) {
                 value = token.substring("-ProxyServer:".length());
+            } else if (isJavaProxyHostProperty(token)) {
+                value = token.substring(token.indexOf('=') + 1);
             } else if (isProxyEnvironmentAssignment(token)) {
                 value = token.substring(token.indexOf('=') + 1);
             }
@@ -1132,6 +1134,21 @@ public class SecurityPolicyService {
         return token != null
                 && token.length() > prefix.length()
                 && token.regionMatches(true, 0, prefix, 0, prefix.length());
+    }
+
+    private boolean isJavaProxyHostProperty(String token) {
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 2) {
+            return false;
+        }
+        String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return "-dhttp.proxyhost".equals(name)
+                || "-dhttps.proxyhost".equals(name)
+                || "-dftp.proxyhost".equals(name)
+                || "-dsocksproxyhost".equals(name);
     }
 
     private boolean isProxyEnvironmentAssignment(String token) {
