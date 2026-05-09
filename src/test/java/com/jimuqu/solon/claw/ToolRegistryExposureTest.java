@@ -803,6 +803,22 @@ public class ToolRegistryExposureTest {
                 .contains("patternAndFormatStripped")
                 .contains("unsupportedKeywordsStripped")
                 .contains("snack4");
+        assertThat(policyStatus.get("policy").get("coverage").get("patchParser").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("patchParserPolicy")
+                                .get("atomicValidationBeforeWrite")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("patchParserPolicy")))
+                .contains("V4A")
+                .contains("replaceRequiresUniqueMatchByDefault")
+                .contains("moveWillNotOverwriteDestination")
+                .contains("symlinkEscapeBlocked")
+                .contains("credentialPolicyPrechecked");
         assertThat(policyStatus.get("policy").get("coverage").get("toolResultStorage").getBoolean())
                 .isTrue();
         assertThat(

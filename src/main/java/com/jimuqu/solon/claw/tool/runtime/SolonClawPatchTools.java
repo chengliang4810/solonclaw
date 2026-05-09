@@ -10,8 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -44,6 +47,36 @@ public class SolonClawPatchTools {
             Files.createDirectories(this.rootPath);
         } catch (IOException ignored) {
         }
+    }
+
+    public static Map<String, Object> patchParserPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("enabled", Boolean.TRUE);
+        summary.put("toolName", "patch");
+        summary.put("modes", Arrays.asList("replace", "patch"));
+        summary.put("patchFormat", "V4A");
+        summary.put("beginEndMarkersRequired", Boolean.TRUE);
+        summary.put("operations", Arrays.asList("update", "add", "delete", "move", "moveTo"));
+        summary.put("atomicValidationBeforeWrite", Boolean.TRUE);
+        summary.put("noPartialWritesOnValidationFailure", Boolean.TRUE);
+        summary.put("replaceRequiresUniqueMatchByDefault", Boolean.TRUE);
+        summary.put("replaceAllRequiresExplicitFlag", Boolean.TRUE);
+        summary.put("additionOnlyContextHintsSupported", Boolean.TRUE);
+        summary.put("ambiguousHunksBlocked", Boolean.TRUE);
+        summary.put("missingHunksBlocked", Boolean.TRUE);
+        summary.put("addWillNotOverwriteExistingFile", Boolean.TRUE);
+        summary.put("moveWillNotOverwriteDestination", Boolean.TRUE);
+        summary.put("deleteRequiresExistingFile", Boolean.TRUE);
+        summary.put("pathTraversalBlocked", Boolean.TRUE);
+        summary.put("nulPathBlocked", Boolean.TRUE);
+        summary.put("jarInternalPathBlocked", Boolean.TRUE);
+        summary.put("symlinkEscapeBlocked", Boolean.TRUE);
+        summary.put("credentialPolicyPrechecked", Boolean.TRUE);
+        summary.put("moveDestinationPolicyChecked", Boolean.TRUE);
+        summary.put("errorsRedacted", Boolean.TRUE);
+        summary.put("staleFileWarnings", Boolean.TRUE);
+        summary.put("diffReturned", Boolean.TRUE);
+        return summary;
     }
 
     @ToolMapping(

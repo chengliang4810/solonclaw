@@ -15,6 +15,26 @@ import org.noear.snack4.ONode;
 
 public class SolonClawPatchToolsTest {
     @Test
+    void shouldExposePatchParserPolicySummary() {
+        Map<String, Object> summary = SolonClawPatchTools.patchParserPolicySummary();
+
+        assertThat(summary.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("toolName")).isEqualTo("patch");
+        assertThat(summary.get("atomicValidationBeforeWrite")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("noPartialWritesOnValidationFailure")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("replaceRequiresUniqueMatchByDefault")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pathTraversalBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary))
+                .contains("replace")
+                .contains("V4A")
+                .contains("update")
+                .contains("moveTo")
+                .contains("symlinkEscapeBlocked")
+                .contains("staleFileWarnings");
+    }
+
+    @Test
     void shouldReplaceUniqueString() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("src/app.txt");
