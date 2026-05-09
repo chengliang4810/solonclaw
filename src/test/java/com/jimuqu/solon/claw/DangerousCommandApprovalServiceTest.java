@@ -912,6 +912,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsS3RecursiveRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3 rm s3://prod-data --recursive");
+        DangerousCommandApprovalService.DetectionResult ossRecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ossutil rm -r oss://prod-data/private");
+        DangerousCommandApprovalService.DetectionResult cosRecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "coscli rm -r cos://prod-data/private");
+        DangerousCommandApprovalService.DetectionResult obsRecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "obsutil rm -r obs://prod-data/private");
         DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
@@ -1150,6 +1159,15 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("domestic_cloud_destructive_resource");
         assertThat(awsS3RecursiveRemove).isNotNull();
         assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
+        assertThat(ossRecursiveRemove).isNotNull();
+        assertThat(ossRecursiveRemove.getPatternKey())
+                .isEqualTo("domestic_object_storage_recursive_remove");
+        assertThat(cosRecursiveRemove).isNotNull();
+        assertThat(cosRecursiveRemove.getPatternKey())
+                .isEqualTo("domestic_object_storage_recursive_remove");
+        assertThat(obsRecursiveRemove).isNotNull();
+        assertThat(obsRecursiveRemove.getPatternKey())
+                .isEqualTo("domestic_object_storage_recursive_remove");
         assertThat(awsAttachPolicy).isNotNull();
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsSecurityGroupIngress).isNotNull();

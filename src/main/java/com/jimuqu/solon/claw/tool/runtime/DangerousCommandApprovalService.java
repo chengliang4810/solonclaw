@@ -841,6 +841,12 @@ public class DangerousCommandApprovalService {
                                             "\\baws\\s+s3\\s+rm\\b(?=[^\\n]*(?:--recursive\\b|s3://))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "domestic_object_storage_recursive_remove",
+                                    "Domestic object storage recursive remove",
+                                    pattern(
+                                            "\\b(?:ossutil|coscli|obsutil)\\s+(?:rm|delete)\\b(?=[^\\n]*(?:\\s-r\\b|\\s--recursive\\b|oss://|cos://|obs://))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "cloud_iam_permission_change",
                                     "Cloud IAM permission change",
                                     pattern(
