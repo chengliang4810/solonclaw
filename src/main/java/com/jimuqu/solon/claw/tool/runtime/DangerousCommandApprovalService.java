@@ -441,7 +441,9 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--proxy-header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "\\s*:)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
+                                                    + "\\s*:)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*[\"']?\\s*=)"),
                                     ToolNameConstants.EXECUTE_SHELL),

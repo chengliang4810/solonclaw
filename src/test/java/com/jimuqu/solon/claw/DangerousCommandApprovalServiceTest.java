@@ -1602,6 +1602,9 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --proxy-header 'Proxy-Authorization: Basic abc' https://example.com",
                         "curl --proxy-header=Proxy-Authorization:Basic https://example.com",
                         "wget --header 'Cookie: session=a' https://example.com",
+                        "http GET https://example.com Authorization:'Bearer token-a'",
+                        "https POST https://example.com x-api-key:token-a",
+                        "xh https://example.com X-Auth-Token:token-a",
                         "iwr https://example.com -Headers @{ Authorization = 'Bearer token-a' }",
                         "Invoke-RestMethod https://example.com -Headers @{ 'x-auth-token' = 'token-a' }");
         for (String command : commands) {
@@ -1618,6 +1621,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "curl -H 'User-Agent: test' https://example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "http GET https://example.com Accept:application/json"))
                 .isNull();
     }
 
