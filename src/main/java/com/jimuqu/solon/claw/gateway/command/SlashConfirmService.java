@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.gateway.command;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +37,7 @@ public class SlashConfirmService {
             String sourceKey, String command, String prompt, boolean allowAlways) {
         PendingConfirm confirm = new PendingConfirm();
         confirm.setConfirmId(com.jimuqu.solon.claw.support.IdSupport.newId());
-        confirm.setSourceKey(StrUtil.nullToEmpty(sourceKey));
+        confirm.setSourceKey(cleanDisplay(sourceKey));
         confirm.setCommand(StrUtil.nullToEmpty(command));
         confirm.setPrompt(StrUtil.nullToEmpty(prompt));
         confirm.setAllowAlways(allowAlways);
@@ -46,12 +47,13 @@ public class SlashConfirmService {
     }
 
     public synchronized PendingConfirm getPending(String sourceKey) {
-        PendingConfirm confirm = pendingBySource.get(StrUtil.nullToEmpty(sourceKey));
+        String key = cleanDisplay(sourceKey);
+        PendingConfirm confirm = pendingBySource.get(key);
         if (confirm == null) {
             return null;
         }
         if (isExpired(confirm)) {
-            pendingBySource.remove(StrUtil.nullToEmpty(sourceKey));
+            pendingBySource.remove(key);
             return null;
         }
         return confirm.copy();
@@ -83,7 +85,7 @@ public class SlashConfirmService {
     }
 
     private PendingConfirm resolve(String sourceKey, String confirmId, boolean requireConfirmId) {
-        String key = StrUtil.nullToEmpty(sourceKey);
+        String key = cleanDisplay(sourceKey);
         PendingConfirm confirm = pendingBySource.get(key);
         if (confirm == null) {
             return null;
@@ -94,8 +96,8 @@ public class SlashConfirmService {
         }
         if (requireConfirmId
                 && !StrUtil.equals(
-                        StrUtil.nullToEmpty(confirm.getConfirmId()),
-                        StrUtil.nullToEmpty(confirmId))) {
+                        cleanDisplay(confirm.getConfirmId()),
+                        cleanDisplay(confirmId))) {
             return null;
         }
         pendingBySource.remove(key);
@@ -103,11 +105,11 @@ public class SlashConfirmService {
     }
 
     public synchronized boolean clear(String sourceKey) {
-        return pendingBySource.remove(StrUtil.nullToEmpty(sourceKey)) != null;
+        return pendingBySource.remove(cleanDisplay(sourceKey)) != null;
     }
 
     public synchronized boolean clearIfStale(String sourceKey, long timeoutMs) {
-        String key = StrUtil.nullToEmpty(sourceKey);
+        String key = cleanDisplay(sourceKey);
         PendingConfirm confirm = pendingBySource.get(key);
         if (confirm == null || !isExpired(confirm, timeoutMs)) {
             return false;
@@ -171,11 +173,15 @@ public class SlashConfirmService {
     }
 
     private String normalizeCommand(String command) {
-        String value = StrUtil.nullToEmpty(command).trim().toLowerCase();
+        String value = cleanDisplay(command).trim().toLowerCase();
         while (value.startsWith("/")) {
             value = value.substring(1);
         }
         return value;
+    }
+
+    private String cleanDisplay(String value) {
+        return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value));
     }
 
     public static class PendingConfirm {

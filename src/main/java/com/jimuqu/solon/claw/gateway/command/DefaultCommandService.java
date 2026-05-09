@@ -1643,7 +1643,7 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String[] slashConfirmTokens(String raw) {
-        String value = StrUtil.nullToEmpty(raw).trim();
+        String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw)).trim();
         if (StrUtil.isBlank(value)) {
             return new String[0];
         }
@@ -1651,7 +1651,7 @@ public class DefaultCommandService implements CommandService {
     }
 
     private boolean isSlashConfirmIdToken(String value) {
-        String token = StrUtil.nullToEmpty(value).trim();
+        String token = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         return token.length() == 32 && token.matches("[0-9a-fA-F]+");
     }
 
@@ -1690,7 +1690,10 @@ public class DefaultCommandService implements CommandService {
     }
 
     private String normalizeSlashConfirmChoice(String raw) {
-        String value = StrUtil.nullToEmpty(raw).trim().toLowerCase();
+        String value =
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(raw))
+                        .trim()
+                        .toLowerCase();
         if (StrUtil.isBlank(value)
                 || "once".equals(value)
                 || "now".equals(value)

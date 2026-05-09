@@ -1457,7 +1457,9 @@ public class DashboardControllerHttpTest {
                         "POST",
                         "/api/diagnostics/slash-confirms/resolve",
                         "{\"confirmId\":\""
-                                + jsonEscape(confirmId)
+                                + jsonEscape(confirmId.substring(0, 8)
+                                        + "\u202E"
+                                        + confirmId.substring(8))
                                 + "\",\"action\":\"deny\"}",
                         token);
         assertThat(resolve.status).isEqualTo(200);
@@ -1539,6 +1541,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"prompt_preview\":\"确认刷新 Authorization: Bearer ***\"")
                 .contains("\"command_preview\":\"reload-mcp --token=***\"")
                 .contains("\"source_ref\"")
+                .doesNotContain("\\u202E")
                 .contains("Authorization: Bearer ***")
                 .contains("reload-mcp --token=***")
                 .doesNotContain("\"prompt\":")

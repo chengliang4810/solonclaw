@@ -70,6 +70,27 @@ public class SlashConfirmServiceTest {
     }
 
     @Test
+    void shouldStripDisplayControlsFromSourceKeyAndConfirmId() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+        SlashConfirmService.PendingConfirm registered =
+                service.register("source\u202E-a", "reload-mcp", "reload?");
+
+        SlashConfirmService.PendingConfirm pending = service.getPending("source-a");
+        SlashConfirmService.PendingConfirm resolved =
+                service.resolve(
+                        "source-a",
+                        registered.getConfirmId().substring(0, 8)
+                                + "\u202E"
+                                + registered.getConfirmId().substring(8));
+
+        assertThat(pending).isNotNull();
+        assertThat(pending.getSourceKey()).isEqualTo("source-a");
+        assertThat(resolved).isNotNull();
+        assertThat(resolved.getSourceKey()).isEqualTo("source-a");
+        assertThat(service.getPending("source-a")).isNull();
+    }
+
+    @Test
     void shouldNotResolveConfirmIdMismatchAndKeepPendingEntry() {
         SlashConfirmService service = new SlashConfirmService(new MemorySettings());
         SlashConfirmService.PendingConfirm registered =
