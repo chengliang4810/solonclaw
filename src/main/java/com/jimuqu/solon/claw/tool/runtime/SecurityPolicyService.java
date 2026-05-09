@@ -1373,9 +1373,19 @@ public class SecurityPolicyService {
                 || "dirnames".equals(normalized)
                 || "directory".equals(normalized)
                 || "directories".equals(normalized)
+                || "output_file".equals(normalized)
+                || "outputfile".equals(normalized)
+                || "out_file".equals(normalized)
+                || "outfile".equals(normalized)
+                || "destination".equals(normalized)
+                || "dest".equals(normalized)
+                || "target_file".equals(normalized)
+                || "targetfile".equals(normalized)
                 || normalized.endsWith("_path")
                 || normalized.endsWith("_paths")
-                || normalized.endsWith("path");
+                || normalized.endsWith("path")
+                || normalized.endsWith("_file")
+                || normalized.endsWith("file");
     }
 
     private static List<String> toolArgsUrlKeySamples() {
@@ -1399,6 +1409,8 @@ public class SecurityPolicyService {
                 "file_path",
                 "dir",
                 "directory",
+                "output_file",
+                "destination",
                 "*_path");
     }
 

@@ -3267,6 +3267,12 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> nestedWriteArgs = new LinkedHashMap<String, Object>();
         nestedWriteArgs.put("path", "D:/workspace/other/tool-name-write.txt");
         nestedWriteTool.put("tool_args", nestedWriteArgs);
+        Map<String, Object> outputFileWrite = new LinkedHashMap<String, Object>();
+        outputFileWrite.put("action", "save");
+        outputFileWrite.put("output_file", "D:/workspace/other/output.txt");
+        Map<String, Object> destinationWrite = new LinkedHashMap<String, Object>();
+        destinationWrite.put("operation", "write");
+        destinationWrite.put("destination", ".env.local");
 
         SecurityPolicyService.FileVerdict write =
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericWrite);
@@ -3276,6 +3282,10 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericRead);
         SecurityPolicyService.FileVerdict toolNameWrite =
                 securityPolicyService.checkFileToolArgs("tool_gateway", nestedWriteTool);
+        SecurityPolicyService.FileVerdict outputFile =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", outputFileWrite);
+        SecurityPolicyService.FileVerdict destination =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", destinationWrite);
 
         assertThat(write.isAllowed()).isFalse();
         assertThat(write.getMessage()).contains("安全写入根");
@@ -3287,6 +3297,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(toolNameWrite.isAllowed()).isFalse();
         assertThat(toolNameWrite.getMessage()).contains("安全写入根");
         assertThat(toolNameWrite.getPath()).isEqualTo("D:/workspace/other/tool-name-write.txt");
+        assertThat(outputFile.isAllowed()).isFalse();
+        assertThat(outputFile.getMessage()).contains("安全写入根");
+        assertThat(outputFile.getPath()).isEqualTo("D:/workspace/other/output.txt");
+        assertThat(destination.isAllowed()).isFalse();
+        assertThat(destination.getMessage()).contains("凭据");
+        assertThat(destination.getPath()).isEqualTo(".env.local");
     }
 
     @Test
