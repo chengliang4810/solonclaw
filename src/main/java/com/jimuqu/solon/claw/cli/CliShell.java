@@ -23,7 +23,7 @@ public class CliShell {
                 "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
                 "/cron", "/approve", "/kanban", "/deny", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/platforms", "/models", "/sessions", "/session",
-                "/history", "/tasks", "/attachments", "/transcript", "/copy", "/exit", "/quit",
+                "/history", "/events", "/tasks", "/attachments", "/transcript", "/tips", "/copy", "/exit", "/quit",
                 "/exit!", "/quit!"
             };
 
@@ -157,6 +157,7 @@ public class CliShell {
         String value = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
+                || TerminalTips.isTipsCommand(value)
                 || "/tasks".equalsIgnoreCase(value)
                 || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
@@ -208,6 +209,11 @@ public class CliShell {
         }
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
+        }
+        if (TerminalTips.isTipsCommand(trimmed)) {
+            writer.println(TerminalTips.render());
+            writer.flush();
+            return 0;
         }
         if ("/tasks".equalsIgnoreCase(trimmed)) {
             writer.println(taskRunner == null ? "暂无终端后台任务。" : taskRunner.renderTasks());
