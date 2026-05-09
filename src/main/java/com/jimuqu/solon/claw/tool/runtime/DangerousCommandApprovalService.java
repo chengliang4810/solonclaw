@@ -460,7 +460,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--json)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-(?:Credential|ProxyCredential|Token|Certificate|CertificateThumbprint)\\b\\s*(?::|=|\\s+)\\S|\\s-(?:UseDefaultCredentials|ProxyUseDefaultCredentials)\\b(?!\\s*:\\s*\\$?false\\b)|\\s-Body\\b\\s*(?::|=|\\s+)\\s*(?:@\\{[^\\n}]*[\"']?\\s*"
+                                                    + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-(?:Credential|ProxyCredential|Token|Certificate|CertificateThumbprint)\\b\\s*(?::|=|\\s+)\\S|\\s-(?:UseDefaultCredentials|ProxyUseDefaultCredentials)\\b(?!\\s*:\\s*\\$?false\\b)|\\s-(?:Body|Form)\\b\\s*(?::|=|\\s+)\\s*(?:@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*[\"']?\\s*=|[\"']?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
@@ -470,7 +470,7 @@ public class DangerousCommandApprovalService {
                                     "network_credential_file_send",
                                     "send credential from local netrc or cookie file",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|cacert|capath)(?:=|\\s+)\\S+|\\s-E\\s+\\S+|\\s-[bcE]\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies)(?:=|\\s+)\\S|\\s-K\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|cacert|capath)(?:=|\\s+)\\S+|\\s-E\\s+\\S+|\\s-[bcEK]\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s-T\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[^\\s'\"|;&]*=@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
