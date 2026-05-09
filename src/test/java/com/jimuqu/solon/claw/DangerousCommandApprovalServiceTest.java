@@ -1343,6 +1343,23 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("package_manager_secret_write");
         }
 
+        List<String> packageManagerSourceChanges =
+                Arrays.asList(
+                        "npm config set registry https://registry.internal.example/",
+                        "pnpm config set registry http://127.0.0.1:4873/",
+                        "yarn config set npmRegistryServer https://mirror.example/npm/",
+                        "pip config set global.index-url https://mirror.example/simple",
+                        "pip config set global.extra-index-url https://extra.example/simple",
+                        "pip config set global.trusted-host mirror.example");
+        for (String command : packageManagerSourceChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_source_change");
+        }
+
         List<String> packageManagerRemoteExecutes =
                 Arrays.asList(
                         "npx cowsay hello",
@@ -1383,6 +1400,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config set registry https://registry.npmjs.org/"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "pnpm config set registry https://registry.npmjs.org"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "npm run build"))
                 .isNull();
