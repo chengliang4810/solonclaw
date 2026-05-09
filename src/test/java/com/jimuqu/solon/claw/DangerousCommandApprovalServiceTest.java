@@ -426,6 +426,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "diskpart /?"))
                 .isNull();
         assertDangerPattern(
+                env, "taskkill /PID 1234 /F", "windows_taskkill");
+        assertDangerPattern(
+                env, "taskkill -PID 1234 -F", "windows_taskkill");
+        assertDangerPattern(
                 env,
                 "vssadmin delete shadows /all /quiet",
                 "windows_delete_shadow_copies");

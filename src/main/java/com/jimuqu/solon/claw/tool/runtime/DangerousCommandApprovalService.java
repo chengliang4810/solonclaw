@@ -562,7 +562,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_taskkill",
                                     "Windows force kill",
-                                    pattern("\\btaskkill\\b.*\\s/f\\b"),
+                                    pattern("\\btaskkill\\b.*\\s[-/]f\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_stop_process",
