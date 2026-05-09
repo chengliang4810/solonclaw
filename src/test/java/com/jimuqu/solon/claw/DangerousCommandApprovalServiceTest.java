@@ -331,6 +331,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_execution_policy_weaken");
         assertDangerPattern(
                 env,
+                "powershell.exe -NoProfile -ExecutionPolicy Bypass -File setup.ps1",
+                "windows_execution_policy_weaken");
+        assertDangerPattern(
+                env,
+                "pwsh -ep Unrestricted -Command ./setup.ps1",
+                "windows_execution_policy_weaken");
+        assertDangerPattern(
+                env,
                 "powershell.exe -NoProfile -EncodedCommand SQBFAFgA",
                 "windows_powershell_encoded_command");
         assertDangerPattern(

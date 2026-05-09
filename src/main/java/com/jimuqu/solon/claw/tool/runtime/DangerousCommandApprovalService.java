@@ -589,7 +589,7 @@ public class DangerousCommandApprovalService {
                                     "windows_execution_policy_weaken",
                                     "PowerShell execution policy weakened",
                                     pattern(
-                                            "\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)"),
+                                            "(?:\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)|\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:-ExecutionPolicy|-ep)\\s+(?:Bypass|Unrestricted)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_encoded_command",
