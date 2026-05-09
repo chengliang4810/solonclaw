@@ -27,10 +27,15 @@ public class DashboardRuntimeConfigController {
 
     @Mapping(value = "/api/runtime-config", method = MethodType.PUT)
     public Map<String, Object> set(Context context) throws Exception {
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(
-                runtimeConfigService.set(
-                        body.get("key").getString(), body.get("value").getString()));
+        try {
+            ONode body = ONode.ofJson(context.body());
+            return DashboardResponse.ok(
+                    runtimeConfigService.set(
+                            body.get("key").getString(), body.get("value").getString()));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/runtime-config", method = MethodType.DELETE)
@@ -41,9 +46,15 @@ public class DashboardRuntimeConfigController {
             key = body.get("key").getString();
         }
         if (StrUtil.isBlank(key)) {
-            throw new IllegalArgumentException("配置项 key 不能为空");
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", "配置项 key 不能为空");
         }
-        return DashboardResponse.ok(runtimeConfigService.remove(key));
+        try {
+            return DashboardResponse.ok(runtimeConfigService.remove(key));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/runtime-config/reveal", method = MethodType.POST)

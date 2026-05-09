@@ -2224,7 +2224,11 @@ public class DashboardControllerHttpTest {
                         "/api/runtime-config",
                         "{\"key\":\"providers.default.apiKey\",\"value\":\"NONE\"}",
                         token);
-        assertThat(saveRuntimeConfig.status).isEqualTo(500);
+        assertThat(saveRuntimeConfig.status).isEqualTo(400);
+        assertThat(saveRuntimeConfig.body)
+                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("占位符密钥")
+                .doesNotContain("NONE");
 
         HttpResult saveChannelToken =
                 request(
@@ -2232,7 +2236,11 @@ public class DashboardControllerHttpTest {
                         "/api/runtime-config",
                         "{\"key\":\"solonclaw.channels.weixin.token\",\"value\":\"dummy\"}",
                         token);
-        assertThat(saveChannelToken.status).isEqualTo(500);
+        assertThat(saveChannelToken.status).isEqualTo(400);
+        assertThat(saveChannelToken.body)
+                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("占位符密钥")
+                .doesNotContain("dummy");
     }
 
     @Test
