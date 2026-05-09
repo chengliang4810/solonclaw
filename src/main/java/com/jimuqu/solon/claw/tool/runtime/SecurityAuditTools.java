@@ -163,6 +163,9 @@ public class SecurityAuditTools {
         result.policy.put("terminal", terminal);
 
         Map<String, Object> coverage = new LinkedHashMap<String, Object>();
+        if (securityPolicyService != null) {
+            coverage.put("toolArgsPolicy", securityPolicyService.toolArgsPolicySummary());
+        }
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         coverage.put("smartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured));

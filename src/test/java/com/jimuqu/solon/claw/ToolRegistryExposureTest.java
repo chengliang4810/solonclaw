@@ -405,6 +405,16 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("recursiveUrlExtraction").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("writeIntentDetection").getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolArgsPolicy")))
+                .contains("file_path")
+                .contains("endpoint")
+                .contains("apply_patch");
         assertThat(policyStatus.get("policy").get("coverage").get("mcpUrlSafety").getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("activeSurfaces")))

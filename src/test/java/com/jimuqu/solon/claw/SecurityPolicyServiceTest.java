@@ -677,6 +677,24 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldExposeToolArgsPolicySummary() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        Map<String, Object> summary = policy.toolArgsPolicySummary();
+
+        assertThat(summary.get("recursiveUrlExtraction")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("recursivePathExtraction")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("writeIntentDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("patchTargetExtraction")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("urlKeySamples"))).contains("url", "endpoint", "*_url");
+        assertThat(String.valueOf(summary.get("pathKeySamples"))).contains("path", "file_path", "*_path");
+        assertThat(String.valueOf(summary.get("writeIntentSamples"))).contains("write", "delete", "patch");
+        assertThat(String.valueOf(summary.get("patchIntentSamples"))).contains("apply_patch", "diff_apply");
+        assertThat(String.valueOf(summary.get("patchTextKeySamples"))).contains("patch", "diff");
+        assertThat(String.valueOf(summary.get("writeLikeToolSamples"))).contains("file_write", "patch");
+    }
+
+    @Test
     void shouldDenyPatchDiffsTargetingSensitiveCredentialPaths() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         Map<String, Object> addFileArgs = new LinkedHashMap<String, Object>();

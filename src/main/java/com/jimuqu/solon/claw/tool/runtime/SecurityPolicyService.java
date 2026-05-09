@@ -520,6 +520,22 @@ public class SecurityPolicyService {
         return summary;
     }
 
+    public Map<String, Object> toolArgsPolicySummary() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        summary.put("recursiveUrlExtraction", Boolean.TRUE);
+        summary.put("recursivePathExtraction", Boolean.TRUE);
+        summary.put("writeIntentDetection", Boolean.TRUE);
+        summary.put("patchTargetExtraction", Boolean.TRUE);
+        summary.put("urlKeySamples", toolArgsUrlKeySamples());
+        summary.put("pathKeySamples", toolArgsPathKeySamples());
+        summary.put("writeIntentSamples", toolArgsWriteIntentSamples());
+        summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
+        summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
+        summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
+        summary.put("description", "Tool argument safety recursively extracts URL and path-like values, detects write intent, and parses patch/diff targets before tool execution.");
+        return summary;
+    }
+
     public FileVerdict checkCommandPaths(String command) {
         String code = StrUtil.nullToEmpty(command);
         if (code.length() == 0) {
@@ -1278,6 +1294,66 @@ public class SecurityPolicyService {
                 || normalized.endsWith("_path")
                 || normalized.endsWith("_paths")
                 || normalized.endsWith("path");
+    }
+
+    private static List<String> toolArgsUrlKeySamples() {
+        return Arrays.asList(
+                "url",
+                "uri",
+                "href",
+                "endpoint",
+                "base_url",
+                "callback_url",
+                "proxy",
+                "*_url");
+    }
+
+    private static List<String> toolArgsPathKeySamples() {
+        return Arrays.asList(
+                "path",
+                "paths",
+                "file",
+                "filename",
+                "file_path",
+                "dir",
+                "directory",
+                "*_path");
+    }
+
+    private static List<String> toolArgsWriteIntentSamples() {
+        return Arrays.asList(
+                "write",
+                "append",
+                "delete",
+                "remove",
+                "move",
+                "rename",
+                "create",
+                "patch");
+    }
+
+    private static List<String> toolArgsPatchIntentSamples() {
+        return Arrays.asList(
+                "patch",
+                "apply_patch",
+                "patch_apply",
+                "diff_apply",
+                "apply_diff");
+    }
+
+    private static List<String> toolArgsPatchTextKeySamples() {
+        return Arrays.asList("patch", "diff", "content", "input");
+    }
+
+    private static List<String> toolArgsWriteLikeToolSamples() {
+        return Arrays.asList(
+                "file_write",
+                "file_delete",
+                "file_append",
+                "file_move",
+                "file_rename",
+                "file_mkdir",
+                ToolNameConstants.PATCH);
     }
 
     private void extractPatchPaths(Object raw, List<String> paths) {
