@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfile;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -1705,7 +1706,7 @@ public class KanbanService {
         result.put("claim_expires_at", task.getClaimExpiresAt() <= 0 ? null : iso(task.getClaimExpiresAt()));
         result.put("worker_id", task.getWorkerId());
         result.put("worker_pid", task.getWorkerPid() <= 0 ? null : Long.valueOf(task.getWorkerPid()));
-        result.put("last_spawn_error", task.getLastSpawnError());
+        result.put("last_spawn_error", safeDisplayText(task.getLastSpawnError(), 1000));
         result.put("spawn_failures", Integer.valueOf(task.getSpawnFailures()));
         result.put("max_retries", task.getMaxRetries());
         result.put(
@@ -1827,7 +1828,7 @@ public class KanbanService {
         summary.put("duration_ms", run.get("duration_ms"));
         summary.put("timed_out", run.get("timed_out"));
         summary.put("summary", run.get("summary"));
-        summary.put("error", run.get("error"));
+        summary.put("error", safeDisplayText(run.get("error"), 1000));
         return summary;
     }
 
@@ -1854,7 +1855,7 @@ public class KanbanService {
         overview.put("latest_run_id", latestRun == null ? null : latestRun.get("run_id"));
         overview.put("latest_outcome", latestRun == null ? null : latestRun.get("outcome"));
         overview.put("latest_summary", latestRun == null ? null : latestRun.get("summary"));
-        overview.put("latest_error", latestRun == null ? null : latestRun.get("error"));
+        overview.put("latest_error", latestRun == null ? null : safeDisplayText(latestRun.get("error"), 1000));
         overview.put("last_worker", firstNonNull(task.get("worker_id"), latestRun == null ? null : latestRun.get("worker_id")));
         overview.put("last_started_at", latestRun == null ? null : latestRun.get("started_at"));
         overview.put("last_ended_at", latestRun == null ? null : latestRun.get("ended_at"));
@@ -1953,7 +1954,7 @@ public class KanbanService {
             return "completed: " + payload.get("summary");
         }
         if ("spawn_failed".equals(kind) || "gave_up".equals(kind)) {
-            return kind + ": " + payload.get("error");
+            return kind + ": " + safeDisplayText(payload.get("error"), 1000);
         }
         return kind;
     }
@@ -2133,7 +2134,7 @@ public class KanbanService {
                 buffer.append("\n  summary: ").append(run.get("summary"));
             }
             if (StrUtil.isNotBlank(String.valueOf(run.get("error")))) {
-                buffer.append("\n  error: ").append(run.get("error"));
+                buffer.append("\n  error: ").append(safeDisplayText(run.get("error"), 1000));
             }
         }
         return buffer.toString();
@@ -2437,7 +2438,7 @@ public class KanbanService {
                 + ", ticks="
                 + status.get("tick_count")
                 + ", last_error="
-                + StrUtil.blankToDefault(String.valueOf(status.get("last_error")), "-");
+                + StrUtil.blankToDefault(safeDisplayText(status.get("last_error"), 1000), "-");
     }
 
     private int sizeOf(Object value) {
@@ -2976,7 +2977,7 @@ public class KanbanService {
         item.put("id", event.getEventId());
         item.put("task_id", event.getTaskId());
         item.put("kind", event.getKind());
-        item.put("payload", parseJson(event.getPayloadJson()));
+        item.put("payload", safeDisplayValue(parseJson(event.getPayloadJson())));
         item.put("created_at", iso(event.getCreatedAt()));
         return item;
     }
@@ -3009,7 +3010,7 @@ public class KanbanService {
         item.put("outcome", run.getOutcome());
         item.put("summary", run.getSummary());
         item.put("metadata", parseJson(run.getMetadataJson()));
-        item.put("error", run.getError());
+        item.put("error", safeDisplayText(run.getError(), 1000));
         return item;
     }
 
@@ -3144,7 +3145,36 @@ public class KanbanService {
         if (value == null || StrUtil.isBlank(String.valueOf(value))) {
             return;
         }
-        buffer.append(label).append(": ").append(capped(String.valueOf(value), CONTEXT_MAX_TEXT)).append('\n');
+        buffer.append(label).append(": ").append(capped(safeDisplayText(value, CONTEXT_MAX_TEXT), CONTEXT_MAX_TEXT)).append('\n');
+    }
+
+    private String safeDisplayText(Object value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        return SecretRedactor.redact(String.valueOf(value), maxLength);
+    }
+
+    private Object safeDisplayValue(Object value) {
+        if (value instanceof String) {
+            return safeDisplayText(value, CONTEXT_MAX_TEXT);
+        }
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                result.put(String.valueOf(entry.getKey()), safeDisplayValue(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof Iterable) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object item : (Iterable<?>) value) {
+                result.add(safeDisplayValue(item));
+            }
+            return result;
+        }
+        return value;
     }
 
     private String capped(String value, int maxChars) {

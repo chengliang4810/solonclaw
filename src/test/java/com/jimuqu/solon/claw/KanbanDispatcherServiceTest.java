@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.kanban.KanbanTaskRecord;
 import com.jimuqu.solon.claw.kanban.KanbanWorkerSpawner;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -210,6 +211,27 @@ public class KanbanDispatcherServiceTest {
         assertThat(status.get("last_result")).isNotNull();
         assertThat(String.valueOf(status.get("last_result"))).contains("spawn_failures");
         dispatcher.stopDaemon();
+    }
+
+    @Test
+    void shouldRedactDaemonStatusLastError() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SqliteKanbanRepository repository = new SqliteKanbanRepository(env.sqliteDatabase);
+        KanbanService service = new KanbanService(repository);
+        RecordingSpawner spawner = new RecordingSpawner();
+        KanbanDispatcherService dispatcher = new KanbanDispatcherService(repository, service, spawner);
+        service.setDispatcherService(dispatcher);
+
+        final String leakedToken = "ghp_kanbandaemon12345";
+        Field lastError = KanbanDispatcherService.class.getDeclaredField("daemonLastError");
+        lastError.setAccessible(true);
+        lastError.set(dispatcher, "daemon failed token=" + leakedToken + "\u202E");
+
+        Map<String, Object> status = dispatcher.daemonStatus();
+        assertThat(String.valueOf(status.get("last_error")))
+                .contains("token=***")
+                .doesNotContain(leakedToken)
+                .doesNotContain("\u202E");
     }
 
     private String createTask(

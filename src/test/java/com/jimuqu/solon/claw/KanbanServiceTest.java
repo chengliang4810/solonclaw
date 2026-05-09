@@ -757,6 +757,49 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRedactKanbanErrorViewsAndHistoryText() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "脱敏任务", "worker", "planner");
+        service.status(taskId, "ready", null);
+
+        Map<String, Object> claim = new LinkedHashMap<String, Object>();
+        claim.put("claimer", "host:worker-secret");
+        claim.put("worker_id", "worker-secret");
+        service.claim(taskId, claim);
+
+        String leakedToken = "ghp_kanbansecret12345";
+        String leakedKey = "sk-kanban-error-secret12345";
+        Map<String, Object> failure = new LinkedHashMap<String, Object>();
+        failure.put("error", "spawn failed token=" + leakedToken + " api_key=" + leakedKey + "\u202E");
+        Map<String, Object> detail = service.markSpawnFailure(taskId, failure);
+
+        assertThat(String.valueOf(detail))
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain(leakedToken)
+                .doesNotContain(leakedKey)
+                .doesNotContain("\u202E");
+        assertThat(String.valueOf(service.runs(taskId)))
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain(leakedToken)
+                .doesNotContain(leakedKey)
+                .doesNotContain("\u202E");
+        assertThat(String.valueOf(service.taskDrawer(taskId, 256)))
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain(leakedToken)
+                .doesNotContain(leakedKey)
+                .doesNotContain("\u202E");
+        assertThat(String.valueOf(service.context(taskId).get("worker_context")))
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain(leakedToken)
+                .doesNotContain(leakedKey)
+                .doesNotContain("\u202E");
+    }
+
+    @Test
     void shouldExposeJimuquStyleStatsWatchNotifyLogAndGc() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         KanbanService service =

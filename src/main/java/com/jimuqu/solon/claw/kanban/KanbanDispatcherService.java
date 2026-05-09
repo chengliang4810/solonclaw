@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.kanban;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -163,7 +164,7 @@ public class KanbanDispatcherService {
         status.put("last_tick_at", daemonLastTickAt <= 0 ? null : Long.valueOf(daemonLastTickAt));
         status.put("tick_count", Long.valueOf(daemonTickCount));
         status.put("last_result", daemonLastResult);
-        status.put("last_error", daemonLastError);
+        status.put("last_error", SecretRedactor.redact(daemonLastError, 1000));
         return status;
     }
 
