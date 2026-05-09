@@ -118,6 +118,8 @@ public class SecurityAuditTools {
                 Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
         if (approvalService != null) {
             approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
+            approvals.put("cronApprovalPolicy", approvalService.cronApprovalPolicySummary());
+            approvals.put("subagentApprovalPolicy", approvalService.subagentApprovalPolicySummary());
             approvals.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             approvals.put("auditLogPolicy", approvalService.approvalAuditPolicySummary());
@@ -184,6 +186,10 @@ public class SecurityAuditTools {
         }
         coverage.put("tirithSmartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
         coverage.put("cronApprovalPolicy", Boolean.TRUE);
+        if (approvalService != null) {
+            coverage.put("cronApprovalPolicyDetails", approvalService.cronApprovalPolicySummary());
+            coverage.put("subagentApprovalPolicyDetails", approvalService.subagentApprovalPolicySummary());
+        }
         coverage.put("subagentApprovalPolicy", Boolean.TRUE);
         coverage.put("approvalAuditLog", Boolean.valueOf(approvalService != null));
         coverage.put("hardlineCommandBlocks", Boolean.TRUE);

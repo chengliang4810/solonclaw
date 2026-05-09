@@ -1290,6 +1290,8 @@ public class DangerousCommandApprovalService {
         summary.put("mode", approvalMode());
         summary.put("cronMode", cronApprovalMode());
         summary.put("subagentAutoApprove", Boolean.valueOf(isSubagentAutoApproveEnabled()));
+        summary.put("cronApprovalPolicy", cronApprovalPolicySummary());
+        summary.put("subagentApprovalPolicy", subagentApprovalPolicySummary());
         summary.put("smartJudgeConfigured", Boolean.valueOf(hasSmartApprovalJudge()));
         summary.put("smartApprovalPolicy", smartApprovalPolicySummary());
         summary.put("dangerousRuleCount", Integer.valueOf(RULES.size()));
@@ -1378,6 +1380,44 @@ public class DangerousCommandApprovalService {
         summary.put("reasonStoredInBlockMessage", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("description", "Smart approval only evaluates commands that remain approvable after hardline, file, URL, and terminal guardrail checks; approvals become session-scoped while escalations fall back to human confirmation.");
+        return summary;
+    }
+
+    public Map<String, Object> cronApprovalPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        String mode = cronApprovalMode();
+        summary.put("mode", mode);
+        summary.put("autoApproveDangerousCommands", Boolean.valueOf("approve".equals(mode)));
+        summary.put("defaultDecision", "approve".equals(mode) ? "approve" : "deny");
+        summary.put("configKeys", Arrays.asList("approvals.cronMode", "scheduler.cronApprovalMode"));
+        summary.put("approveAliases", Arrays.asList("approve", "allow", "off", "yes"));
+        summary.put("denyAliases", Arrays.asList("deny", "false", "default"));
+        summary.put("runsWithoutHumanApproval", Boolean.TRUE);
+        summary.put("hardlineAlwaysBlocked", Boolean.TRUE);
+        summary.put("dangerousPatternCheckedBeforeRun", Boolean.TRUE);
+        summary.put("requiresExplicitApproveMode", Boolean.TRUE);
+        summary.put("scriptContentChecked", Boolean.TRUE);
+        summary.put("description", "Cron runs without a live approver, so dangerous commands are denied unless approvals.cronMode resolves to approve; hardline commands remain blocked.");
+        return summary;
+    }
+
+    public Map<String, Object> subagentApprovalPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        boolean autoApprove = isSubagentAutoApproveEnabled();
+        summary.put("autoApproveDangerousCommands", Boolean.valueOf(autoApprove));
+        summary.put("defaultDecision", autoApprove ? "approve_once" : "deny");
+        summary.put("configKey", "approvals.subagentAutoApprove");
+        summary.put("runKind", "subagent");
+        summary.put("hardlinePrechecked", Boolean.TRUE);
+        summary.put("filePolicyPrechecked", Boolean.TRUE);
+        summary.put("urlPolicyPrechecked", Boolean.TRUE);
+        summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
+        summary.put("smartApprovalRunsBeforeSubagentPolicy", Boolean.TRUE);
+        summary.put("humanApprovalPromptSuppressed", Boolean.TRUE);
+        summary.put("currentThreadApprovalWhenAutoApproved", Boolean.TRUE);
+        summary.put("pendingApprovalCreatedWhenDenied", Boolean.FALSE);
+        summary.put("denyMessageIncludesConfigHint", Boolean.TRUE);
+        summary.put("description", "Subagent runs do not wait for human approval: approvable dangerous commands are denied by default or approved once only when approvals.subagentAutoApprove is enabled.");
         return summary;
     }
 

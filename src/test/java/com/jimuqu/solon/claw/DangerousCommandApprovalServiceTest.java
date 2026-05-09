@@ -63,6 +63,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("mode")).isEqualTo("smart");
         assertThat(summary.get("cronMode")).isEqualTo("approve");
         assertThat(summary.get("subagentAutoApprove")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("cronApprovalPolicy")))
+                .contains("autoApproveDangerousCommands=true")
+                .contains("hardlineAlwaysBlocked");
+        assertThat(String.valueOf(summary.get("subagentApprovalPolicy")))
+                .contains("approve_once")
+                .contains("humanApprovalPromptSuppressed");
         assertThat(summary.get("smartJudgeConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("smartApprovalPolicy")))
                 .contains("approve")
@@ -97,6 +103,56 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/reload-mcp")
                 .contains("toolChangeNoticeInjected");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeCronAndSubagentApprovalPolicySummaries() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setCronMode("allow");
+        env.appConfig.getApprovals().setSubagentAutoApprove(true);
+
+        Map<String, Object> cronSummary =
+                env.dangerousCommandApprovalService.cronApprovalPolicySummary();
+        Map<String, Object> subagentSummary =
+                env.dangerousCommandApprovalService.subagentApprovalPolicySummary();
+
+        assertThat(cronSummary.get("mode")).isEqualTo("approve");
+        assertThat(cronSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("defaultDecision")).isEqualTo("approve");
+        assertThat(String.valueOf(cronSummary.get("configKeys")))
+                .contains("approvals.cronMode")
+                .contains("scheduler.cronApprovalMode");
+        assertThat(String.valueOf(cronSummary.get("approveAliases")))
+                .contains("approve")
+                .contains("allow")
+                .contains("yes");
+        assertThat(cronSummary.get("runsWithoutHumanApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("hardlineAlwaysBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("dangerousPatternCheckedBeforeRun")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("requiresExplicitApproveMode")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
+
+        assertThat(subagentSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentSummary.get("defaultDecision")).isEqualTo("approve_once");
+        assertThat(subagentSummary.get("configKey")).isEqualTo("approvals.subagentAutoApprove");
+        assertThat(subagentSummary.get("runKind")).isEqualTo("subagent");
+        assertThat(subagentSummary.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentSummary.get("smartApprovalRunsBeforeSubagentPolicy")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentSummary.get("humanApprovalPromptSuppressed")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentSummary.get("currentThreadApprovalWhenAutoApproved")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentSummary.get("pendingApprovalCreatedWhenDenied")).isEqualTo(Boolean.FALSE);
+        assertThat(subagentSummary.get("denyMessageIncludesConfigHint")).isEqualTo(Boolean.TRUE);
+
+        env.appConfig.getApprovals().setCronMode("deny");
+        env.appConfig.getApprovals().setSubagentAutoApprove(false);
+        assertThat(env.dangerousCommandApprovalService
+                        .cronApprovalPolicySummary()
+                        .get("defaultDecision"))
+                .isEqualTo("deny");
+        assertThat(env.dangerousCommandApprovalService
+                        .subagentApprovalPolicySummary()
+                        .get("defaultDecision"))
+                .isEqualTo("deny");
     }
 
     @Test

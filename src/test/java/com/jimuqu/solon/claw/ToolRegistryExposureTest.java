@@ -310,6 +310,41 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("approvals").get("subagentApprovalDefault").getString())
                 .isEqualTo("deny");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("cronApprovalPolicy")
+                                .get("autoApproveDangerousCommands")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("cronApprovalPolicy")
+                                .get("hardlineAlwaysBlocked")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("cronApprovalPolicy")))
+                .contains("approvals.cronMode")
+                .contains("runsWithoutHumanApproval");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("subagentApprovalPolicy")
+                                .get("autoApproveDangerousCommands")
+                                .getBoolean())
+                .isFalse();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("subagentApprovalPolicy")
+                                .get("humanApprovalPromptSuppressed")
+                                .getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("approvals").get("mcpReloadConfirm").getBoolean())
                 .isTrue();
         assertThat(policyStatus
@@ -601,8 +636,24 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("cronApprovalPolicy").getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("cronApprovalPolicyDetails")
+                                .get("scriptContentChecked")
+                                .getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("subagentApprovalPolicy").getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("subagentApprovalPolicyDetails")
+                                .get("pendingApprovalCreatedWhenDenied")
+                                .getBoolean())
+                .isFalse();
         assertThat(policyStatus.get("policy").get("coverage").get("hardlineCommandBlocks").getBoolean())
                 .isTrue();
         assertThat(
