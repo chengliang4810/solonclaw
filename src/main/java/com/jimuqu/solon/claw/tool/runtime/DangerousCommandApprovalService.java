@@ -407,7 +407,7 @@ public class DangerousCommandApprovalService {
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "encrypted_secret_file_decrypt",
@@ -421,13 +421,13 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
-                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
+                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b|gh\\s+secret\\s+set\\b|vercel\\s+env\\s+(?:add|import)\\b|netlify\\s+env\\s+(?:set|import|clone)\\b|doppler\\s+secrets\\s+(?:set|upload)\\b|fly(?:ctl)?\\s+secrets\\s+set\\b|wrangler\\s+secret\\s+put\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_destroy",
                                     "delete or destroy secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b|gh\\s+secret\\s+(?:delete|remove)\\b|vercel\\s+env\\s+(?:rm|remove)\\b|netlify\\s+env\\s+(?:unset|delete)\\b|doppler\\s+secrets\\s+(?:delete|unset)\\b|fly(?:ctl)?\\s+secrets\\s+unset\\b|wrangler\\s+secret\\s+delete\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_cli_credential_config_change",

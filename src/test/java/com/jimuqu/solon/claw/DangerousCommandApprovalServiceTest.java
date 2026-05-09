@@ -1493,7 +1493,18 @@ public class DangerousCommandApprovalServiceTest {
                         "bw get item prod-db",
                         "pass show prod/db",
                         "gopass prod/db",
-                        "secret-tool lookup service prod-db");
+                        "secret-tool lookup service prod-db",
+                        "gh secret list --repo org/repo",
+                        "gh secret view API_TOKEN --repo org/repo",
+                        "vercel env ls",
+                        "vercel env pull .env.local",
+                        "netlify env list",
+                        "netlify env get API_TOKEN",
+                        "doppler secrets get API_TOKEN",
+                        "doppler secrets download",
+                        "fly secrets list",
+                        "flyctl secrets list",
+                        "wrangler secret list");
         for (String command : secretStoreReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1531,6 +1542,11 @@ public class DangerousCommandApprovalServiceTest {
                         "bw list items",
                         "pass git status",
                         "secret-tool search service prod-db",
+                        "vercel projects ls",
+                        "netlify sites:list",
+                        "doppler projects",
+                        "fly apps list",
+                        "wrangler whoami",
                         "sops --encrypt secrets.yaml",
                         "ansible-vault edit group_vars/prod/vault.yml",
                         "gpg --list-keys",
@@ -1564,7 +1580,17 @@ public class DangerousCommandApprovalServiceTest {
                         "bw edit item item-id '{\"notes\":\"secret\"}'",
                         "pass insert prod/db",
                         "gopass generate prod/db",
-                        "secret-tool store --label prod-db service prod-db");
+                        "secret-tool store --label prod-db service prod-db",
+                        "gh secret set API_TOKEN --body token",
+                        "vercel env add API_TOKEN production",
+                        "vercel env import .env.production",
+                        "netlify env set API_TOKEN token",
+                        "netlify env import .env",
+                        "doppler secrets set API_TOKEN=token",
+                        "doppler secrets upload .env",
+                        "fly secrets set API_TOKEN=token",
+                        "flyctl secrets set API_TOKEN=token",
+                        "wrangler secret put API_TOKEN");
         for (String command : secretStoreWrites) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1599,7 +1625,14 @@ public class DangerousCommandApprovalServiceTest {
                         "bw delete item item-id",
                         "pass rm prod/db",
                         "gopass remove prod/db",
-                        "secret-tool clear service prod-db");
+                        "secret-tool clear service prod-db",
+                        "gh secret delete API_TOKEN --repo org/repo",
+                        "vercel env remove API_TOKEN production",
+                        "netlify env delete API_TOKEN",
+                        "doppler secrets unset API_TOKEN",
+                        "fly secrets unset API_TOKEN",
+                        "flyctl secrets unset API_TOKEN",
+                        "wrangler secret delete API_TOKEN");
         for (String command : secretStoreDestroys) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
