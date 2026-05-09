@@ -2043,6 +2043,12 @@ public class DefaultCommandService implements CommandService {
                 || GatewayCommandConstants.ACTION_DELETE.equals(action)) {
             action = GatewayCommandConstants.ACTION_DELETE;
         }
+        if ("disable".equals(action) || "stop".equals(action)) {
+            action = GatewayCommandConstants.ACTION_PAUSE;
+        }
+        if ("enable".equals(action) || "start".equals(action)) {
+            action = GatewayCommandConstants.ACTION_RESUME;
+        }
         if ("retry".equals(action) || "rerun".equals(action)) {
             action = GatewayCommandConstants.ACTION_RUN;
         }
@@ -2118,7 +2124,7 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_PAUSE.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " pause <job-id> [--reason 原因]");
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " pause|disable|stop <job-id> [--reason 原因]");
             }
             String jobId = options.positionals.get(0);
             String reason = StrUtil.blankToDefault(options.reason, joinTail(options.positionals, 1));
@@ -2129,7 +2135,7 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_RESUME.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " resume <job-id>");
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " resume|enable|start <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.resume(jobId);
@@ -2176,7 +2182,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|retry|history|status|tick]");
+                        + " [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
     }
 
     private String cronOverview(String listText) {
@@ -2199,8 +2205,8 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron edit <job-id> --clear-deliver-chat-id --clear-deliver-thread-id - 清空投递会话与线程\n")
                 .append("/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
                 .append("/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
-                .append("/cron pause <job-id> [--reason 原因] - 暂停定时任务\n")
-                .append("/cron resume <job-id> - 恢复定时任务\n")
+                .append("/cron pause|disable|stop <job-id> [--reason 原因] - 暂停定时任务\n")
+                .append("/cron resume|enable|start <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
                 .append("/cron retry <job-id> - 重跑最近失败或需要复核的定时任务\n")
                 .append("/cron tick - 立即执行一次 scheduler tick\n")

@@ -564,7 +564,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|retry|history|status|tick]");
+                .contains("/cron [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
     }
 
     @Test
@@ -605,6 +605,14 @@ public class CommandEnhancementTest {
         assertThat(resumed.getContent()).contains("已恢复定时任务：" + jobId);
         assertThat(cronJobView(env, jobId)).contains("state=scheduled");
 
+        GatewayReply stopped = env.send("admin-chat", "admin-user", "/cron stop \"" + jobId + "\" --reason manual-stop");
+        assertThat(stopped.getContent()).contains("已暂停定时任务：" + jobId);
+        assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("PAUSED");
+
+        GatewayReply started = env.send("admin-chat", "admin-user", "/cron start \"" + jobId + "\" --ignored-flag");
+        assertThat(started.getContent()).contains("已恢复定时任务：" + jobId);
+        assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("ACTIVE");
+
         GatewayReply run = env.send("admin-chat", "admin-user", "/cron run " + jobId + " --accept-hooks");
         assertThat(run.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
         GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry \"" + jobId + "\" --accept-hooks");
@@ -622,12 +630,18 @@ public class CommandEnhancementTest {
         bootstrapAdmin(env);
 
         GatewayReply resume = env.send("admin-chat", "admin-user", "/cron resume");
+        GatewayReply enable = env.send("admin-chat", "admin-user", "/cron enable");
+        GatewayReply stop = env.send("admin-chat", "admin-user", "/cron stop");
         GatewayReply run = env.send("admin-chat", "admin-user", "/cron run");
         GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry");
         GatewayReply remove = env.send("admin-chat", "admin-user", "/cron remove");
 
         assertThat(resume.isError()).isTrue();
-        assertThat(resume.getContent()).contains("用法：/cron resume <job-id>");
+        assertThat(resume.getContent()).contains("用法：/cron resume|enable|start <job-id>");
+        assertThat(enable.isError()).isTrue();
+        assertThat(enable.getContent()).contains("用法：/cron resume|enable|start <job-id>");
+        assertThat(stop.isError()).isTrue();
+        assertThat(stop.getContent()).contains("用法：/cron pause|disable|stop <job-id>");
         assertThat(run.isError()).isTrue();
         assertThat(run.getContent()).contains("用法：/cron run|retry <job-id>");
         assertThat(retry.isError()).isTrue();
@@ -685,6 +699,8 @@ public class CommandEnhancementTest {
                 .contains("/cron list --all")
                 .contains("/cron next [--all] [--limit 5]")
                 .contains("/cron status [--all]")
+                .contains("/cron pause|disable|stop <job-id>")
+                .contains("/cron resume|enable|start <job-id>")
                 .contains("/cron retry <job-id>")
                 .contains("/cron history <job-id>")
                 .contains("--deliver-chat-id")
