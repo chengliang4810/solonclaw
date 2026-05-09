@@ -329,6 +329,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key)(?:=|\\s+)\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "plaintext_cli_password_option",
+                                    "send credential through plaintext CLI password option",
+                                    pattern(
+                                            "\\b(?:sshpass\\s+-(?:p|P)\\s+\\S+|mysql(?:admin|dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|mariadb(?:-dump)?\\b[^\\n]*(?:\\s-p\\S+|\\s--password(?:=|\\s+)\\S+)|psql\\b[^\\n]*(?:\\s-W\\s+\\S+|\\s--password(?:=|\\s+)\\S+)|redis-cli\\b[^\\n]*(?:\\s-a\\s+\\S+|\\s--pass(?:=|\\s+)\\S+)|PGPASSWORD=\\S+\\s+psql\\b|MYSQL_PWD=\\S+\\s+mysql\\b|REDISCLI_AUTH=\\S+\\s+redis-cli\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(

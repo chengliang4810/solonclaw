@@ -1207,6 +1207,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "sshpass -p password ssh user@example.com",
+                        "mysql --password=password -e 'select 1'",
+                        "mysqldump -ppassword db",
+                        "mariadb --password password -e 'select 1'",
+                        "redis-cli -a password ping",
+                        "redis-cli --pass=password ping",
+                        "PGPASSWORD=password psql -h db.example -c 'select 1'",
+                        "MYSQL_PWD=password mysql -e 'select 1'",
+                        "REDISCLI_AUTH=password redis-cli ping");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("plaintext_cli_password_option");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "mysql --protocol=tcp -e 'select 1'"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "redis-cli ping"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectSensitiveClipboardExportCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
