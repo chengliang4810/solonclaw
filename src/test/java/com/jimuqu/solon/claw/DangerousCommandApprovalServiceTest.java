@@ -3312,6 +3312,22 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("audit_log_erasure");
         }
 
+        List<String> linuxAuditPolicyDisables =
+                Arrays.asList(
+                        "auditctl -e 0",
+                        "systemctl stop auditd",
+                        "systemctl disable auditd.service",
+                        "systemctl mask auditd",
+                        "service auditd stop");
+        for (String command : linuxAuditPolicyDisables) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("linux_audit_policy_disabled");
+        }
+
         List<String> gitRemoteCredentialUrls =
                 Arrays.asList(
                         "git remote add origin https://user:token@example.com/repo.git",
@@ -3360,6 +3376,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "journalctl -u app.service --since today"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "auditctl -s"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

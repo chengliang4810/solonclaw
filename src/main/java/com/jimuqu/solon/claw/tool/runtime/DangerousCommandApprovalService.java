@@ -653,6 +653,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:journalctl\\b(?=[^\\n]*--vacuum-(?:time|size|files)\\b)|rm\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|truncate\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|wevtutil\\s+(?:cl|clear-log|clear)\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_audit_policy_disabled",
+                                    "Linux audit policy or service disabled",
+                                    pattern(
+                                            "\\b(?:auditctl\\s+-e\\s*0\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+auditd(?:\\.service)?\\b|service\\s+auditd\\s+(?:stop|disable)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "git_remote_credential_url",
                                     "Git remote URL contains credentials",
                                     pattern(
