@@ -385,15 +385,27 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\s*=\\s*\\S+|(?:Set-Item|New-Item)\\s+Env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+)"),
+                                                    + "\\s+\\S+|(?:export|declare\\s+-x|typeset\\s+-x)\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+|(?:cmd(?:\\.exe)?\\s+/c\\s+)?set\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+|(?:Set-Item|New-Item|Set-Content)\\s+(?:-[A-Za-z]+\\s+)*Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s+\\S+|Remove-Item\\s+(?:-[A-Za-z]+\\s+)*Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "|setx\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s+\\S+|\\[Environment\\]::SetEnvironmentVariable\\(\\s*['\"]?"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "['\"]?\\s*,\\s*[^,)]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
-                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%)(?:"
+                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$\\{?|\\becho\\s+%|\\becho\\s+!|\\bprintf\\b[^\\n|;&]*(?:\\$\\{?|!)|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+(?:-[A-Za-z]+\\s+)*Env:|\\$\\{env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + ")%?"),
+                                                    + ")(?:%|\\}|!)?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cli_access_token_read",
@@ -588,13 +600,13 @@ public class DangerousCommandApprovalService {
                                     "credential_history_erasure",
                                     "erase shell or credential command history",
                                     pattern(
-                                            "\\b(?:history\\s+-c|unset\\s+HISTFILE\\b|(?:export\\s+)?HISTFILE\\s*=\\s*(?:/dev/null|['\"]{2})|(?:export\\s+)?HIST(?:FILE)?SIZE\\s*=\\s*0\\b|set\\s+\\+o\\s+history\\b|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|\\.rediscli_history|\\.sqlite_history|\\.python_history|\\.node_repl_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|\\.rediscli_history|\\.sqlite_history|\\.python_history|\\.node_repl_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|\\.rediscli_history|\\.sqlite_history|\\.python_history|\\.node_repl_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
+                                            "\\b(?:history\\s+(?:-c|-w\\s+(?:/dev/null|NUL|nul))|fc\\s+-p\\s*/dev/null|unset\\s+HISTFILE\\b|(?:export\\s+)?HISTFILE\\s*=\\s*(?:/dev/null|['\"]{2})|(?:export\\s+)?HIST(?:FILE)?SIZE\\s*=\\s*0\\b|set\\s+\\+o\\s+history\\b|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|PSReadLine|\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|\\.rediscli_history|\\.sqlite_history|\\.python_history|\\.node_repl_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|\\.rediscli_history|\\.sqlite_history|\\.python_history|\\.node_repl_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|\\.rediscli_history|\\.sqlite_history|\\.python_history|\\.node_repl_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "audit_log_erasure",
                                     "audit or event log erasure",
                                     pattern(
-                                            "\\b(?:journalctl\\b(?=[^\\n]*--vacuum-(?:time|size|files)\\b)|rm\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|truncate\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|wevtutil\\s+(?:cl|clear-log)\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
+                                            "\\b(?:journalctl\\b(?=[^\\n]*--vacuum-(?:time|size|files)\\b)|rm\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|truncate\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|wevtutil\\s+(?:cl|clear-log|clear)\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "git_remote_credential_url",

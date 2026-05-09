@@ -1413,9 +1413,21 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "printenv OPENAI_API_KEY",
                         "echo $JIMUQU_ACCESS_TOKEN",
+                        "echo ${OPENAI_API_KEY}",
                         "echo %OPENAI_API_KEY%",
+                        "echo !OPENAI_API_KEY!",
+                        "printf '%s' $OPENAI_API_KEY",
+                        "printf '%s' ${OPENAI_API_KEY}",
+                        "printf '%s' !OPENAI_API_KEY!",
                         "Get-Item Env:OPENAI_API_KEY",
-                        "$env:ANTHROPIC_API_KEY");
+                        "Get-Item -Path Env:OPENAI_API_KEY",
+                        "Get-Content Env:OPENAI_API_KEY",
+                        "Get-Content -Path Env:OPENAI_API_KEY",
+                        "Write-Output $env:OPENAI_API_KEY",
+                        "echo $env:OPENAI_API_KEY",
+                        "Write-Output ${env:OPENAI_API_KEY}",
+                        "$env:ANTHROPIC_API_KEY",
+                        "[Environment]::GetEnvironmentVariable('OPENAI_API_KEY')");
         for (String command : sensitiveReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1431,7 +1443,18 @@ public class DangerousCommandApprovalServiceTest {
                         "cmd; GEMINI_API_KEY=secret node app.js",
                         "$env:OPENAI_API_KEY='secret'; node app.js",
                         "Set-Item Env:JIMUQU_ACCESS_TOKEN secret",
-                        "New-Item Env:GEMINI_API_KEY -Value secret");
+                        "New-Item Env:GEMINI_API_KEY -Value secret",
+                        "export OPENAI_API_KEY=secret",
+                        "declare -x OPENAI_API_KEY=secret",
+                        "typeset -x OPENAI_API_KEY=secret",
+                        "set OPENAI_API_KEY=secret",
+                        "cmd /c set OPENAI_API_KEY=secret",
+                        "Set-Content Env:OPENAI_API_KEY secret",
+                        "Set-Content -Path Env:OPENAI_API_KEY secret",
+                        "Remove-Item Env:OPENAI_API_KEY",
+                        "Remove-Item -Path Env:OPENAI_API_KEY",
+                        "setx OPENAI_API_KEY secret",
+                        "[Environment]::SetEnvironmentVariable('OPENAI_API_KEY','secret','User')");
         for (String command : inlineAssignments) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2661,6 +2684,7 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "history -c",
+                        "history -w /dev/null",
                         "rm ~/.bash_history",
                         "rm -f ~/.zsh_history",
                         "rm ~/.mysql_history",
@@ -2671,12 +2695,14 @@ public class DangerousCommandApprovalServiceTest {
                         "del %USERPROFILE%\\.node_repl_history",
                         "Clear-History",
                         "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+                        "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\*",
                         "Set-PSReadLineOption -HistorySaveStyle SaveNothing",
                         "unset HISTFILE",
                         "export HISTFILE=/dev/null",
                         "HISTFILE=''",
                         "HISTSIZE=0",
                         "export HISTFILESIZE=0",
+                        "fc -p /dev/null",
                         "set +o history");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -2695,6 +2721,7 @@ public class DangerousCommandApprovalServiceTest {
                         "truncate -s 0 /var/lib/systemd/journal/system.journal",
                         "wevtutil cl Security",
                         "wevtutil clear-log Application",
+                        "wevtutil clear System",
                         "Clear-EventLog -LogName Security",
                         "auditctl -D");
         for (String command : auditLogErasures) {
