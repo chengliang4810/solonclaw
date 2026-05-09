@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,35 @@ public final class SolonClawToolSchemaSanitizer {
             };
 
     private SolonClawToolSchemaSanitizer() {}
+
+    public static Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("enabled", Boolean.TRUE);
+        summary.put(
+                "appliesTo",
+                Arrays.asList(
+                        "localFunctionTools",
+                        "toolProviders",
+                        "mcpLocalToolListing",
+                        "mcpRemoteToolImport"));
+        summary.put("inputSchemaSanitized", Boolean.TRUE);
+        summary.put("outputFunctionToolSchemaSanitized", Boolean.TRUE);
+        summary.put("mcpInputSchemaSanitized", Boolean.TRUE);
+        summary.put("invalidSchemaDefaultsToObject", Boolean.TRUE);
+        summary.put("topLevelObjectRequired", Boolean.TRUE);
+        summary.put("propertiesInjectedForObject", Boolean.TRUE);
+        summary.put("requiredPrunedToKnownProperties", Boolean.TRUE);
+        summary.put("nullableUnionCollapsed", Boolean.TRUE);
+        summary.put("patternAndFormatStripped", Boolean.TRUE);
+        summary.put("patternAndFormatKeywords", Arrays.asList("pattern", "format"));
+        summary.put("unsupportedKeywordsStripped", Arrays.asList(UNSUPPORTED_SCHEMA_KEYWORDS));
+        summary.put(
+                "topLevelForbiddenCombinatorsStripped",
+                Arrays.asList(TOP_LEVEL_FORBIDDEN_COMBINATORS));
+        summary.put("schemaObjectSanitizationNonMutating", Boolean.TRUE);
+        summary.put("jsonLibrary", "snack4");
+        return summary;
+    }
 
     public static String sanitizeSchemaJson(String schemaJson) {
         Object data = parseJsonObject(schemaJson);

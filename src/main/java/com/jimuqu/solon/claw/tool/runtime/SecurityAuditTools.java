@@ -189,6 +189,7 @@ public class SecurityAuditTools {
         if (securityPolicyService != null) {
             coverage.put("toolArgsPolicy", securityPolicyService.toolArgsPolicySummary());
         }
+        coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         coverage.put("smartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured));
@@ -220,6 +221,7 @@ public class SecurityAuditTools {
         coverage.put("credentialFilePolicy", Boolean.valueOf(securityPolicyService != null));
         coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("schemaSanitizer", Boolean.TRUE);
         coverage.put("codeExecutionGuardrails", Boolean.valueOf(approvalService != null || securityPolicyService != null));
         coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));

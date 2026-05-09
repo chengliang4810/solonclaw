@@ -780,6 +780,22 @@ public class ToolRegistryExposureTest {
                 .contains("file_path")
                 .contains("endpoint")
                 .contains("apply_patch");
+        assertThat(policyStatus.get("policy").get("coverage").get("schemaSanitizer").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("schemaSanitizerPolicy")
+                                .get("mcpInputSchemaSanitized")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("schemaSanitizerPolicy")))
+                .contains("localFunctionTools")
+                .contains("toolProviders")
+                .contains("patternAndFormatStripped")
+                .contains("unsupportedKeywordsStripped")
+                .contains("snack4");
         assertThat(policyStatus.get("policy").get("coverage").get("mcpUrlSafety").getBoolean())
                 .isTrue();
         assertThat(
