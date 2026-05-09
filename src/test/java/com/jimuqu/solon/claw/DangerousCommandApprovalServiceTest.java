@@ -1959,6 +1959,22 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult projectHostsWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo '127.0.0.1 local.test' > fixtures/hosts");
+        DangerousCommandApprovalService.DetectionResult resolvConfWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'nameserver 1.1.1.1' | tee /etc/resolv.conf");
+        DangerousCommandApprovalService.DetectionResult nmcliDnsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nmcli connection modify eth0 ipv4.dns 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult macosDnsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "networksetup -setdnsservers Wi-Fi 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult windowsDnsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult projectResolvWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo nameserver > fixtures/resolv.conf");
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
@@ -2047,6 +2063,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsHostsWrite).isNotNull();
         assertThat(windowsHostsWrite.getPatternKey()).isEqualTo("hosts_file_tampering");
         assertThat(projectHostsWrite).isNull();
+        assertThat(resolvConfWrite).isNotNull();
+        assertThat(resolvConfWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(nmcliDnsWrite).isNotNull();
+        assertThat(nmcliDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(macosDnsWrite).isNotNull();
+        assertThat(macosDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(windowsDnsWrite).isNotNull();
+        assertThat(windowsDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(projectResolvWrite).isNull();
         assertThat(shellRc).isNotNull();
         assertThat(shellRc.getPatternKey()).isEqualTo("shell_profile_persistence_injection");
         assertThat(shellProfileRedirect).isNotNull();

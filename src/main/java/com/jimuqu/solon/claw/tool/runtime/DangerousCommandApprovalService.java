@@ -231,6 +231,12 @@ public class DangerousCommandApprovalService {
                                             "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:/etc/hosts\\b|/private/etc/hosts\\b|[A-Za-z]:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\\b|\\$env:windir\\\\System32\\\\drivers\\\\etc\\\\hosts\\b|%windir%\\\\System32\\\\drivers\\\\etc\\\\hosts\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "dns_resolver_tampering",
+                                    "DNS resolver configuration changed",
+                                    pattern(
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*/etc/resolv\\.conf\\b|\\bnmcli\\s+connection\\s+modify\\b[^\\n]*\\bipv[46]\\.dns\\b|\\bnetworksetup\\s+-setdnsservers\\b|\\bSet-DnsClientServerAddress\\b|\\bnetsh\\s+interface\\s+ip\\s+set\\s+dns\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),
