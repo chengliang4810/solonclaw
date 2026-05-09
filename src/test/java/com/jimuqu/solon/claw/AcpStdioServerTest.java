@@ -764,7 +764,9 @@ public class AcpStdioServerTest {
         String listed =
                 server.handle(
                         "{\"jsonrpc\":\"2.0\",\"id\":28,\"method\":\"permissions_list_open\",\"params\":{\"sessionId\":\""
-                                + sessionId
+                                + sessionId.substring(0, 8)
+                                + "\u202E"
+                                + sessionId.substring(8)
                                 + "\"}}");
         assertThat(listed)
                 .contains("\"tool_name\":\"execute_shell\"")
@@ -781,7 +783,9 @@ public class AcpStdioServerTest {
         String denied =
                 server.handle(
                         "{\"jsonrpc\":\"2.0\",\"id\":29,\"method\":\"permissions_respond\",\"params\":{\"sessionId\":\""
-                                + sessionId
+                                + sessionId.substring(0, 8)
+                                + "\u202E"
+                                + sessionId.substring(8)
                                 + "\",\"permission_id\":\""
                                 + disguisedApprovalId
                                 + "\",\"outcome\":\"reject_once\"}}");

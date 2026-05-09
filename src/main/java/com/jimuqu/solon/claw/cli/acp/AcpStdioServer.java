@@ -1999,7 +1999,7 @@ public class AcpStdioServer {
     }
 
     private String stringValue(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
+        return value == null ? "" : SecretRedactor.stripDisplayControls(String.valueOf(value)).trim();
     }
 
     private List<Object> readMcpServers(ONode node) {
@@ -2071,7 +2071,8 @@ public class AcpStdioServer {
         if (value == null || value.isNull()) {
             return fallback;
         }
-        return StrUtil.blankToDefault(value.getString(), fallback);
+        return SecretRedactor.stripDisplayControls(
+                StrUtil.blankToDefault(value.getString(), fallback));
     }
 
     private int readInt(ONode node, String key, int fallback) {
