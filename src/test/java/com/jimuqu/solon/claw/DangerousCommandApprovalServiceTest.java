@@ -1451,6 +1451,10 @@ public class DangerousCommandApprovalServiceTest {
                         "aws ecr get-login-password",
                         "aws codeartifact get-authorization-token --domain internal",
                         "aws sts get-session-token",
+                        "aws sts get-federation-token --name deployer",
+                        "aws sso get-role-credentials --account-id 123 --role-name Admin",
+                        "aws configure export-credentials --profile prod",
+                        "az acr login --name registry --expose-token",
                         "kubectl create token deployer",
                         "kubectl -n prod create token deployer",
                         "vault token lookup",
@@ -1467,6 +1471,8 @@ public class DangerousCommandApprovalServiceTest {
         List<String> cliTokenSafeCommands =
                 Arrays.asList(
                         "aws sts get-caller-identity",
+                        "aws configure list",
+                        "az acr login --name registry",
                         "kubectl get serviceaccount deployer",
                         "vault token capabilities secret/data/prod",
                         "doctl auth init",
