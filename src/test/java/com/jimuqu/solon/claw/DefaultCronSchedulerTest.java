@@ -2184,6 +2184,115 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldClearCronjobToolEditableMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-clear-room:user");
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        FileUtil.writeString("print('clear')", FileUtil.file(scriptsDir, "clear.py"), StandardCharsets.UTF_8);
+        File workdir = FileUtil.file(env.appConfig.getRuntime().getHome(), "projects/cron-clear");
+        FileUtil.mkdir(workdir);
+
+        Map<?, ?> upstreamPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-clear-upstream",
+                                                "30m",
+                                                "upstream prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        String upstreamJobId = String.valueOf(upstreamPayload.get("job_id"));
+
+        Map<?, ?> createPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-clear-target",
+                                                "30m",
+                                                null,
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Boolean.TRUE,
+                                                "clear.py",
+                                                workdir.getAbsolutePath(),
+                                                Boolean.TRUE,
+                                                upstreamJobId,
+                                                "terminal,file",
+                                                "clear-model",
+                                                "default",
+                                                "https://api.clear.example/v1/"))
+                                .toData();
+        String jobId = String.valueOf(createPayload.get("job_id"));
+        Map<?, ?> createdJob = (Map<?, ?>) createPayload.get("job");
+        assertThat(createdJob.get("script")).isEqualTo("clear.py");
+        assertThat(createdJob.get("workdir")).isEqualTo(workdir.getAbsolutePath());
+        assertThat(createdJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(upstreamJobId));
+        assertThat(createdJob.get("enabled_toolsets")).isEqualTo(java.util.Arrays.asList("terminal", "file"));
+        assertThat(createdJob.get("model")).isEqualTo("clear-model");
+        assertThat(createdJob.get("provider")).isEqualTo("default");
+        assertThat(createdJob.get("base_url")).isEqualTo("https://api.clear.example/v1");
+
+        Map<?, ?> updatePayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "update",
+                                                jobId,
+                                                null,
+                                                null,
+                                                "agent prompt after clearing",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                "",
+                                                "",
+                                                Boolean.FALSE,
+                                                java.util.Collections.emptyList(),
+                                                java.util.Collections.emptyList(),
+                                                "",
+                                                "",
+                                                ""))
+                                .toData();
+        Map<?, ?> updatedJob = (Map<?, ?>) updatePayload.get("job");
+        assertThat(updatedJob.get("script")).isNull();
+        assertThat(updatedJob.get("workdir")).isNull();
+        assertThat(updatedJob.get("no_agent")).isNull();
+        assertThat(updatedJob.get("context_from")).isNull();
+        assertThat(updatedJob.get("depends_on")).isNull();
+        assertThat(updatedJob.get("enabled_toolsets")).isNull();
+        assertThat(updatedJob.get("model")).isNull();
+        assertThat(updatedJob.get("provider")).isNull();
+        assertThat(updatedJob.get("base_url")).isNull();
+        assertThat(((CronJobRecord) service.require(jobId)).getPrompt()).isEqualTo("agent prompt after clearing");
+    }
+
+    @Test
     void shouldExposeUpcomingCronJobsThroughCronjobTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -2522,6 +2631,8 @@ public class DefaultCronSchedulerTest {
         assertThat(policy.get("sourceScopedList")).isEqualTo(Boolean.TRUE);
         assertThat(policy.get("freshSessionRuns")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("originDefaultOnCreate")).isEqualTo(Boolean.TRUE);
+        assertThat(delivery.get("explicitChatTargetSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(delivery.get("threadTargetSupported")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("multiTargetDeliverySupported")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("wrapResponseSupported")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(delivery.get("supportedPlatforms")))
