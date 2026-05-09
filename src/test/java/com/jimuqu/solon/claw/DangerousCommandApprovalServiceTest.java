@@ -323,6 +323,10 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("nohup")
                 .contains("disown")
                 .contains("setsid");
+        assertThat(String.valueOf(summary.get("powershellBackgroundCommandsBlocked")))
+                .contains("Start-Process")
+                .contains("Start-Job")
+                .contains("Start-ThreadJob");
         assertThat(summary.get("inlineAmpersandBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("trailingAmpersandBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("longLivedForegroundBlocked")).isEqualTo(Boolean.TRUE);
@@ -1838,7 +1842,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_python", "eval(user_input)"))
-                .isNull();
+                .hasFieldOrPropertyWithValue("patternKey", "python_dynamic_code_execution");
     }
 
     @Test
@@ -2595,6 +2599,15 @@ public class DangerousCommandApprovalServiceTest {
         String amp =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "npm run dev &");
+        String startProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run dev'");
+        String startJob =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Job -ScriptBlock { npm run dev }");
+        String startThreadJob =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-ThreadJob -ScriptBlock { npm run dev }");
         String server =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "python -m http.server 8000");
@@ -2604,6 +2617,9 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(nohup).contains("nohup");
         assertThat(amp).contains("&");
+        assertThat(startProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(startJob).contains("PowerShell").contains("Start-Job");
+        assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
     }
