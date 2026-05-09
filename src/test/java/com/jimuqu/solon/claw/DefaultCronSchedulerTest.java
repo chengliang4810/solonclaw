@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
@@ -462,6 +463,24 @@ public class DefaultCronSchedulerTest {
         assertThat(cronSchedule.get("kind")).isEqualTo("cron");
         assertThat(cronSchedule.get("expr")).isEqualTo("0 9 * * *");
         assertThat(cronSchedule.get("display")).isEqualTo("0 9 * * *");
+
+        Map<String, Object> scheduleObject = new LinkedHashMap<String, Object>();
+        scheduleObject.put("expr", "0 10 * * *");
+        Map<String, Object> scheduleObjectBody = new LinkedHashMap<String, Object>();
+        scheduleObjectBody.put("name", "cron-object");
+        scheduleObjectBody.put("schedule", scheduleObject);
+        scheduleObjectBody.put("prompt", "cron object prompt");
+        CronJobRecord cronObject = service.create("MEMORY:cron:user", scheduleObjectBody);
+        assertThat(cronObject.getCronExpr()).isEqualTo("0 10 * * *");
+
+        long runAt = System.currentTimeMillis() + 120000L;
+        Map<String, Object> runAtSchedule = new LinkedHashMap<String, Object>();
+        runAtSchedule.put("run_at", Long.valueOf(runAt));
+        Map<String, Object> scheduleUpdate = new LinkedHashMap<String, Object>();
+        scheduleUpdate.put("schedule", runAtSchedule);
+        CronJobRecord updatedCronObject = service.update(cronObject.getJobId(), scheduleUpdate);
+        assertThat(updatedCronObject.getCronExpr()).contains("T");
+        assertThat(CronSupport.isOneShot(updatedCronObject.getCronExpr())).isTrue();
     }
 
     @Test

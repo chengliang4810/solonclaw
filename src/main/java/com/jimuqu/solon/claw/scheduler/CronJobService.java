@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -59,7 +60,7 @@ public class CronJobService {
     }
 
     public CronJobRecord create(String sourceKey, Map<String, Object> body) throws Exception {
-        String schedule = string(body.get("schedule"), string(body.get("cronExpr"), null));
+        String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), null);
         String prompt = string(body.get("prompt"), "");
         List<String> skills = canonicalSkills(body);
         String script = string(body.get("script"), null);
@@ -131,7 +132,7 @@ public class CronJobService {
             record.setPrompt(prompt);
         }
         if (body.containsKey("schedule") || body.containsKey("cronExpr")) {
-            String schedule = string(body.get("schedule"), string(body.get("cronExpr"), record.getCronExpr()));
+            String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), record.getCronExpr());
             CronSupport.validate(schedule);
             record.setCronExpr(schedule);
             record.setNextRunAt(CronSupport.nextRunAt(schedule, System.currentTimeMillis()));
@@ -1006,6 +1007,37 @@ public class CronJobService {
             addString(result, part);
         }
         return result;
+    }
+
+    private String scheduleValue(Object scheduleValue, Object cronExprValue, String defaultValue) {
+        String schedule = scheduleObjectValue(scheduleValue);
+        if (StrUtil.isNotBlank(schedule)) {
+            return schedule;
+        }
+        schedule = scheduleObjectValue(cronExprValue);
+        if (StrUtil.isNotBlank(schedule)) {
+            return schedule;
+        }
+        return defaultValue;
+    }
+
+    private String scheduleObjectValue(Object value) {
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            String text = firstString(map, "raw", "expr", "cron", "value", "display");
+            if (StrUtil.isNotBlank(text)) {
+                return text;
+            }
+            Object runAt = map.get("run_at");
+            if (runAt == null) {
+                runAt = map.get("runAt");
+            }
+            if (runAt instanceof Number) {
+                return Instant.ofEpochMilli(((Number) runAt).longValue()).toString();
+            }
+            return string(runAt, null);
+        }
+        return string(value, null);
     }
 
     private String structuredTarget(Map<?, ?> value) {
