@@ -620,6 +620,19 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_environment_read");
         }
 
+        List<String> cliTokenReads =
+                Arrays.asList(
+                        "gcloud auth print-access-token",
+                        "gcloud auth application-default print-access-token",
+                        "az account get-access-token",
+                        "gh auth token");
+        for (String command : cliTokenReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("cli_access_token_read");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
@@ -627,6 +640,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "printenv PATH"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "echo $HOME"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
                 .isNull();
     }
 

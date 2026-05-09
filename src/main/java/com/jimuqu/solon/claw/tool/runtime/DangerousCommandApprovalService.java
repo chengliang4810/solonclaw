@@ -281,6 +281,12 @@ public class DangerousCommandApprovalService {
                                                     + ")%?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "cli_access_token_read",
+                                    "print CLI access token",
+                                    pattern(
+                                            "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-access-token|az\\s+account\\s+get-access-token|gh\\s+auth\\s+token)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(
