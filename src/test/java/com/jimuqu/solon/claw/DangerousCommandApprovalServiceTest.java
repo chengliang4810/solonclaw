@@ -648,6 +648,21 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
         }
 
+        List<String> packageManagerSecretReads =
+                Arrays.asList(
+                        "npm config get //registry.npmjs.org/:_authToken",
+                        "pnpm config get //registry.npmjs.org/:_authToken",
+                        "yarn config get npmAuthToken",
+                        "pip config get global.password");
+        for (String command : packageManagerSecretReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_secret_read");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
@@ -659,6 +674,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "npm config get registry"))
                 .isNull();
     }
 
