@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliModeParser;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.cli.ShellCompletionGenerator;
+import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -75,52 +76,24 @@ public class CliModeParserTest {
                 .contains("complete -F _jimuqu_agent_completion jimuqu-agent")
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
-                .contains("--session --ask -p /help /new /retry /undo /branch /resume")
-                .contains("/status /usage /title /goal /busy /model /reasoning /tools /skills /agent")
-                .contains("/cron /approve /kanban /deny /queue /steer /acp")
-                .contains("/busy status /busy queue /busy steer /busy interrupt /busy reject")
-                .contains("/cron guide /cron capabilities /cron upcoming /cron trigger")
-                .contains("/kanban guide /kanban drawer /kanban pipeline /kanban retry")
-                .contains("/kanban history /kanban dispatch")
-                .contains("/restart /stop")
-                .contains("/compact /compress /rollback /recap /trajectory /confirm /yolo /version")
-                .contains("/platforms /models /sessions /session")
-                .contains("/history /events /tasks /attachments /transcript /tips /skin /copy")
-                .contains("/exit /quit /exit! /quit!");
+                .contains("--session --ask -p");
         assertThat(zsh)
                 .contains("#compdef jimuqu-agent")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
                 .contains("Send one prompt or local terminal command")
-                .contains("/help /new /retry /undo /branch /resume /status /usage /title /goal /busy")
-                .contains("/model /reasoning /tools /skills /agent /cron /approve /kanban /deny")
-                .contains("/busy status /busy queue /busy steer /busy interrupt /busy reject")
-                .contains("/cron guide /cron capabilities /cron upcoming /cron trigger")
-                .contains("/kanban guide /kanban drawer /kanban pipeline /kanban retry")
-                .contains("/kanban history /kanban dispatch")
-                .contains("/queue /steer /acp")
-                .contains("/restart /stop /compact /compress /rollback /recap")
-                .contains("/trajectory /confirm /yolo /version")
-                .contains("/platforms /models /sessions /session /history /events /tasks")
-                .contains("/attachments /transcript /tips /skin /copy /exit /quit /exit! /quit!")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
                 .contains("complete -c jimuqu-agent -f")
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
-                .contains("__fish_seen_argument -s p -l ask")
-                .contains("/help /new /retry /undo /branch /resume /status /usage /title /goal /busy")
-                .contains("/model /reasoning /tools /skills /agent /cron /approve /kanban /deny")
-                .contains("/busy status /busy queue /busy steer /busy interrupt /busy reject")
-                .contains("/cron guide /cron capabilities /cron upcoming /cron trigger")
-                .contains("/kanban guide /kanban drawer /kanban pipeline /kanban retry")
-                .contains("/kanban history /kanban dispatch")
-                .contains("/queue /steer /acp")
-                .contains("/restart /stop /compact /compress /rollback /recap")
-                .contains("/trajectory /confirm /yolo /version")
-                .contains("/platforms /models /sessions /session /history /events /tasks")
-                .contains("/attachments /transcript /tips /skin /copy /exit /quit /exit! /quit!");
+                .contains("__fish_seen_argument -s p -l ask");
+        for (String command : TerminalCommandCatalog.SLASH_COMMANDS) {
+            assertThat(bash).contains(command);
+            assertThat(zsh).contains(command);
+            assertThat(fish).contains(command);
+        }
     }
 
     @Test
