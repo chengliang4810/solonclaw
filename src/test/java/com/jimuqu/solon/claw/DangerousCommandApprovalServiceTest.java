@@ -525,6 +525,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult stopAppArmor =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl disable apparmor");
+        DangerousCommandApprovalService.DetectionResult spctlDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "spctl --master-disable");
+        DangerousCommandApprovalService.DetectionResult quarantineRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "xattr -d com.apple.quarantine ./payload");
+        DangerousCommandApprovalService.DetectionResult tccReset =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccutil reset All");
+        DangerousCommandApprovalService.DetectionResult csrDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "csrutil disable");
 
         assertThat(recursiveLong).isNotNull();
         assertThat(recursiveLong.getPatternKey()).isEqualTo("recursive_delete_long_flag");
@@ -560,6 +572,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(setenforce.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(stopAppArmor).isNotNull();
         assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(spctlDisable).isNotNull();
+        assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(quarantineRemove).isNotNull();
+        assertThat(quarantineRemove.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(tccReset).isNotNull();
+        assertThat(tccReset.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(csrDisable).isNotNull();
+        assertThat(csrDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
     }
 
     @Test
