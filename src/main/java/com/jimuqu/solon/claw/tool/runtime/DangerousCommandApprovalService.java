@@ -297,6 +297,12 @@ public class DangerousCommandApprovalService {
                                             "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv|chmod)\\b)[^\\n]*(?:(?:^|[/\\\\])\\.git|\\.git)[/\\\\]hooks[/\\\\][^\\s\"'`]+|\\bgit\\s+config\\s+(?:--global\\s+)?core\\.hooksPath\\s+\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "linux_kernel_policy_change",
+                                    "Linux kernel or kernel module policy changed",
+                                    pattern(
+                                            "\\b(?:modprobe|insmod|rmmod)\\b|\\bsysctl\\s+(?:-w\\s+|--write\\s+)[A-Za-z0-9_.]+\\s*=|(?:>>?|\\btee\\b(?:\\s+-a)?)\\s*[^\\n]*(?:/etc/sysctl\\.conf\\b|/etc/sysctl\\.d/[^\\s\"'`]+\\.conf\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),

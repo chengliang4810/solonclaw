@@ -594,6 +594,19 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult aaDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aa-disable /etc/apparmor.d/usr.bin.app");
+        DangerousCommandApprovalService.DetectionResult modprobeTun =
+                env.dangerousCommandApprovalService.detect("execute_shell", "modprobe tun");
+        DangerousCommandApprovalService.DetectionResult rmmodOverlay =
+                env.dangerousCommandApprovalService.detect("execute_shell", "rmmod overlay");
+        DangerousCommandApprovalService.DetectionResult sysctlWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sysctl -w kernel.kptr_restrict=0");
+        DangerousCommandApprovalService.DetectionResult sysctlConfigWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo 'kernel.unprivileged_bpf_disabled=0' >> /etc/sysctl.d/99-debug.conf");
+        DangerousCommandApprovalService.DetectionResult sysctlRead =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sysctl kernel.kptr_restrict");
         DangerousCommandApprovalService.DetectionResult spctlDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "spctl --master-disable");
@@ -669,6 +682,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(aaDisable).isNotNull();
         assertThat(aaDisable.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(modprobeTun).isNotNull();
+        assertThat(modprobeTun.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(rmmodOverlay).isNotNull();
+        assertThat(rmmodOverlay.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(sysctlWrite).isNotNull();
+        assertThat(sysctlWrite.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(sysctlConfigWrite).isNotNull();
+        assertThat(sysctlConfigWrite.getPatternKey()).isEqualTo("linux_kernel_policy_change");
+        assertThat(sysctlRead).isNull();
         assertThat(spctlDisable).isNotNull();
         assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(spctlGlobalDisable).isNotNull();
