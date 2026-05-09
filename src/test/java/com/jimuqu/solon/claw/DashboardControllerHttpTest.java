@@ -943,8 +943,10 @@ public class DashboardControllerHttpTest {
                                     + URLEncoder.encode(pendingState, "UTF-8"),
                             null,
                             null);
-            assertThat(redirectedTokenEndpoint.status).isGreaterThanOrEqualTo(400);
-            assertThat(redirectedTokenEndpoint.body).doesNotContain("secret-redirect");
+            assertThat(redirectedTokenEndpoint.status).isEqualTo(400);
+            assertThat(redirectedTokenEndpoint.body)
+                    .contains("MCP_BAD_REQUEST")
+                    .doesNotContain("secret-redirect");
             assertThat(tokenEndpoint.redirectForm.get("grant_type"))
                     .isEqualTo("authorization_code");
             assertThat(tokenEndpoint.redirectForm.get("code")).isEqualTo("auth-code-redirect");
@@ -965,8 +967,11 @@ public class DashboardControllerHttpTest {
                         "/api/jimuqu/mcp/blocked-oauth-docs/oauth/refresh",
                         "{}",
                         token);
-        assertThat(blockedRefresh.status).isGreaterThanOrEqualTo(400);
-        assertThat(blockedRefresh.body).doesNotContain("secret-refresh-url");
+        assertThat(blockedRefresh.status).isEqualTo(400);
+        assertThat(blockedRefresh.body)
+                .contains("MCP_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("secret-refresh-url");
 
         HttpResult clearOAuth =
                 request("POST", "/api/jimuqu/mcp/oauth-docs/oauth/clear", "{}", token);
