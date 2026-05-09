@@ -429,13 +429,13 @@ public class DangerousCommandApprovalService {
                                     "package_manager_secret_read",
                                     "read package manager credential",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+get\\s+\\S*(?:_authToken|_auth|password|token)|pip\\s+config\\s+get\\s+\\S*(?:password|token|credential|secret))\\b"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+get\\s+\\S*(?:_authToken|_auth|password|token)|pip\\s+config\\s+get\\s+\\S*(?:password|token|credential|secret)|poetry\\s+config\\s+(?:--list\\s+\\S*(?:password|token|credential|secret)|\\S*(?:password|token|credential|secret)\\s*(?:$|[;&|]))|twine\\s+upload\\b(?=[^\\n]*(?:\\s-p\\s+\\S+|--password(?:=|\\s+)\\S+))|gem\\s+credentials\\b|nuget\\s+sources\\s+list\\b(?=[^\\n]*--format\\s+detailed))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_secret_write",
                                     "write package manager credential",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+)\\b"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+|poetry\\s+config\\s+(?:http-basic\\.|pypi-token\\.)\\S+\\s+\\S+|cargo\\s+login\\b|gem\\s+push\\b(?=[^\\n]*(?:\\s-k\\s+\\S+|--key\\s+\\S+))|nuget\\s+sources\\s+(?:add|update)\\b(?=[^\\n]*(?:-Password\\s+\\S+|-StorePasswordInClearText\\b)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_source_change",

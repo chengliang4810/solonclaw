@@ -1594,7 +1594,13 @@ public class DangerousCommandApprovalServiceTest {
                         "npm config get //registry.npmjs.org/:_authToken",
                         "pnpm config get //registry.npmjs.org/:_authToken",
                         "yarn config get npmAuthToken",
-                        "pip config get global.password");
+                        "pip config get global.password",
+                        "poetry config http-basic.internal.password",
+                        "poetry config --list pypi-token.internal",
+                        "twine upload dist/* -u user -p token",
+                        "twine upload dist/* --password token",
+                        "gem credentials",
+                        "nuget sources list --format detailed");
         for (String command : packageManagerSecretReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1610,7 +1616,13 @@ public class DangerousCommandApprovalServiceTest {
                         "pnpm config set //registry.npmjs.org/:_authToken npm-token",
                         "yarn config set npmAuthToken npm-token",
                         "pip config set global.password pip-password",
-                        "pip config set global.token pip-token");
+                        "pip config set global.token pip-token",
+                        "poetry config http-basic.internal user password",
+                        "poetry config pypi-token.internal pypi-token",
+                        "cargo login crate-token",
+                        "gem push pkg.gem -k private",
+                        "nuget sources add -Name internal -Source https://nuget.example -Password token",
+                        "nuget sources update -Name internal -Password token -StorePasswordInClearText");
         for (String command : packageManagerSecretWrites) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1618,6 +1630,19 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey())
                     .as(command)
                     .isEqualTo("package_manager_secret_write");
+        }
+
+        List<String> packageManagerNonSecretCommands =
+                Arrays.asList(
+                        "poetry config virtualenvs.in-project true",
+                        "twine check dist/*",
+                        "cargo owner --list crate-name",
+                        "gem list",
+                        "nuget sources list");
+        for (String command : packageManagerNonSecretCommands) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
         }
 
         List<String> packageManagerSourceChanges =
