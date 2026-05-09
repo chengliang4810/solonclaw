@@ -75,22 +75,34 @@ public class CliModeParserTest {
                 .contains("complete -F _jimuqu_agent_completion jimuqu-agent")
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
-                .contains(
-                        "--session --ask -p /help /models /sessions /session /history /title /events /tasks /attachments /transcript /tips /queue /steer /acp /skin /copy /exit /quit /exit! /quit!");
+                .contains("--session --ask -p /help /new /retry /undo /branch /resume")
+                .contains("/status /usage /title /busy /model /reasoning /tools /skills /agent")
+                .contains("/cron /approve /kanban /deny /queue /steer /acp /restart /stop")
+                .contains("/compress /rollback /version /platforms /models /sessions /session")
+                .contains("/history /events /tasks /attachments /transcript /tips /skin /copy")
+                .contains("/exit /quit /exit! /quit!");
         assertThat(zsh)
                 .contains("#compdef jimuqu-agent")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
                 .contains("Send one prompt or local terminal command")
-                .contains("/help /models /sessions /session /history /title /events /tasks /attachments /transcript /tips /queue /steer /acp /skin /copy /exit /quit /exit! /quit!")
+                .contains("/help /new /retry /undo /branch /resume /status /usage /title /busy")
+                .contains("/model /reasoning /tools /skills /agent /cron /approve /kanban /deny")
+                .contains("/queue /steer /acp /restart /stop /compress /rollback /version")
+                .contains("/platforms /models /sessions /session /history /events /tasks")
+                .contains("/attachments /transcript /tips /skin /copy /exit /quit /exit! /quit!")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
                 .contains("complete -c jimuqu-agent -f")
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
                 .contains("__fish_seen_argument -s p -l ask")
-                .contains("/help /models /sessions /session /history /title /events /tasks /attachments /transcript /tips /queue /steer /acp /skin /copy /exit /quit /exit! /quit!");
+                .contains("/help /new /retry /undo /branch /resume /status /usage /title /busy")
+                .contains("/model /reasoning /tools /skills /agent /cron /approve /kanban /deny")
+                .contains("/queue /steer /acp /restart /stop /compress /rollback /version")
+                .contains("/platforms /models /sessions /session /history /events /tasks")
+                .contains("/attachments /transcript /tips /skin /copy /exit /quit /exit! /quit!");
     }
 
     @Test
