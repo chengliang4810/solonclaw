@@ -476,6 +476,28 @@ public class SolonClawShellSkill extends ShellSkill {
         return summary;
     }
 
+    public Map<String, Object> terminalOutputPolicySummary() {
+        return terminalOutputPolicySummary(appConfig);
+    }
+
+    public static Map<String, Object> terminalOutputPolicySummary(AppConfig appConfig) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("ansiStripped", Boolean.TRUE);
+        summary.put("secretRedactionApplied", Boolean.TRUE);
+        summary.put("maxInlineChars", Integer.valueOf(resolveToolOutputInlineLimit(appConfig)));
+        summary.put("headTailTruncation", Boolean.TRUE);
+        summary.put("truncationNoticeIncluded", Boolean.TRUE);
+        summary.put("emptySuccessMessage", "执行成功");
+        summary.put("timeoutNoticeAppended", Boolean.TRUE);
+        summary.put("sudoFailureHintAppended", Boolean.TRUE);
+        summary.put("outputTransformersSupported", Boolean.TRUE);
+        summary.put("transformerFailureIsolated", Boolean.TRUE);
+        summary.put("exitCodeSemanticsAvailable", Boolean.TRUE);
+        summary.put("foregroundRetryErrorsInterpreted", Boolean.TRUE);
+        summary.put("description", "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail truncation notice, and enriched with timeout, sudo, and exit-code guidance before it is returned.");
+        return summary;
+    }
+
     private SudoRewrite rewriteRealSudoInvocations(String command) {
         StringBuilder out = new StringBuilder();
         int i = 0;
@@ -1101,6 +1123,10 @@ public class SolonClawShellSkill extends ShellSkill {
     }
 
     private int resolveMaxOutputChars() {
+        return resolveToolOutputInlineLimit(appConfig);
+    }
+
+    private static int resolveToolOutputInlineLimit(AppConfig appConfig) {
         int value = 50000;
         if (appConfig != null && appConfig.getTask() != null) {
             value = appConfig.getTask().getToolOutputInlineLimit();

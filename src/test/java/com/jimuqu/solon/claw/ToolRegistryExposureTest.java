@@ -888,6 +888,21 @@ public class ToolRegistryExposureTest {
                 .contains("docker compose up")
                 .contains("execute_js")
                 .doesNotContain("secret-sudo");
+        ONode terminalOutputPolicy =
+                policyStatus.get("policy").get("coverage").get("terminalOutputPolicy");
+        assertThat(terminalOutputPolicy.get("ansiStripped").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("maxInlineChars").getInt()).isEqualTo(50000);
+        assertThat(terminalOutputPolicy.get("headTailTruncation").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("truncationNoticeIncluded").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("timeoutNoticeAppended").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("sudoFailureHintAppended").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("outputTransformersSupported").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("transformerFailureIsolated").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("exitCodeSemanticsAvailable").getBoolean()).isTrue();
+        assertThat(String.valueOf(terminalOutputPolicy))
+                .contains("执行成功")
+                .doesNotContain("secret-sudo");
         assertThat(
                         policyStatus
                                 .get("policy")

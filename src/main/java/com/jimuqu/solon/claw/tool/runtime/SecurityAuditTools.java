@@ -188,6 +188,9 @@ public class SecurityAuditTools {
         terminal.put(
                 "sudoRewritePolicy",
                 SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
+        terminal.put(
+                "terminalOutputPolicy",
+                SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
         terminal.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
         if (approvalService != null) {
             terminal.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
@@ -263,6 +266,9 @@ public class SecurityAuditTools {
         coverage.put(
                 "sudoRewritePolicy",
                 SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
+        coverage.put(
+                "terminalOutputPolicy",
+                SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
         coverage.put("backgroundProcessGuard", Boolean.TRUE);
         coverage.put("backgroundProcessPolicy", backgroundProcessPolicy);
         coverage.put("urlSafety", Boolean.valueOf(securityPolicyService != null));
