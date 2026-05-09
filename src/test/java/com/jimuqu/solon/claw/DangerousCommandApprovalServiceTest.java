@@ -323,6 +323,11 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("nohup")
                 .contains("disown")
                 .contains("setsid");
+        assertThat(String.valueOf(summary.get("detachedSessionLaunchersBlocked")))
+                .contains("tmux")
+                .contains("screen")
+                .contains("systemd-run")
+                .contains("start /B");
         assertThat(String.valueOf(summary.get("powershellBackgroundCommandsBlocked")))
                 .contains("Start-Process")
                 .contains("Start-Job")
@@ -1655,6 +1660,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_stop_service");
         assertDangerPattern(
                 env,
+                "sc.exe config DemoService obj= LocalSystem",
+                "windows_service_privilege_or_recovery_change");
+        assertDangerPattern(
+                env,
+                "sc config DemoService obj= \"NT AUTHORITY\\SYSTEM\"",
+                "windows_service_privilege_or_recovery_change");
+        assertDangerPattern(
+                env,
+                "sc.exe failure DemoService actions= restart/60000/restart/60000/\"\"/60000 reset= 86400",
+                "windows_service_privilege_or_recovery_change");
+        assertDangerPattern(
+                env,
                 "schtasks /create /tn updater /tr payload.exe /sc onlogon",
                 "windows_persistence_registration");
         assertDangerPattern(
@@ -1801,6 +1818,10 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "bcdedit /set {default} recoveryenabled No",
                 "windows_disable_recovery");
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc.exe query Spooler"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc qc DemoService"))
+                .isNull();
     }
 
     @Test
@@ -2017,6 +2038,14 @@ public class DangerousCommandApprovalServiceTest {
                         "qcloud ssm DescribeSecret --SecretName prod-db",
                         "huaweicloud csms ShowSecretValue --secret-name prod-db",
                         "kubectl get secret app-token -o yaml",
+                        "kubectl describe secret app-token",
+                        "docker secret inspect app-token",
+                        "podman secret ls",
+                        "nerdctl secret list",
+                        "docker compose config --environment",
+                        "docker compose config --hash app-secret",
+                        "docker-compose config --hash db-password",
+                        "podman compose config --hash oauth-token",
                         "vault kv get secret/prod",
                         "vault read secret/data/prod",
                         "op read op://prod/db/password",
@@ -2046,6 +2075,19 @@ public class DangerousCommandApprovalServiceTest {
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
+        }
+
+        List<String> secretStoreSafeReads =
+                Arrays.asList(
+                        "kubectl describe service app",
+                        "docker secret --help",
+                        "docker compose config --services",
+                        "docker compose config --images",
+                        "podman compose config --services");
+        for (String command : secretStoreSafeReads) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
         }
 
         List<String> encryptedSecretFileDecrypts =
@@ -4108,6 +4150,18 @@ public class DangerousCommandApprovalServiceTest {
         String startThreadJob =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-ThreadJob -ScriptBlock { npm run dev }");
+        String tmux =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "tmux new-session -d -s app 'npm run dev'");
+        String screen =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "screen -dmS app npm run dev");
+        String systemdRun =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "systemd-run --user npm run dev");
+        String cmdStart =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "cmd /c start \"app\" /B npm run dev");
         String server =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "python -m http.server 8000");
@@ -4120,6 +4174,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
         assertThat(startJob).contains("PowerShell").contains("Start-Job");
         assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
+        assertThat(tmux).contains("脱离当前终端").contains("tmux");
+        assertThat(screen).contains("脱离当前终端").contains("screen");
+        assertThat(systemdRun).contains("脱离当前终端").contains("systemd-run");
+        assertThat(cmdStart).contains("脱离当前终端").contains("start /B");
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
     }
@@ -5092,6 +5150,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict httpxProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "httpx --proxy-url=http://127.0.0.1:8080 https://safe.example");
+        SecurityPolicyService.UrlVerdict dockerSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --unix-socket /var/run/docker.sock http://localhost/containers/json");
+        SecurityPolicyService.UrlVerdict abstractDockerSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --abstract-unix-socket=/run/podman/podman.sock http://localhost/libpod/info");
+        SecurityPolicyService.UrlVerdict ordinaryUnixSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --unix-socket runtime/app.sock http://localhost/status");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -5193,6 +5260,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(pipProxyMetadata.getMessage()).contains("元数据");
         assertThat(httpxProxyPrivate.isAllowed()).isFalse();
         assertThat(httpxProxyPrivate.getMessage()).contains("内网");
+        assertThat(dockerSocket.isAllowed()).isFalse();
+        assertThat(dockerSocket.getMessage()).contains("管理套接字");
+        assertThat(abstractDockerSocket.isAllowed()).isFalse();
+        assertThat(abstractDockerSocket.getMessage()).contains("管理套接字");
+        assertThat(ordinaryUnixSocket.isAllowed()).isFalse();
+        assertThat(ordinaryUnixSocket.getMessage()).contains("内网");
     }
 
     @Test
@@ -5238,10 +5311,15 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkUrl("http://127.0.0.1/status");
         SecurityPolicyService.UrlVerdict metadata =
                 securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict dockerSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --unix-socket /var/run/docker.sock http://localhost/containers/json");
 
         assertThat(privateUrl.isAllowed()).isTrue();
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
+        assertThat(dockerSocket.isAllowed()).isFalse();
+        assertThat(dockerSocket.getMessage()).contains("管理套接字");
     }
 
     @Test
@@ -8476,6 +8554,14 @@ public class DangerousCommandApprovalServiceTest {
                     "dd if=/dev/zero of=/dev/sda bs=1M",
                     "dd if=/dev/urandom of=/dev/nvme0n1",
                     "dd if=anything of=/dev/hda",
+                    "wipefs -a /dev/sda",
+                    "wipefs --all /dev/nvme0n1",
+                    "blkdiscard /dev/sdb",
+                    "sgdisk --zap-all /dev/sda",
+                    "sgdisk -Z /dev/nvme0n1",
+                    "sfdisk --delete /dev/sdc",
+                    "sfdisk --wipe always /dev/sdd",
+                    "parted /dev/sde mklabel gpt",
                     "echo bad > /dev/sda",
                     "cat /dev/urandom > /dev/sdb",
                     ":(){ :|:& };:",
@@ -8538,6 +8624,9 @@ public class DangerousCommandApprovalServiceTest {
                     "rm -rf some/path",
                     "dd if=/dev/zero of=./image.bin",
                     "dd if=./data of=./backup.bin",
+                    "wipefs -n /dev/sda",
+                    "sgdisk --print /dev/sda",
+                    "parted /dev/sda print",
                     "echo done > /tmp/flag",
                     "echo test > /dev/null",
                     "ls /dev/sda",

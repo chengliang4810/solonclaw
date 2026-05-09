@@ -226,6 +226,14 @@ public class SecurityPolicyService {
             Arrays.asList("-i", "-F", "-K");
     private static final List<String> NETWORK_CREDENTIAL_SHORT_OPTIONS =
             Arrays.asList("-b", "-c", "-E", "-K");
+    private static final List<String> LOCAL_MANAGEMENT_SOCKET_PATHS =
+            Arrays.asList(
+                    "/var/run/docker.sock",
+                    "/run/docker.sock",
+                    "/run/containerd/containerd.sock",
+                    "/run/podman/podman.sock",
+                    "/var/run/cri-dockerd.sock",
+                    "/var/run/crio/crio.sock");
     private static final List<String> SSH_FILE_CONFIG_OPTION_NAMES =
             Arrays.asList(
                     "IdentityFile",
@@ -866,6 +874,10 @@ public class SecurityPolicyService {
     }
 
     public UrlVerdict checkCommandUrls(String command) {
+        UrlVerdict socketVerdict = checkCommandLocalManagementSockets(command);
+        if (!socketVerdict.allowed) {
+            return socketVerdict;
+        }
         List<String> urls = new ArrayList<String>();
         extractUrlishFromText(command, urls);
         for (String url : urls) {
@@ -875,6 +887,40 @@ public class SecurityPolicyService {
             }
         }
         return UrlVerdict.allow();
+    }
+
+    private UrlVerdict checkCommandLocalManagementSockets(String command) {
+        List<String> tokens = shellLikeTokens(command, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = cleanUrlToken(tokens.get(i));
+            String path = null;
+            if ("--unix-socket".equals(token) || "--abstract-unix-socket".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    path = cleanUrlToken(tokens.get(++i));
+                }
+            } else if (token.startsWith("--unix-socket=")) {
+                path = cleanUrlToken(token.substring("--unix-socket=".length()));
+            } else if (token.startsWith("--abstract-unix-socket=")) {
+                path = cleanUrlToken(token.substring("--abstract-unix-socket=".length()));
+            }
+            if (isLocalManagementSocket(path)) {
+                return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+            }
+        }
+        return UrlVerdict.allow();
+    }
+
+    private boolean isLocalManagementSocket(String rawPath) {
+        String normalized = normalizePathText(rawPath);
+        if (normalized.length() == 0) {
+            return false;
+        }
+        for (String socketPath : LOCAL_MANAGEMENT_SOCKET_PATHS) {
+            if (normalized.equals(normalizePathText(socketPath))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public UrlVerdict checkCommandAlwaysBlockedUrls(String command) {

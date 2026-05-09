@@ -110,6 +110,9 @@ public class DangerousCommandApprovalService {
             "(?:\\s+(?:--?[A-Za-z0-9-]+)(?:=\\S+|\\s+\\S+)?)*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
+    private static final Pattern DETACHED_TERMINAL_SESSION =
+            pattern(
+                    "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\s+(?:\"[^\"]*\"\\s+)?/b\\b)");
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
             pattern("\\b(?:start-process|start-job|start-threadjob)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
@@ -445,7 +448,7 @@ public class DangerousCommandApprovalService {
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|aliyun\\s+kms\\s+GetSecretValue\\b|(?:tccli|qcloud)\\s+ssm\\s+(?:GetSecretValue|DescribeSecret)\\b|huaweicloud\\s+csms\\s+ShowSecretValue\\b|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b))|account\\s+export\\b|document\\s+get\\b(?=[^\\n]*(?:Emergency Kit|Secret Key)))|bw\\s+(?:get\\s+(?:password|item|notes)\\b|export\\b)|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|aliyun\\s+kms\\s+GetSecretValue\\b|(?:tccli|qcloud)\\s+ssm\\s+(?:GetSecretValue|DescribeSecret)\\b|huaweicloud\\s+csms\\s+ShowSecretValue\\b|kubectl\\s+(?:-[^\\s]+\\s+)*(?:get|describe)\\s+secret\\b|(?:docker|podman|nerdctl)\\s+secret\\s+(?:inspect|ls|list)\\b|(?:docker\\s+compose|docker-compose|podman\\s+compose)\\s+config\\b(?=[^\\n]*(?:--environment\\b|--hash\\s+\\S*(?:secret|credential|token)|\\b(?:secret|credential|token|password)\\b))|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b))|account\\s+export\\b|document\\s+get\\b(?=[^\\n]*(?:Emergency Kit|Secret Key)))|bw\\s+(?:get\\s+(?:password|item|notes)\\b|export\\b)|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "encrypted_secret_file_decrypt",
@@ -1157,6 +1160,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_service_privilege_or_recovery_change",
+                                    "Windows service privilege or recovery policy changed",
+                                    pattern(
+                                            "\\b(?:sc(?:\\.exe)?\\s+config\\s+\\S+\\s+obj\\s*=\\s*\"?(?:LocalSystem|NT\\s+AUTHORITY\\\\SYSTEM|Administrator|\\.\\\\Administrator)\"?(?=\\s|$)|sc(?:\\.exe)?\\s+failure\\s+\\S+\\s+actions\\s*=\\s*(?:restart|run|reboot)(?:/|\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_persistence_registration",
                                     "Windows scheduled task or startup persistence",
                                     pattern(
@@ -1313,6 +1322,13 @@ public class DangerousCommandApprovalService {
                                     "dd to raw block device",
                                     pattern(
                                             "\\bdd\\b[^\\n]*\\bof=[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "hardline_disk_partition_table_destroy",
+                                    "destroy raw disk partition table or signatures",
+                                    pattern(
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "(?=(?:[^\\n]*[\"']?/dev/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*))(?:wipefs\\b(?=[^\\n]*(?:-a\\b|--all\\b))|blkdiscard\\b|sgdisk\\b(?=[^\\n]*(?:--zap-all\\b|-Z\\b|--clear\\b|\\s-o\\b))|sfdisk\\b(?=[^\\n]*(?:--delete\\b|--wipe\\s+always\\b|--wipe-partitions\\s+always\\b))|parted\\b(?=[^\\n]*\\bmklabel\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_redirect_device",
@@ -1801,6 +1817,9 @@ public class DangerousCommandApprovalService {
         if (SHELL_LEVEL_BACKGROUND.matcher(normalized).find()) {
             return "BLOCKED: 前台命令使用了 shell 级后台包装（nohup/disown/setsid）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
         }
+        if (DETACHED_TERMINAL_SESSION.matcher(normalized).find()) {
+            return "BLOCKED: 前台命令使用了脱离当前终端的会话启动器（tmux/screen/systemd-run/start /B）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出。";
+        }
         if (POWERSHELL_BACKGROUND_JOB.matcher(normalized).find()) {
             return "BLOCKED: 前台命令使用了 PowerShell 后台启动命令（Start-Process/Start-Job/Start-ThreadJob）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
         }
@@ -2129,6 +2148,9 @@ public class DangerousCommandApprovalService {
     public Map<String, Object> terminalGuardrailPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("backgroundShellWrappersBlocked", Arrays.asList("nohup", "disown", "setsid"));
+        summary.put(
+                "detachedSessionLaunchersBlocked",
+                Arrays.asList("tmux new-session -d", "screen -dmS", "systemd-run", "cmd /c start /B"));
         summary.put(
                 "powershellBackgroundCommandsBlocked",
                 Arrays.asList("Start-Process", "Start-Job", "Start-ThreadJob"));
