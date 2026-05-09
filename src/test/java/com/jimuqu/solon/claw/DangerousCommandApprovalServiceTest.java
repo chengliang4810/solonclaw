@@ -631,11 +631,32 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerRm =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker rm -f app-db");
+        DangerousCommandApprovalService.DetectionResult dockerPrivileged =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --privileged alpine");
+        DangerousCommandApprovalService.DetectionResult dockerSocketMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run -v /var/run/docker.sock:/var/run/docker.sock alpine");
+        DangerousCommandApprovalService.DetectionResult dockerHostRootMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --volume /:/host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerHostNetwork =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --network=host alpine");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl delete namespace prod");
+        DangerousCommandApprovalService.DetectionResult kubectlExec =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl exec deploy/app -- id");
+        DangerousCommandApprovalService.DetectionResult kubectlRemoteApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl apply -f https://example.invalid/install.yaml");
+        DangerousCommandApprovalService.DetectionResult kubectlLocalApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl apply -f deploy/local.yaml");
         DangerousCommandApprovalService.DetectionResult helmUninstall =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "helm uninstall payments");
@@ -651,18 +672,27 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsS3RecursiveRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3 rm s3://prod-data --recursive");
+        DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
         DangerousCommandApprovalService.DetectionResult awsStsRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws sts get-caller-identity");
         DangerousCommandApprovalService.DetectionResult gcloudDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud compute instances delete prod-vm --zone asia-east1-a");
+        DangerousCommandApprovalService.DetectionResult gcloudIamBinding =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gcloud projects add-iam-policy-binding prod --member user:a@example.com --role roles/owner");
         DangerousCommandApprovalService.DetectionResult gcloudList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud compute instances list");
         DangerousCommandApprovalService.DetectionResult azureDelete =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group delete --name prod --yes");
+        DangerousCommandApprovalService.DetectionResult azureRoleAssign =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "az role assignment create --assignee app --role Owner");
         DangerousCommandApprovalService.DetectionResult azureList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group list");
@@ -674,6 +704,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult redisFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli FLUSHALL");
+        DangerousCommandApprovalService.DetectionResult mongoDropDatabase =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mongosh prod --eval 'db.dropDatabase()'");
+        DangerousCommandApprovalService.DetectionResult mongoDropCollection =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mongo prod --eval 'db.users.drop()'");
+        DangerousCommandApprovalService.DetectionResult mongoFind =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mongosh prod --eval 'db.users.findOne()'");
         DangerousCommandApprovalService.DetectionResult redisPing =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli ping");
@@ -720,9 +759,22 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerPrune.getPatternKey()).isEqualTo("docker_destructive_prune");
         assertThat(dockerRm).isNotNull();
         assertThat(dockerRm.getPatternKey()).isEqualTo("docker_force_remove");
+        assertThat(dockerPrivileged).isNotNull();
+        assertThat(dockerPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerSocketMount).isNotNull();
+        assertThat(dockerSocketMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerHostRootMount).isNotNull();
+        assertThat(dockerHostRootMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerHostNetwork).isNotNull();
+        assertThat(dockerHostNetwork.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
+        assertThat(kubectlExec).isNotNull();
+        assertThat(kubectlExec.getPatternKey()).isEqualTo("kubectl_exec");
+        assertThat(kubectlRemoteApply).isNotNull();
+        assertThat(kubectlRemoteApply.getPatternKey()).isEqualTo("kubectl_remote_apply");
+        assertThat(kubectlLocalApply).isNull();
         assertThat(helmUninstall).isNotNull();
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(terraformDestroy).isNotNull();
@@ -733,12 +785,18 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsTerminateInstances.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsS3RecursiveRemove).isNotNull();
         assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
+        assertThat(awsAttachPolicy).isNotNull();
+        assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsStsRead).isNull();
         assertThat(gcloudDelete).isNotNull();
         assertThat(gcloudDelete.getPatternKey()).isEqualTo("gcloud_delete");
+        assertThat(gcloudIamBinding).isNotNull();
+        assertThat(gcloudIamBinding.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(gcloudList).isNull();
         assertThat(azureDelete).isNotNull();
         assertThat(azureDelete.getPatternKey()).isEqualTo("azure_delete");
+        assertThat(azureRoleAssign).isNotNull();
+        assertThat(azureRoleAssign.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(azureList).isNull();
         assertThat(dropdb).isNotNull();
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");
@@ -746,6 +804,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(mysqlDrop.getPatternKey()).isEqualTo("database_dropdb");
         assertThat(redisFlush).isNotNull();
         assertThat(redisFlush.getPatternKey()).isEqualTo("database_flush");
+        assertThat(mongoDropDatabase).isNotNull();
+        assertThat(mongoDropDatabase.getPatternKey()).isEqualTo("mongodb_destructive_eval");
+        assertThat(mongoDropCollection).isNotNull();
+        assertThat(mongoDropCollection.getPatternKey()).isEqualTo("mongodb_destructive_eval");
+        assertThat(mongoFind).isNull();
         assertThat(redisPing).isNull();
         assertThat(lvremove).isNotNull();
         assertThat(lvremove.getPatternKey()).isEqualTo("volume_delete");
@@ -1576,6 +1639,20 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("credential_history_erasure");
         }
 
+        List<String> gitRemoteCredentialUrls =
+                Arrays.asList(
+                        "git remote add origin https://user:token@example.com/repo.git",
+                        "git remote set-url origin https://user:password@example.com/repo.git",
+                        "git config --global url.https://user:token@example.com/.insteadOf https://example.com/");
+        for (String command : gitRemoteCredentialUrls) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("git_remote_credential_url");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "history | tail"))
@@ -1583,6 +1660,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "cat ~/.bash_history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git remote set-url origin https://example.com/repo.git"))
                 .isNull();
     }
 

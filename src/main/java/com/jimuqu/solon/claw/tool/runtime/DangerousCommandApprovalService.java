@@ -401,6 +401,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "git_remote_credential_url",
+                                    "Git remote URL contains credentials",
+                                    pattern(
+                                            "\\bgit\\s+(?:remote\\s+(?:add|set-url)|config\\s+(?:--global\\s+)?url\\.)[^\\n]*(?:https?|ssh)://[^\\s/@:]+:[^\\s/@]+@"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "ssh_host_key_check_disabled",
                                     "SSH host key verification disabled",
                                     pattern(
@@ -519,9 +525,26 @@ public class DangerousCommandApprovalService {
                                             "\\bdocker\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "docker_privileged_or_host_mount",
+                                    "Docker privileged container or host mount",
+                                    pattern(
+                                            "\\bdocker\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "kubectl_delete",
                                     "Kubernetes resource delete",
                                     pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*delete\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kubectl_exec",
+                                    "Kubernetes pod command execution",
+                                    pattern("\\bkubectl\\s+(?:-[^\\s]+\\s+)*exec\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kubectl_remote_apply",
+                                    "Kubernetes remote manifest apply",
+                                    pattern(
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*apply\\b(?=[^\\n]*(?:-f|--filename)\\s+(?:https?|wss?)://)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "helm_uninstall",
@@ -544,6 +567,12 @@ public class DangerousCommandApprovalService {
                                     "AWS S3 recursive remove",
                                     pattern(
                                             "\\baws\\s+s3\\s+rm\\b(?=[^\\n]*(?:--recursive\\b|s3://))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "cloud_iam_permission_change",
+                                    "Cloud IAM permission change",
+                                    pattern(
+                                            "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gcloud_delete",
@@ -626,6 +655,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "mongodb_destructive_eval",
+                                    "MongoDB destructive shell evaluation",
+                                    pattern(
+                                            "\\b(?:mongo|mongosh)\\b(?=[^\\n]*(?:--eval\\b|-eval\\b))[^\\n]*(?:dropDatabase\\s*\\(|\\.drop\\s*\\(|deleteMany\\s*\\(\\s*\\{\\s*\\}\\s*\\))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "volume_delete",
                                     "storage volume or filesystem deletion",
