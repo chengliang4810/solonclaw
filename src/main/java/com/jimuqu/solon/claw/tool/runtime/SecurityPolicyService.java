@@ -928,6 +928,12 @@ public class SecurityPolicyService {
         }
         int at = value.lastIndexOf('@');
         if (at >= 0 && at + 1 < value.length()) {
+            String hostWithCredential =
+                    value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
+            if (StrUtil.isNotBlank(hostWithCredential) && !shouldCheckBareHost(hostWithCredential)) {
+                urls.add(value);
+                return;
+            }
             value = value.substring(at + 1);
         }
         String host = value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
@@ -1367,9 +1373,19 @@ public class SecurityPolicyService {
                 || "dirnames".equals(normalized)
                 || "directory".equals(normalized)
                 || "directories".equals(normalized)
+                || "output_file".equals(normalized)
+                || "outputfile".equals(normalized)
+                || "out_file".equals(normalized)
+                || "outfile".equals(normalized)
+                || "destination".equals(normalized)
+                || "dest".equals(normalized)
+                || "target_file".equals(normalized)
+                || "targetfile".equals(normalized)
                 || normalized.endsWith("_path")
                 || normalized.endsWith("_paths")
-                || normalized.endsWith("path");
+                || normalized.endsWith("path")
+                || normalized.endsWith("_file")
+                || normalized.endsWith("file");
     }
 
     private static List<String> toolArgsUrlKeySamples() {
@@ -1393,6 +1409,8 @@ public class SecurityPolicyService {
                 "file_path",
                 "dir",
                 "directory",
+                "output_file",
+                "destination",
                 "*_path");
     }
 
@@ -2364,7 +2382,8 @@ public class SecurityPolicyService {
         if (uri == null) {
             return false;
         }
-        return containsSensitiveParameterName(uri.getRawQuery())
+        return containsSensitiveParameterName(uri.getRawPath())
+                || containsSensitiveParameterName(uri.getRawQuery())
                 || containsSensitiveParameterName(uri.getRawFragment());
     }
 

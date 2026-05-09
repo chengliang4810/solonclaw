@@ -1120,6 +1120,8 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "curl -H 'Authorization: Bearer token-a' https://example.com",
                         "curl --header='X-API-Key: token-a' https://example.com",
+                        "curl --proxy-header 'Proxy-Authorization: Basic abc' https://example.com",
+                        "curl --proxy-header=Proxy-Authorization:Basic https://example.com",
                         "wget --header 'Cookie: session=a' https://example.com",
                         "iwr https://example.com -Headers @{ Authorization = 'Bearer token-a' }",
                         "Invoke-RestMethod https://example.com -Headers @{ 'x-auth-token' = 'token-a' }");
@@ -1150,6 +1152,9 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --user user:password https://example.com/private",
                         "wget --user user --password password https://example.com/private",
                         "wget --http-password=password https://example.com/private",
+                        "curl --proxy-user user:password https://example.com/private",
+                        "curl --proxy-password password https://example.com/private",
+                        "wget --proxy-user=user --proxy-password=password https://example.com/private",
                         "curl --cookie session=a https://example.com/private",
                         "curl -b session=a https://example.com/private",
                         "iwr https://example.com/private -Credential $cred");
@@ -1179,6 +1184,9 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --netrc https://example.com/private",
                         "curl --netrc-file ~/.netrc https://example.com/private",
                         "wget --load-cookies cookies.txt https://example.com/private",
+                        "curl --cert client.pem --key client.key https://example.com/private",
+                        "curl --proxy-cert=client.pem --proxy-key=client.key https://example.com/private",
+                        "wget --certificate client.pem --private-key client.key https://example.com/private",
                         "curl -b cookies.jar https://example.com/private",
                         "curl -c session-cookies.txt https://example.com/private");
         for (String command : commands) {
@@ -2345,6 +2353,9 @@ public class DangerousCommandApprovalServiceTest {
                         "https://example.com/callback?password=p",
                         "https://example.com/callback?x-amz-signature=abc",
                         "https://example.com/callback?api%5Fkey=abc",
+                        "https://example.com/callback;access_token=short",
+                        "https://example.com/oauth/;client_secret=abc",
+                        "https://example.com/oauth;api%5Fkey=abc/callback",
                         "https://example.com/callback#refresh_token=short");
 
         for (String url : blocked) {
@@ -2457,9 +2468,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict authProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy user:pass@127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict authProxyPublic =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy user:pass@proxy.example:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict schemeProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy socks5h://127.0.0.1:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict schemeAuthProxyPublic =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy http://user:pass@proxy.example:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict schemeProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
@@ -2482,8 +2499,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(compactProxyPrivate.getMessage()).contains("内网");
         assertThat(authProxyPrivate.isAllowed()).isFalse();
         assertThat(authProxyPrivate.getMessage()).contains("内网");
+        assertThat(authProxyPublic.isAllowed()).isFalse();
+        assertThat(authProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyPrivate.isAllowed()).isFalse();
         assertThat(schemeProxyPrivate.getMessage()).contains("内网");
+        assertThat(schemeAuthProxyPublic.isAllowed()).isFalse();
+        assertThat(schemeAuthProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyMetadata.isAllowed()).isFalse();
         assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
     }
@@ -3254,6 +3275,12 @@ public class DangerousCommandApprovalServiceTest {
         Map<String, Object> nestedWriteArgs = new LinkedHashMap<String, Object>();
         nestedWriteArgs.put("path", "D:/workspace/other/tool-name-write.txt");
         nestedWriteTool.put("tool_args", nestedWriteArgs);
+        Map<String, Object> outputFileWrite = new LinkedHashMap<String, Object>();
+        outputFileWrite.put("action", "save");
+        outputFileWrite.put("output_file", "D:/workspace/other/output.txt");
+        Map<String, Object> destinationWrite = new LinkedHashMap<String, Object>();
+        destinationWrite.put("operation", "write");
+        destinationWrite.put("destination", ".env.local");
 
         SecurityPolicyService.FileVerdict write =
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericWrite);
@@ -3263,6 +3290,10 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", genericRead);
         SecurityPolicyService.FileVerdict toolNameWrite =
                 securityPolicyService.checkFileToolArgs("tool_gateway", nestedWriteTool);
+        SecurityPolicyService.FileVerdict outputFile =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", outputFileWrite);
+        SecurityPolicyService.FileVerdict destination =
+                securityPolicyService.checkFileToolArgs("mcp_remote_tool", destinationWrite);
 
         assertThat(write.isAllowed()).isFalse();
         assertThat(write.getMessage()).contains("安全写入根");
@@ -3274,6 +3305,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(toolNameWrite.isAllowed()).isFalse();
         assertThat(toolNameWrite.getMessage()).contains("安全写入根");
         assertThat(toolNameWrite.getPath()).isEqualTo("D:/workspace/other/tool-name-write.txt");
+        assertThat(outputFile.isAllowed()).isFalse();
+        assertThat(outputFile.getMessage()).contains("安全写入根");
+        assertThat(outputFile.getPath()).isEqualTo("D:/workspace/other/output.txt");
+        assertThat(destination.isAllowed()).isFalse();
+        assertThat(destination.getMessage()).contains("凭据");
+        assertThat(destination.getPath()).isEqualTo(".env.local");
     }
 
     @Test
