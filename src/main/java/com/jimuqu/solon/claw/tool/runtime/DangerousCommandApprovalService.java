@@ -401,6 +401,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "audit_log_erasure",
+                                    "audit or event log erasure",
+                                    pattern(
+                                            "\\b(?:journalctl\\s+--vacuum-(?:time|size|files)\\b|rm\\s+[^\\n]*(?:/var/log|/var/audit)|truncate\\s+[^\\n]*(?:/var/log|/var/audit)|wevtutil\\s+cl\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "git_remote_credential_url",
                                     "Git remote URL contains credentials",
                                     pattern(

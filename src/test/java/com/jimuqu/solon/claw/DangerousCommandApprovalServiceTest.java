@@ -1703,6 +1703,20 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("credential_history_erasure");
         }
 
+        List<String> auditLogErasures =
+                Arrays.asList(
+                        "journalctl --vacuum-time=1s",
+                        "truncate -s 0 /var/log/auth.log",
+                        "wevtutil cl Security",
+                        "Clear-EventLog -LogName Security",
+                        "auditctl -D");
+        for (String command : auditLogErasures) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("audit_log_erasure");
+        }
+
         List<String> gitRemoteCredentialUrls =
                 Arrays.asList(
                         "git remote add origin https://user:token@example.com/repo.git",
@@ -1724,6 +1738,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "cat ~/.bash_history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "journalctl -u app.service --since today"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
