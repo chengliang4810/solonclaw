@@ -2259,6 +2259,8 @@ public class DangerousCommandApprovalServiceTest {
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
                         "az login --cert cert.pem --key key.pem",
+                        "openssl s_client -connect example.com:443 -key client.key",
+                        "openssl s_client -connect example.com:443 -cert client.pem -CAfile ca.pem",
                         "ansible all --private-key deploy_key -m ping",
                         "ansible-playbook site.yml --key-file=deploy_key",
                         "rsync -e 'ssh -i deploy_key' ./ user@example.com:/tmp/",
@@ -2269,7 +2271,8 @@ public class DangerousCommandApprovalServiceTest {
                         "git -c core.sshCommand=\"ssh -oIdentityFile=deploy_key\" fetch origin",
                         "npm --userconfig .npmrc whoami",
                         "rclone --config rclone.conf copy remote:bucket .",
-                        "s3cmd --config=.s3cfg ls s3://bucket");
+                        "s3cmd --config=.s3cfg ls s3://bucket",
+                        "coscli --config ~/.cos.yaml ls cos://bucket");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
