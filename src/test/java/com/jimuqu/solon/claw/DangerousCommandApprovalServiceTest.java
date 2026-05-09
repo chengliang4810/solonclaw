@@ -2850,11 +2850,15 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "echo $OPENAI_API_KEY | pbcopy",
+                        "echo ${OPENAI_API_KEY} | pbcopy",
+                        "echo !OPENAI_API_KEY! | clip",
                         "printf %s $JIMUQU_ACCESS_TOKEN | xclip -selection clipboard",
+                        "printf %s ${JIMUQU_ACCESS_TOKEN} | xclip -selection clipboard",
                         "printenv ANTHROPIC_API_KEY | xsel --clipboard",
                         "printf %s $OPENAI_API_KEY | wl-copy",
                         "echo %OPENAI_API_KEY% | clip.exe",
                         "Set-Clipboard $env:OPENAI_API_KEY",
+                        "Set-Clipboard -Value ${env:OPENAI_API_KEY}",
                         "scb %JIMUQU_ACCESS_TOKEN%");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =

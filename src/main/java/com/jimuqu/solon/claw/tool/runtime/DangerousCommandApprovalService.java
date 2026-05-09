@@ -367,13 +367,15 @@ public class DangerousCommandApprovalService {
                                     "sensitive_clipboard_export",
                                     "copy sensitive environment values to clipboard",
                                     pattern(
-                                            "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$|%)"
+                                            "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$\\{?|%|!)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "%?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
+                                                    + "(?:\\}|%|!)?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
                                                     + SENSITIVE_ENV_NAME
                                                     + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:\\$env:|%)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "%?)"),
+                                                    + "%?|\\b(?:Set-Clipboard|scb)\\b[^\\n]*\\$\\{env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\})"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_environment_inline_assignment",
