@@ -5038,7 +5038,7 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
-    void shouldNotSmartApproveTirithFindings() throws Exception {
+    void shouldSmartApproveTirithFindingsLikeCombinedSafetyJudge() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setMode("smart");
         FakeTirithSecurityService tirith =
@@ -5068,8 +5068,53 @@ public class DangerousCommandApprovalServiceTest {
 
         service.buildInterceptor().onAction(trace, "execute_shell", args);
 
-        assertThat(service.getPendingApproval(trace.session)).isNotNull();
-        assertThat(trace.getFinalAnswer()).contains("Security scan");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
+        assertThat(service.isSessionApproved(trace.session, "tirith:terminal_injection")).isTrue();
+        assertThat(service.isAlwaysApproved("tirith:terminal_injection")).isFalse();
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "execute_shell", "echo hello"))
+                .isTrue();
+    }
+
+    @Test
+    void shouldBlockTirithFindingWhenSmartApprovalDenies() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setMode("smart");
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "block",
+                                Collections.singletonList(
+                                        finding("terminal_injection", "HIGH", "Terminal injection", "")),
+                                "terminal injection"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
+        service.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.deny("scanner risk confirmed");
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "echo hello");
+
+        service.buildInterceptor().onAction(trace, "execute_shell", args);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED by smart approval")
+                .contains("Security scan")
+                .contains("scanner risk confirmed");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
         assertThat(service.isSessionApproved(trace.session, "tirith:terminal_injection")).isFalse();
     }
 

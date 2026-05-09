@@ -1999,7 +1999,7 @@ public class DangerousCommandApprovalService {
 
     private SmartApprovalDecision smartApprove(
             String toolName, String code, DetectionResult detection, FlowContext context) {
-        if (smartApprovalJudge == null || detection == null || containsTirith(detection)) {
+        if (smartApprovalJudge == null || detection == null) {
             return null;
         }
         try {
