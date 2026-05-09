@@ -451,7 +451,7 @@ public class DangerousCommandApprovalService {
                                     "network_credential_send",
                                     "send credential through network command option",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u(?:\\s+\\S|\\S+)|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--oauth2-bearer(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--form(?:-string)?|-F|--url-query)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*=\\s*\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
                                                     + "(?:--auth(?:=|\\s+)\\S+|-a\\s+\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
@@ -470,7 +470,7 @@ public class DangerousCommandApprovalService {
                                     "credential_path_option",
                                     "credential file passed through command option",
                                     pattern(
-                                            "(?:\\b(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:-[bcEK]\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+)"),
+                                            "(?:\\b(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:-[bcEK]\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies|config)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "tls_certificate_check_disabled",
