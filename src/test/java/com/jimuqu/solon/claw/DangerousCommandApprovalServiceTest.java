@@ -5108,6 +5108,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict httpxProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "httpx --proxy-url=http://127.0.0.1:8080 https://safe.example");
+        SecurityPolicyService.UrlVerdict dockerSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --unix-socket /var/run/docker.sock http://localhost/containers/json");
+        SecurityPolicyService.UrlVerdict abstractDockerSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --abstract-unix-socket=/run/podman/podman.sock http://localhost/libpod/info");
+        SecurityPolicyService.UrlVerdict ordinaryUnixSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --unix-socket runtime/app.sock http://localhost/status");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -5209,6 +5218,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(pipProxyMetadata.getMessage()).contains("元数据");
         assertThat(httpxProxyPrivate.isAllowed()).isFalse();
         assertThat(httpxProxyPrivate.getMessage()).contains("内网");
+        assertThat(dockerSocket.isAllowed()).isFalse();
+        assertThat(dockerSocket.getMessage()).contains("管理套接字");
+        assertThat(abstractDockerSocket.isAllowed()).isFalse();
+        assertThat(abstractDockerSocket.getMessage()).contains("管理套接字");
+        assertThat(ordinaryUnixSocket.isAllowed()).isFalse();
+        assertThat(ordinaryUnixSocket.getMessage()).contains("内网");
     }
 
     @Test
@@ -5254,10 +5269,15 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkUrl("http://127.0.0.1/status");
         SecurityPolicyService.UrlVerdict metadata =
                 securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict dockerSocket =
+                securityPolicyService.checkCommandUrls(
+                        "curl --unix-socket /var/run/docker.sock http://localhost/containers/json");
 
         assertThat(privateUrl.isAllowed()).isTrue();
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
+        assertThat(dockerSocket.isAllowed()).isFalse();
+        assertThat(dockerSocket.getMessage()).contains("管理套接字");
     }
 
     @Test
