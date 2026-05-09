@@ -94,7 +94,7 @@ public class DangerousCommandApprovalService {
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String CREDENTIAL_PERMISSION_TARGET =
-            "(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|pip))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.json)?|auth\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)";
+            "(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -407,7 +407,7 @@ public class DangerousCommandApprovalService {
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b))|account\\s+export\\b|document\\s+get\\b(?=[^\\n]*(?:Emergency Kit|Secret Key)))|bw\\s+(?:get\\s+(?:password|item|notes)\\b|export\\b)|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "encrypted_secret_file_decrypt",
@@ -530,7 +530,7 @@ public class DangerousCommandApprovalService {
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(
-                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.json)?|auth\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
+                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
@@ -3519,7 +3519,10 @@ public class DangerousCommandApprovalService {
     }
 
     private String redactApprovalDisplay(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
+        String normalized =
+                SecretRedactor.stripDisplayControls(
+                        TerminalAnsiSanitizer.stripAnsi(StrUtil.nullToEmpty(value)));
+        return SecretRedactor.redact(normalized, maxLength);
     }
 
     private static String redactedApprover(String approver) {
