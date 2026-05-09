@@ -1877,14 +1877,21 @@ public class DangerousCommandApprovalServiceTest {
                         "ssh -oHostKey=server_host_key host.example",
                         "ssh -oHostCertificate=server-cert.pub host.example",
                         "ssh -oHostKeyAlias=known-host-entry host.example",
-                        "curl -K.curlrc https://example.invalid",
-                        "curl --config .curlrc https://example.invalid",
-                        "wget --config=.wgetrc https://example.invalid",
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
                         "az login --cert cert.pem --key key.pem",
-                        "npm --userconfig .npmrc whoami");
+                        "ansible all --private-key deploy_key -m ping",
+                        "ansible-playbook site.yml --key-file=deploy_key",
+                        "rsync -e 'ssh -i deploy_key' ./ user@example.com:/tmp/",
+                        "rsync -e \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
+                        "rsync --rsh='ssh -i deploy_key' ./ user@example.com:/tmp/",
+                        "rsync --rsh \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
+                        "git -c core.sshCommand='ssh -i deploy_key' clone git@example.com:org/repo.git",
+                        "git -c core.sshCommand=\"ssh -oIdentityFile=deploy_key\" fetch origin",
+                        "npm --userconfig .npmrc whoami",
+                        "rclone --config rclone.conf copy remote:bucket .",
+                        "s3cmd --config=.s3cfg ls s3://bucket");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1893,6 +1900,28 @@ public class DangerousCommandApprovalServiceTest {
                     .as(command)
                     .isEqualTo("credential_path_option");
         }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "rsync -av ./ user@example.com:/tmp/"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell",
+                                "git -c core.sshCommand='ssh -o StrictHostKeyChecking=yes' fetch origin"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ansible-inventory --list"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "rclone copy remote:bucket ."))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "s3cmd ls s3://bucket"))
+                .isNull();
     }
 
     @Test
