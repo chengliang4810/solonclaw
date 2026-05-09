@@ -76,9 +76,10 @@ public class CliModeParserTest {
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains("--session --ask -p /help /new /retry /undo /branch /resume")
-                .contains("/status /usage /title /busy /model /reasoning /tools /skills /agent")
+                .contains("/status /usage /title /goal /busy /model /reasoning /tools /skills /agent")
                 .contains("/cron /approve /kanban /deny /queue /steer /acp /restart /stop")
-                .contains("/compress /rollback /version /platforms /models /sessions /session")
+                .contains("/compact /compress /rollback /recap /trajectory /confirm /yolo /version")
+                .contains("/platforms /models /sessions /session")
                 .contains("/history /events /tasks /attachments /transcript /tips /skin /copy")
                 .contains("/exit /quit /exit! /quit!");
         assertThat(zsh)
@@ -87,9 +88,10 @@ public class CliModeParserTest {
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
                 .contains("Send one prompt or local terminal command")
-                .contains("/help /new /retry /undo /branch /resume /status /usage /title /busy")
+                .contains("/help /new /retry /undo /branch /resume /status /usage /title /goal /busy")
                 .contains("/model /reasoning /tools /skills /agent /cron /approve /kanban /deny")
-                .contains("/queue /steer /acp /restart /stop /compress /rollback /version")
+                .contains("/queue /steer /acp /restart /stop /compact /compress /rollback /recap")
+                .contains("/trajectory /confirm /yolo /version")
                 .contains("/platforms /models /sessions /session /history /events /tasks")
                 .contains("/attachments /transcript /tips /skin /copy /exit /quit /exit! /quit!")
                 .doesNotContain("'[Send one prompt]:prompt:'");
@@ -98,9 +100,10 @@ public class CliModeParserTest {
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
                 .contains("__fish_seen_argument -s p -l ask")
-                .contains("/help /new /retry /undo /branch /resume /status /usage /title /busy")
+                .contains("/help /new /retry /undo /branch /resume /status /usage /title /goal /busy")
                 .contains("/model /reasoning /tools /skills /agent /cron /approve /kanban /deny")
-                .contains("/queue /steer /acp /restart /stop /compress /rollback /version")
+                .contains("/queue /steer /acp /restart /stop /compact /compress /rollback /recap")
+                .contains("/trajectory /confirm /yolo /version")
                 .contains("/platforms /models /sessions /session /history /events /tasks")
                 .contains("/attachments /transcript /tips /skin /copy /exit /quit /exit! /quit!");
     }

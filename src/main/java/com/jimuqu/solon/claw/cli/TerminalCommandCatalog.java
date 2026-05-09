@@ -9,9 +9,10 @@ public final class TerminalCommandCatalog {
     public static final String[] SLASH_COMMANDS =
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
-                "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
+                "/title", "/goal", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
                 "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp",
-                "/restart", "/stop", "/compress", "/rollback", "/version", "/platforms",
+                "/restart", "/stop", "/compact", "/compress", "/rollback", "/recap",
+                "/trajectory", "/confirm", "/yolo", "/version", "/platforms",
                 "/models", "/sessions", "/session", "/history", "/events", "/tasks",
                 "/attachments", "/transcript", "/tips", "/skin", "/copy", "/exit", "/quit",
                 "/exit!", "/quit!"
