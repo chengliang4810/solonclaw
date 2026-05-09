@@ -4417,7 +4417,8 @@ public class DangerousCommandApprovalService {
         private final PendingApproval redactedPendingApproval;
 
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
-            this.sessionId = StrUtil.nullToEmpty(sessionId);
+            this.sessionId =
+                    SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(sessionId));
             this.pendingApproval = pendingApproval;
             this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
         }
@@ -4449,9 +4450,9 @@ public class DangerousCommandApprovalService {
         }
 
         public List<String> getPatternKeys() {
-            return pendingApproval == null
+            return redactedPendingApproval == null
                     ? Collections.<String>emptyList()
-                    : pendingApproval.effectivePatternKeys();
+                    : redactedPendingApproval.effectivePatternKeys();
         }
 
         public String getPrimaryPatternKey() {
@@ -4465,17 +4466,34 @@ public class DangerousCommandApprovalService {
             return null;
         }
         PendingApproval copy = new PendingApproval();
-        copy.setApprovalId(source.getApprovalId());
-        copy.setToolName(source.getToolName());
-        copy.setPatternKey(source.getPatternKey());
-        copy.setPatternKeys(source.getPatternKeys());
+        copy.setApprovalId(SecretRedactor.stripDisplayControls(source.getApprovalId()));
+        copy.setToolName(SecretRedactor.redact(source.getToolName(), 200));
+        copy.setPatternKey(SecretRedactor.redact(source.getPatternKey(), 400));
+        copy.setPatternKeys(redactedTextList(source.getPatternKeys(), 400));
         copy.setDescription(SecretRedactor.redact(source.getDescription(), 1000));
         copy.setCommand(SecretRedactor.redact(source.getCommand(), 3000));
-        copy.setCommandHash(source.getCommandHash());
+        copy.setCommandHash(SecretRedactor.stripDisplayControls(source.getCommandHash()));
         copy.setApprovalKey(SecretRedactor.redact(source.getApprovalKey(), 1000));
         copy.setCreatedAt(source.getCreatedAt());
         copy.setExpiresAt(source.getExpiresAt());
         return copy;
+    }
+
+    private static List<String> redactedTextList(List<String> source, int maxLength) {
+        if (source == null || source.isEmpty()) {
+            return new ArrayList<String>();
+        }
+        List<String> values = new ArrayList<String>();
+        for (String item : source) {
+            if (StrUtil.isBlank(item)) {
+                continue;
+            }
+            String redacted = SecretRedactor.redact(item, maxLength);
+            if (StrUtil.isNotBlank(redacted) && !values.contains(redacted.trim())) {
+                values.add(redacted.trim());
+            }
+        }
+        return values;
     }
 
     public static class ApprovalResponseEvent extends ApprovalRequestEvent {

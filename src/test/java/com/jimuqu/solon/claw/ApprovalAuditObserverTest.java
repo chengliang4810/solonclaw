@@ -69,6 +69,48 @@ public class ApprovalAuditObserverTest {
         assertThat(response.getApprover()).contains("token=***");
     }
 
+    @Test
+    void shouldStripDisplayControlsAndSecretsFromApprovalAuditIdentifiers()
+            throws Exception {
+        CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        service.addApprovalObserver(new ApprovalAuditObserver(repository));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session\u202E-audit");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+
+        service.storePendingApproval(
+                session,
+                "execute_shell\u202E",
+                "tirith:token_ghp_patternsecret123\u202E",
+                "Security scan\u202E saw token=ghp_auditsecret123",
+                "rm -rf runtime/cache\u202E --token ghp_commandsecret123");
+
+        assertThat(repository.events).hasSize(1);
+        ApprovalAuditEvent event = repository.events.get(0);
+        assertThat(event.getSessionId()).isEqualTo("session-audit");
+        assertThat(event.getToolName()).isEqualTo("execute_shell");
+        assertThat(event.getPatternKeysJson())
+                .contains("tirith:token_ghp_***")
+                .doesNotContain("\u202E")
+                .doesNotContain("patternsecret123");
+        assertThat(event.getApprovalKey())
+                .contains("tirith:token_ghp_***")
+                .doesNotContain("\u202E")
+                .doesNotContain("patternsecret123");
+        assertThat(event.getDescription())
+                .contains("token=***")
+                .doesNotContain("\u202E")
+                .doesNotContain("ghp_auditsecret123");
+        assertThat(event.getCommandPreview())
+                .contains("rm -rf runtime/cache --token ***")
+                .doesNotContain("\u202E")
+                .doesNotContain("ghp_commandsecret123");
+    }
+
     private static class CapturingApprovalAuditRepository implements ApprovalAuditRepository {
         private final List<ApprovalAuditEvent> events = new ArrayList<ApprovalAuditEvent>();
 
