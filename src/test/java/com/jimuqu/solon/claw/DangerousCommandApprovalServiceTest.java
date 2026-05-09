@@ -2681,8 +2681,11 @@ public class DangerousCommandApprovalServiceTest {
         List<String> auditLogErasures =
                 Arrays.asList(
                         "journalctl --vacuum-time=1s",
+                        "journalctl --rotate --vacuum-size=1M",
                         "truncate -s 0 /var/log/auth.log",
+                        "truncate -s 0 /var/lib/systemd/journal/system.journal",
                         "wevtutil cl Security",
+                        "wevtutil clear-log Application",
                         "Clear-EventLog -LogName Security",
                         "auditctl -D");
         for (String command : auditLogErasures) {

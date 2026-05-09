@@ -594,7 +594,7 @@ public class DangerousCommandApprovalService {
                                     "audit_log_erasure",
                                     "audit or event log erasure",
                                     pattern(
-                                            "\\b(?:journalctl\\s+--vacuum-(?:time|size|files)\\b|rm\\s+[^\\n]*(?:/var/log|/var/audit)|truncate\\s+[^\\n]*(?:/var/log|/var/audit)|wevtutil\\s+cl\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
+                                            "\\b(?:journalctl\\b(?=[^\\n]*--vacuum-(?:time|size|files)\\b)|rm\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|truncate\\s+[^\\n]*(?:/var/log|/var/audit|/var/lib/systemd/journal|/run/log/journal)|wevtutil\\s+(?:cl|clear-log)\\b|Clear-EventLog\\b|Remove-EventLog\\b|auditctl\\s+-D\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "git_remote_credential_url",
