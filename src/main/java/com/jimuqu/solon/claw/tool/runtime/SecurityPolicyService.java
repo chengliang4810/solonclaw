@@ -1215,8 +1215,16 @@ public class SecurityPolicyService {
                 if (i + 1 < tokens.size()) {
                     value = tokens.get(++i);
                 }
+            } else if ("--dns-ipv4-addr".equals(token) || "--dns-ipv6-addr".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
             } else if (token.startsWith("--dns-servers=")) {
                 value = token.substring("--dns-servers=".length());
+            } else if (token.startsWith("--dns-ipv4-addr=")) {
+                value = token.substring("--dns-ipv4-addr=".length());
+            } else if (token.startsWith("--dns-ipv6-addr=")) {
+                value = token.substring("--dns-ipv6-addr=".length());
             }
             addDnsServerHosts(value, urls);
         }

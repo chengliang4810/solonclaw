@@ -3585,6 +3585,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict dnsServerMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --dns-servers=8.8.8.8,169.254.169.254 https://safe.example/");
+        SecurityPolicyService.UrlVerdict dnsIpv4Private =
+                securityPolicyService.checkCommandUrls(
+                        "curl --dns-ipv4-addr 127.0.0.1 https://safe.example/");
+        SecurityPolicyService.UrlVerdict dnsIpv6Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --dns-ipv6-addr=fd00:ec2::254 https://safe.example/");
         SecurityPolicyService.UrlVerdict socksMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
@@ -3646,6 +3652,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dnsServerPrivate.getMessage()).contains("内网");
         assertThat(dnsServerMetadata.isAllowed()).isFalse();
         assertThat(dnsServerMetadata.getMessage()).contains("元数据");
+        assertThat(dnsIpv4Private.isAllowed()).isFalse();
+        assertThat(dnsIpv4Private.getMessage()).contains("内网");
+        assertThat(dnsIpv6Metadata.isAllowed()).isFalse();
+        assertThat(dnsIpv6Metadata.getMessage()).contains("元数据");
         assertThat(socksMetadata.isAllowed()).isFalse();
         assertThat(socksMetadata.getMessage()).contains("元数据");
         assertThat(socks4Private.isAllowed()).isFalse();
