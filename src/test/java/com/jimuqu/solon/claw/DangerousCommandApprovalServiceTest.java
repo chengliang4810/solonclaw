@@ -1501,13 +1501,36 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
         }
 
+        List<String> encryptedSecretFileDecrypts =
+                Arrays.asList(
+                        "sops -d secrets.enc.yaml",
+                        "sops --decrypt prod.secret.yaml",
+                        "ansible-vault view group_vars/prod/vault.yml",
+                        "ansible-vault decrypt group_vars/prod/vault.yml",
+                        "gpg --decrypt secrets.gpg",
+                        "gpg -d secrets.gpg",
+                        "age -d secrets.age",
+                        "age --decrypt secrets.age");
+        for (String command : encryptedSecretFileDecrypts) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("encrypted_secret_file_decrypt");
+        }
+
         List<String> secretStoreMetadataReads =
                 Arrays.asList(
                         "op item list",
                         "op item get prod-db --fields title",
                         "bw list items",
                         "pass git status",
-                        "secret-tool search service prod-db");
+                        "secret-tool search service prod-db",
+                        "sops --encrypt secrets.yaml",
+                        "ansible-vault edit group_vars/prod/vault.yml",
+                        "gpg --list-keys",
+                        "age-keygen -o key.txt");
         for (String command : secretStoreMetadataReads) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)

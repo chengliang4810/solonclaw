@@ -400,6 +400,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "encrypted_secret_file_decrypt",
+                                    "decrypt encrypted secret file",
+                                    pattern(
+                                            "\\b(?:sops\\s+(?:-d|--decrypt)\\b|ansible-vault\\s+(?:view|decrypt)\\b|gpg(?:2)?\\s+(?:--decrypt|-d)\\b|age\\s+(?:--decrypt|-d)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "secret_store_write",
                                     "write secret manager value",
                                     pattern(
