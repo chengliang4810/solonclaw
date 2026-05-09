@@ -263,18 +263,18 @@ public class DashboardDiagnosticOutputTest {
     void shouldRedactApprovalHistoryOutput() throws Exception {
         AppConfig config = new AppConfig();
         ApprovalAuditEvent event = new ApprovalAuditEvent();
-        event.setEventId("audit-1");
-        event.setSessionId("session-audit");
+        event.setEventId("audit-1\u202E");
+        event.setSessionId("session-audit\u202E");
         event.setEventType("response");
         event.setChoice("once");
         event.setApprover("operator token=ghp_approversecret123");
-        event.setToolName("execute_shell");
-        event.setApprovalId("approval-1");
+        event.setToolName("execute_shell\u202E");
+        event.setApprovalId("approval-1\u202E");
         event.setApprovalKey("execute_shell:recursive_delete:hash");
         event.setCommandHash("hash");
         event.setCommandPreview("printf api_key=sk-history-secret");
         event.setDescription("history password=history-secret");
-        event.setPatternKeysJson("[\"recursive_delete\"]");
+        event.setPatternKeysJson("[\"recursive_delete\u202E\",\"token_ghp_historypattern123\"]");
         event.setCreatedAt(1700000000002L);
 
         DashboardDiagnosticsService diagnosticsService =
@@ -302,6 +302,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("history-secret");
         assertThat(json).doesNotContain("execute_shell:recursive_delete:hash");
         assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
+        assertThat(json).doesNotContain("\\u202E");
+        assertThat(json).doesNotContain("historypattern123");
+        assertThat(json).contains("\"session_id\":\"session-audit\"");
+        assertThat(json).contains("\"tool_name\":\"execute_shell\"");
+        assertThat(json).contains("token_ghp_***");
         assertThat(json).contains("\"approval_key\":\"execute_shell:recursive_delete:***\"");
         assertThat(json).contains("\"command_hash\":\"***\"");
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");

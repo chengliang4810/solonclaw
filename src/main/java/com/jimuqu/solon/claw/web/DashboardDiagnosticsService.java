@@ -563,22 +563,26 @@ public class DashboardDiagnosticsService {
 
     private Map<String, Object> approvalAuditItem(ApprovalAuditEvent event) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
-        item.put("event_id", event.getEventId());
-        item.put("session_id", event.getSessionId());
-        item.put("event_type", event.getEventType());
-        item.put("choice", event.getChoice());
+        item.put("event_id", safeAuditPreview(event.getEventId(), 120));
+        item.put("session_id", safeAuditPreview(event.getSessionId(), 240));
+        item.put("event_type", safeAuditPreview(event.getEventType(), 80));
+        item.put("choice", safeAuditPreview(event.getChoice(), 80));
         item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
-        item.put("tool_name", event.getToolName());
-        item.put("approval_id", event.getApprovalId());
+        item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
+        item.put("approval_id", safeAuditPreview(event.getApprovalId(), 160));
         item.put("approval_key", redactedApprovalKey(event.getApprovalKey()));
         item.put("command_hash", redactedIdentifier(event.getCommandHash()));
         item.put("command_preview", SecretRedactor.redact(event.getCommandPreview(), 800));
         item.put("description", SecretRedactor.redact(event.getDescription(), 1000));
-        item.put("pattern_keys", parseJsonList(event.getPatternKeysJson()));
+        item.put("pattern_keys", redactedJsonList(event.getPatternKeysJson(), 400));
         item.put("created_at", Long.valueOf(event.getCreatedAt()));
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
         item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
         return item;
+    }
+
+    private String safeAuditPreview(String value, int maxLength) {
+        return StrUtil.nullToEmpty(SecretRedactor.redact(value, maxLength));
     }
 
     private String redactedApprovalKey(String approvalKey) {
@@ -743,6 +747,19 @@ public class DashboardDiagnosticsService {
         } catch (Exception ignored) {
         }
         return new ArrayList<Object>();
+    }
+
+    private List<Object> redactedJsonList(String json, int maxLength) {
+        List<Object> source = parseJsonList(json);
+        List<Object> values = new ArrayList<Object>();
+        for (Object item : source) {
+            if (item instanceof String) {
+                values.add(safeAuditPreview((String) item, maxLength));
+            } else if (item != null) {
+                values.add(SecretRedactor.redact(String.valueOf(item), maxLength));
+            }
+        }
+        return values;
     }
 
     private boolean canWriteParent(String path) {
