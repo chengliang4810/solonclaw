@@ -574,6 +574,9 @@ public class SecurityPolicyService {
     public Map<String, Object> toolArgsPolicySummary() {
         Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
         summary.put("recursiveUrlExtraction", Boolean.TRUE);
+        summary.put("returnedContentUrlExtraction", Boolean.TRUE);
+        summary.put("returnedDocumentContentChecked", Boolean.TRUE);
+        summary.put("returnedUrlKeySamples", Arrays.asList("href", "link", "browser_download_url", "source_url", "finalUrl"));
         summary.put("recursivePathExtraction", Boolean.TRUE);
         summary.put("writeIntentDetection", Boolean.TRUE);
         summary.put("patchTargetExtraction", Boolean.TRUE);
@@ -583,7 +586,7 @@ public class SecurityPolicyService {
         summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
         summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
         summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
-        summary.put("description", "Tool argument safety recursively extracts URL and path-like values, detects write intent, and parses patch/diff targets before tool execution.");
+        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks returned documents, and parses patch/diff targets before tool execution.");
         return summary;
     }
 

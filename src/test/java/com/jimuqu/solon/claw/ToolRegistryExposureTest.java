@@ -1023,13 +1023,20 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolReturnedContentUrlSafety").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("recursiveUrlExtraction").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedContentUrlExtraction").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("returnedDocumentContentChecked").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("writeIntentDetection").getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolArgsPolicy")))
                 .contains("file_path")
                 .contains("endpoint")
+                .contains("browser_download_url")
                 .contains("apply_patch");
         assertThat(policyStatus.get("policy").get("coverage").get("schemaSanitizer").getBoolean())
                 .isTrue();

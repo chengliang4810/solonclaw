@@ -283,6 +283,7 @@ public class SecurityAuditTools {
                 new SkillCredentialFileService(appConfig).policySummary());
         coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("toolReturnedContentUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("schemaSanitizer", Boolean.TRUE);
         coverage.put("patchParser", Boolean.TRUE);
         coverage.put("subprocessEnvironmentSanitizer", Boolean.TRUE);
@@ -321,6 +322,7 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "credentialMountPolicy", true);
         addSurface(activeSurfaces, "pathSecurity", securityPolicyService != null);
         addSurface(activeSurfaces, "toolArgsSecurity", securityPolicyService != null);
+        addSurface(activeSurfaces, "toolReturnedContentUrlSafety", securityPolicyService != null);
         addSurface(activeSurfaces, "schemaSanitizer", true);
         addSurface(activeSurfaces, "patchParser", true);
         addSurface(activeSurfaces, "subprocessEnvironmentSanitizer", true);
