@@ -12,6 +12,47 @@ import org.noear.solon.ai.rag.Document;
 
 public class SolonClawExecuteCodeWebRpcTest {
     @Test
+    void shouldExposeCodeExecutionPolicySummaryWithoutSecrets() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setEnvPassthrough(java.util.Arrays.asList("TENOR_API_KEY"));
+
+        Map<String, Object> summary =
+                SolonClawCodeExecutionSkills.codeExecutionPolicySummary(env.appConfig);
+
+        assertThat(summary.get("executeCodeSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("executePythonSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("executeJsSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("scriptPreflightPathPolicy")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("scriptPreflightUrlPolicy")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("dangerousCommandRulesApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("managedFileToolPathLiteralsIgnoredForPreflight"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("stagingDirectoryPerRun")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sandboxEnvironmentSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonPathPrependsStaging")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonIoEncodingUtf8")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonDontWriteBytecode")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rpcToolBridgeEnabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("defaultTimeoutSeconds")).isEqualTo(Integer.valueOf(300));
+        assertThat(summary.get("stdoutLimitChars"))
+                .isEqualTo(Integer.valueOf(env.appConfig.getTask().getToolOutputInlineLimit()));
+        assertThat(summary.get("stderrLimitChars")).isEqualTo(Integer.valueOf(10000));
+        assertThat(summary.get("timeoutKillsProcess")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("stagingCleanup")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("outputRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary))
+                .contains("web_search")
+                .contains("web_extract")
+                .contains("read_file")
+                .contains("write_file")
+                .contains("search_files")
+                .contains("patch")
+                .contains("terminal")
+                .contains("providerBlocklistOverridesPassthrough")
+                .doesNotContain("TENOR_API_KEY");
+    }
+
+    @Test
     void shouldExposeJimuquWebSearchAndExtractInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();

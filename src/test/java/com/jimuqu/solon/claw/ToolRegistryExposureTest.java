@@ -840,6 +840,39 @@ public class ToolRegistryExposureTest {
                 .contains("pathFallbackEnabledForPosix")
                 .doesNotContain("OPENAI_API_KEY")
                 .doesNotContain("TENOR_API_KEY");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("codeExecutionPolicyAuditable")
+                                .getBoolean())
+                .isTrue();
+        ONode codeExecutionPolicy =
+                policyStatus.get("policy").get("coverage").get("codeExecutionPolicy");
+        assertThat(codeExecutionPolicy.get("executeCodeSupported").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("executePythonSupported").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("executeJsSupported").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("scriptPreflightPathPolicy").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("scriptPreflightUrlPolicy").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("dangerousCommandRulesApplied").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("managedFileToolPathLiteralsIgnoredForPreflight").getBoolean())
+                .isTrue();
+        assertThat(codeExecutionPolicy.get("sandboxEnvironmentSanitized").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("rpcToolBridgeEnabled").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("defaultTimeoutSeconds").getInt()).isEqualTo(300);
+        assertThat(codeExecutionPolicy.get("stderrLimitChars").getInt()).isEqualTo(10000);
+        assertThat(codeExecutionPolicy.get("timeoutKillsProcess").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("stagingCleanup").getBoolean()).isTrue();
+        assertThat(codeExecutionPolicy.get("outputRedacted").getBoolean()).isTrue();
+        assertThat(String.valueOf(codeExecutionPolicy))
+                .contains("web_search")
+                .contains("web_extract")
+                .contains("read_file")
+                .contains("write_file")
+                .contains("search_files")
+                .contains("terminal")
+                .contains("providerBlocklistOverridesPassthrough")
+                .doesNotContain("TENOR_API_KEY");
         assertThat(policyStatus.get("policy").get("coverage").get("toolResultStorage").getBoolean())
                 .isTrue();
         assertThat(

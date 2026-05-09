@@ -36,11 +36,59 @@ public class SolonClawCodeExecutionSkills {
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
     private static final int MAX_STDERR_CHARS = 10000;
+    private static final List<String> EXECUTE_CODE_RPC_TOOLS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "web_search",
+                            "web_extract",
+                            "read_file",
+                            "write_file",
+                            "search_files",
+                            "patch",
+                            "terminal"));
     private static final Pattern MANAGED_FILE_TOOL_CALL =
             Pattern.compile(
                     "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file)\\s*\\(\\s*(['\"])(.*?)\\1",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private SolonClawCodeExecutionSkills() {}
+
+    public static Map<String, Object> codeExecutionPolicySummary(AppConfig appConfig) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("executeCodeSupported", Boolean.TRUE);
+        summary.put("executePythonSupported", Boolean.TRUE);
+        summary.put("executeJsSupported", Boolean.TRUE);
+        summary.put("solonAiSysSkillsWrapped", Boolean.TRUE);
+        summary.put("workdirTextValidated", Boolean.TRUE);
+        summary.put("scriptPreflightPathPolicy", Boolean.TRUE);
+        summary.put("scriptPreflightUrlPolicy", Boolean.TRUE);
+        summary.put("dangerousCommandRulesApplied", Boolean.TRUE);
+        summary.put("hardlineRulesApplied", Boolean.TRUE);
+        summary.put("foregroundBackgroundGuardrail", Boolean.TRUE);
+        summary.put("managedFileToolPathLiteralsIgnoredForPreflight", Boolean.TRUE);
+        summary.put("stagingDirectoryPerRun", Boolean.TRUE);
+        summary.put("stagingPrefix", "execute_code_");
+        summary.put("stagingCleanup", Boolean.TRUE);
+        summary.put("sandboxEnvironmentSanitized", Boolean.TRUE);
+        summary.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
+        summary.put("pythonPathPrependsStaging", Boolean.TRUE);
+        summary.put("pythonIoEncodingUtf8", Boolean.TRUE);
+        summary.put("pythonDontWriteBytecode", Boolean.TRUE);
+        summary.put("rpcToolBridgeEnabled", Boolean.TRUE);
+        summary.put("rpcTools", EXECUTE_CODE_RPC_TOOLS);
+        summary.put("rpcRequestFilesSorted", Boolean.TRUE);
+        summary.put("rpcToolOutputsRedacted", Boolean.TRUE);
+        summary.put("defaultTimeoutSeconds", Integer.valueOf(DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS));
+        summary.put("maxTimeoutClampedByTerminalConfig", Boolean.TRUE);
+        summary.put("timeoutKillsProcess", Boolean.TRUE);
+        summary.put("stdoutLimitChars", Integer.valueOf(defaultMaxStdoutChars(appConfig)));
+        summary.put("stderrLimitChars", Integer.valueOf(MAX_STDERR_CHARS));
+        summary.put("ansiOutputStripped", Boolean.TRUE);
+        summary.put("outputRedacted", Boolean.TRUE);
+        summary.put("outputTruncated", Boolean.TRUE);
+        summary.put("stderrReturnedOnlyOnErrors", Boolean.TRUE);
+        summary.put("safeErrorTextRedacted", Boolean.TRUE);
+        return summary;
+    }
 
     public static class SafeExecuteCodeTool {
         private final String workDir;
@@ -1146,6 +1194,14 @@ public class SolonClawCodeExecutionSkills {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
                 ? "python"
                 : "python3";
+    }
+
+    private static int defaultMaxStdoutChars(AppConfig appConfig) {
+        int value = DEFAULT_MAX_STDOUT_CHARS;
+        if (appConfig != null && appConfig.getTask() != null) {
+            value = appConfig.getTask().getToolOutputInlineLimit();
+        }
+        return Math.max(256, value);
     }
 }
 
