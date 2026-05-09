@@ -1321,6 +1321,13 @@ public class DangerousCommandApprovalService {
                                             "\\bdd\\b[^\\n]*\\bof=[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "hardline_disk_partition_table_destroy",
+                                    "destroy raw disk partition table or signatures",
+                                    pattern(
+                                            HARDLINE_COMMAND_POSITION
+                                                    + "(?=(?:[^\\n]*[\"']?/dev/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*))(?:wipefs\\b(?=[^\\n]*(?:-a\\b|--all\\b))|blkdiscard\\b|sgdisk\\b(?=[^\\n]*(?:--zap-all\\b|-Z\\b|--clear\\b|\\s-o\\b))|sfdisk\\b(?=[^\\n]*(?:--delete\\b|--wipe\\s+always\\b|--wipe-partitions\\s+always\\b))|parted\\b(?=[^\\n]*\\bmklabel\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "hardline_redirect_device",
                                     "redirect to raw block device",
                                     pattern(">\\s*[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
