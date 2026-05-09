@@ -506,7 +506,10 @@ public class CronJobService {
                         "provider",
                         "base_url",
                         "wrap_response",
-                        "enabled"));
+                        "enabled",
+                        "status",
+                        "state",
+                        "paused_reason"));
         result.put("actions", cronGuideActions());
         result.put("aliases", cronGuideAliases());
         result.put("skill_binding", cronGuideSkillBinding());

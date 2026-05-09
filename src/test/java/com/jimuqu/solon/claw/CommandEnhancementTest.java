@@ -766,6 +766,8 @@ public class CommandEnhancementTest {
                 .contains("Cron 自动化指南")
                 .contains("可编辑字段：")
                 .contains("deliver_chat_id")
+                .contains("status")
+                .contains("paused_reason")
                 .contains("技能绑定：")
                 .contains("--remove-skill name")
                 .contains("投递策略：")
@@ -779,7 +781,11 @@ public class CommandEnhancementTest {
         GatewayReply json = env.send("admin-chat", "admin-user", "/cron capabilities --json");
 
         ONode data = ONode.ofJson(json.getContent());
-        assertThat(data.get("editable_fields").toJson()).contains("wrap_response");
+        assertThat(data.get("editable_fields").toJson())
+                .contains("wrap_response")
+                .contains("status")
+                .contains("state")
+                .contains("paused_reason");
         assertThat(data.get("aliases").get("pause").toJson()).contains("disable").contains("stop");
         assertThat(data.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
         assertThat(data.get("security").get("script_validation").getString()).contains("script");
