@@ -817,6 +817,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:pickle|cPickle|dill)\\.loads?\\s*\\(|\\byaml\\.load\\s*\\((?![^\\n)]*SafeLoader)"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_dynamic_code_execution",
+                                    "Python dynamic code execution",
+                                    pattern(
+                                            "(?<![\\w.])(?:eval|exec)\\s*\\(|\\bcompile\\s*\\([^\\n)]*,[^\\n)]*,\\s*['\"]exec['\"]"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "js_child_process",
                                     "Node child_process execution",
                                     pattern(
