@@ -369,6 +369,14 @@ public class DangerousCommandApprovalService {
                                             "(?:^|[;&|\\n`])\\s*(?:GIT_SSL_NO_VERIFY\\s*=\\s*(?:true|1|yes)\\s+git\\b|git\\s+-c\\s+http\\.sslVerify\\s*=\\s*false\\b|git\\s+config\\s+(?:--global\\s+)?http\\.sslVerify\\s+false\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "code_tls_certificate_check_disabled",
+                                    "code disables TLS certificate verification",
+                                    pattern(
+                                            "(?:verify\\s*=\\s*False\\b|rejectUnauthorized\\s*[:=]\\s*false\\b|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*['\"]?0['\"]?)"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(
@@ -733,6 +741,12 @@ public class DangerousCommandApprovalService {
                                             "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+(?:\\$?true|1)\\b|-DisableBehaviorMonitoring\\s+(?:\\$?true|1)\\b|-DisableIOAVProtection\\s+(?:\\$?true|1)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_defender_exclusion",
+                                    "Windows Defender exclusion added",
+                                    pattern(
+                                            "\\b(?:Add-MpPreference|Set-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_export_credentials",
                                     "Windows credential or certificate export",
                                     pattern(
@@ -803,6 +817,18 @@ public class DangerousCommandApprovalService {
                                             "\\bsubprocess\\.(run|Popen|call|check_call|check_output)\\s*\\("),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_unsafe_deserialization",
+                                    "Python unsafe deserialization",
+                                    pattern(
+                                            "\\b(?:pickle|cPickle|dill)\\.loads?\\s*\\(|\\byaml\\.load\\s*\\((?![^\\n)]*SafeLoader)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
+                                    "python_dynamic_code_execution",
+                                    "Python dynamic code execution",
+                                    pattern(
+                                            "(?<![\\w.])(?:eval|exec)\\s*\\(|\\bcompile\\s*\\([^\\n)]*,[^\\n)]*,\\s*['\"]exec['\"]"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "js_child_process",
                                     "Node child_process execution",
                                     pattern(
@@ -812,6 +838,12 @@ public class DangerousCommandApprovalService {
                                     "js_require_child_process",
                                     "Node child_process import",
                                     pattern("require\\s*\\(\\s*['\"]child_process['\"]\\s*\\)"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_dynamic_code_execution",
+                                    "Node dynamic code execution",
+                                    pattern(
+                                            "\\b(?:eval|Function)\\s*\\(|\\bnew\\s+Function\\s*\\(|\\bvm\\.runIn(?:ThisContext|NewContext|Context)\\s*\\("),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_fs_remove",

@@ -830,6 +830,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -ExclusionProcess powershell.exe",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
+                "Add-MpPreference -ExclusionExtension ps1",
+                "windows_defender_exclusion");
+        assertDangerPattern(
+                env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
                 "windows_take_ownership");
         assertDangerPattern(
@@ -1304,6 +1316,135 @@ public class DangerousCommandApprovalServiceTest {
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "git status"))
                 .isNull();
+    }
+
+    @Test
+    void shouldDetectCodeTlsCertificateVerificationBypass() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult pythonVerifyFalse =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_python",
+                        "import requests\nrequests.get('https://example.com', verify=False)");
+        DangerousCommandApprovalService.DetectionResult jsRejectUnauthorized =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_js",
+                        "https.request(url, { rejectUnauthorized: false }, cb)");
+        DangerousCommandApprovalService.DetectionResult nodeEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_js",
+                        "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; fetch(url)");
+        DangerousCommandApprovalService.DetectionResult shellPython =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "python -c \"import requests; requests.get('https://example.com', verify=False)\"");
+
+        assertThat(pythonVerifyFalse).isNotNull();
+        assertThat(pythonVerifyFalse.getPatternKey())
+                .isEqualTo("code_tls_certificate_check_disabled");
+        assertThat(jsRejectUnauthorized).isNotNull();
+        assertThat(jsRejectUnauthorized.getPatternKey())
+                .isEqualTo("code_tls_certificate_check_disabled");
+        assertThat(nodeEnv).isNotNull();
+        assertThat(nodeEnv.getPatternKey()).isEqualTo("code_tls_certificate_check_disabled");
+        assertThat(shellPython).isNotNull();
+        assertThat(shellPython.getPatternKey()).isIn(
+                "code_tls_certificate_check_disabled",
+                "script_eval_flag");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "import requests\nrequests.get('https://example.com', verify=True)"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectPythonUnsafeDeserialization() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "import pickle\npickle.loads(payload)",
+                        "import cPickle\ncPickle.load(stream)",
+                        "import dill\ndill.loads(payload)",
+                        "import yaml\nyaml.load(payload)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_unsafe_deserialization");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "import yaml\nyaml.load(payload, Loader=yaml.SafeLoader)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "import json\njson.loads(payload)"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectJavaScriptDynamicCodeExecution() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "eval(userInput)",
+                        "new Function(source)()",
+                        "Function(source)()",
+                        "vm.runInThisContext(code)",
+                        "vm.runInNewContext(code, sandbox)",
+                        "vm.runInContext(code, context)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_dynamic_code_execution");
+        }
+
+        assertThat(env.dangerousCommandApprovalService.detect("execute_js", "JSON.parse(payload)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "eval(user_input)"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectPythonDynamicCodeExecution() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "eval(user_input)",
+                        "exec(source)",
+                        "compile(source, filename, 'exec')");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_dynamic_code_execution");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "json.loads(payload)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js", "eval(userInput)"))
+                .hasFieldOrPropertyWithValue("patternKey", "js_dynamic_code_execution");
     }
 
     @Test
