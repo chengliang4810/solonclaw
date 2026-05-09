@@ -437,6 +437,12 @@ public class DangerousCommandApprovalService {
                                             "(?:\\bcrontab\\s+(?:-[er]\\b|-u\\s+\\S+\\s+-[er]\\b|-(?:\\s|$))|\\|\\s*crontab\\s+-?(?:\\s|$))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "local_admin_permission_change",
+                                    "local administrator or sudo permission change",
+                                    pattern(
+                                            "\\b(?:usermod\\b(?=[^\\n]*(?:-aG|--append\\s+--groups)[^\\n]*(?:sudo|wheel|admin|docker)\\b)|gpasswd\\s+-a\\s+\\S+\\s+(?:sudo|wheel|admin|docker)\\b|net(?:\\.exe)?\\s+localgroup\\s+Administrators\\b|dscl\\s+\\.\\s+-append\\s+/Groups/(?:admin|wheel)\\s+GroupMembership\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "kill_all",
                                     "kill all processes",
                                     pattern("\\bkill\\s+-9\\s+-1\\b"),

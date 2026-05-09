@@ -620,6 +620,18 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "echo '* * * * * payload' | crontab -");
         DangerousCommandApprovalService.DetectionResult crontabList =
                 env.dangerousCommandApprovalService.detect("execute_shell", "crontab -l");
+        DangerousCommandApprovalService.DetectionResult usermodSudo =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "usermod -aG sudo deploy");
+        DangerousCommandApprovalService.DetectionResult gpasswdDocker =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gpasswd -a deploy docker");
+        DangerousCommandApprovalService.DetectionResult windowsAdmin =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "net localgroup Administrators deploy /add");
+        DangerousCommandApprovalService.DetectionResult macAdmin =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "dscl . -append /Groups/admin GroupMembership deploy");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -759,6 +771,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(crontabPipe).isNotNull();
         assertThat(crontabPipe.getPatternKey()).isEqualTo("unix_cron_persistence_change");
         assertThat(crontabList).isNull();
+        assertThat(usermodSudo).isNotNull();
+        assertThat(usermodSudo.getPatternKey()).isEqualTo("local_admin_permission_change");
+        assertThat(gpasswdDocker).isNotNull();
+        assertThat(gpasswdDocker.getPatternKey()).isEqualTo("local_admin_permission_change");
+        assertThat(windowsAdmin).isNotNull();
+        assertThat(windowsAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
+        assertThat(macAdmin).isNotNull();
+        assertThat(macAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(killallGateway).isNotNull();
         assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(pkillUnrelated).isNull();
