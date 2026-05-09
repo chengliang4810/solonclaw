@@ -711,8 +711,10 @@ public class DashboardControllerHttpTest {
                         "/api/jimuqu/mcp",
                         "{\"serverId\":\"userinfo-docs\",\"name\":\"Userinfo Docs\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-userinfo-token\",\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
-        assertThat(userInfoMcp.status).isGreaterThanOrEqualTo(400);
+        assertThat(userInfoMcp.status).isEqualTo(400);
         assertThat(userInfoMcp.body)
+                .contains("MCP_BAD_REQUEST")
+                .contains("[REDACTED_PATH]")
                 .doesNotContain("secret-endpoint-pass")
                 .doesNotContain("secret-userinfo-token");
         HttpResult secretMcpList = request("GET", "/api/jimuqu/mcp", null, token);
@@ -793,8 +795,11 @@ public class DashboardControllerHttpTest {
                                         "UTF-8"),
                         null,
                         null);
-        assertThat(oauthCallbackError.status).isGreaterThanOrEqualTo(400);
+        assertThat(oauthCallbackError.status).isEqualTo(400);
         assertThat(oauthCallbackError.body)
+                .contains("MCP_BAD_REQUEST")
+                .contains("access_token=***")
+                .contains("token=***")
                 .doesNotContain("ghp_callbackerror12345")
                 .doesNotContain("secret-callback-error");
 
@@ -804,8 +809,11 @@ public class DashboardControllerHttpTest {
                         "/api/jimuqu/mcp/oauth-docs/oauth/begin",
                         "{\"authorization_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-auth\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\"}",
                         token);
-        assertThat(blockedAuthorizationEndpoint.status).isGreaterThanOrEqualTo(400);
-        assertThat(blockedAuthorizationEndpoint.body).doesNotContain("secret-auth");
+        assertThat(blockedAuthorizationEndpoint.status).isEqualTo(400);
+        assertThat(blockedAuthorizationEndpoint.body)
+                .contains("MCP_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("secret-auth");
 
         HttpResult pendingStatus =
                 request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
@@ -824,8 +832,11 @@ public class DashboardControllerHttpTest {
                                 + pendingState
                                 + "\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-token\"}",
                         token);
-        assertThat(blockedTokenEndpoint.status).isGreaterThanOrEqualTo(400);
-        assertThat(blockedTokenEndpoint.body).doesNotContain("secret-token");
+        assertThat(blockedTokenEndpoint.status).isEqualTo(400);
+        assertThat(blockedTokenEndpoint.body)
+                .contains("MCP_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("secret-token");
 
         HttpResult stateMismatch =
                 request(
@@ -833,7 +844,8 @@ public class DashboardControllerHttpTest {
                         "/api/jimuqu/mcp/oauth-docs/oauth/callback",
                         "{\"code\":\"bad-code\",\"state\":\"wrong\",\"token_endpoint\":\"http://127.0.0.1:1/token\"}",
                         token);
-        assertThat(stateMismatch.status).isGreaterThanOrEqualTo(400);
+        assertThat(stateMismatch.status).isEqualTo(400);
+        assertThat(stateMismatch.body).contains("MCP_BAD_REQUEST");
 
         TokenEndpointStub tokenEndpoint = TokenEndpointStub.start();
         try {

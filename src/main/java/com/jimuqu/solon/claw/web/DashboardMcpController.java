@@ -42,10 +42,14 @@ public class DashboardMcpController {
 
     @Mapping(value = "/api/jimuqu/mcp", method = MethodType.POST)
     public Map<String, Object> save(Context context) throws Exception {
-        return DashboardResponse.ok(
-                mcpService.save(
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.save(
                         ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
+                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/reload", method = MethodType.POST)
@@ -66,23 +70,43 @@ public class DashboardMcpController {
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/check", method = MethodType.POST)
-    public Map<String, Object> check(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.check(serverId));
+    public Map<String, Object> check(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.check(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/connect", method = MethodType.POST)
-    public Map<String, Object> connect(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.connect(serverId));
+    public Map<String, Object> connect(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.connect(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/reload", method = MethodType.POST)
-    public Map<String, Object> reload(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.reload(serverId));
+    public Map<String, Object> reload(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.reload(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/tools/refresh", method = MethodType.POST)
-    public Map<String, Object> refreshTools(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.refreshTools(serverId));
+    public Map<String, Object> refreshTools(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.refreshTools(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/status", method = MethodType.GET)
@@ -92,48 +116,101 @@ public class DashboardMcpController {
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/begin", method = MethodType.POST)
     public Map<String, Object> beginOAuth(String serverId, Context context) throws Exception {
-        return DashboardResponse.ok(
-                mcpService.beginOAuth(
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.beginOAuth(
                         serverId,
                         ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
+                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/callback", method = MethodType.GET)
     public Map<String, Object> oauthCallback(String serverId, Context context) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("code", context.param("code"));
-        body.put("state", context.param("state"));
-        body.put("error", context.param("error"));
-        return DashboardResponse.ok(mcpService.completeOAuth(serverId, body));
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                Map<String, Object> body = new LinkedHashMap<String, Object>();
+                body.put("code", context.param("code"));
+                body.put("state", context.param("state"));
+                body.put("error", context.param("error"));
+                return mcpService.completeOAuth(serverId, body);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/callback", method = MethodType.POST)
     public Map<String, Object> completeOAuth(String serverId, Context context) throws Exception {
-        return DashboardResponse.ok(
-                mcpService.completeOAuth(
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.completeOAuth(
                         serverId,
                         ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class)));
+                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/refresh", method = MethodType.POST)
-    public Map<String, Object> refreshOAuth(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.refreshOAuth(serverId));
+    public Map<String, Object> refreshOAuth(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.refreshOAuth(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/handle-401", method = MethodType.POST)
-    public Map<String, Object> handleOAuth401(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.handleOAuth401(serverId));
+    public Map<String, Object> handleOAuth401(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.handleOAuth401(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}/oauth/clear", method = MethodType.POST)
-    public Map<String, Object> clearOAuth(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.clearOAuth(serverId));
+    public Map<String, Object> clearOAuth(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.clearOAuth(serverId);
+            }
+        });
     }
 
     @Mapping(value = "/api/jimuqu/mcp/{serverId}", method = MethodType.DELETE)
-    public Map<String, Object> delete(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.delete(serverId));
+    public Map<String, Object> delete(String serverId, Context context) throws Exception {
+        return safeMcp(context, new McpAction() {
+            @Override
+            public Map<String, Object> run() throws Exception {
+                return mcpService.delete(serverId);
+            }
+        });
+    }
+
+    private Map<String, Object> safeMcp(Context context, McpAction action) throws Exception {
+        try {
+            return DashboardResponse.ok(action.run());
+        } catch (IllegalArgumentException e) {
+            if (context != null) {
+                context.status(400);
+            }
+            return DashboardResponse.error("MCP_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            if (context != null) {
+                context.status(400);
+            }
+            return DashboardResponse.error("MCP_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private interface McpAction {
+        Map<String, Object> run() throws Exception;
     }
 }
