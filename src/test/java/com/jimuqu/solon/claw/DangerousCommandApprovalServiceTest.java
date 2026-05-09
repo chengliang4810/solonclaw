@@ -900,6 +900,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult mysqlDrop =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "mysqladmin drop prod --force");
+        DangerousCommandApprovalService.DetectionResult mysqlDropStatement =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mysql -e 'DROP DATABASE prod'");
+        DangerousCommandApprovalService.DetectionResult psqlDropTable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "psql -c 'DROP TABLE IF EXISTS public.users'");
+        DangerousCommandApprovalService.DetectionResult sqliteDropSchema =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sqlite3 app.db \"DROP SCHEMA IF EXISTS tenant_a\"");
         DangerousCommandApprovalService.DetectionResult redisFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli FLUSHALL");
@@ -1081,6 +1090,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");
         assertThat(mysqlDrop).isNotNull();
         assertThat(mysqlDrop.getPatternKey()).isEqualTo("database_dropdb");
+        assertThat(mysqlDropStatement).isNotNull();
+        assertThat(mysqlDropStatement.getPatternKey()).isEqualTo("sql_drop_statement");
+        assertThat(psqlDropTable).isNotNull();
+        assertThat(psqlDropTable.getPatternKey()).isEqualTo("sql_drop_statement");
+        assertThat(sqliteDropSchema).isNotNull();
+        assertThat(sqliteDropSchema.getPatternKey()).isEqualTo("sql_drop_statement");
         assertThat(redisFlush).isNotNull();
         assertThat(redisFlush.getPatternKey()).isEqualTo("database_flush");
         assertThat(mongoDropDatabase).isNotNull();

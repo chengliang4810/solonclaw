@@ -908,6 +908,13 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "sql_drop_statement",
+                                    "SQL DROP statement",
+                                    pattern("\\bDROP\\s+(?:DATABASE|SCHEMA|TABLE)\\s+(?:IF\\s+EXISTS\\s+)?[A-Za-z0-9_.`\"\\[\\]-]+"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "database_dropdb",
                                     "database drop command",
                                     pattern("\\b(?:dropdb|mysqladmin\\s+drop)\\b"),
