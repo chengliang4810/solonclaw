@@ -1449,12 +1449,33 @@ public class DangerousCommandApprovalServiceTest {
                         "az keyvault secret show --vault-name prod --name db-password",
                         "kubectl get secret app-token -o yaml",
                         "vault kv get secret/prod",
-                        "vault read secret/data/prod");
+                        "vault read secret/data/prod",
+                        "op read op://prod/db/password",
+                        "op item get prod-db --fields password",
+                        "op item get prod-db --fields=token --reveal",
+                        "bw get password prod-db",
+                        "bw get item prod-db",
+                        "pass show prod/db",
+                        "gopass prod/db",
+                        "secret-tool lookup service prod-db");
         for (String command : secretStoreReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
+        }
+
+        List<String> secretStoreMetadataReads =
+                Arrays.asList(
+                        "op item list",
+                        "op item get prod-db --fields title",
+                        "bw list items",
+                        "pass git status",
+                        "secret-tool search service prod-db");
+        for (String command : secretStoreMetadataReads) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
         }
 
         List<String> keychainPasswordReads =
