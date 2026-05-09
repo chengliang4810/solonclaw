@@ -390,6 +390,8 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("always");
         assertThat(summary.get("defaultScope")).isEqualTo("once");
         assertThat(summary.get("pendingQueueSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pendingListHidesApprovalKey")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pendingListShowsPatternKey")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalCardDeliveryMode"))
                 .isEqualTo(DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
         assertThat(String.valueOf(summary.get("approvalCardPlatforms")))

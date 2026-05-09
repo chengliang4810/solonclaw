@@ -3268,6 +3268,8 @@ public class DefaultCommandService implements CommandService {
                             120))
                     .append(" tool=")
                     .append(safeApprovalPreview(pending.getToolName(), 120))
+                    .append(" pattern=")
+                    .append(safeApprovalPreview(pending.getPatternKey(), 240))
                     .append(" reason=")
                     .append(safeApprovalPreview(pending.getDescription(), 1000))
                     .append(" command_preview=")
@@ -3278,8 +3280,6 @@ public class DefaultCommandService implements CommandService {
                     .append(expiresInSeconds(pending.getExpiresAt()))
                     .append("s expired=")
                     .append(isExpired(pending.getExpiresAt()))
-                    .append(" key=")
-                    .append(safeApprovalPreview(pending.approvalKey(), 1000))
                     .append('\n');
         }
         buffer.append("session_approvals=")

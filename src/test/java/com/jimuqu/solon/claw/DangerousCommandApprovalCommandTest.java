@@ -107,16 +107,24 @@ public class DangerousCommandApprovalCommandTest {
                 "git reset --hard origin/main");
 
         GatewayReply list = env.send("room-queue", "user-queue", "/approve list");
+        String secondApprovalKey =
+                env.dangerousCommandApprovalService
+                        .listPendingApprovals(agentSession)
+                        .get(1)
+                        .approvalKey();
         assertThat(list.getContent())
                 .contains("pending=2")
                 .contains("#1")
                 .contains("#2")
+                .contains("pattern=recursive_delete")
                 .contains("command_preview=rm -rf runtime/cache")
                 .contains("scopes=once,session,always")
                 .contains("expires_in=")
-                .contains("expired=false");
+                .contains("expired=false")
+                .doesNotContain(" key=")
+                .doesNotContain(secondApprovalKey);
 
-        GatewayReply approved = env.send("room-queue", "user-queue", "/approve #2 session");
+        GatewayReply approved = env.send("room-queue", "user-queue", "/approve " + secondApprovalKey + " session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
         SqliteAgentSession updatedAgentSession =
                 new SqliteAgentSession(updated, env.sessionRepository);
