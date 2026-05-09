@@ -1062,6 +1062,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("downloadOutputDetachedOptionChecked").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("preproxyOptionUrlChecked").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolArgsPolicy")))
                 .contains("file_path")
                 .contains("endpoint")

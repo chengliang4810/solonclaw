@@ -381,6 +381,33 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckCurlPreproxyCommandTargets() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+
+        SecurityPolicyService.UrlVerdict detached =
+                privatePolicy.checkCommandUrls(
+                        "curl --preproxy socks5://internal.example:1080 https://example.com");
+        SecurityPolicyService.UrlVerdict assigned =
+                privatePolicy.checkCommandUrls(
+                        "curl --preproxy=socks5://internal.example:1080 https://example.com");
+        SecurityPolicyService.UrlVerdict metadata =
+                metadataPolicy.checkCommandUrls(
+                        "curl --preproxy socks5://metadata.google.internal:1080 https://example.com");
+
+        assertThat(detached.isAllowed()).isFalse();
+        assertThat(detached.getMessage()).contains("内网");
+        assertThat(assigned.isAllowed()).isFalse();
+        assertThat(assigned.getMessage()).contains("内网");
+        assertThat(metadata.isAllowed()).isFalse();
+        assertThat(metadata.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -754,6 +781,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("patchTargetExtraction")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputPathOptionChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputDetachedOptionChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("proxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("urlKeySamples"))).contains("url", "endpoint", "*_url");
         assertThat(String.valueOf(summary.get("returnedUrlKeySamples"))).contains("browser_download_url", "href");
         assertThat(String.valueOf(summary.get("pathKeySamples"))).contains("path", "file_path", "*_path");

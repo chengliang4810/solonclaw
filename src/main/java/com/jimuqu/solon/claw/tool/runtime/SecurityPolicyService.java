@@ -594,6 +594,8 @@ public class SecurityPolicyService {
         summary.put("patchTargetExtraction", Boolean.TRUE);
         summary.put("downloadOutputPathOptionChecked", Boolean.TRUE);
         summary.put("downloadOutputDetachedOptionChecked", Boolean.TRUE);
+        summary.put("proxyOptionUrlChecked", Boolean.TRUE);
+        summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
         summary.put("urlKeySamples", toolArgsUrlKeySamples());
         summary.put("pathKeySamples", toolArgsPathKeySamples());
         summary.put("writeIntentSamples", toolArgsWriteIntentSamples());
@@ -922,6 +924,7 @@ public class SecurityPolicyService {
             String value = null;
             if ("--proxy".equals(token)
                     || "-x".equals(token)
+                    || "--preproxy".equals(token)
                     || "--socks5".equals(token)
                     || "--socks5-hostname".equals(token)) {
                 if (i + 1 < tokens.size()) {
@@ -929,6 +932,8 @@ public class SecurityPolicyService {
                 }
             } else if (token.startsWith("--proxy=")) {
                 value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--preproxy=")) {
+                value = token.substring("--preproxy=".length());
             } else if (token.startsWith("--socks5=")) {
                 value = token.substring("--socks5=".length());
             } else if (token.startsWith("--socks5-hostname=")) {
