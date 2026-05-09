@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -36,6 +37,59 @@ public class ProcessTools {
         this.defaultWorkDir = defaultWorkDir;
         this.securityPolicyService = securityPolicyService;
         this.appConfig = appConfig;
+    }
+
+    public Map<String, Object> backgroundProcessPolicySummary() {
+        return backgroundProcessPolicySummary(appConfig);
+    }
+
+    public static Map<String, Object> backgroundProcessPolicySummary(AppConfig appConfig) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put(
+                "actions",
+                Arrays.asList(
+                        "start",
+                        "list",
+                        "events",
+                        "drain",
+                        "poll",
+                        "log",
+                        "wait",
+                        "kill",
+                        "stop",
+                        "write",
+                        "submit",
+                        "close"));
+        summary.put("processRegistryBacked", Boolean.TRUE);
+        summary.put("trackedSessionId", Boolean.TRUE);
+        summary.put("pidExposed", Boolean.TRUE);
+        summary.put("stdoutPreview", Boolean.TRUE);
+        summary.put("outputRedacted", Boolean.TRUE);
+        summary.put("completionEvents", Boolean.TRUE);
+        summary.put("stopSupported", Boolean.TRUE);
+        summary.put("stdinWriteSubmitCloseSupported", Boolean.TRUE);
+        summary.put("startDangerousCommandChecked", Boolean.TRUE);
+        summary.put("startHardlineBlocked", Boolean.TRUE);
+        summary.put("startPathPolicyChecked", Boolean.TRUE);
+        summary.put("startUrlPolicyChecked", Boolean.TRUE);
+        summary.put("currentThreadApprovalCanBypassStartCheck", Boolean.TRUE);
+        summary.put("stdinExecutionPayloadChecked", Boolean.TRUE);
+        summary.put(
+                "stdinExecutionTools",
+                Arrays.asList(
+                        ToolNameConstants.EXECUTE_SHELL,
+                        ToolNameConstants.EXECUTE_PYTHON,
+                        ToolNameConstants.EXECUTE_JS));
+        summary.put("stdinPrivilegeWrapperDetection", Boolean.TRUE);
+        summary.put(
+                "stdinWrapperFamilies",
+                Arrays.asList("env", "sudo", "doas", "pkexec", "runas", "command", "exec", "nohup"));
+        summary.put("waitTimeoutClamped", Boolean.TRUE);
+        summary.put(
+                "processWaitTimeoutSeconds",
+                Integer.valueOf(resolveProcessWaitTimeoutSeconds(appConfig)));
+        summary.put("managedBackgroundRequiredForLongRunningCommands", Boolean.TRUE);
+        return summary;
     }
 
     @ToolMapping(
@@ -291,6 +345,10 @@ public class ProcessTools {
     }
 
     private int resolveProcessWaitTimeoutSeconds() {
+        return resolveProcessWaitTimeoutSeconds(appConfig);
+    }
+
+    private static int resolveProcessWaitTimeoutSeconds(AppConfig appConfig) {
         if (appConfig == null || appConfig.getTerminal() == null) {
             return 180;
         }

@@ -314,6 +314,23 @@ public class ToolRegistryExposureTest {
                 .contains("failOpenMode")
                 .contains("powershell")
                 .contains("cmd");
+        ONode backgroundProcessPolicy =
+                policyStatus.get("policy").get("terminal").get("backgroundProcessPolicy");
+        assertThat(backgroundProcessPolicy.get("processRegistryBacked").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("startHardlineBlocked").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("startDangerousCommandChecked").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("stdinPrivilegeWrapperDetection").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("waitTimeoutClamped").getBoolean()).isTrue();
+        assertThat(backgroundProcessPolicy.get("processWaitTimeoutSeconds").getInt()).isGreaterThan(0);
+        assertThat(String.valueOf(backgroundProcessPolicy))
+                .contains("start")
+                .contains("submit")
+                .contains("close")
+                .contains("execute_python")
+                .contains("sudo")
+                .contains("nohup")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("approvals").get("mode").getString())
                 .isEqualTo("smart");
         assertThat(policyStatus.get("policy").get("approvals").get("smartMode").getBoolean())
@@ -737,6 +754,18 @@ public class ToolRegistryExposureTest {
                 .contains("metadata_url_access")
                 .contains("approvalRequired")
                 .contains("false");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("backgroundProcessPolicy")
+                                .get("stdinExecutionPayloadChecked")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("backgroundProcessPolicy")))
+                .contains("execute_js")
+                .contains("waitTimeoutClamped")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("urlSafety").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())

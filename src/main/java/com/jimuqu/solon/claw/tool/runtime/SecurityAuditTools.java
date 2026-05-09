@@ -173,6 +173,9 @@ public class SecurityAuditTools {
         if (approvalService != null) {
             terminal.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
         }
+        Map<String, Object> backgroundProcessPolicy =
+                ProcessTools.backgroundProcessPolicySummary(appConfig);
+        terminal.put("backgroundProcessPolicy", backgroundProcessPolicy);
         terminal.put(
                 "maxForegroundTimeoutSeconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
@@ -210,6 +213,7 @@ public class SecurityAuditTools {
                 "sudoRewritePolicy",
                 SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
         coverage.put("backgroundProcessGuard", Boolean.TRUE);
+        coverage.put("backgroundProcessPolicy", backgroundProcessPolicy);
         coverage.put("urlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("privateUrlPolicy", Boolean.valueOf(securityPolicyService != null));
         coverage.put("websitePolicy", Boolean.valueOf(securityPolicyService != null));
