@@ -94,6 +94,11 @@ public class DashboardDiagnosticOutputTest {
                         null);
         String diagnosticsJson = ONode.serialize(diagnosticsService.diagnostics());
         assertThat(diagnosticsJson).contains("runtime://data/state.db");
+        assertThat(diagnosticsJson).contains("audit_policy");
+        assertThat(diagnosticsJson).contains("codeExecutionPolicy");
+        assertThat(diagnosticsJson).contains("credentialMountPolicy");
+        assertThat(diagnosticsJson).contains("mcpRuntimePolicy");
+        assertThat(diagnosticsJson).contains("readOnlyAuditTool");
         assertThat(diagnosticsJson).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(diagnosticsJson).contains("https://user:***@example.com/v1?token=***");
         assertThat(diagnosticsJson).doesNotContain("provider-pass");

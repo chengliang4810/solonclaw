@@ -420,7 +420,30 @@ public class DashboardDiagnosticsService {
                 "foreground_retry_base_delay_seconds",
                 Integer.valueOf(appConfig.getTerminal().getForegroundRetryBaseDelaySeconds()));
         map.put("terminal", terminal);
+        map.put("audit_policy", securityAuditPolicy());
         return map;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> securityAuditPolicy() {
+        Map<String, Object> fallback = new LinkedHashMap<String, Object>();
+        try {
+            Map<String, Object> result = securityAudit(Collections.singletonMap("action", "policy"));
+            Object policy = result.get("policy");
+            if (policy instanceof Map) {
+                return (Map<String, Object>) policy;
+            }
+            fallback.put("available", Boolean.FALSE);
+            fallback.put("summary", SecretRedactor.redact(String.valueOf(result.get("summary")), 1000));
+        } catch (Exception e) {
+            fallback.put("available", Boolean.FALSE);
+            fallback.put(
+                    "summary",
+                    SecretRedactor.redact(
+                            StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                            1000));
+        }
+        return fallback;
     }
 
     private Map<String, Object> pendingApprovalItem(
