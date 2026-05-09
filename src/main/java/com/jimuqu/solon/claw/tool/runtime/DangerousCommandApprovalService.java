@@ -464,7 +464,7 @@ public class DangerousCommandApprovalService {
                                     "network_credential_file_send",
                                     "send credential from local netrc or cookie file",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key)(?:=|\\s+)\\S+|\\s-E\\s+\\S+|\\s-[bcE]\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|cacert|capath)(?:=|\\s+)\\S+|\\s-E\\s+\\S+|\\s-[bcE]\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",

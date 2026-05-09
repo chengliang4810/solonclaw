@@ -195,6 +195,7 @@ public class SecurityPolicyService {
                     "--certificate",
                     "--proxy-cert",
                     "--cacert",
+                    "--capath",
                     "--netrc-file",
                     "--cookie",
                     "--cookie-jar",
