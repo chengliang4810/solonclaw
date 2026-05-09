@@ -781,6 +781,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult removeItemAlias =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "ri .\\runtime\\cache -r -fo");
+        DangerousCommandApprovalService.DetectionResult removeItemRecursePrefix =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Remove-Item .\\runtime\\cache -rec -fo");
         DangerousCommandApprovalService.DetectionResult delReordered =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "del /q /s .\\runtime\\cache\\*");
@@ -808,6 +811,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(removeItemConfirmFalse.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(removeItemAlias).isNotNull();
         assertThat(removeItemAlias.getPatternKey()).isEqualTo("windows_remove_item");
+        assertThat(removeItemRecursePrefix).isNotNull();
+        assertThat(removeItemRecursePrefix.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(delReordered).isNotNull();
         assertThat(delReordered.getPatternKey()).isEqualTo("windows_del_force");
         assertThat(rdReordered).isNotNull();

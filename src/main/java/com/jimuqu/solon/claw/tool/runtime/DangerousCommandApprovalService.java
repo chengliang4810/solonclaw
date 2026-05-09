@@ -522,7 +522,7 @@ public class DangerousCommandApprovalService {
                                     "windows_remove_item",
                                     "PowerShell recursive delete",
                                     pattern(
-                                            "\\b(?:Remove-Item|ri|rm)\\b(?=[^\\n]*(?:-Recurse\\b|-r\\b))"),
+                                            "\\b(?:Remove-Item|ri|rm)\\b(?=[^\\n]*(?:-Recurse\\b|-rec\\b|-r\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_del_force",
