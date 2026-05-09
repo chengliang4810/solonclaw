@@ -57,6 +57,10 @@ public class DangerousCommandApprovalService {
     private static final String AGENT_HOME_PATH_PREFIX =
             "(?:\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%|"
                     + "\\$jimuqu_home|\\$\\{jimuqu_home\\}|\\$env:jimuqu_home|%jimuqu_home%)";
+    private static final String SHELL_PROFILE_WRITE_TARGET =
+            HOME_PATH_PREFIX
+                    + PATH_SEPARATOR
+                    + "\\.(?:bashrc|zshrc|profile|bash_profile|zprofile)\\b";
     private static final String SENSITIVE_WRITE_TARGET =
             "(?:/etc/|/dev/sd|"
                     + HOME_PATH_PREFIX
@@ -158,8 +162,10 @@ public class DangerousCommandApprovalService {
                                     "credential_file_permissive_chmod",
                                     "credential file permission widened",
                                     pattern(
-                                            "\\bchmod\\b(?=[^\\n]*(?:777|666|o\\+[rwx]*[rw]|a\\+[rwx]*[rw]))[^\\n]*[\"']?"
+                                            "\\bchmod\\s+[^\\n]*(?:777|666|o\\+[rwx]*[rw]|a\\+[rwx]*[rw])\\b[^\\n]*[\"']?"
+                                                    + "(?:"
                                                     + CREDENTIAL_PERMISSION_TARGET
+                                                    + ")"
                                                     + "[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
@@ -184,6 +190,19 @@ public class DangerousCommandApprovalService {
                                     "setcap_privilege",
                                     "Linux capability grant",
                                     pattern("\\bsetcap\\b[^\\n]*\\bcap_[a-z0-9_,+-]+\\+ep\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "dynamic_library_preload_injection",
+                                    "dynamic library preload injection",
+                                    pattern(
+                                            "\\b(?:LD_PRELOAD|DYLD_INSERT_LIBRARIES)\\s*=|(?:>|tee\\b|Set-Content\\b|Out-File\\b)[^\\n]*/etc/ld\\.so\\.preload\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "shell_profile_persistence_injection",
+                                    "shell profile persistence injection",
+                                    pattern(
+                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*[\"']?"
+                                                    + SHELL_PROFILE_WRITE_TARGET),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "chown_root",
@@ -431,6 +450,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:setenforce\\s+0|aa-teardown\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+apparmor\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "macos_security_policy_weaken",
+                                    "macOS security policy weakened",
+                                    pattern(
+                                            "\\b(?:spctl\\s+--master-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "stop_service",
                                     "stop/restart system service",
                                     pattern(
@@ -447,6 +472,12 @@ public class DangerousCommandApprovalService {
                                     "local administrator or sudo permission change",
                                     pattern(
                                             "\\b(?:usermod\\b(?=[^\\n]*(?:-aG|--append\\s+--groups)[^\\n]*(?:sudo|wheel|admin|docker)\\b)|gpasswd\\s+-a\\s+\\S+\\s+(?:sudo|wheel|admin|docker)\\b|net(?:\\.exe)?\\s+localgroup\\s+Administrators\\b|dscl\\s+\\.\\s+-append\\s+/Groups/(?:admin|wheel)\\s+GroupMembership\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "system_time_tamper",
+                                    "system time or time sync changed",
+                                    pattern(
+                                            "\\b(?:timedatectl\\s+(?:set-time|set-timezone|set-ntp\\s+false)|date\\s+(?:-s|--set)\\b|hwclock\\s+(?:--systohc|--hctosys)\\b|Set-Date\\b|w32tm\\s+/config\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_all",

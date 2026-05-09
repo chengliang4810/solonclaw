@@ -132,6 +132,12 @@ public class SecurityPolicyService {
     private static final List<String> WRITE_DENIED_PREFIXES =
             Arrays.asList(
                     "/boot/",
+                    "/bin/",
+                    "/sbin/",
+                    "/usr/bin/",
+                    "/usr/sbin/",
+                    "/usr/local/bin/",
+                    "/usr/local/sbin/",
                     "/usr/lib/systemd/",
                     "/private/etc/",
                     "/private/var/",
