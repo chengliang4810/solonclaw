@@ -12,6 +12,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.Test;
 
@@ -126,6 +127,56 @@ public class BoundedAttachmentIOTest {
     }
 
     @Test
+    void shouldNotForwardHeadersAcrossRedirectHosts() throws Exception {
+        HttpServer target = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        HttpServer redirector = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicReference<String> redirectedAuthorization = new AtomicReference<String>();
+        try {
+            target.createContext(
+                    "/media",
+                    exchange -> {
+                        redirectedAuthorization.set(
+                                exchange.getRequestHeaders().getFirst("Authorization"));
+                        byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "text/plain");
+                        exchange.sendResponseHeaders(200, body.length);
+                        exchange.getResponseBody().write(body);
+                        exchange.close();
+                    });
+            target.start();
+            String targetUrl =
+                    "http://localhost:" + target.getAddress().getPort() + "/media";
+            redirector.createContext(
+                    "/media",
+                    exchange -> {
+                        exchange.getResponseHeaders().add("Location", targetUrl);
+                        exchange.sendResponseHeaders(302, -1);
+                        exchange.close();
+                    });
+            redirector.start();
+            String url = "http://127.0.0.1:" + redirector.getAddress().getPort() + "/media";
+            SecurityPolicyService securityPolicyService =
+                    new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig());
+            Map<String, String> headers = new LinkedHashMap<String, String>();
+            headers.put("Authorization", "Bearer token-a");
+
+            BoundedAttachmentIO.HutoolDownloadResult result =
+                    BoundedAttachmentIO.downloadHutoolResult(
+                            url,
+                            1000,
+                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                            securityPolicyService,
+                            headers);
+
+            assertThat(new String(result.getData(), StandardCharsets.UTF_8)).isEqualTo("ok");
+            assertThat(redirectedAuthorization.get()).isNull();
+        } finally {
+            redirector.stop(0);
+            target.stop(0);
+        }
+    }
+
+    @Test
     void shouldBlockUnsafeHutoolResultRedirectTargetBeforeFollowingIt() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
@@ -216,6 +267,7 @@ public class BoundedAttachmentIOTest {
             extends SecurityPolicyService {
         private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
             super(appConfig);
+            appConfig.getSecurity().setAllowPrivateUrls(true);
         }
 
         @Override
