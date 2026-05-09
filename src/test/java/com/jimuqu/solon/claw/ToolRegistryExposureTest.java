@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
@@ -171,6 +172,12 @@ public class ToolRegistryExposureTest {
                         policy,
                         approvalService,
                         new TirithSecurityService(env.appConfig),
+                        new ToolResultStorageService(
+                                env.appConfig.getRuntime().getCacheDir(),
+                                env.appConfig.getRuntime().getHome(),
+                                env.appConfig.getTask().getToolOutputInlineLimit(),
+                                env.appConfig.getTask().getToolOutputTurnBudget(),
+                                env.appConfig.getTrace().getToolPreviewLength()),
                         env.appConfig);
         env.appConfig.getApprovals().setMode("smart");
         env.appConfig.getApprovals().setCronMode("approve");
@@ -796,6 +803,22 @@ public class ToolRegistryExposureTest {
                 .contains("patternAndFormatStripped")
                 .contains("unsupportedKeywordsStripped")
                 .contains("snack4");
+        assertThat(policyStatus.get("policy").get("coverage").get("toolResultStorage").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("resultRefReturned")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolResultStoragePolicy")))
+                .contains("read_file")
+                .contains("previewRedacted")
+                .contains("pathSegmentsSanitized")
+                .contains(".jimuqu/tool-results")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(policyStatus.get("policy").get("coverage").get("mcpUrlSafety").getBoolean())
                 .isTrue();
         assertThat(

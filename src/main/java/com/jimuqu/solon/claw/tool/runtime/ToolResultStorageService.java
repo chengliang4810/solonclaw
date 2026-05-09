@@ -7,9 +7,13 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.noear.snack4.ONode;
 
@@ -78,6 +82,34 @@ public class ToolResultStorageService {
         stored.setObservation(buildEnvelope(toolName, raw, ref, bytes.length));
         turnBytes += stored.getObservation().getBytes(StandardCharsets.UTF_8).length;
         return stored;
+    }
+
+    public Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("enabled", Boolean.TRUE);
+        summary.put("interceptorBacked", Boolean.TRUE);
+        summary.put("inlineLimitBytes", Integer.valueOf(inlineLimitBytes));
+        summary.put("turnBudgetBytes", Integer.valueOf(turnBudgetBytes));
+        summary.put("previewLength", Integer.valueOf(previewLength));
+        summary.put("pinnedInlineTools", pinnedInlineTools());
+        summary.put("oversizedResultsPersisted", Boolean.TRUE);
+        summary.put("turnBudgetOverflowPersisted", Boolean.TRUE);
+        summary.put("persistedOutputBlock", Boolean.TRUE);
+        summary.put("resultRefReturned", Boolean.TRUE);
+        summary.put("readBackGuidanceIncluded", Boolean.TRUE);
+        summary.put("previewRedacted", Boolean.TRUE);
+        summary.put("fullOutputSavedRaw", Boolean.TRUE);
+        summary.put("pathSegmentsSanitized", Boolean.TRUE);
+        summary.put("canonicalChildPathCheck", Boolean.TRUE);
+        summary.put("workspaceRelativeRefsPreferred", Boolean.valueOf(StrUtil.isNotBlank(workspaceDir)));
+        summary.put("storageBase", storageBaseLabel());
+        summary.put("describePersistedObservation", Boolean.TRUE);
+        summary.put("storageFailureFallsBackToPreviewOnly", Boolean.TRUE);
+        return summary;
+    }
+
+    private List<String> pinnedInlineTools() {
+        return new ArrayList<String>(PINNED_INLINE_TOOLS);
     }
 
     public static StoredResult describeObservation(String observation) {
@@ -279,6 +311,16 @@ public class ToolResultStorageService {
             return new File(cacheDir, TOOL_RESULTS_DIR);
         }
         return null;
+    }
+
+    private String storageBaseLabel() {
+        if (StrUtil.isNotBlank(workspaceDir)) {
+            return ".jimuqu/" + TOOL_RESULTS_DIR;
+        }
+        if (StrUtil.isNotBlank(cacheDir)) {
+            return TOOL_RESULTS_DIR;
+        }
+        return "unconfigured";
     }
 
     private String displayRef(File file) {

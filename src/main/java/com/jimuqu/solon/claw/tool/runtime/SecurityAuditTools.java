@@ -18,6 +18,7 @@ public class SecurityAuditTools {
     private final SecurityPolicyService securityPolicyService;
     private final DangerousCommandApprovalService approvalService;
     private final TirithSecurityService tirithSecurityService;
+    private final ToolResultStorageService toolResultStorageService;
     private final AppConfig appConfig;
 
     public SecurityAuditTools(
@@ -32,9 +33,19 @@ public class SecurityAuditTools {
             DangerousCommandApprovalService approvalService,
             TirithSecurityService tirithSecurityService,
             AppConfig appConfig) {
+        this(securityPolicyService, approvalService, tirithSecurityService, null, appConfig);
+    }
+
+    public SecurityAuditTools(
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService,
+            AppConfig appConfig) {
         this.securityPolicyService = securityPolicyService;
         this.approvalService = approvalService;
         this.tirithSecurityService = tirithSecurityService;
+        this.toolResultStorageService = toolResultStorageService;
         this.appConfig = appConfig;
     }
 
@@ -190,6 +201,9 @@ public class SecurityAuditTools {
             coverage.put("toolArgsPolicy", securityPolicyService.toolArgsPolicySummary());
         }
         coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());
+        if (toolResultStorageService != null) {
+            coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
+        }
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         coverage.put("smartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured));
@@ -222,6 +236,7 @@ public class SecurityAuditTools {
         coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("schemaSanitizer", Boolean.TRUE);
+        coverage.put("toolResultStorage", Boolean.valueOf(toolResultStorageService != null));
         coverage.put("codeExecutionGuardrails", Boolean.valueOf(approvalService != null || securityPolicyService != null));
         coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));

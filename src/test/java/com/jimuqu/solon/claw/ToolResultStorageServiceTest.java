@@ -15,6 +15,39 @@ public class ToolResultStorageServiceTest {
     @TempDir File tempDir;
 
     @Test
+    void shouldExposeToolResultStoragePolicyWithoutPaths() {
+        ToolResultStorageService cacheService =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 256, 600, 300);
+        ToolResultStorageService workspaceService =
+                new ToolResultStorageService(
+                        new File(tempDir, "runtime-cache").getAbsolutePath(),
+                        new File(tempDir, "workspace").getAbsolutePath(),
+                        256,
+                        600,
+                        300);
+
+        java.util.Map<String, Object> cacheSummary = cacheService.policySummary();
+        java.util.Map<String, Object> workspaceSummary = workspaceService.policySummary();
+
+        assertThat(cacheSummary.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("inlineLimitBytes")).isEqualTo(Integer.valueOf(256));
+        assertThat(cacheSummary.get("turnBudgetBytes")).isEqualTo(Integer.valueOf(600));
+        assertThat(cacheSummary.get("previewLength")).isEqualTo(Integer.valueOf(300));
+        assertThat(cacheSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(cacheSummary))
+                .contains("file_read")
+                .contains("read_file")
+                .contains("resultRefReturned")
+                .contains("previewRedacted")
+                .contains("tool-results")
+                .doesNotContain(tempDir.getAbsolutePath());
+
+        assertThat(workspaceSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.TRUE);
+        assertThat(workspaceSummary.get("storageBase")).isEqualTo(".jimuqu/tool-results");
+        assertThat(String.valueOf(workspaceSummary)).doesNotContain(tempDir.getAbsolutePath());
+    }
+
+    @Test
     void shouldKeepSmallToolResultInline() {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 1024, 300);
