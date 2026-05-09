@@ -2786,7 +2786,8 @@ public class DefaultCronSchedulerTest {
         failed.setName("failed job");
         failed.setNextRunAt(System.currentTimeMillis() + 60000L);
         failed.setLastStatus("error");
-        failed.setLastError("network failed");
+        failed.setLastError("network failed token=ghp_cronstatus12345\u202E");
+        failed.setLastDeliveryError("delivery failed api_key=sk-cronstatus-secret12345\u202E");
         failed.setLastRunAt(System.currentTimeMillis() - 2000L);
         env.cronJobRepository.save(failed);
 
@@ -2826,7 +2827,42 @@ public class DefaultCronSchedulerTest {
         assertThat(overview.get("paused")).isEqualTo(Integer.valueOf(1));
         assertThat(String.valueOf(overview.get("recent_failures")))
                 .contains("status-failed")
-                .doesNotContain("status-other");
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain("status-other")
+                .doesNotContain("ghp_cronstatus12345")
+                .doesNotContain("sk-cronstatus-secret12345")
+                .doesNotContain("\u202E");
+
+        Map<?, ?> inspected =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "inspect",
+                                                "status-failed",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Integer.valueOf(1)))
+                                .toData();
+        assertThat(String.valueOf(inspected.get("job")))
+                .contains("api_key=***")
+                .doesNotContain("sk-cronstatus-secret12345")
+                .doesNotContain("\u202E");
 
         Map<?, ?> retried =
                 (Map<?, ?>)

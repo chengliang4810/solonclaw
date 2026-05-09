@@ -804,8 +804,8 @@ public class CronjobTools {
         result.put("job_id", job.getJobId());
         result.put("name", job.getName());
         result.put("last_status", job.getLastStatus());
-        result.put("last_error", job.getLastError());
-        result.put("last_delivery_error", job.getLastDeliveryError());
+        result.put("last_error", safeText(job.getLastError()));
+        result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
         result.put("last_run_at", job.getLastRunAt() <= 0L ? null : Long.valueOf(job.getLastRunAt()));
         return result;
     }
@@ -851,7 +851,7 @@ public class CronjobTools {
         result.put("next_run_at", base.get("next_run_at"));
         result.put("last_run_at", base.get("last_run_at"));
         result.put("last_status", job.getLastStatus());
-        result.put("last_delivery_error", job.getLastDeliveryError());
+        result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
         result.put("enabled", base.get("enabled"));
         result.put("state", base.get("state"));
         result.put("paused_at", base.get("paused_at"));
