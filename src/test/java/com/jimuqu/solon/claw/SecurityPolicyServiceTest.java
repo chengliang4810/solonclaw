@@ -332,6 +332,10 @@ public class SecurityPolicyServiceTest {
                 privatePolicy.checkUrl("//internal.example/path");
         SecurityPolicyService.UrlVerdict privateCommand =
                 privatePolicy.checkCommandUrls("curl //internal.example/path");
+        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
+        toolArgs.put("url", "//internal.example/path");
+        SecurityPolicyService.UrlVerdict privateToolArg =
+                privatePolicy.checkToolArgs("remote_fetch", toolArgs);
         SecurityPolicyService.UrlVerdict userInfoCommand =
                 publicPolicy.checkCommandUrls("curl //alice:secret@example.com/path");
         SecurityPolicyService.UrlVerdict publicCommand =
@@ -341,6 +345,9 @@ public class SecurityPolicyServiceTest {
         assertThat(privateDirect.getMessage()).contains("内网");
         assertThat(privateCommand.isAllowed()).isFalse();
         assertThat(privateCommand.getMessage()).contains("内网");
+        assertThat(privatePolicy.extractUrlishValues(toolArgs)).contains("//internal.example/path");
+        assertThat(privateToolArg.isAllowed()).isFalse();
+        assertThat(privateToolArg.getMessage()).contains("内网");
         assertThat(userInfoCommand.isAllowed()).isFalse();
         assertThat(userInfoCommand.getMessage()).contains("userinfo");
         assertThat(publicCommand.isAllowed()).isTrue();

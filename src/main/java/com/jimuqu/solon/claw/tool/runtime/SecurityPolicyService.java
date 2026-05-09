@@ -824,7 +824,7 @@ public class SecurityPolicyService {
         if (StrUtil.isBlank(value)) {
             return;
         }
-        urls.add(value.contains("://") ? value : "http://" + value);
+        urls.add(value.contains("://") || value.startsWith("//") ? value : "http://" + value);
     }
 
     private boolean looksLikeUrlKey(String key) {
