@@ -418,6 +418,12 @@ try {
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean release note fixture" -Encoding UTF8
         & git add README.md | Out-Null
         & git commit -m "fix: clean release notes / Clean release notes" | Out-Null
+        Add-Content -Path (Join-Path $sandbox "README.md") -Value "Scoped feature fixture"
+        & git add README.md | Out-Null
+        & git commit -m "feat(cron): scoped feature release note / Scoped feature release note" | Out-Null
+        Add-Content -Path (Join-Path $sandbox "README.md") -Value "Scoped fix fixture"
+        & git add README.md | Out-Null
+        & git commit -m "fix(api): scoped fix release note / Scoped fix release note" | Out-Null
 
         $cleanReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
@@ -431,6 +437,12 @@ try {
         $cleanReleaseText = Get-Content -LiteralPath $releaseNotesPath -Raw -Encoding UTF8
         if ($cleanReleaseText -notmatch "fix: clean release notes / Clean release notes") {
             throw "Release notes generation did not include the clean commit subject."
+        }
+        if ($cleanReleaseText -notmatch "### 功能 / Features[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note") {
+            throw "Release notes generation did not classify scoped feat commits as features."
+        }
+        if ($cleanReleaseText -notmatch "### 缺陷修复 / Fixes[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note") {
+            throw "Release notes generation did not classify scoped fix commits as fixes."
         }
     } finally {
         Pop-Location
