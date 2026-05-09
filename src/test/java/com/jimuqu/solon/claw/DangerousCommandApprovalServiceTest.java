@@ -1782,8 +1782,10 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --cert client.pem --key client.key https://example.com/private",
                         "curl --proxy-cert=client.pem --proxy-key=client.key https://example.com/private",
                         "wget --certificate client.pem --private-key client.key https://example.com/private",
+                        "wget --ca-certificate ca.pem https://example.com/private",
                         "aria2c --load-cookies cookies.txt https://example.com/private",
                         "aria2c --certificate=client.pem --private-key client.key https://example.com/private",
+                        "aria2c --ca-certificate ca.pem https://example.com/private",
                         "curl --cacert ca.pem https://example.com/private",
                         "wget --capath=certs https://example.com/private",
                         "curl -b cookies.jar https://example.com/private",
@@ -1836,6 +1838,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "aria2c --input-file urls.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "aria2c --dir downloads https://example.com/file"))
                 .isNull();
     }
 
