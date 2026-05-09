@@ -1130,6 +1130,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("activeSurfaces")))
                 .contains("approval")
+                .contains("approvalLifecycle")
+                .contains("approvalAuditLog")
                 .contains("smartApproval")
                 .contains("tirithSmartApproval")
                 .contains("cronApprovalPolicy")
@@ -1139,9 +1141,20 @@ public class ToolRegistryExposureTest {
                 .contains("urlSafety")
                 .contains("websitePolicy")
                 .contains("credentialFilePolicy")
+                .contains("credentialMountPolicy")
+                .contains("pathSecurity")
+                .contains("toolArgsSecurity")
+                .contains("schemaSanitizer")
+                .contains("patchParser")
+                .contains("subprocessEnvironmentSanitizer")
+                .contains("toolResultStorage")
+                .contains("codeExecution")
+                .contains("mcpRuntimePolicy")
                 .contains("mcpOauthUrlSafety")
+                .contains("mcpOauthPolicy")
                 .contains("mcpReloadConfirmation")
-                .contains("mcpToolChangeNotice");
+                .contains("mcpToolChangeNotice")
+                .contains("attachmentPolicy");
         assertThat(policyStatus.toJson())
                 .doesNotContain("secret-sudo")
                 .doesNotContain("TENOR_API_KEY");

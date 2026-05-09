@@ -293,6 +293,8 @@ public class SecurityAuditTools {
 
         List<String> activeSurfaces = new ArrayList<String>();
         addSurface(activeSurfaces, "approval", approvalService != null);
+        addSurface(activeSurfaces, "approvalLifecycle", approvalService != null);
+        addSurface(activeSurfaces, "approvalAuditLog", approvalService != null);
         addSurface(activeSurfaces, "slashConfirm", approvalService != null);
         addSurface(activeSurfaces, "smartApproval", smartMode && smartJudgeConfigured);
         addSurface(activeSurfaces, "tirithSmartApproval", smartMode && smartJudgeConfigured && tirithSecurityService != null);
@@ -305,12 +307,20 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "urlSafety", securityPolicyService != null);
         addSurface(activeSurfaces, "websitePolicy", securityPolicyService != null);
         addSurface(activeSurfaces, "credentialFilePolicy", securityPolicyService != null);
+        addSurface(activeSurfaces, "credentialMountPolicy", true);
         addSurface(activeSurfaces, "pathSecurity", securityPolicyService != null);
         addSurface(activeSurfaces, "toolArgsSecurity", securityPolicyService != null);
+        addSurface(activeSurfaces, "schemaSanitizer", true);
+        addSurface(activeSurfaces, "patchParser", true);
+        addSurface(activeSurfaces, "subprocessEnvironmentSanitizer", true);
+        addSurface(activeSurfaces, "toolResultStorage", toolResultStorageService != null);
         addSurface(activeSurfaces, "codeExecution", approvalService != null || securityPolicyService != null);
+        addSurface(activeSurfaces, "mcpRuntimePolicy", true);
         addSurface(activeSurfaces, "mcpOauthUrlSafety", securityPolicyService != null);
+        addSurface(activeSurfaces, "mcpOauthPolicy", true);
         addSurface(activeSurfaces, "mcpReloadConfirmation", approvalService != null);
         addSurface(activeSurfaces, "mcpToolChangeNotice", true);
+        addSurface(activeSurfaces, "attachmentPolicy", true);
         addSurface(activeSurfaces, "tirithSecurity", appConfig.getSecurity().isTirithEnabled());
         result.policy.put("activeSurfaces", activeSurfaces);
 
