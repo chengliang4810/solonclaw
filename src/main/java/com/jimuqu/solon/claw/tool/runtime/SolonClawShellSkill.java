@@ -453,6 +453,29 @@ public class SolonClawShellSkill extends ShellSkill {
         return new SudoTransform(rewrite.getCommand(), password + "\n", true);
     }
 
+    public Map<String, Object> sudoRewritePolicySummary() {
+        return sudoRewritePolicySummary(resolveSudoPassword() != null);
+    }
+
+    public static Map<String, Object> sudoRewritePolicySummary(boolean sudoPasswordConfigured) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("configured", Boolean.valueOf(sudoPasswordConfigured));
+        summary.put("envKey", "SUDO_PASSWORD");
+        summary.put("configKey", "terminal.sudoPassword");
+        summary.put("rewritesRealSudoInvocations", Boolean.TRUE);
+        summary.put("stdinPasswordInjection", Boolean.TRUE);
+        summary.put("passwordRedacted", Boolean.TRUE);
+        summary.put("existingStdinFlagPreserved", Boolean.TRUE);
+        summary.put("commentsIgnored", Boolean.TRUE);
+        summary.put("quotedSudoIgnored", Boolean.TRUE);
+        summary.put("envAssignmentPrefixSupported", Boolean.TRUE);
+        summary.put("compoundCommandSupported", Boolean.TRUE);
+        summary.put("ptyDisabledForStdinPipe", Boolean.TRUE);
+        summary.put("missingPasswordHint", Boolean.TRUE);
+        summary.put("description", "Configured sudo commands are rewritten to use sudo -S -p '' with the password sent through stdin; secrets are never embedded in the visible command.");
+        return summary;
+    }
+
     private SudoRewrite rewriteRealSudoInvocations(String command) {
         StringBuilder out = new StringBuilder();
         int i = 0;

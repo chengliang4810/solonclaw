@@ -642,6 +642,27 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("terminal")
+                                .get("sudoRewritePolicy")
+                                .get("configured")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("sudoRewritePolicy")
+                                .get("stdinPasswordInjection")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("sudoRewritePolicy")))
+                .contains("SUDO_PASSWORD")
+                .contains("terminal.sudoPassword")
+                .contains("passwordRedacted")
+                .doesNotContain("secret-sudo");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
                                 .get("terminalGuardrailPolicy")
                                 .get("sudoRewriteConfigured")
                                 .getBoolean())
@@ -731,6 +752,14 @@ public class ToolRegistryExposureTest {
                 .contains("endpoint")
                 .contains("apply_patch");
         assertThat(policyStatus.get("policy").get("coverage").get("mcpUrlSafety").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("sudoRewritePolicy")
+                                .get("passwordRedacted")
+                                .getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("mcpReloadConfirmation").getBoolean())
                 .isTrue();

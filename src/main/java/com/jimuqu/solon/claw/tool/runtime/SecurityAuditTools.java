@@ -164,7 +164,11 @@ public class SecurityAuditTools {
             terminal.put("pathPolicy", securityPolicyService.pathPolicySummary());
         }
         terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
-        terminal.put("sudoPasswordConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())));
+        boolean sudoPasswordConfigured = appConfig.getTerminal().getSudoPassword() != null;
+        terminal.put("sudoPasswordConfigured", Boolean.valueOf(sudoPasswordConfigured));
+        terminal.put(
+                "sudoRewritePolicy",
+                SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
         terminal.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
         if (approvalService != null) {
             terminal.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
@@ -202,6 +206,9 @@ public class SecurityAuditTools {
         }
         coverage.put("terminalGuardrails", Boolean.TRUE);
         coverage.put("sudoRewrite", Boolean.TRUE);
+        coverage.put(
+                "sudoRewritePolicy",
+                SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
         coverage.put("backgroundProcessGuard", Boolean.TRUE);
         coverage.put("urlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("privateUrlPolicy", Boolean.valueOf(securityPolicyService != null));

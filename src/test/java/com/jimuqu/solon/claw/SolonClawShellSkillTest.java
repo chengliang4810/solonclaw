@@ -140,6 +140,34 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldExposeSudoRewritePolicySummaryWithoutSecrets() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("testpass");
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        Map<String, Object> summary = skill.sudoRewritePolicySummary();
+
+        assertThat(summary.get("configured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("envKey")).isEqualTo("SUDO_PASSWORD");
+        assertThat(summary.get("configKey")).isEqualTo("terminal.sudoPassword");
+        assertThat(summary.get("rewritesRealSudoInvocations")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("stdinPasswordInjection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("passwordRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("existingStdinFlagPreserved")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commentsIgnored")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("quotedSudoIgnored")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("envAssignmentPrefixSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("compoundCommandSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("ptyDisabledForStdinPipe")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("missingPasswordHint")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.toString()).doesNotContain("testpass");
+
+        assertThat(SolonClawShellSkill.sudoRewritePolicySummary(false).get("configured"))
+                .isEqualTo(Boolean.FALSE);
+    }
+
+    @Test
     void shouldRewriteSudoAfterLeadingEnvAssignment() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("testpass");
