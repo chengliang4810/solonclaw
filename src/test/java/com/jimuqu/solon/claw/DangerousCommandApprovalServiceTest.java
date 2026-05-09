@@ -795,12 +795,30 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult kubectlRemoteApply =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl apply -f https://example.invalid/install.yaml");
+        DangerousCommandApprovalService.DetectionResult kubectlSetCredentials =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl config set-credentials deploy --token=secret");
+        DangerousCommandApprovalService.DetectionResult kubectlUseContext =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl config use-context prod");
+        DangerousCommandApprovalService.DetectionResult kubectlDeleteContext =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl config delete-context prod");
         DangerousCommandApprovalService.DetectionResult kubectlLocalApply =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl apply -f deploy/local.yaml");
         DangerousCommandApprovalService.DetectionResult helmUninstall =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "helm uninstall payments");
+        DangerousCommandApprovalService.DetectionResult helmRepoAdd =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm repo add internal https://charts.example");
+        DangerousCommandApprovalService.DetectionResult helmRepoRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm repo remove internal");
+        DangerousCommandApprovalService.DetectionResult helmRepoUpdate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm repo update");
         DangerousCommandApprovalService.DetectionResult terraformDestroy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform destroy -auto-approve");
@@ -979,9 +997,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(kubectlExec.getPatternKey()).isEqualTo("kubectl_exec");
         assertThat(kubectlRemoteApply).isNotNull();
         assertThat(kubectlRemoteApply.getPatternKey()).isEqualTo("kubectl_remote_apply");
+        assertThat(kubectlSetCredentials).isNotNull();
+        assertThat(kubectlSetCredentials.getPatternKey())
+                .isEqualTo("kubectl_context_or_credential_change");
+        assertThat(kubectlUseContext).isNotNull();
+        assertThat(kubectlUseContext.getPatternKey())
+                .isEqualTo("kubectl_context_or_credential_change");
+        assertThat(kubectlDeleteContext).isNotNull();
+        assertThat(kubectlDeleteContext.getPatternKey())
+                .isEqualTo("kubectl_context_or_credential_change");
         assertThat(kubectlLocalApply).isNull();
         assertThat(helmUninstall).isNotNull();
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
+        assertThat(helmRepoAdd).isNotNull();
+        assertThat(helmRepoAdd.getPatternKey()).isEqualTo("helm_repository_configuration_change");
+        assertThat(helmRepoRemove).isNotNull();
+        assertThat(helmRepoRemove.getPatternKey()).isEqualTo("helm_repository_configuration_change");
+        assertThat(helmRepoUpdate).isNotNull();
+        assertThat(helmRepoUpdate.getPatternKey()).isEqualTo("helm_repository_configuration_change");
         assertThat(terraformDestroy).isNotNull();
         assertThat(terraformDestroy.getPatternKey()).isEqualTo("terraform_destroy");
         assertThat(terraformAutoApply).isNotNull();
@@ -1214,6 +1247,10 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env, "rundll32 keymgr.dll,KRShowKeyMgr", "windows_credential_manager_read");
         assertDangerPattern(
+                env, "Get-StoredCredential -Target server.example", "windows_credential_manager_read");
+        assertDangerPattern(env, "Get-Secret prod-db", "windows_credential_manager_read");
+        assertDangerPattern(env, "Get-SecretInfo", "windows_credential_manager_read");
+        assertDangerPattern(
                 env,
                 "cmdkey /add:server.example /user:deploy /pass:secret",
                 "windows_credential_manager_change");
@@ -1224,6 +1261,9 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_credential_manager_change");
         assertDangerPattern(
                 env, "Remove-StoredCredential -Target server.example", "windows_credential_manager_change");
+        assertDangerPattern(env, "vaultcmd /deletecreds:\"Windows Credentials\"", "windows_credential_manager_change");
+        assertDangerPattern(env, "Set-Secret prod-db secret", "windows_credential_manager_change");
+        assertDangerPattern(env, "Remove-Secret prod-db", "windows_credential_manager_change");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
@@ -2843,11 +2883,15 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "echo $OPENAI_API_KEY | pbcopy",
+                        "echo ${OPENAI_API_KEY} | pbcopy",
+                        "echo !OPENAI_API_KEY! | clip",
                         "printf %s $JIMUQU_ACCESS_TOKEN | xclip -selection clipboard",
+                        "printf %s ${JIMUQU_ACCESS_TOKEN} | xclip -selection clipboard",
                         "printenv ANTHROPIC_API_KEY | xsel --clipboard",
                         "printf %s $OPENAI_API_KEY | wl-copy",
                         "echo %OPENAI_API_KEY% | clip.exe",
                         "Set-Clipboard $env:OPENAI_API_KEY",
+                        "Set-Clipboard -Value ${env:OPENAI_API_KEY}",
                         "scb %JIMUQU_ACCESS_TOKEN%");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -2939,6 +2983,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult npmProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "npm config set https-proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult pnpmProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pnpm config set https-proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult yarnProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "yarn config set httpsProxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult pipProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pip config set global.proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult setxProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setx HTTPS_PROXY http://proxy.example:8080");
         DangerousCommandApprovalService.DetectionResult winHttpProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "netsh winhttp set proxy 127.0.0.1:8080");
@@ -3062,6 +3118,18 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(npmProxyWrite).isNotNull();
         assertThat(npmProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(pnpmProxyWrite).isNotNull();
+        assertThat(pnpmProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(yarnProxyWrite).isNotNull();
+        assertThat(yarnProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(pipProxyWrite).isNotNull();
+        assertThat(pipProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(setxProxyWrite).isNotNull();
+        assertThat(setxProxyWrite.getPatternKey())
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(winHttpProxyWrite).isNotNull();
         assertThat(winHttpProxyWrite.getPatternKey())

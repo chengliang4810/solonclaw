@@ -276,7 +276,7 @@ public class DangerousCommandApprovalService {
                                     "persistent_proxy_configuration_change",
                                     "persistent proxy configuration changed",
                                     pattern(
-                                            "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.proxy\\s+\\S+|\\bnpm\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\byarn\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer))"),
+                                            "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.proxy\\s+\\S+|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:proxy|https-proxy|httpsProxy)\\s+\\S+|\\bpip\\s+config\\s+set\\s+global\\.proxy\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bsetx\\s+(?:https?_proxy|all_proxy|HTTPS?_PROXY|ALL_PROXY)\\s+\\S+|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sudoers_policy_change",
@@ -367,13 +367,15 @@ public class DangerousCommandApprovalService {
                                     "sensitive_clipboard_export",
                                     "copy sensitive environment values to clipboard",
                                     pattern(
-                                            "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$|%)"
+                                            "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$\\{?|%|!)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "%?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
+                                                    + "(?:\\}|%|!)?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
                                                     + SENSITIVE_ENV_NAME
                                                     + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:\\$env:|%)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "%?)"),
+                                                    + "%?|\\b(?:Set-Clipboard|scb)\\b[^\\n]*\\$\\{env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\})"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_environment_inline_assignment",
@@ -790,9 +792,20 @@ public class DangerousCommandApprovalService {
                                             "\\bkubectl\\s+(?:-[^\\s]+\\s+)*apply\\b(?=[^\\n]*(?:-f|--filename)\\s+(?:https?|wss?)://)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "kubectl_context_or_credential_change",
+                                    "Kubernetes context or credential configuration changed",
+                                    pattern(
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*config\\s+(?:set-credentials|set-context|use-context|unset|delete-context|delete-user)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "helm_uninstall",
                                     "Helm release uninstall",
                                     pattern("\\bhelm\\s+(?:uninstall|delete)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "helm_repository_configuration_change",
+                                    "Helm repository configuration changed",
+                                    pattern("\\bhelm\\s+repo\\s+(?:add|remove|update)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "terraform_destroy",
@@ -1068,13 +1081,13 @@ public class DangerousCommandApprovalService {
                                     "windows_credential_manager_read",
                                     "Windows credential manager read",
                                     pattern(
-                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b)"),
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b|(?:Get-StoredCredential|Get-VaultCredential|Get-SecretInfo|Get-Secret)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_credential_manager_change",
                                     "Windows credential manager changed",
                                     pattern(
-                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/(?:add|delete)\\b|(?:New|Set|Remove)-StoredCredential\\b|New-Credential\\b|Remove-VaultCredential\\b)"),
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/(?:add|delete)\\b|vaultcmd(?:\\.exe)?\\s+/(?:addcreds|deletecreds)\\b|(?:New|Set|Remove)-StoredCredential\\b|New-Credential\\b|(?:New|Set|Remove)-Secret\\b|Remove-VaultCredential\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_sensitive_file_write",
