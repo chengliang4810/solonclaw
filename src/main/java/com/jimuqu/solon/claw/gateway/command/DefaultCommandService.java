@@ -2838,6 +2838,14 @@ public class DefaultCommandService implements CommandService {
                 body.put("wrap_response", Boolean.FALSE);
             } else if ("--no-wrap-response".equals(field)) {
                 body.put("wrap_response", Boolean.FALSE);
+            } else if (field.startsWith("--status ")) {
+                body.put("status", field.substring("--status ".length()).trim());
+            } else if (field.startsWith("--state ")) {
+                body.put("state", field.substring("--state ".length()).trim());
+            } else if (field.startsWith("--paused-reason ")) {
+                body.put("paused_reason", field.substring("--paused-reason ".length()).trim());
+            } else if (field.startsWith("--paused_reason ")) {
+                body.put("paused_reason", field.substring("--paused_reason ".length()).trim());
             }
         }
         return body;
@@ -2864,6 +2872,9 @@ public class DefaultCommandService implements CommandService {
         putIfNotBlank(body, "model", options.model);
         putIfNotBlank(body, "provider", options.provider);
         putIfNotBlank(body, "base_url", options.baseUrl);
+        putIfNotBlank(body, "status", options.status);
+        putIfNotBlank(body, "state", options.state);
+        putIfNotBlank(body, "paused_reason", options.pausedReason);
         if (options.clearModel) {
             body.put("model", null);
         }
@@ -2978,6 +2989,13 @@ public class DefaultCommandService implements CommandService {
                 options.baseUrl = tokens.get(++i);
             } else if ("--clear-base-url".equals(token) || "--clear-base_url".equals(token)) {
                 options.clearBaseUrl = true;
+            } else if ("--status".equals(token) && i + 1 < tokens.size()) {
+                options.status = tokens.get(++i);
+            } else if ("--state".equals(token) && i + 1 < tokens.size()) {
+                options.state = tokens.get(++i);
+            } else if (("--paused-reason".equals(token) || "--paused_reason".equals(token))
+                    && i + 1 < tokens.size()) {
+                options.pausedReason = tokens.get(++i);
             } else if ("--no-agent".equals(token)) {
                 options.noAgent = true;
             } else if ("--agent".equals(token)) {
@@ -3903,7 +3921,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|history|status|tick]",
+                                        + " [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
@@ -4148,6 +4166,9 @@ public class DefaultCommandService implements CommandService {
         private String model;
         private String provider;
         private String baseUrl;
+        private String status;
+        private String state;
+        private String pausedReason;
         private boolean clearModel;
         private boolean clearProvider;
         private boolean clearBaseUrl;

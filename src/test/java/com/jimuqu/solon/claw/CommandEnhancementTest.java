@@ -560,6 +560,23 @@ public class CommandEnhancementTest {
         assertThat(clearedWithJimuquEmptyValues.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("script=null").contains("workdir=null");
 
+        GatewayReply pausedWithState =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/cron edit " + jobId + " --state paused --paused-reason \"maintenance window\"");
+        assertThat(pausedWithState.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("state=paused")
+                .contains("paused_reason=maintenance window");
+
+        GatewayReply resumedWithStatus =
+                env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --status active");
+        assertThat(resumedWithStatus.getContent()).contains("已更新定时任务");
+        assertThat(cronJobView(env, jobId))
+                .contains("state=scheduled")
+                .contains("paused_reason=null");
+
         GatewayReply invalidNoAgent = env.send("admin-chat", "admin-user", "/cron edit " + jobId + " --no-agent");
         assertThat(invalidNoAgent.getContent()).contains("no_agent requires script");
 
