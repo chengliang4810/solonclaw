@@ -2370,7 +2370,8 @@ public class SecurityPolicyService {
         if (uri == null) {
             return false;
         }
-        return containsSensitiveParameterName(uri.getRawQuery())
+        return containsSensitiveParameterName(uri.getRawPath())
+                || containsSensitiveParameterName(uri.getRawQuery())
                 || containsSensitiveParameterName(uri.getRawFragment());
     }
 

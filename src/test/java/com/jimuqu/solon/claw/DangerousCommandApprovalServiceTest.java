@@ -2345,6 +2345,9 @@ public class DangerousCommandApprovalServiceTest {
                         "https://example.com/callback?password=p",
                         "https://example.com/callback?x-amz-signature=abc",
                         "https://example.com/callback?api%5Fkey=abc",
+                        "https://example.com/callback;access_token=short",
+                        "https://example.com/oauth/;client_secret=abc",
+                        "https://example.com/oauth;api%5Fkey=abc/callback",
                         "https://example.com/callback#refresh_token=short");
 
         for (String url : blocked) {
