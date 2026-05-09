@@ -2346,6 +2346,14 @@ public class DangerousCommandApprovalServiceTest {
                         "docker login --username user --password password registry.example",
                         "docker login -u user -p password registry.example",
                         "echo token | docker login --username user --password-stdin registry.example",
+                        "podman login --username user --password password registry.example",
+                        "nerdctl login -u user -p password registry.example",
+                        "buildah login --password-stdin registry.example",
+                        "helm registry login registry.example --username user --password password",
+                        "helm registry login registry.example --password-stdin",
+                        "oras login registry.example --password token",
+                        "crane auth login registry.example -p token",
+                        "skopeo login registry.example --password token",
                         "gh auth login --with-token < token.txt",
                         "npm login --auth-type legacy --password password",
                         "az login --service-principal --username app --password password");
@@ -2361,6 +2369,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "docker login registry.example"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "podman login registry.example"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "helm registry login registry.example"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

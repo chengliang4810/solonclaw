@@ -540,7 +540,7 @@ public class DangerousCommandApprovalService {
                                     "cli_login_credential_option",
                                     "login command includes credential option",
                                     pattern(
-                                            "\\b(?:docker\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|gh\\s+auth\\s+login\\b[^\\n]*--with-token\\b|npm\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--auth-type\\s+legacy)|az\\s+login\\b[^\\n]*--password(?:=|\\s+)\\S+)"),
+                                            "\\b(?:(?:docker|podman|nerdctl|buildah)\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|helm\\s+registry\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--password-stdin\\b)|(?:oras|crane|skopeo)\\s+(?:login|auth\\s+login)\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|gh\\s+auth\\s+login\\b[^\\n]*--with-token\\b|npm\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--auth-type\\s+legacy)|az\\s+login\\b[^\\n]*--password(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_history_erasure",
