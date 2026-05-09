@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -68,6 +69,33 @@ public class McpRuntimeServiceTest {
                 .contains("invalid_token")
                 .contains("token expired")
                 .doesNotContain("secret");
+    }
+
+    @Test
+    void shouldExposeMcpOAuthPolicySummaryWithoutSecrets() {
+        Map<String, Object> summary = DashboardMcpService.oauthPolicySummary();
+
+        assertThat(summary.get("authorizationEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tokenEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tokenEndpointRedirectUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tokenEndpointRedirectLimit")).isEqualTo(Integer.valueOf(5));
+        assertThat(summary.get("crossOriginRedirectBodyForwardingBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("stateValidationRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pkceS256Required")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("codeVerifierHiddenFromStatus")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("accessTokenRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("refreshTokenRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clientSecretRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("refreshRequiresRefreshToken")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("handle401RefreshThenReauth")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearRemovesSecretPresenceFlags")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary))
+                .contains("has_access_token")
+                .contains("has_refresh_token")
+                .contains("has_client_secret")
+                .doesNotContain("secret-sudo")
+                .doesNotContain("access-token-value")
+                .doesNotContain("refresh-token-value");
     }
 
     @Test

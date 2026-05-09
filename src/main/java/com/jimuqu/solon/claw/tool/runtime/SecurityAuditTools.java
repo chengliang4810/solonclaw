@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
@@ -212,6 +213,7 @@ public class SecurityAuditTools {
         coverage.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
         coverage.put("codeExecutionPolicy", SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig));
         coverage.put("mcpRuntimePolicy", McpRuntimeService.policySummary(appConfig));
+        coverage.put("mcpOAuthPolicy", DashboardMcpService.oauthPolicySummary());
         Map<String, Object> attachmentPolicy = new LinkedHashMap<String, Object>();
         attachmentPolicy.put("downloadIo", BoundedAttachmentIO.policySummary());
         attachmentPolicy.put("mediaCache", new AttachmentCacheService(appConfig).policySummary());

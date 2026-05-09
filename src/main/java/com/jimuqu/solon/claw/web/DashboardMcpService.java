@@ -70,6 +70,33 @@ public class DashboardMcpService {
         this.securityPolicyService = new SecurityPolicyService(appConfig);
     }
 
+    public static Map<String, Object> oauthPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("authorizationEndpointUrlSafety", Boolean.TRUE);
+        summary.put("tokenEndpointUrlSafety", Boolean.TRUE);
+        summary.put("tokenEndpointRedirectUrlSafety", Boolean.TRUE);
+        summary.put("tokenEndpointRedirectLimit", Integer.valueOf(MAX_OAUTH_TOKEN_REDIRECTS));
+        summary.put("crossOriginRedirectBodyForwardingBlocked", Boolean.TRUE);
+        summary.put("stateValidationRequired", Boolean.TRUE);
+        summary.put("pkceS256Required", Boolean.TRUE);
+        summary.put("codeVerifierHiddenFromStatus", Boolean.TRUE);
+        summary.put("accessTokenRedacted", Boolean.TRUE);
+        summary.put("refreshTokenRedacted", Boolean.TRUE);
+        summary.put("clientSecretRedacted", Boolean.TRUE);
+        summary.put("refreshRequiresRefreshToken", Boolean.TRUE);
+        summary.put("handle401RefreshThenReauth", Boolean.TRUE);
+        summary.put("clearRemovesSecretPresenceFlags", Boolean.TRUE);
+        summary.put(
+                "statusPresenceFields",
+                Collections.unmodifiableList(
+                        java.util.Arrays.asList(
+                                "has_access_token", "has_refresh_token", "has_client_secret")));
+        summary.put("callbackErrorsRedacted", Boolean.TRUE);
+        summary.put("tokenErrorsRedacted", Boolean.TRUE);
+        summary.put("tokenResponseRequiresAccessToken", Boolean.TRUE);
+        return summary;
+    }
+
     public Map<String, Object> list() throws Exception {
         List<Map<String, Object>> servers = new ArrayList<Map<String, Object>>();
         Connection connection = database.openConnection();

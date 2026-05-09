@@ -942,6 +942,24 @@ public class ToolRegistryExposureTest {
                 .contains("file_path")
                 .contains("invalid_token")
                 .doesNotContain("secret-sudo");
+        ONode mcpOAuthPolicy =
+                policyStatus.get("policy").get("coverage").get("mcpOAuthPolicy");
+        assertThat(mcpOAuthPolicy.get("authorizationEndpointUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("tokenEndpointUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("tokenEndpointRedirectUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("tokenEndpointRedirectLimit").getInt()).isEqualTo(5);
+        assertThat(mcpOAuthPolicy.get("stateValidationRequired").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("pkceS256Required").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("codeVerifierHiddenFromStatus").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("accessTokenRedacted").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("refreshTokenRedacted").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("clientSecretRedacted").getBoolean()).isTrue();
+        assertThat(mcpOAuthPolicy.get("handle401RefreshThenReauth").getBoolean()).isTrue();
+        assertThat(String.valueOf(mcpOAuthPolicy))
+                .contains("has_access_token")
+                .contains("has_refresh_token")
+                .contains("has_client_secret")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentUrlSafety").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentCachePathSafety").getBoolean())
