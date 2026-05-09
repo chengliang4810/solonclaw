@@ -77,7 +77,8 @@ public class ToolResultStorageService {
         }
 
         stored.setTruncated(true);
-        String ref = persist(bytes, runId, toolCallId);
+        byte[] safeBytes = safePersistedOutput(raw).getBytes(StandardCharsets.UTF_8);
+        String ref = persist(safeBytes, runId, toolCallId);
         stored.setResultRef(ref);
         stored.setObservation(buildEnvelope(toolName, raw, ref, bytes.length));
         turnBytes += stored.getObservation().getBytes(StandardCharsets.UTF_8).length;
@@ -98,7 +99,8 @@ public class ToolResultStorageService {
         summary.put("resultRefReturned", Boolean.TRUE);
         summary.put("readBackGuidanceIncluded", Boolean.TRUE);
         summary.put("previewRedacted", Boolean.TRUE);
-        summary.put("fullOutputSavedRaw", Boolean.TRUE);
+        summary.put("persistedOutputRedacted", Boolean.TRUE);
+        summary.put("fullOutputSavedRaw", Boolean.FALSE);
         summary.put("pathSegmentsSanitized", Boolean.TRUE);
         summary.put("canonicalChildPathCheck", Boolean.TRUE);
         summary.put("workspaceRelativeRefsPreferred", Boolean.valueOf(StrUtil.isNotBlank(workspaceDir)));
@@ -375,6 +377,15 @@ public class ToolResultStorageService {
 
     private String safePreview(String content) {
         return SecretRedactor.redact(preview(content, previewLength), previewLength);
+    }
+
+    private String safePersistedOutput(String content) {
+        String raw = StrUtil.nullToEmpty(content);
+        int maxLength =
+                raw.length() > Integer.MAX_VALUE - 1024
+                        ? Integer.MAX_VALUE
+                        : Math.max(previewLength, raw.length() + 1024);
+        return SecretRedactor.redact(raw, maxLength);
     }
 
     public static class StoredResult {

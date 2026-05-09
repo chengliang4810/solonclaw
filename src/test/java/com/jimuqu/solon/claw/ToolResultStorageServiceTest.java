@@ -39,6 +39,7 @@ public class ToolResultStorageServiceTest {
                 .contains("read_file")
                 .contains("resultRefReturned")
                 .contains("previewRedacted")
+                .contains("persistedOutputRedacted")
                 .contains("tool-results")
                 .doesNotContain(tempDir.getAbsolutePath());
 
@@ -88,7 +89,7 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
-    void shouldRedactPersistedPreviewButKeepFullOutputOnDisk() throws Exception {
+    void shouldRedactPersistedPreviewAndStoredOutput() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 40, 200000, 300);
         String large =
@@ -103,7 +104,8 @@ public class ToolResultStorageServiceTest {
         assertThat(result.getObservation()).contains("OPENAI_API_KEY=***");
         assertThat(result.getObservation()).doesNotContain("sk-proj-secretvalue1234567890");
         assertThat(new String(Files.readAllBytes(new File(result.getResultRef()).toPath()), StandardCharsets.UTF_8))
-                .contains("sk-proj-secretvalue1234567890");
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("sk-proj-secretvalue1234567890");
     }
 
     @Test
