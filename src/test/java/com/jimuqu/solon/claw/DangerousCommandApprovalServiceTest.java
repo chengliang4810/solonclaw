@@ -1263,6 +1263,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectSshHostKeyVerificationBypassCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "ssh -o StrictHostKeyChecking=no user@example.com",
+                        "scp -oStrictHostKeyChecking=off file user@example.com:/tmp/",
+                        "sftp -o StrictHostKeyChecking=false user@example.com",
+                        "rsync -e 'ssh -o UserKnownHostsFile=/dev/null' ./ user@example.com:/tmp/",
+                        "ssh -o UserKnownHostsFile=NUL user@example.com");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("ssh_host_key_check_disabled");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh -o StrictHostKeyChecking=yes user@example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh user@example.com"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectSensitiveClipboardExportCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
