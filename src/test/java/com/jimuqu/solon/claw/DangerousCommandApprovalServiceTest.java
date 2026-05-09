@@ -804,6 +804,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerRm =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker rm -f app-db");
+        DangerousCommandApprovalService.DetectionResult podmanRm =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman rm --force app-db");
+        DangerousCommandApprovalService.DetectionResult nerdctlRmi =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl rmi -f app-image");
         DangerousCommandApprovalService.DetectionResult dockerPrivileged =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --privileged alpine");
@@ -1088,6 +1094,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerPrune.getPatternKey()).isEqualTo("docker_destructive_prune");
         assertThat(dockerRm).isNotNull();
         assertThat(dockerRm.getPatternKey()).isEqualTo("docker_force_remove");
+        assertThat(podmanRm).isNotNull();
+        assertThat(podmanRm.getPatternKey()).isEqualTo("docker_force_remove");
+        assertThat(nerdctlRmi).isNotNull();
+        assertThat(nerdctlRmi.getPatternKey()).isEqualTo("docker_force_remove");
         assertThat(dockerPrivileged).isNotNull();
         assertThat(dockerPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerSocketMount).isNotNull();

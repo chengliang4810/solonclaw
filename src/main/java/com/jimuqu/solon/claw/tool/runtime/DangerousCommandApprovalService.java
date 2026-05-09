@@ -773,7 +773,7 @@ public class DangerousCommandApprovalService {
                                     "docker_force_remove",
                                     "Docker force remove",
                                     pattern(
-                                            "\\bdocker\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
+                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:rm|rmi)\\b(?=[^\\n]*(?:-(?!-)[^\\s]*f|--force\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "docker_privileged_or_host_mount",
