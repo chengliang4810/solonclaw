@@ -103,6 +103,12 @@ public class SecurityAuditTools {
         security.put("tirithConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getSecurity().getTirithPath())));
         security.put("tirithTimeoutSeconds", Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));
         security.put("tirithFailOpen", Boolean.valueOf(appConfig.getSecurity().isTirithFailOpen()));
+        TirithSecurityService.Diagnostic tirithDiagnostic =
+                tirithSecurityService == null ? null : tirithSecurityService.diagnose();
+        if (tirithDiagnostic != null) {
+            security.put("tirithAvailable", Boolean.valueOf(tirithDiagnostic.isAvailable()));
+            security.put("tirithDiagnostic", tirithDiagnostic.toMap());
+        }
         security.put(
                 "websiteBlocklistEnabled",
                 Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));

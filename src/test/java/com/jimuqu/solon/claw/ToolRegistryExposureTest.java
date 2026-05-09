@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.File;
 import java.lang.reflect.Method;
@@ -157,9 +158,15 @@ public class ToolRegistryExposureTest {
                         policy,
                         new DangerousCommandApprovalService(
                                 env.globalSettingRepository, env.appConfig, policy, null),
-                        null,
+                        new TirithSecurityService(env.appConfig),
                         env.appConfig);
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig
+                .getSecurity()
+                .setTirithPath(
+                        Files.createTempDirectory("jimuqu-audit-tirith")
+                                .resolve("missing-tirith")
+                                .toString());
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
         env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
         env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
@@ -244,6 +251,12 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("security").get("websiteBlocklistDomainCount").getInt())
                 .isEqualTo(1);
+        assertThat(policyStatus.get("policy").get("security").get("tirithAvailable").getBoolean())
+                .isFalse();
+        assertThat(policyStatus.get("policy").get("security").get("tirithDiagnostic").get("enabled").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("security").get("tirithDiagnostic").get("summary").getString())
+                .contains("unavailable");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())

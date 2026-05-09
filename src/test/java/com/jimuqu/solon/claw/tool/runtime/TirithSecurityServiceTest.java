@@ -156,6 +156,38 @@ public class TirithSecurityServiceTest {
     }
 
     @Test
+    void shouldDiagnoseMissingTirithPathWithoutExecutingItAndRedactSecrets() {
+        String token = "sk-1234567890abcdef";
+        AppConfig config = config(missingAbsolutePath(token));
+        config.getSecurity().setTirithFailOpen(false);
+
+        TirithSecurityService.Diagnostic diagnostic =
+                new TirithSecurityService(config).diagnose();
+
+        assertThat(diagnostic.isEnabled()).isTrue();
+        assertThat(diagnostic.isConfigured()).isTrue();
+        assertThat(diagnostic.isAvailable()).isFalse();
+        assertThat(diagnostic.isFailOpen()).isFalse();
+        assertThat(diagnostic.getSummary()).contains("unavailable").contains("fail-closed");
+        assertThat(diagnostic.getConfiguredPath()).contains("***").doesNotContain(token);
+        assertThat(diagnostic.getResolvedPath()).contains("***").doesNotContain(token);
+        assertThat(String.valueOf(diagnostic.toMap())).contains("***").doesNotContain(token);
+    }
+
+    @Test
+    void shouldDiagnoseAvailableExplicitTirithPath() throws Exception {
+        Path binary = script("printf '%s\\n' '{\"findings\":[],\"summary\":\"\"}'", 0);
+
+        TirithSecurityService.Diagnostic diagnostic =
+                new TirithSecurityService(config(binary)).diagnose();
+
+        assertThat(diagnostic.isEnabled()).isTrue();
+        assertThat(diagnostic.isAvailable()).isTrue();
+        assertThat(diagnostic.getResolvedPath()).contains(binary.getFileName().toString());
+        assertThat(diagnostic.getSummary()).contains("available");
+    }
+
+    @Test
     void shouldApplyFailOpenAndFailClosedWhenTirithTimesOut() throws Exception {
         Path binary = script(sleepBody(3), 0);
         AppConfig openConfig = config(binary);

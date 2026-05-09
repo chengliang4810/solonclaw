@@ -142,6 +142,42 @@ public class TirithSecurityService {
         return checkCommandSecurity(command, shellForToolCommand(toolName, command));
     }
 
+    public Diagnostic diagnose() {
+        AppConfig.SecurityConfig security =
+                appConfig == null ? null : appConfig.getSecurity();
+        boolean enabled = security == null || security.isTirithEnabled();
+        String configuredPath =
+                security == null
+                        ? "tirith"
+                        : StrUtil.blankToDefault(security.getTirithPath(), "tirith").trim();
+        int timeoutSeconds =
+                security == null
+                        ? 5
+                        : Math.max(1, security.getTirithTimeoutSeconds());
+        boolean failOpen = security == null || security.isTirithFailOpen();
+        String resolvedPath = resolvePath(configuredPath);
+        boolean configured = StrUtil.isNotBlank(configuredPath);
+        boolean available = enabled && isExecutableAvailable(resolvedPath);
+        String mode = failOpen ? "fail-open" : "fail-closed";
+        String summary;
+        if (!enabled) {
+            summary = "tirith security scan is disabled";
+        } else if (available) {
+            summary = "tirith executable is available";
+        } else {
+            summary = "tirith executable is unavailable (" + mode + ")";
+        }
+        return new Diagnostic(
+                enabled,
+                configured,
+                configuredPath,
+                resolvedPath,
+                available,
+                timeoutSeconds,
+                failOpen,
+                summary);
+    }
+
     private String shellForToolCommand(String toolName, String command) {
         String tool = StrUtil.nullToEmpty(toolName).toLowerCase(Locale.ROOT);
         String text = StrUtil.nullToEmpty(command).trim().toLowerCase(Locale.ROOT);
@@ -198,6 +234,65 @@ public class TirithSecurityService {
             return file.getAbsolutePath();
         }
         return raw;
+    }
+
+    private boolean isExecutableAvailable(String path) {
+        if (StrUtil.isBlank(path)) {
+            return false;
+        }
+        File file = new File(path);
+        if (isExplicitPath(path)) {
+            return file.isFile() && file.canExecute();
+        }
+        List<String> names = executableNames(path);
+        String pathEnv = System.getenv("PATH");
+        if (StrUtil.isBlank(pathEnv)) {
+            return false;
+        }
+        String[] dirs = pathEnv.split(java.util.regex.Pattern.quote(File.pathSeparator));
+        for (String dir : dirs) {
+            if (StrUtil.isBlank(dir)) {
+                continue;
+            }
+            for (String name : names) {
+                File candidate = new File(dir, name);
+                if (candidate.isFile() && candidate.canExecute()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isExplicitPath(String path) {
+        File file = new File(path);
+        return file.isAbsolute() || path.indexOf(File.separatorChar) >= 0 || path.indexOf('/') >= 0;
+    }
+
+    private List<String> executableNames(String path) {
+        List<String> names = new ArrayList<String>();
+        names.add(path);
+        if (!isWindows()) {
+            return names;
+        }
+        String lower = path.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".exe")
+                || lower.endsWith(".cmd")
+                || lower.endsWith(".bat")
+                || lower.endsWith(".com")) {
+            return names;
+        }
+        String pathext = StrUtil.blankToDefault(System.getenv("PATHEXT"), ".COM;.EXE;.BAT;.CMD");
+        for (String ext : pathext.split(";")) {
+            if (StrUtil.isNotBlank(ext)) {
+                names.add(path + ext.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        return names;
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
     private ParsedOutput parseOutput(String stdout, String action) {
@@ -335,6 +430,81 @@ public class TirithSecurityService {
 
         public boolean requiresApproval() {
             return "warn".equals(action) || "block".equals(action);
+        }
+    }
+
+    public static class Diagnostic {
+        private final boolean enabled;
+        private final boolean configured;
+        private final String configuredPath;
+        private final String resolvedPath;
+        private final boolean available;
+        private final int timeoutSeconds;
+        private final boolean failOpen;
+        private final String summary;
+
+        private Diagnostic(
+                boolean enabled,
+                boolean configured,
+                String configuredPath,
+                String resolvedPath,
+                boolean available,
+                int timeoutSeconds,
+                boolean failOpen,
+                String summary) {
+            this.enabled = enabled;
+            this.configured = configured;
+            this.configuredPath = safeText(configuredPath, MAX_SUMMARY_LENGTH);
+            this.resolvedPath = safeText(resolvedPath, MAX_SUMMARY_LENGTH);
+            this.available = available;
+            this.timeoutSeconds = timeoutSeconds;
+            this.failOpen = failOpen;
+            this.summary = safeText(summary, MAX_SUMMARY_LENGTH);
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public boolean isConfigured() {
+            return configured;
+        }
+
+        public String getConfiguredPath() {
+            return configuredPath;
+        }
+
+        public String getResolvedPath() {
+            return resolvedPath;
+        }
+
+        public boolean isAvailable() {
+            return available;
+        }
+
+        public int getTimeoutSeconds() {
+            return timeoutSeconds;
+        }
+
+        public boolean isFailOpen() {
+            return failOpen;
+        }
+
+        public String getSummary() {
+            return summary;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("enabled", Boolean.valueOf(enabled));
+            map.put("configured", Boolean.valueOf(configured));
+            map.put("configuredPath", configuredPath);
+            map.put("resolvedPath", resolvedPath);
+            map.put("available", Boolean.valueOf(available));
+            map.put("timeoutSeconds", Integer.valueOf(timeoutSeconds));
+            map.put("failOpen", Boolean.valueOf(failOpen));
+            map.put("summary", summary);
+            return map;
         }
     }
 
