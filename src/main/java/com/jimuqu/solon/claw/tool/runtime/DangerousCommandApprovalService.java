@@ -829,6 +829,12 @@ public class DangerousCommandApprovalService {
                                             "\\baws\\s+\\S+\\s+(?:delete|terminate|remove|deregister|detach)-[a-z0-9-]+\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "domestic_cloud_destructive_resource",
+                                    "Domestic cloud destructive resource operation",
+                                    pattern(
+                                            "\\b(?:aliyun\\s+(?:ecs|vpc|slb|rds)\\s+(?:Delete|Release|Stop|Reboot)[A-Za-z]+\\b|(?:tccli|qcloud)\\s+(?:cvm|vpc|clb|cdb)\\s+(?:Terminate|Delete|Release)[A-Za-z]+\\b|huaweicloud\\s+(?:ecs|evs|vpc|rds)\\s+(?:Delete|NovaDelete|BatchDelete|Terminate)[A-Za-z]+\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "aws_s3_recursive_remove",
                                     "AWS S3 recursive remove",
                                     pattern(

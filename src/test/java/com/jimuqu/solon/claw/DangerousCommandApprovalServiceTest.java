@@ -900,6 +900,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsTerminateInstances =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws ec2 terminate-instances --instance-ids i-123");
+        DangerousCommandApprovalService.DetectionResult aliyunReleaseInstance =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aliyun ecs DeleteInstance --InstanceId i-prod --Force true");
+        DangerousCommandApprovalService.DetectionResult tccliTerminateInstances =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccli cvm TerminateInstances --InstanceIds i-prod");
+        DangerousCommandApprovalService.DetectionResult huaweicloudDeleteServer =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "huaweicloud ecs NovaDeleteServer --server_id i-prod");
         DangerousCommandApprovalService.DetectionResult awsS3RecursiveRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3 rm s3://prod-data --recursive");
@@ -1130,6 +1139,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsDeleteBucket.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsTerminateInstances).isNotNull();
         assertThat(awsTerminateInstances.getPatternKey()).isEqualTo("aws_destructive_resource");
+        assertThat(aliyunReleaseInstance).isNotNull();
+        assertThat(aliyunReleaseInstance.getPatternKey())
+                .isEqualTo("domestic_cloud_destructive_resource");
+        assertThat(tccliTerminateInstances).isNotNull();
+        assertThat(tccliTerminateInstances.getPatternKey())
+                .isEqualTo("domestic_cloud_destructive_resource");
+        assertThat(huaweicloudDeleteServer).isNotNull();
+        assertThat(huaweicloudDeleteServer.getPatternKey())
+                .isEqualTo("domestic_cloud_destructive_resource");
         assertThat(awsS3RecursiveRemove).isNotNull();
         assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
         assertThat(awsAttachPolicy).isNotNull();
