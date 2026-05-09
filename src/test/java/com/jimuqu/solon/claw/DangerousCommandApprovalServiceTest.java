@@ -1215,6 +1215,18 @@ public class DangerousCommandApprovalServiceTest {
                 env, "rundll32 keymgr.dll,KRShowKeyMgr", "windows_credential_manager_read");
         assertDangerPattern(
                 env,
+                "cmdkey /add:server.example /user:deploy /pass:secret",
+                "windows_credential_manager_change");
+        assertDangerPattern(env, "cmdkey /delete:server.example", "windows_credential_manager_change");
+        assertDangerPattern(
+                env,
+                "New-StoredCredential -Target server.example -UserName deploy -Password secret",
+                "windows_credential_manager_change");
+        assertDangerPattern(
+                env, "Remove-StoredCredential -Target server.example", "windows_credential_manager_change");
+        assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
+        assertDangerPattern(
+                env,
                 "Set-Content -Path .envrc -Value layout",
                 "powershell_sensitive_file_write");
         assertDangerPattern(
@@ -1449,12 +1461,55 @@ public class DangerousCommandApprovalServiceTest {
                         "az keyvault secret show --vault-name prod --name db-password",
                         "kubectl get secret app-token -o yaml",
                         "vault kv get secret/prod",
-                        "vault read secret/data/prod");
+                        "vault read secret/data/prod",
+                        "op read op://prod/db/password",
+                        "op item get prod-db --fields password",
+                        "op item get prod-db --fields=token --reveal",
+                        "bw get password prod-db",
+                        "bw get item prod-db",
+                        "pass show prod/db",
+                        "gopass prod/db",
+                        "secret-tool lookup service prod-db");
         for (String command : secretStoreReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
+        }
+
+        List<String> secretStoreMetadataReads =
+                Arrays.asList(
+                        "op item list",
+                        "op item get prod-db --fields title",
+                        "bw list items",
+                        "pass git status",
+                        "secret-tool search service prod-db");
+        for (String command : secretStoreMetadataReads) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
+        }
+
+        List<String> secretStoreWrites =
+                Arrays.asList(
+                        "aws secretsmanager put-secret-value --secret-id prod/db --secret-string password",
+                        "gcloud secrets versions add prod-db --data-file=secret.txt",
+                        "az keyvault secret set --vault-name prod --name db-password --value password",
+                        "kubectl create secret generic app-token --from-literal=token=abc",
+                        "vault kv put secret/prod password=abc",
+                        "vault kv patch secret/prod token=abc",
+                        "op item create --category login --title prod-db password=abc",
+                        "op item edit prod-db password=abc",
+                        "bw create item '{\"name\":\"prod-db\"}'",
+                        "bw edit item item-id '{\"notes\":\"secret\"}'",
+                        "pass insert prod/db",
+                        "gopass generate prod/db",
+                        "secret-tool store --label prod-db service prod-db");
+        for (String command : secretStoreWrites) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_write");
         }
 
         List<String> keychainPasswordReads =
@@ -1470,6 +1525,26 @@ public class DangerousCommandApprovalServiceTest {
                     .as(command)
                     .isEqualTo("macos_keychain_password_read");
         }
+
+        List<String> keychainPasswordChanges =
+                Arrays.asList(
+                        "security add-generic-password -a deploy -s api-token -w token",
+                        "security add-internet-password -s example.com -a deploy -w token",
+                        "security delete-generic-password -s api-token",
+                        "security delete-internet-password -s example.com");
+        for (String command : keychainPasswordChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("macos_keychain_password_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "security find-certificate -a login.keychain-db"))
+                .isNull();
 
         List<String> sshAddPrivateKeys =
                 Arrays.asList(
@@ -1922,6 +1997,11 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "s3cmd ls s3://bucket"))
                 .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl -k https://example.com"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("tls_certificate_check_disabled");
     }
 
     @Test
@@ -2265,6 +2345,21 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("git_remote_credential_url");
         }
 
+        List<String> gitCredentialStoreChanges =
+                Arrays.asList(
+                        "printf 'protocol=https\\nhost=example.com\\nusername=user\\npassword=token\\n' | git credential approve",
+                        "git credential reject",
+                        "git credential store",
+                        "git credential erase");
+        for (String command : gitCredentialStoreChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("git_credential_store_change");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "history | tail"))
@@ -2288,6 +2383,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "git remote set-url origin https://example.com/repo.git"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git credential fill"))
                 .isNull();
     }
 

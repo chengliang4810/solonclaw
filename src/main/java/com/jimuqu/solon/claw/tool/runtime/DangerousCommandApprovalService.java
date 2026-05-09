@@ -104,6 +104,8 @@ public class DangerousCommandApprovalService {
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+    private static final String SHELL_COMMAND_START =
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
@@ -391,13 +393,25 @@ public class DangerousCommandApprovalService {
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "secret_store_write",
+                                    "write secret manager value",
+                                    pattern(
+                                            "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl\\s+(?:-[^\\s]+\\s+)*create\\s+secret\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_keychain_password_read",
                                     "macOS keychain password read",
                                     pattern(
                                             "\\bsecurity\\s+find-(?:generic|internet)-password\\b(?=[^\\n]*(?:\\s-w\\b|\\s-g\\b|--password\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "macos_keychain_password_change",
+                                    "macOS keychain password changed",
+                                    pattern(
+                                            "\\bsecurity\\s+(?:add|delete)-(?:generic|internet)-password\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "ssh_add_private_key",
@@ -470,13 +484,15 @@ public class DangerousCommandApprovalService {
                                     "network_credential_file_send",
                                     "send credential from local netrc or cookie file",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies)(?:=|\\s+)\\S|\\s-K\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|ca-certificate|cacert|capath)(?:=|\\s+)\\S+|\\s-E\\s+\\S+|\\s-[bcEK]\\S+|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s-T\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[^\\s'\"|;&]*=@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[^\\s'\"|;&]+@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*"),
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies)(?:=|\\s+)\\S|\\s(?-i:-K)\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|ca-certificate|cacert|capath)(?:=|\\s+)\\S+|\\s(?-i:-E)\\s+\\S+|\\s(?-i:-[bcEK])\\S+|\\s(?-i:-c)\\s+\\S|\\s(?-i:-b)\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s-T\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[^\\s'\"|;&]*=@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[^\\s'\"|;&]+@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
                                     "credential file passed through command option",
                                     pattern(
-                                            "(?:\\b(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\brsync\\b[^\\n]*(?:\\s-e\\s*[\"']?ssh\\b|\\s--rsh(?:=|\\s+)[\"']?ssh\\b)[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\bgit\\b[^\\n]*\\s-c\\s+core\\.sshCommand\\s*=\\s*[\"']?ssh\\b[^\\n]*(?:\\s-[iF]\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:-[bcEK]\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies|config)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\b(?:ansible|ansible-playbook)\\b[^\\n]*\\s--(?:private-key|key-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+|\\b(?:rclone|s3cmd)\\b[^\\n]*\\s--config(?:=|\\s+)\\S+)"),
+                                            "(?:"
+                                                    + SHELL_COMMAND_START
+                                                    + "(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\brsync\\b[^\\n]*(?:\\s-e\\s*[\"']?ssh\\b|\\s--rsh(?:=|\\s+)[\"']?ssh\\b)[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\bgit\\b[^\\n]*\\s-c\\s+core\\.sshCommand\\s*=\\s*[\"']?ssh\\b[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:(?-i:-[bcEK])\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies|config)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\b(?:ansible|ansible-playbook)\\b[^\\n]*\\s--(?:private-key|key-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+|\\b(?:rclone|s3cmd)\\b[^\\n]*\\s--config(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "tls_certificate_check_disabled",
@@ -533,6 +549,11 @@ public class DangerousCommandApprovalService {
                                     "Git remote URL contains credentials",
                                     pattern(
                                             "\\bgit\\s+(?:remote\\s+(?:add|set-url)|config\\s+(?:--global\\s+)?url\\.)[^\\n]*(?:https?|ssh)://[^\\s/@:]+:[^\\s/@]+@"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "git_credential_store_change",
+                                    "Git credential helper store changed",
+                                    pattern("\\bgit\\s+credential\\s+(?:approve|reject|store|erase)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "ssh_host_key_check_disabled",
@@ -984,6 +1005,12 @@ public class DangerousCommandApprovalService {
                                     "Windows credential manager read",
                                     pattern(
                                             "\\b(?:cmdkey(?:\\.exe)?\\s+/list\\b|vaultcmd(?:\\.exe)?\\s+/(?:listcreds|listvaults)\\b|rundll32(?:\\.exe)?\\s+keymgr\\.dll,KRShowKeyMgr\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_credential_manager_change",
+                                    "Windows credential manager changed",
+                                    pattern(
+                                            "\\b(?:cmdkey(?:\\.exe)?\\s+/(?:add|delete)\\b|(?:New|Set|Remove)-StoredCredential\\b|New-Credential\\b|Remove-VaultCredential\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_sensitive_file_write",
