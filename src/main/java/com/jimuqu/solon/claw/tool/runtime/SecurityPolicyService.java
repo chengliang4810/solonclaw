@@ -757,13 +757,21 @@ public class SecurityPolicyService {
         if (at >= 0 && at + 1 < value.length()) {
             value = value.substring(at + 1);
         }
-        String host = extractSchemelessHost(value);
+        String host = value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
         if (StrUtil.isBlank(host)) {
             return;
         }
         if (shouldCheckBareHost(host)) {
-            urls.add(value);
+            urls.add(value.contains("://") ? host : value);
         }
+    }
+
+    private String extractUrlishHost(String raw) {
+        URI uri = parseUri(cleanUrlToken(raw));
+        if (uri == null) {
+            return "";
+        }
+        return normalizeHost(uri.getHost());
     }
 
     private void extractCurlConnectionOverrideHosts(String text, List<String> urls) {
