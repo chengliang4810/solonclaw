@@ -175,9 +175,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat((List<String>) localItem.get("rule_sources")).containsExactly("local_policy");
         assertThat(localItem.get("permanent_allowed")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(localItem.get("permanent_disabled_reason"))).isEmpty();
-        assertThat(String.valueOf(localItem.get("approval_key")))
-                .contains("execute_shell:recursive_delete:***")
-                .doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(localItem).doesNotContainKey("approval_key");
         assertThat(String.valueOf(localItem.get("selector")))
                 .isEqualTo(String.valueOf(localItem.get("approval_id")))
                 .doesNotContain("execute_shell:");
@@ -231,6 +229,7 @@ public class DashboardDiagnosticOutputTest {
                 .contains("password=***")
                 .contains("command_preview\":\"rm -rf runtime/cache --token ***")
                 .doesNotContain("\\u202E")
+                .doesNotContain("\"approval_key\":")
                 .doesNotContain("ghp_titlepending123")
                 .doesNotContain("pendingpattern123")
                 .doesNotContain("pending-secret")
@@ -298,7 +297,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(item.get("approval_id")).isEqualTo("");
         assertThat(selector).startsWith("key_").hasSize(28);
         assertThat(selector).isNotEqualTo(approvalKey).doesNotContain("execute_shell:");
-        assertThat(String.valueOf(item.get("approval_key"))).isEqualTo("execute_shell:recursive_delete:***");
+        assertThat(item).doesNotContainKey("approval_key");
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("sessionId", "session-legacy\u202E-approval");

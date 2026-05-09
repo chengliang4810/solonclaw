@@ -461,7 +461,6 @@ public class DashboardDiagnosticsService {
         item.put("rule_sources", approvalRuleSources(pending));
         item.put("command_preview", safeAuditPreview(pending.getCommand(), 800));
         item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
-        item.put("approval_key", redactedApprovalKey(pending.approvalKey()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
         item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));

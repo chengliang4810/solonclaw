@@ -1341,11 +1341,10 @@ public class DashboardControllerHttpTest {
 
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
-        String approvalKey = pendingData.get("approval_key").getString();
         assertThat(selector).isNotBlank();
         assertThat(selector).isEqualTo(pendingData.get("approval_id").getString());
         assertThat(selector).doesNotContain("execute_shell:");
-        assertThat(approvalKey).startsWith("execute_shell:").endsWith(":***");
+        assertThat(pending.body).doesNotContain("\"approval_key\":");
 
         HttpResult historyBefore =
                 request("GET", "/api/diagnostics/approvals/history?limit=20", null, token);
