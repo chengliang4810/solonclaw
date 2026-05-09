@@ -411,7 +411,47 @@ public class TuiShell {
                 + "  model="
                 + StrUtil.blankToDefault(model, "-")
                 + "  reasoning="
-                + StrUtil.blankToDefault(reasoning, "-");
+                + StrUtil.blankToDefault(reasoning, "-")
+                + busyStatusSuffix(sessionId);
+    }
+
+    private String busyStatusSuffix(String sessionId) {
+        if (cliRuntime == null) {
+            return "";
+        }
+        try {
+            GatewayReply reply = cliRuntime.send(sessionId, "/busy status", null);
+            if (reply == null || StrUtil.isBlank(reply.getContent())) {
+                return "";
+            }
+            String content = reply.getContent();
+            String policy = statusValue(content, "busy_policy");
+            String activeRunId = statusValue(content, "active_run_id");
+            String queuePending = statusValue(content, "queue_pending");
+            if (StrUtil.isBlank(policy) && StrUtil.isBlank(activeRunId) && StrUtil.isBlank(queuePending)) {
+                return "";
+            }
+            return "  busy="
+                    + StrUtil.blankToDefault(policy, "-")
+                    + " run="
+                    + StrUtil.blankToDefault(activeRunId, "-")
+                    + " queue="
+                    + StrUtil.blankToDefault(queuePending, "0");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String statusValue(String content, String key) {
+        String prefix = key + "=";
+        String[] lines = StrUtil.nullToEmpty(content).split("\\r?\\n");
+        for (String line : lines) {
+            String value = StrUtil.nullToEmpty(line).trim();
+            if (value.startsWith(prefix)) {
+                return value.substring(prefix.length()).trim();
+            }
+        }
+        return "";
     }
 
     private boolean isAttachmentPreviewCommand(String input) {
