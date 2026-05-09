@@ -641,6 +641,70 @@ public class McpRuntimeService implements Closeable {
         return value == null ? null : ONode.serialize(value);
     }
 
+    @SuppressWarnings("unchecked")
+    private Object redactForToolResult(Object value) {
+        if (value instanceof String) {
+            return SecretRedactor.redact((String) value);
+        }
+        if (value instanceof Map) {
+            Map<String, Object> redacted = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                if (isSensitiveResultKey(key)) {
+                    redacted.put(key, redactedSensitiveValue(entry.getValue()));
+                } else {
+                    redacted.put(key, redactForToolResult(entry.getValue()));
+                }
+            }
+            return redacted;
+        }
+        if (value instanceof Collection) {
+            List<Object> redacted = new ArrayList<Object>();
+            for (Object item : (Collection<?>) value) {
+                redacted.add(redactForToolResult(item));
+            }
+            return redacted;
+        }
+        return value;
+    }
+
+    private Object redactedSensitiveValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Collection || value instanceof Map) {
+            return redactForToolResult(value);
+        }
+        return "***";
+    }
+
+    private boolean isSensitiveResultKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        String normalized = key.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        return "access_token".equals(normalized)
+                || "refresh_token".equals(normalized)
+                || "id_token".equals(normalized)
+                || "auth_token".equals(normalized)
+                || "api_key".equals(normalized)
+                || "apikey".equals(normalized)
+                || "client_secret".equals(normalized)
+                || "secret".equals(normalized)
+                || "password".equals(normalized)
+                || "passwd".equals(normalized)
+                || "authorization".equals(normalized)
+                || "bearer".equals(normalized)
+                || normalized.endsWith("_token")
+                || normalized.endsWith("_secret")
+                || normalized.endsWith("_password")
+                || normalized.endsWith("_api_key");
+    }
+
+    private String safeToolResultJson(Object value) {
+        return json(redactForToolResult(value));
+    }
+
     private String sanitizeInputSchema(String inputSchema) {
         return SolonClawToolSchemaSanitizer.sanitizeSchemaJson(inputSchema);
     }
@@ -1220,7 +1284,7 @@ public class McpRuntimeService implements Closeable {
                             appendResourceMaps(resources, activeProvider.getResourceTemplates(), true);
                             Map<String, Object> result = new LinkedHashMap<String, Object>();
                             result.put("resources", resources);
-                            return json(result);
+                            return safeToolResultJson(result);
                         }
                     });
         }
@@ -1276,7 +1340,7 @@ public class McpRuntimeService implements Closeable {
                             }
                             result.put("result", pack == null ? null : pack.getContent());
                             result.put("resources", resources);
-                            return json(result);
+                            return safeToolResultJson(result);
                         }
                     });
         }
@@ -1304,7 +1368,7 @@ public class McpRuntimeService implements Closeable {
                             }
                             Map<String, Object> result = new LinkedHashMap<String, Object>();
                             result.put("prompts", promptMaps);
-                            return json(result);
+                            return safeToolResultJson(result);
                         }
                     });
         }
@@ -1336,7 +1400,7 @@ public class McpRuntimeService implements Closeable {
                                 }
                             }
                             result.put("messages", messages);
-                            return json(result);
+                            return safeToolResultJson(result);
                         }
                     });
         }

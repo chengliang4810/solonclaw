@@ -351,6 +351,53 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
+    void shouldRedactMcpResourceAndPromptUtilityToolResults() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase, null, fullMcpCapabilities());
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, new SecretMcpFactory());
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool listResources = toolByName(provider, "mcp_local-docs_list_resources");
+        FunctionTool readResource = toolByName(provider, "mcp_local-docs_read_resource");
+        FunctionTool listPrompts = toolByName(provider, "mcp_local-docs_list_prompts");
+        FunctionTool getPrompt = toolByName(provider, "mcp_local-docs_get_prompt");
+        Map<String, Object> resourceArgs = new LinkedHashMap<String, Object>();
+        resourceArgs.put("uri", "https://example.com/guide");
+        Map<String, Object> promptArgs = new LinkedHashMap<String, Object>();
+        promptArgs.put("name", "summarize");
+        promptArgs.put("arguments", Collections.singletonMap("topic", "release"));
+
+        String resources = String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
+        String resource = String.valueOf(readResource.handle(resourceArgs));
+        String prompts = String.valueOf(listPrompts.handle(Collections.<String, Object>emptyMap()));
+        String prompt = String.valueOf(getPrompt.handle(promptArgs));
+
+        assertThat(resources)
+                .contains("token=***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("secret-resource-title")
+                .doesNotContain("ghp_resource12345");
+        assertThat(resource)
+                .contains("api_key=***")
+                .contains("\"access_token\":\"***\"")
+                .doesNotContain("sk-test-resource12345")
+                .doesNotContain("secret-pack-token");
+        assertThat(prompts)
+                .contains("OPENAI_API_KEY=***")
+                .contains("bearer ***")
+                .doesNotContain("sk-test-prompt12345")
+                .doesNotContain("ghp_promptmeta12345");
+        assertThat(prompt)
+                .contains("token=***")
+                .contains("bearer ***")
+                .doesNotContain("secret-prompt-message")
+                .doesNotContain("ghp_promptresult12345");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
     void shouldGuardRemoteMcpEndpointBeforeProviderCreation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
@@ -861,6 +908,53 @@ public class McpRuntimeServiceTest {
             properties.setChannel(McpChannel.STDIO);
             properties.setCommand("fake-mcp");
             return properties;
+        }
+    }
+
+    private static class SecretMcpFactory implements McpClientProviderFactory {
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            return new SecretMcpClientProvider();
+        }
+    }
+
+    private static class SecretMcpClientProvider extends FakeMcpClientProvider {
+        @Override
+        public Collection<FunctionResource> getResources() {
+            FunctionResourceDesc resource = new FunctionResourceDesc("guide");
+            resource.title("Guide token=secret-resource-title");
+            resource.description("Authorization: Bearer ghp_resource12345");
+            resource.uri("docs://guide?token=secret-resource-uri");
+            resource.mimeType("text/plain");
+            resource.metaPut("access_token", "secret-resource-meta");
+            resource.doHandle(uri -> new ResourcePack().addText("guide content"));
+            return Collections.<FunctionResource>singletonList(resource);
+        }
+
+        @Override
+        public ResourcePack readResource(String uri) {
+            ResourcePack pack = new ResourcePack().addText("read api_key=sk-test-resource12345");
+            pack.metas().put("access_token", "secret-pack-token");
+            return pack;
+        }
+
+        @Override
+        public Collection<FunctionPrompt> getPrompts() {
+            FunctionPromptDesc prompt = new FunctionPromptDesc("summarize");
+            prompt.title("Prompt OPENAI_API_KEY=sk-test-prompt12345");
+            prompt.description("Prompt bearer ghp_promptmeta12345");
+            prompt.paramAdd("topic", true, "Topic token=secret-param-token");
+            prompt.metaPut("client_secret", "secret-prompt-meta");
+            prompt.doHandle(args -> Prompt.of(ChatMessage.ofUser("summarize " + args.get("topic"))));
+            return Collections.<FunctionPrompt>singletonList(prompt);
+        }
+
+        @Override
+        public Prompt getPrompt(String name, Map<String, Object> args) {
+            List<ChatMessage> messages = new ArrayList<ChatMessage>();
+            messages.add(ChatMessage.ofUser("prompt token=secret-prompt-message"));
+            messages.add(ChatMessage.ofAssistant("prompt bearer ghp_promptresult12345"));
+            return Prompt.of(messages);
         }
     }
 
