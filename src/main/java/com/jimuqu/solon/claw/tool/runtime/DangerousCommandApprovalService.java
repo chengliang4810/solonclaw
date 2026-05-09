@@ -530,7 +530,7 @@ public class DangerousCommandApprovalService {
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(
-                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.json)?|auth\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
+                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
