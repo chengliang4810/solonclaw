@@ -26,12 +26,12 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "Manage scheduled cron jobs. Use action='list' or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, inspect/show/detail, next/upcoming, update/edit, pause/disable/stop, resume/enable/start, remove/delete/rm, run/run_now/trigger, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
+                    "Manage scheduled cron jobs. Use action='list', action='status', or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, status, inspect/show/detail, next/upcoming, update/edit, pause/disable/stop, resume/enable/start, remove/delete/rm, run/run_now/trigger/retry/rerun, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
     public String cronjob(
             @Param(
                             name = "action",
                             description =
-                                    "动作：create/add、list、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger、history")
+                                    "动作：create/add、list、status、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun、history")
                     String action,
             @Param(name = "job_id", description = "任务 ID；update/pause/resume/remove/run/history 必填，先 list 再使用", required = false)
                     String jobId,
@@ -87,7 +87,10 @@ public class CronjobTools {
         if ("delete".equals(normalized) || "rm".equals(normalized)) {
             normalized = "remove";
         }
-        if ("run_now".equals(normalized) || "trigger".equals(normalized)) {
+        if ("run_now".equals(normalized)
+                || "trigger".equals(normalized)
+                || "retry".equals(normalized)
+                || "rerun".equals(normalized)) {
             normalized = "run";
         }
         if ("show".equals(normalized) || "detail".equals(normalized)) {
@@ -96,7 +99,7 @@ public class CronjobTools {
         if ("upcoming".equals(normalized)) {
             normalized = "next";
         }
-        if ("capabilities".equals(normalized) || "policy".equals(normalized) || "status".equals(normalized)) {
+        if ("capabilities".equals(normalized) || "policy".equals(normalized)) {
             Map<String, Object> policy = cronjobPolicy();
             return ToolResultEnvelope.ok("Cronjob tool policy")
                     .data("policy", policy)
@@ -104,6 +107,19 @@ public class CronjobTools {
                     .data("delivery", policy.get("delivery"))
                     .data("skill_binding", policy.get("skill_binding"))
                     .preview("cronjob policy: add/edit/pause/resume/run/remove/history")
+                    .toJson();
+        }
+
+        if ("status".equals(normalized)) {
+            List<CronJobRecord> jobs =
+                    cronJobService.listBySource(sourceKey, includeDisabled == null || includeDisabled.booleanValue());
+            Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
+            return ToolResultEnvelope.ok("Cronjob status")
+                    .data("status", status)
+                    .data("count", status.get("total"))
+                    .data("next", status.get("next"))
+                    .data("recent_failures", status.get("recent_failures"))
+                    .preview(statusPreview(status))
                     .toJson();
         }
 
@@ -273,6 +289,8 @@ public class CronjobTools {
                         "run",
                         "run_now",
                         "trigger",
+                        "retry",
+                        "rerun",
                         "remove",
                         "delete",
                         "history",
@@ -316,8 +334,10 @@ public class CronjobTools {
 
         Map<String, Object> execution = new LinkedHashMap<String, Object>();
         execution.put("manualRunSupported", Boolean.TRUE);
+        execution.put("retryAliasSupported", Boolean.TRUE);
         execution.put("pauseResumeSupported", Boolean.TRUE);
         execution.put("historySupported", Boolean.TRUE);
+        execution.put("statusOverviewSupported", Boolean.TRUE);
         execution.put("noAgentScriptSupported", Boolean.TRUE);
         execution.put("scriptMustStayInRuntimeScripts", Boolean.TRUE);
         execution.put("workdirSecurityChecked", Boolean.TRUE);
@@ -590,6 +610,87 @@ public class CronjobTools {
             return result;
         }
         return new ArrayList<CronJobRecord>(result.subList(0, safeLimit));
+    }
+
+    private Map<String, Object> statusView(List<CronJobRecord> jobs, int limit) {
+        int safeLimit = safeLimit(limit);
+        int active = 0;
+        int paused = 0;
+        int completed = 0;
+        int due = 0;
+        long now = System.currentTimeMillis();
+        List<CronJobRecord> next = new ArrayList<CronJobRecord>();
+        List<Map<String, Object>> recentFailures = new ArrayList<Map<String, Object>>();
+        for (CronJobRecord job : jobs) {
+            if (job == null) {
+                continue;
+            }
+            String status = job.getStatus() == null ? "" : job.getStatus();
+            if ("PAUSED".equalsIgnoreCase(status)) {
+                paused++;
+            } else if ("COMPLETED".equalsIgnoreCase(status)) {
+                completed++;
+            } else {
+                active++;
+                if (job.getNextRunAt() > 0L) {
+                    next.add(job);
+                    if (job.getNextRunAt() <= now) {
+                        due++;
+                    }
+                }
+            }
+            if (isFailed(job)) {
+                recentFailures.add(failureView(job));
+            }
+        }
+        List<Map<String, Object>> limitedNext = views(upcoming(next, safeLimit));
+        if (recentFailures.size() > safeLimit) {
+            recentFailures = new ArrayList<Map<String, Object>>(recentFailures.subList(0, safeLimit));
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("total", Integer.valueOf(jobs.size()));
+        result.put("active", Integer.valueOf(active));
+        result.put("paused", Integer.valueOf(paused));
+        result.put("completed", Integer.valueOf(completed));
+        result.put("due", Integer.valueOf(due));
+        result.put("limit", Integer.valueOf(safeLimit));
+        result.put("next", limitedNext);
+        result.put("recent_failures", recentFailures);
+        return result;
+    }
+
+    private boolean isFailed(CronJobRecord job) {
+        return "error".equalsIgnoreCase(job.getLastStatus())
+                || notBlank(job.getLastError())
+                || notBlank(job.getLastDeliveryError());
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && value.trim().length() > 0;
+    }
+
+    private Map<String, Object> failureView(CronJobRecord job) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("job_id", job.getJobId());
+        result.put("name", job.getName());
+        result.put("last_status", job.getLastStatus());
+        result.put("last_error", job.getLastError());
+        result.put("last_delivery_error", job.getLastDeliveryError());
+        result.put("last_run_at", job.getLastRunAt() <= 0L ? null : Long.valueOf(job.getLastRunAt()));
+        return result;
+    }
+
+    private String statusPreview(Map<String, Object> status) {
+        return "Cron status: total="
+                + status.get("total")
+                + ", active="
+                + status.get("active")
+                + ", paused="
+                + status.get("paused")
+                + ", due="
+                + status.get("due")
+                + ", failures="
+                + ((List<?>) status.get("recent_failures")).size();
     }
 
     private int safeLimit(int limit) {

@@ -2305,11 +2305,12 @@ public class DefaultCronSchedulerTest {
                 .contains("create/add")
                 .contains("inspect/show/detail")
                 .contains("next/upcoming")
+                .contains("status")
                 .contains("update/edit")
                 .contains("pause/disable/stop")
                 .contains("resume/enable/start")
                 .contains("remove/delete/rm")
-                .contains("run/run_now/trigger")
+                .contains("run/run_now/trigger/retry/rerun")
                 .contains("never guess job IDs")
                 .contains("Cron jobs should not recursively schedule more cron jobs");
         assertThat(paramDescription(method, "job_id")).contains("先 list 再使用");
@@ -2367,6 +2368,8 @@ public class DefaultCronSchedulerTest {
                 .contains("enable")
                 .contains("start")
                 .contains("run_now")
+                .contains("retry")
+                .contains("rerun")
                 .contains("remove")
                 .contains("history");
         assertThat(policy.get("sourceScopedList")).isEqualTo(Boolean.TRUE);
@@ -2384,11 +2387,99 @@ public class DefaultCronSchedulerTest {
         assertThat(skillBinding.get("contextFromSupported")).isEqualTo(Boolean.TRUE);
         assertThat(skillBinding.get("enabledToolsetsSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("manualRunSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("retryAliasSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("pauseResumeSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("historySupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("statusOverviewSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("scriptMustStayInRuntimeScripts")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("dangerousCommandApprovalApplied")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("promptThreatScanApplied")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    void shouldExposeCronjobSourceScopedStatusAndRetryAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:status-room:user");
+
+        CronJobRecord active = job("status-active", "MEMORY:status-room:user");
+        active.setName("active job");
+        active.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.save(active);
+
+        CronJobRecord failed = job("status-failed", "MEMORY:status-room:user");
+        failed.setName("failed job");
+        failed.setNextRunAt(System.currentTimeMillis() + 60000L);
+        failed.setLastStatus("error");
+        failed.setLastError("network failed");
+        failed.setLastRunAt(System.currentTimeMillis() - 2000L);
+        env.cronJobRepository.save(failed);
+
+        CronJobRecord otherSource = job("status-other", "MEMORY:other-room:user");
+        otherSource.setLastStatus("error");
+        env.cronJobRepository.save(otherSource);
+        service.pause("status-active", "maintenance");
+
+        Map<?, ?> status =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "status",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Boolean.TRUE,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Integer.valueOf(10)))
+                                .toData();
+        Map<?, ?> overview = (Map<?, ?>) status.get("status");
+        assertThat(overview.get("total")).isEqualTo(Integer.valueOf(2));
+        assertThat(overview.get("active")).isEqualTo(Integer.valueOf(1));
+        assertThat(overview.get("paused")).isEqualTo(Integer.valueOf(1));
+        assertThat(String.valueOf(overview.get("recent_failures")))
+                .contains("status-failed")
+                .doesNotContain("status-other");
+
+        Map<?, ?> retried =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "retry",
+                                                "status-failed",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(retried.get("triggered")).isEqualTo(Boolean.TRUE);
+        assertThat(env.cronJobRepository.findById("status-failed").getNextRunAt())
+                .isLessThanOrEqualTo(System.currentTimeMillis());
     }
 
     @Test
