@@ -527,6 +527,8 @@ public class CronJobService {
                         "/cron edit <job-id> --clear-skills",
                         "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread",
                         "/cron edit <job-id> --no-agent --script collect.py --workdir runtime/projects/demo",
+                        "/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal",
+                        "/cron edit <job-id> --clear-context-from --clear-enabled-toolsets",
                         "/cron run <job-id>",
                         "/cron history <job-id> --limit 20"));
         result.put(
@@ -581,6 +583,14 @@ public class CronJobService {
         result.put("append", Arrays.asList("--add-skill name", "--add-skills a,b"));
         result.put("remove", Arrays.asList("--remove-skill name", "--remove-skills a,b"));
         result.put("clear", Arrays.asList("--clear-skills"));
+        result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
+        result.put(
+                "dependency_flags",
+                Arrays.asList(
+                        "--context-from job-id",
+                        "--depends-on job-id",
+                        "--clear-context-from",
+                        "--clear-depends-on"));
         result.put("dedupe", Boolean.TRUE);
         return result;
     }
@@ -592,6 +602,16 @@ public class CronJobService {
         result.put("default_from_slash", "origin");
         result.put("default_from_dashboard", "local");
         result.put("clear_flags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
+        result.put("wrap_flags", Arrays.asList("--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
+        result.put(
+                "target_forms",
+                Arrays.asList(
+                        "origin",
+                        "local",
+                        "platform",
+                        "platform:chat_id",
+                        "platform:chat_id:thread_id",
+                        "target1,target2"));
         result.put("multi_target", "deliver 支持逗号分隔或平台:目标形式，创建和编辑时会校验平台名称。");
         return result;
     }
@@ -603,6 +623,17 @@ public class CronJobService {
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
         result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
         result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));
+        result.put(
+                "clear_flags",
+                Arrays.asList(
+                        "--clear-script",
+                        "--clear-workdir",
+                        "--clear-toolsets",
+                        "--clear-enabled-toolsets",
+                        "--clear-model",
+                        "--clear-provider",
+                        "--clear-base-url"));
+        result.put("mode_flags", Arrays.asList("--no-agent", "--agent"));
         return result;
     }
 
