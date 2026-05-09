@@ -137,7 +137,7 @@ public class CliAttachmentResolverTest {
         Files.createDirectories(sshDir.toPath());
         File privateKey = new File(sshDir, "id_ed25519-token=ghp_previewsecret12345");
         Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
-        File missing = new File(config.getRuntime().getHome(), "missing.txt");
+        File missing = new File(config.getRuntime().getHome(), "missing-token=ghp_missingsecret12345.txt");
         CliAttachmentResolver resolver = resolver(config);
 
         String preview = resolver.renderPreview(privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
@@ -146,9 +146,10 @@ public class CliAttachmentResolverTest {
                 .contains("blocked")
                 .contains("***")
                 .doesNotContain("ghp_previewsecret12345")
+                .doesNotContain("ghp_missingsecret12345")
                 .doesNotContain(privateKey.getAbsolutePath())
                 .contains("missing")
-                .contains("missing.txt");
+                .contains("token=***");
     }
 
     private CliAttachmentResolver resolver(AppConfig config) {
