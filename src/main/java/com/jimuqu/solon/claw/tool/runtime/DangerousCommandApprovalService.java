@@ -260,6 +260,12 @@ public class DangerousCommandApprovalService {
                                             "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:/etc/sudoers\\b|/etc/sudoers\\.d/|/etc/doas\\.conf\\b)|\\bvisudo\\b|\\b(?:install|cp|mv)\\b[^\\n]*(?:/etc/sudoers\\b|/etc/sudoers\\.d/|/etc/doas\\.conf\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "service_persistence_registration",
+                                    "service persistence registration",
+                                    pattern(
+                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),

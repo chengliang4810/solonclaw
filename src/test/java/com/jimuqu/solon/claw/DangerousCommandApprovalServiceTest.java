@@ -686,6 +686,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult sudoersFixture =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo note > fixtures/sudoers");
+        DangerousCommandApprovalService.DetectionResult systemdServiceWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cat app.service | tee /etc/systemd/system/app.service");
+        DangerousCommandApprovalService.DetectionResult systemdTimerInstall =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "install app.timer /usr/lib/systemd/system/app.timer");
+        DangerousCommandApprovalService.DetectionResult launchAgentWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp com.example.agent.plist ~/Library/LaunchAgents/com.example.agent.plist");
+        DangerousCommandApprovalService.DetectionResult localServiceFixture =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp app.service fixtures/app.service");
         DangerousCommandApprovalService.DetectionResult usermodSudo =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "usermod -aG sudo deploy");
@@ -883,6 +895,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(visudo).isNotNull();
         assertThat(visudo.getPatternKey()).isEqualTo("sudoers_policy_change");
         assertThat(sudoersFixture).isNull();
+        assertThat(systemdServiceWrite).isNotNull();
+        assertThat(systemdServiceWrite.getPatternKey())
+                .isEqualTo("service_persistence_registration");
+        assertThat(systemdTimerInstall).isNotNull();
+        assertThat(systemdTimerInstall.getPatternKey())
+                .isEqualTo("service_persistence_registration");
+        assertThat(launchAgentWrite).isNotNull();
+        assertThat(launchAgentWrite.getPatternKey()).isEqualTo("service_persistence_registration");
+        assertThat(localServiceFixture).isNull();
         assertThat(usermodSudo).isNotNull();
         assertThat(usermodSudo.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(gpasswdDocker).isNotNull();
