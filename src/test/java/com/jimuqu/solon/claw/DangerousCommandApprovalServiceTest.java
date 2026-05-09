@@ -2801,6 +2801,7 @@ public class DangerousCommandApprovalServiceTest {
                         "echo $OPENAI_API_KEY | pbcopy",
                         "printf %s $JIMUQU_ACCESS_TOKEN | xclip -selection clipboard",
                         "printenv ANTHROPIC_API_KEY | xsel --clipboard",
+                        "printf %s $OPENAI_API_KEY | wl-copy",
                         "echo %OPENAI_API_KEY% | clip.exe",
                         "Set-Clipboard $env:OPENAI_API_KEY",
                         "scb %JIMUQU_ACCESS_TOKEN%");

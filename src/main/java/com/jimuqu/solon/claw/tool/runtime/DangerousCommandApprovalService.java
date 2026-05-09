@@ -369,9 +369,9 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:\\b(?:echo|printf|printenv)\\b[^\\n|;&]*?(?:\\$|%)"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "%?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel)\\b|\\bprintenv\\s+"
+                                                    + "%?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:\\$env:|%)"
+                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:\\$env:|%)"
                                                     + SENSITIVE_ENV_NAME
                                                     + "%?)"),
                                     ToolNameConstants.EXECUTE_SHELL),
