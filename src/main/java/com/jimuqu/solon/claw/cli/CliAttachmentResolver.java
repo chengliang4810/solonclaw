@@ -6,14 +6,17 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +54,24 @@ public class CliAttachmentResolver {
         this.securityPolicyService = securityPolicyService;
     }
 
+    public static Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("pastedLocalPathDetection", Boolean.TRUE);
+        summary.put("fileUriDetection", Boolean.TRUE);
+        summary.put("windowsPathDetection", Boolean.TRUE);
+        summary.put("posixPathDetection", Boolean.TRUE);
+        summary.put("pathPolicyCheckedBeforeCache", Boolean.TRUE);
+        summary.put("credentialPathBlocked", Boolean.TRUE);
+        summary.put("blockedPreviewRedacted", Boolean.TRUE);
+        summary.put("missingPreviewRedacted", Boolean.TRUE);
+        summary.put("resolvedDisplayNameRedacted", Boolean.TRUE);
+        summary.put("rawPathHiddenInPrompt", Boolean.TRUE);
+        summary.put("maxAttachmentPaths", Integer.valueOf(MAX_ATTACHMENT_PATHS));
+        summary.put("maxAttachmentBytes", Long.valueOf(MAX_ATTACHMENT_BYTES));
+        summary.put("description", "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; resolved attachment labels, blocked previews, and missing previews are secret-redacted.");
+        return summary;
+    }
+
     public ResolvedInput resolve(String input) {
         String text = StrUtil.nullToEmpty(input);
         List<Candidate> candidates = findCandidates(text);
@@ -71,7 +92,8 @@ public class CliAttachmentResolver {
             SecurityPolicyService.FileVerdict verdict =
                     securityPolicyService.checkPath(file.getAbsolutePath(), false);
             if (!verdict.isAllowed()) {
-                throw new IllegalArgumentException("附件路径被安全策略阻断：" + verdict.getMessage());
+                throw new IllegalArgumentException(
+                        "附件路径被安全策略阻断：" + safeMessage(verdict.getMessage()));
             }
             if (file.length() > MAX_ATTACHMENT_BYTES) {
                 throw new IllegalArgumentException("附件文件过大：" + file.getName());
@@ -90,7 +112,7 @@ public class CliAttachmentResolver {
                     replaceToken(
                             resolvedText,
                             candidate.originalToken,
-                            "[附件: " + attachment.getOriginalName() + "]");
+                            "[附件: " + safeName(attachment.getOriginalName()) + "]");
         }
 
         if (attachments.isEmpty()) {
@@ -294,6 +316,14 @@ public class CliAttachmentResolver {
         return FileUtil.file(value).getName();
     }
 
+    private static String safeMessage(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
+    }
+
+    private static String safeName(String value) {
+        return SecretRedactor.redact(StrUtil.blankToDefault(value, "-"), 400);
+    }
+
     private static class Candidate {
         private final String originalToken;
         private final String path;
@@ -341,11 +371,11 @@ public class CliAttachmentResolver {
                 long sizeBytes,
                 String message) {
             this.status = status;
-            this.name = StrUtil.blankToDefault(name, "-");
+            this.name = safeName(name);
             this.kind = StrUtil.blankToDefault(kind, "-");
             this.mimeType = StrUtil.blankToDefault(mimeType, "-");
             this.sizeBytes = sizeBytes;
-            this.message = StrUtil.nullToEmpty(message);
+            this.message = safeMessage(message);
         }
 
         public static AttachmentPreview allowed(

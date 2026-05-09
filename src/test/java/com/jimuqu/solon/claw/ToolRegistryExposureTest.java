@@ -1237,6 +1237,14 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentCachePathSafety").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("attachmentDisplayNameRedaction").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentPathSafety").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentPreviewRedaction").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentResolvedNameRedaction").getBoolean())
+                .isTrue();
         ONode attachmentPolicy =
                 policyStatus.get("policy").get("coverage").get("attachmentPolicy");
         assertThat(attachmentPolicy.get("downloadIo").get("redirectUrlCheckedBeforeFollow").getBoolean())
@@ -1246,6 +1254,18 @@ public class ToolRegistryExposureTest {
         assertThat(attachmentPolicy.get("mediaCache").get("mediaReferenceTraversalBlocked").getBoolean())
                 .isTrue();
         assertThat(attachmentPolicy.get("mediaCache").get("hostPathsNotReturnedInMediaReference").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("mediaCache").get("safeOriginalNameSecretRedacted").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("pathPolicyCheckedBeforeCache").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("credentialPathBlocked").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("blockedPreviewRedacted").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("missingPreviewRedacted").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("resolvedDisplayNameRedacted").getBoolean())
                 .isTrue();
         assertThat(String.valueOf(attachmentPolicy))
                 .contains("runtime://cache/media")
@@ -1289,6 +1309,7 @@ public class ToolRegistryExposureTest {
                 .contains("mcpReloadConfirmation")
                 .contains("mcpToolChangeNotice")
                 .contains("attachmentPolicy")
+                .contains("terminalAttachmentPathSafety")
                 .contains("readOnlyAuditTool");
         assertThat(policyStatus.toJson())
                 .doesNotContain("secret-sudo")
