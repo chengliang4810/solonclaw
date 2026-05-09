@@ -738,6 +738,55 @@ public class SecurityPolicyServiceTest {
         assertCommandCredentialOptionDenied(policy, "curl --key client.pem https://example.invalid", "client.pem");
         assertCommandCredentialOptionDenied(policy, "curl --cert=client.crt https://example.invalid", "client.crt");
         assertCommandCredentialOptionDenied(policy, "ssh -i deploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(policy, "ssh -ideploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(policy, "ssh -F ssh_config host.example", "ssh_config");
+        assertCommandCredentialOptionDenied(policy, "ssh -Fssh_config host.example", "ssh_config");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -o IdentityFile=deploy_key host.example",
+                "deploy_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oIdentityFile=deploy_key host.example",
+                "deploy_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -o CertificateFile=user-cert.pub host.example",
+                "user-cert.pub");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oUserKnownHostsFile=known_hosts host.example",
+                "known_hosts");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oGlobalKnownHostsFile=/etc/ssh/ssh_known_hosts host.example",
+                "/etc/ssh/ssh_known_hosts");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oHostKey=server_host_key host.example",
+                "server_host_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oHostCertificate=server-cert.pub host.example",
+                "server-cert.pub");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oHostKeyAlias=known-host-entry host.example",
+                "known-host-entry");
+        assertCommandCredentialOptionDenied(policy, "curl -K.curlrc https://example.invalid", ".curlrc");
+        assertCommandCredentialOptionDenied(policy, "curl -b cookies.txt https://example.invalid", "cookies.txt");
+        assertCommandCredentialOptionDenied(policy, "curl -bcookies.txt https://example.invalid", "cookies.txt");
+        assertCommandCredentialOptionDenied(policy, "curl -c cookies.txt https://example.invalid", "cookies.txt");
+        assertCommandCredentialOptionDenied(policy, "curl -E client.pem https://example.invalid", "client.pem");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "curl --retry 2 -b cookies.txt https://example.invalid",
+                "cookies.txt");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "wget --timeout=5 -E client.pem https://example.invalid",
+                "client.pem");
+        assertCommandCredentialOptionDenied(policy, "wget --load-cookies cookies.txt https://example.invalid", "cookies.txt");
         assertCommandCredentialOptionDenied(
                 policy,
                 "kubectl --kubeconfig kubeconfig get pods",

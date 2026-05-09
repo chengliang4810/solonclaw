@@ -1667,6 +1667,7 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --proxy-cert=client.pem --proxy-key=client.key https://example.com/private",
                         "wget --certificate client.pem --private-key client.key https://example.com/private",
                         "curl -b cookies.jar https://example.com/private",
+                        "curl -bcookies.txt https://example.com/private",
                         "curl -c session-cookies.txt https://example.com/private");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -1692,6 +1693,18 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "ssh -i deploy_key host.example",
+                        "ssh -ideploy_key host.example",
+                        "ssh -F ssh_config host.example",
+                        "ssh -Fssh_config host.example",
+                        "ssh -o IdentityFile=deploy_key host.example",
+                        "ssh -oIdentityFile=deploy_key host.example",
+                        "ssh -o CertificateFile=user-cert.pub host.example",
+                        "ssh -oUserKnownHostsFile=known_hosts host.example",
+                        "ssh -oGlobalKnownHostsFile=/etc/ssh/ssh_known_hosts host.example",
+                        "ssh -oHostKey=server_host_key host.example",
+                        "ssh -oHostCertificate=server-cert.pub host.example",
+                        "ssh -oHostKeyAlias=known-host-entry host.example",
+                        "curl -K.curlrc https://example.invalid",
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",

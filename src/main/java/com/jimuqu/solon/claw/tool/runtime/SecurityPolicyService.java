@@ -209,7 +209,21 @@ public class SecurityPolicyService {
                     "--userconfig",
                     "--globalconfig",
                     "--config",
+                    "-F",
                     "-i");
+    private static final List<String> COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES =
+            Arrays.asList("-i", "-F", "-K");
+    private static final List<String> NETWORK_CREDENTIAL_SHORT_OPTIONS =
+            Arrays.asList("-b", "-c", "-E", "-K");
+    private static final List<String> SSH_FILE_CONFIG_OPTION_NAMES =
+            Arrays.asList(
+                    "IdentityFile",
+                    "CertificateFile",
+                    "UserKnownHostsFile",
+                    "GlobalKnownHostsFile",
+                    "HostKey",
+                    "HostCertificate",
+                    "HostKeyAlias");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
@@ -685,9 +699,25 @@ public class SecurityPolicyService {
 
     private FileVerdict checkCredentialPathOptions(String command) {
         List<String> tokens = shellLikeTokens(command, 200);
+        boolean networkCredentialMode = false;
         for (int i = 0; i < tokens.size(); i++) {
             String token = cleanUrlToken(tokens.get(i));
+            if (isNetworkToolToken(token)) {
+                networkCredentialMode = true;
+                continue;
+            }
             String path = credentialPathOptionValue(token);
+            if (StrUtil.isBlank(path) && networkCredentialMode) {
+                path = networkCredentialShortOptionValue(token);
+                if (StrUtil.isNotBlank(path)) {
+                    // compact option, for example: curl -bcookies.txt
+                } else if (isDetachedNetworkCredentialShortOption(token) && i + 1 < tokens.size()) {
+                    path = cleanUrlToken(tokens.get(++i));
+                }
+            }
+            if (StrUtil.isBlank(path) && "-o".equals(token) && i + 1 < tokens.size()) {
+                path = sshFileConfigOptionValue(cleanUrlToken(tokens.get(++i)));
+            }
             if (StrUtil.isBlank(path) && isCredentialPathOption(token) && i + 1 < tokens.size()) {
                 path = cleanUrlToken(tokens.get(++i));
             }
@@ -705,11 +735,61 @@ public class SecurityPolicyService {
                 return token.substring(option.length() + 1);
             }
         }
+        for (String option : COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES) {
+            if (token.startsWith(option) && token.length() > option.length()) {
+                return token.substring(option.length());
+            }
+        }
+        String sshFileConfigPath = sshCompactFileConfigOptionValue(token);
+        if (StrUtil.isNotBlank(sshFileConfigPath)) {
+            return sshFileConfigPath;
+        }
         return "";
     }
 
     private boolean isCredentialPathOption(String token) {
         return CREDENTIAL_PATH_OPTION_NAMES.contains(token);
+    }
+
+    private String sshCompactFileConfigOptionValue(String token) {
+        if (!token.startsWith("-o") || token.length() <= 2) {
+            return "";
+        }
+        return sshFileConfigOptionValue(token.substring(2));
+    }
+
+    private String sshFileConfigOptionValue(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        for (String option : SSH_FILE_CONFIG_OPTION_NAMES) {
+            String prefix = option + "=";
+            if (normalized.regionMatches(true, 0, prefix, 0, prefix.length())) {
+                return normalized.substring(prefix.length());
+            }
+        }
+        return "";
+    }
+
+    private boolean isNetworkToolToken(String token) {
+        return "curl".equalsIgnoreCase(token) || "wget".equalsIgnoreCase(token);
+    }
+
+    private String networkCredentialShortOptionValue(String token) {
+        if (StrUtil.isBlank(token)) {
+            return "";
+        }
+        for (String option : NETWORK_CREDENTIAL_SHORT_OPTIONS) {
+            if (token.startsWith(option) && token.length() > option.length()) {
+                return token.substring(option.length());
+            }
+        }
+        return "";
+    }
+
+    private boolean isDetachedNetworkCredentialShortOption(String token) {
+        return NETWORK_CREDENTIAL_SHORT_OPTIONS.contains(token);
     }
 
     private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {
