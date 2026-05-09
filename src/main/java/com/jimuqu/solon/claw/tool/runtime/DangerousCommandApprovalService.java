@@ -449,7 +449,7 @@ public class DangerousCommandApprovalService {
                                     "network_credential_send",
                                     "send credential through network command option",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data)(?:=|\\s+)['\"]?"
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*=\\s*\\S+)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-Credential\\s+\\S|\\s-Body\\s+@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
