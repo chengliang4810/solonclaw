@@ -1752,6 +1752,8 @@ public class DangerousCommandApprovalServiceTest {
                         "ssh -oHostCertificate=server-cert.pub host.example",
                         "ssh -oHostKeyAlias=known-host-entry host.example",
                         "curl -K.curlrc https://example.invalid",
+                        "curl --config .curlrc https://example.invalid",
+                        "wget --config=.wgetrc https://example.invalid",
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
