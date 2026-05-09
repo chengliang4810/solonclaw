@@ -1512,6 +1512,36 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_write");
         }
 
+        List<String> cloudCredentialConfigChanges =
+                Arrays.asList(
+                        "aws configure set aws_access_key_id AKIAEXAMPLE",
+                        "aws configure set aws_secret_access_key secret",
+                        "aws configure set aws_session_token token",
+                        "aws configure set credential_process ./credential-helper",
+                        "gcloud auth login --cred-file service-account.json",
+                        "gcloud config set auth/credential_file_override service-account.json",
+                        "gcloud config set account deploy@example.com",
+                        "az ad app credential reset --id app-id");
+        for (String command : cloudCredentialConfigChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("cloud_cli_credential_config_change");
+        }
+
+        List<String> cloudNonCredentialConfigChanges =
+                Arrays.asList(
+                        "aws configure set region us-east-1",
+                        "gcloud config set project prod-project",
+                        "az configure --defaults location=eastus");
+        for (String command : cloudNonCredentialConfigChanges) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
+        }
+
         List<String> keychainPasswordReads =
                 Arrays.asList(
                         "security find-generic-password -a deploy -s api-token -w",

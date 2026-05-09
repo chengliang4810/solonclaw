@@ -402,6 +402,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl\\s+(?:-[^\\s]+\\s+)*create\\s+secret\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "cloud_cli_credential_config_change",
+                                    "cloud CLI credential configuration changed",
+                                    pattern(
+                                            "\\b(?:aws\\s+configure\\s+set\\s+(?:aws_access_key_id|aws_secret_access_key|aws_session_token|sso_start_url|credential_process)\\b|gcloud\\s+auth\\s+login\\b(?=[^\\n]*--cred-file\\b)|gcloud\\s+config\\s+set\\s+(?:auth/credential_file_override|account)\\b|az\\s+ad\\s+app\\s+credential\\s+reset\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "macos_keychain_password_read",
                                     "macOS keychain password read",
                                     pattern(
