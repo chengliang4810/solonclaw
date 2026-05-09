@@ -567,7 +567,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_stop_process",
                                     "PowerShell force stop process",
-                                    pattern("\\bStop-Process\\b.*-Force\\b"),
+                                    pattern("\\b(?:Stop-Process|spps)\\b.*(?:-Force\\b|-fo\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_reg_delete",

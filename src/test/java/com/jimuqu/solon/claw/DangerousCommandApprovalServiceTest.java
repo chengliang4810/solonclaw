@@ -430,6 +430,10 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env, "taskkill -PID 1234 -F", "windows_taskkill");
         assertDangerPattern(
+                env, "Stop-Process -Id 1234 -fo", "windows_stop_process");
+        assertDangerPattern(
+                env, "spps -Name node -Force", "windows_stop_process");
+        assertDangerPattern(
                 env,
                 "vssadmin delete shadows /all /quiet",
                 "windows_delete_shadow_copies");
