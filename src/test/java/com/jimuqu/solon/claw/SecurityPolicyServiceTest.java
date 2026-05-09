@@ -737,6 +737,8 @@ public class SecurityPolicyServiceTest {
 
         assertCommandCredentialOptionDenied(policy, "curl --key client.pem https://example.invalid", "client.pem");
         assertCommandCredentialOptionDenied(policy, "curl --cert=client.crt https://example.invalid", "client.crt");
+        assertCommandCredentialOptionDenied(policy, "curl --cacert ca.pem https://example.invalid", "ca.pem");
+        assertCommandCredentialOptionDenied(policy, "curl --capath=certs https://example.invalid", "certs");
         assertCommandCredentialOptionDenied(policy, "ssh -i deploy_key host.example", "deploy_key");
         assertCommandCredentialOptionDenied(policy, "ssh -ideploy_key host.example", "deploy_key");
         assertCommandCredentialOptionDenied(policy, "ssh -F ssh_config host.example", "ssh_config");

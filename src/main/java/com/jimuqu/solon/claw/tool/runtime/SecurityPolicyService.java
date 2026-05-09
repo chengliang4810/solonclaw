@@ -195,6 +195,7 @@ public class SecurityPolicyService {
                     "--certificate",
                     "--proxy-cert",
                     "--cacert",
+                    "--capath",
                     "--netrc-file",
                     "--cookie",
                     "--cookie-jar",
@@ -235,6 +236,9 @@ public class SecurityPolicyService {
                     "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|nc|netcat|ncat|telnet|socat|openssl\\s+s_client|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
     private static final Pattern DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN =
             Pattern.compile("(?iu)^(tcp|tcp4|tcp6|udp|udp4|udp6|ssl|tls|connect):(.+)$");
+    private static final Pattern JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN =
+            Pattern.compile(
+                    "(?i)(?:^|\\s)(?:JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS|MAVEN_OPTS|GRADLE_OPTS)=((?:\"[^\"]*\")|(?:'[^']*')|\\S+)");
     private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
             Arrays.asList(
                     "access_token",
@@ -1057,6 +1061,7 @@ public class SecurityPolicyService {
         extractCurlConnectionOverrideHosts(text, urls);
         extractCurlDohUrls(text, urls);
         extractCurlDnsServers(text, urls);
+        extractJavaProxyOptionsAssignments(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1079,6 +1084,7 @@ public class SecurityPolicyService {
                     || "--http-proxy".equals(token)
                     || "--https-proxy".equals(token)
                     || "--ftp-proxy".equals(token)
+                    || "--proxy-url".equals(token)
                     || "--proxy-server".equals(token)
                     || "--proxy1.0".equals(token)
                     || "--preproxy".equals(token)
@@ -1102,6 +1108,8 @@ public class SecurityPolicyService {
                 value = token.substring("--https-proxy=".length());
             } else if (token.startsWith("--ftp-proxy=")) {
                 value = token.substring("--ftp-proxy=".length());
+            } else if (token.startsWith("--proxy-url=")) {
+                value = token.substring("--proxy-url=".length());
             } else if (token.startsWith("--proxy-server=")) {
                 value = token.substring("--proxy-server=".length());
             } else if (token.startsWith("--proxy1.0=")) {
@@ -1126,6 +1134,8 @@ public class SecurityPolicyService {
                 value = token.substring("-ProxyServer:".length());
             } else if (isJavaProxyHostProperty(token)) {
                 value = token.substring(token.indexOf('=') + 1);
+            } else if (isJavaProxyOptionsAssignment(token)) {
+                addJavaProxyHostsFromOptions(token.substring(token.indexOf('=') + 1), urls);
             } else if (isProxyEnvironmentAssignment(token)) {
                 value = token.substring(token.indexOf('=') + 1);
             }
@@ -1154,6 +1164,49 @@ public class SecurityPolicyService {
                 || "-dsocksproxyhost".equals(name);
     }
 
+    private boolean isJavaProxyOptionsAssignment(String token) {
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 0) {
+            return false;
+        }
+        String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return "java_tool_options".equals(name)
+                || "jdk_java_options".equals(name)
+                || "maven_opts".equals(name)
+                || "gradle_opts".equals(name);
+    }
+
+    private void addJavaProxyHostsFromOptions(String raw, List<String> urls) {
+        List<String> tokens = shellLikeTokens(raw, 100);
+        for (String token : tokens) {
+            if (isJavaProxyHostProperty(token)) {
+                addProxyHost(token.substring(token.indexOf('=') + 1), urls);
+            }
+        }
+    }
+
+    private void extractJavaProxyOptionsAssignments(String text, List<String> urls) {
+        Matcher matcher = JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN.matcher(text);
+        while (matcher.find()) {
+            addJavaProxyHostsFromOptions(stripOptionalQuote(matcher.group(1)), urls);
+        }
+    }
+
+    private String stripOptionalQuote(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        if (value.length() >= 2) {
+            char first = value.charAt(0);
+            char last = value.charAt(value.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                return value.substring(1, value.length() - 1);
+            }
+        }
+        return value;
+    }
+
     private boolean isProxyEnvironmentAssignment(String token) {
         if (StrUtil.isBlank(token)) {
             return false;
@@ -1168,6 +1221,11 @@ public class SecurityPolicyService {
                 || "ftp_proxy".equals(name)
                 || "npm_config_proxy".equals(name)
                 || "npm_config_https_proxy".equals(name)
+                || "yarn_proxy".equals(name)
+                || "yarn_https_proxy".equals(name)
+                || "pnpm_config_proxy".equals(name)
+                || "pnpm_config_https_proxy".equals(name)
+                || "pip_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 

@@ -1711,6 +1711,8 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --cert client.pem --key client.key https://example.com/private",
                         "curl --proxy-cert=client.pem --proxy-key=client.key https://example.com/private",
                         "wget --certificate client.pem --private-key client.key https://example.com/private",
+                        "curl --cacert ca.pem https://example.com/private",
+                        "wget --capath=certs https://example.com/private",
                         "curl -b cookies.jar https://example.com/private",
                         "curl -bcookies.txt https://example.com/private",
                         "curl -c session-cookies.txt https://example.com/private");
@@ -3648,6 +3650,21 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict javaSocksProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "java -DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080 -jar app.jar");
+        SecurityPolicyService.UrlVerdict javaToolOptionsPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "JAVA_TOOL_OPTIONS=-Dhttp.proxyHost=127.0.0.1 java -jar app.jar");
+        SecurityPolicyService.UrlVerdict mavenOptsMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "MAVEN_OPTS=-DsocksProxyHost=169.254.169.254 mvn test");
+        SecurityPolicyService.UrlVerdict gradleOptsPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "GRADLE_OPTS='-Dhttps.proxyHost=127.0.0.1' gradle build");
+        SecurityPolicyService.UrlVerdict quotedJavaToolOptionsPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "JAVA_TOOL_OPTIONS=\"-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=8080\" java -jar app.jar");
+        SecurityPolicyService.UrlVerdict quotedJdkJavaOptionsMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "JDK_JAVA_OPTIONS='-DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080' java -jar app.jar");
         SecurityPolicyService.UrlVerdict chromiumProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "chromium --proxy-server=http://127.0.0.1:8080 https://safe.example");
@@ -3660,6 +3677,21 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict npmHttpsProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "npm_config_https_proxy=http://169.254.169.254:8080 npm install");
+        SecurityPolicyService.UrlVerdict yarnProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "YARN_PROXY=http://127.0.0.1:8080 yarn install");
+        SecurityPolicyService.UrlVerdict pnpmProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "pnpm_config_https_proxy=http://169.254.169.254:8080 pnpm install");
+        SecurityPolicyService.UrlVerdict pipProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "PIP_PROXY=http://127.0.0.1:8080 pip install requests");
+        SecurityPolicyService.UrlVerdict pipProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "pip install requests --proxy http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict httpxProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "httpx --proxy-url=http://127.0.0.1:8080 https://safe.example");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3727,6 +3759,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(javaHttpProxyPrivate.getMessage()).contains("内网");
         assertThat(javaSocksProxyMetadata.isAllowed()).isFalse();
         assertThat(javaSocksProxyMetadata.getMessage()).contains("元数据");
+        assertThat(javaToolOptionsPrivate.isAllowed()).isFalse();
+        assertThat(javaToolOptionsPrivate.getMessage()).contains("内网");
+        assertThat(mavenOptsMetadata.isAllowed()).isFalse();
+        assertThat(mavenOptsMetadata.getMessage()).contains("元数据");
+        assertThat(gradleOptsPrivate.isAllowed()).isFalse();
+        assertThat(gradleOptsPrivate.getMessage()).contains("内网");
+        assertThat(quotedJavaToolOptionsPrivate.isAllowed()).isFalse();
+        assertThat(quotedJavaToolOptionsPrivate.getMessage()).contains("内网");
+        assertThat(quotedJdkJavaOptionsMetadata.isAllowed()).isFalse();
+        assertThat(quotedJdkJavaOptionsMetadata.getMessage()).contains("元数据");
         assertThat(chromiumProxyPrivate.isAllowed()).isFalse();
         assertThat(chromiumProxyPrivate.getMessage()).contains("内网");
         assertThat(nodeProxyMetadata.isAllowed()).isFalse();
@@ -3735,6 +3777,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(npmProxyPrivate.getMessage()).contains("内网");
         assertThat(npmHttpsProxyMetadata.isAllowed()).isFalse();
         assertThat(npmHttpsProxyMetadata.getMessage()).contains("元数据");
+        assertThat(yarnProxyPrivate.isAllowed()).isFalse();
+        assertThat(yarnProxyPrivate.getMessage()).contains("内网");
+        assertThat(pnpmProxyMetadata.isAllowed()).isFalse();
+        assertThat(pnpmProxyMetadata.getMessage()).contains("元数据");
+        assertThat(pipProxyPrivate.isAllowed()).isFalse();
+        assertThat(pipProxyPrivate.getMessage()).contains("内网");
+        assertThat(pipProxyMetadata.isAllowed()).isFalse();
+        assertThat(pipProxyMetadata.getMessage()).contains("元数据");
+        assertThat(httpxProxyPrivate.isAllowed()).isFalse();
+        assertThat(httpxProxyPrivate.getMessage()).contains("内网");
     }
 
     @Test
