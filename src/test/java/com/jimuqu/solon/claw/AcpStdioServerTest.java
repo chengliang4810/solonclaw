@@ -548,6 +548,34 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromAcpPromptToolUpdates() throws Exception {
+        TestEnvironment env = TestEnvironment.withLlm(new SecretToolEventGateway());
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String sessionId = extractSessionId(newAcpSession(server, 40));
+        String prompted =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":41,\"method\":\"session/prompt\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"prompt\":[{\"type\":\"text\",\"text\":\"hello secret updates\"}]}}");
+
+        assertThat(prompted)
+                .contains("\"id\":41")
+                .contains("\"tool_call_start\"")
+                .contains("\"tool_call_update\"")
+                .contains("api_key=***")
+                .contains("\"token\":\"***\"")
+                .contains("bearer ***")
+                .doesNotContain("sk-1234567890abcdef")
+                .doesNotContain("sk-abcdef1234567890");
+    }
+
+
+    @Test
     void shouldRegisterAcpMcpServersThroughDashboardMcpService() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
@@ -1039,6 +1067,50 @@ public class AcpStdioServerTest {
                 .contains("done");
     }
 
+    @Test
+    void shouldRedactSecretsFromPersistedAcpToolCallHistory() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord record = env.sessionRepository.bindNewSession("MEMORY:cli:persisted-acp-secret-tools");
+        record.setTitle("Persisted ACP Secret Tool Session");
+        record.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser("need a secret command"),
+                                assistantWithToolCall(
+                                        "call_1",
+                                        "terminal",
+                                        "command",
+                                        "curl https://example.test?api_key=sk-1234567890abcdef"),
+                                ChatMessage.ofTool(
+                                        "bearer sk-abcdef1234567890",
+                                        "terminal",
+                                        "call_1"),
+                                ChatMessage.ofAssistant("done"))));
+        env.sessionRepository.save(record);
+
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + record.getSessionId()
+                                + "\",\"cwd\":\"D:/projects/jimuqu-agent\"}}");
+
+        assertThat(loaded)
+                .contains("\"id\":11")
+                .contains("\"tool_call_start\"")
+                .contains("\"tool_call_update\"")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .doesNotContain("sk-1234567890abcdef")
+                .doesNotContain("sk-abcdef1234567890");
+    }
+
+
     private String newAcpSession(AcpStdioServer server, int id) {
         return server.handle(
                 "{\"jsonrpc\":\"2.0\",\"id\":"
@@ -1173,6 +1245,39 @@ public class AcpStdioServerTest {
             session.setLastCacheReadTokens(6L);
             session.setLastCacheWriteTokens(7L);
             return result;
+        }
+    }
+
+    private static class SecretToolEventGateway extends FakeLlmGateway {
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                java.util.List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            java.util.Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
+            args.put("command", "curl https://example.test?api_key=sk-1234567890abcdef");
+            java.util.Map<String, Object> nested = new java.util.LinkedHashMap<String, Object>();
+            nested.put("token", "sk-abcdef1234567890");
+            args.put("metadata", nested);
+            eventSink.onToolStarted("terminal", args);
+            eventSink.onToolCompleted("terminal", "bearer sk-1234567890abcdef", 12L);
+            return super.executeOnce(
+                    session,
+                    systemPrompt,
+                    userMessage,
+                    toolObjects,
+                    feedbackSink,
+                    eventSink,
+                    resume,
+                    resolved,
+                    runContext);
         }
     }
 

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.cli.acp;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,7 +56,7 @@ public class AcpEventSink implements ConversationEventSink {
         update.put("toolName", StrUtil.blankToDefault(toolName, "tool"));
         update.put("kind", toolKind(toolName));
         update.put("title", toolTitle(toolName, args));
-        update.put("args", args == null ? new LinkedHashMap<String, Object>() : args);
+        update.put("args", safeMap(args));
         updates.add(update);
     }
 
@@ -70,7 +71,7 @@ public class AcpEventSink implements ConversationEventSink {
         update.put("status", "completed");
         update.put("duration_ms", Long.valueOf(durationMs));
         update.put("durationMs", Long.valueOf(durationMs));
-        update.put("content", textBlock(truncate(result, 5000)));
+        update.put("content", textBlock(truncate(safeText(result), 5000)));
         updates.add(update);
     }
 
@@ -89,7 +90,7 @@ public class AcpEventSink implements ConversationEventSink {
     @Override
     public void onRunFailed(String sessionId, Throwable error) {
         failed = true;
-        this.error = error == null ? "unknown" : error.getMessage();
+        this.error = safeText(error == null ? "unknown" : error.getMessage());
     }
 
     public String assistantText() {
@@ -149,15 +150,54 @@ public class AcpEventSink implements ConversationEventSink {
         Object path = args == null ? null : args.get("path");
         Object query = args == null ? null : args.get("query");
         if (command != null && StrUtil.isNotBlank(String.valueOf(command))) {
-            return name + ": " + truncate(String.valueOf(command), 100);
+            return name + ": " + truncate(safeText(String.valueOf(command)), 100);
         }
         if (path != null && StrUtil.isNotBlank(String.valueOf(path))) {
-            return name + ": " + String.valueOf(path);
+            return name + ": " + safeText(String.valueOf(path));
         }
         if (query != null && StrUtil.isNotBlank(String.valueOf(query))) {
-            return name + ": " + truncate(String.valueOf(query), 100);
+            return name + ": " + truncate(safeText(String.valueOf(query)), 100);
         }
         return name;
+    }
+
+    private Map<String, Object> safeMap(Map<String, Object> values) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (values == null || values.isEmpty()) {
+            return result;
+        }
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            result.put(entry.getKey(), safeValue(entry.getValue()));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object safeValue(Object value) {
+        if (value instanceof String) {
+            return safeText((String) value);
+        }
+        if (value instanceof Map) {
+            Map<String, Object> nested = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (entry.getKey() != null) {
+                    nested.put(String.valueOf(entry.getKey()), safeValue(entry.getValue()));
+                }
+            }
+            return nested;
+        }
+        if (value instanceof List) {
+            List<Object> nested = new ArrayList<Object>();
+            for (Object item : (List<Object>) value) {
+                nested.add(safeValue(item));
+            }
+            return nested;
+        }
+        return value;
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 8000);
     }
 
     private Map<String, Object> textBlock(String text) {

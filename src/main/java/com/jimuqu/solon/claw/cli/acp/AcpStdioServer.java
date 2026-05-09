@@ -515,7 +515,7 @@ public class AcpStdioServer {
         if (StrUtil.isNotBlank(state.getTitle())) {
             result.put("title", state.getTitle());
         }
-        result.put("history", state.getHistory());
+        result.put("history", safeAcpList(state.getHistory()));
         result.put("models", modelState(state));
         result.put(
                 "source_key",
@@ -1169,7 +1169,7 @@ public class AcpStdioServer {
         update.put("toolName", StrUtil.blankToDefault(toolName, "tool"));
         update.put("kind", toolKind(toolName));
         update.put("title", toolTitle(toolName, args));
-        update.put("args", args == null ? new LinkedHashMap<String, Object>() : args);
+        update.put("args", safeAcpMap(args));
         return update;
     }
 
@@ -1190,9 +1190,9 @@ public class AcpStdioServer {
         update.put("status", "completed");
         update.put("duration_ms", Long.valueOf(durationMs));
         update.put("durationMs", Long.valueOf(durationMs));
-        update.put("content", textBlock(truncate(result, 5000)));
+        update.put("content", textBlock(truncate(safeAcpText(result), 5000)));
         if (args != null && !args.isEmpty()) {
-            update.put("args", args);
+            update.put("args", safeAcpMap(args));
         }
         return update;
     }
@@ -1227,15 +1227,65 @@ public class AcpStdioServer {
         Object path = args == null ? null : args.get("path");
         Object query = args == null ? null : args.get("query");
         if (command != null && StrUtil.isNotBlank(String.valueOf(command))) {
-            return name + ": " + truncate(String.valueOf(command), 100);
+            return name + ": " + truncate(safeAcpText(String.valueOf(command)), 100);
         }
         if (path != null && StrUtil.isNotBlank(String.valueOf(path))) {
-            return name + ": " + String.valueOf(path);
+            return name + ": " + safeAcpText(String.valueOf(path));
         }
         if (query != null && StrUtil.isNotBlank(String.valueOf(query))) {
-            return name + ": " + truncate(String.valueOf(query), 100);
+            return name + ": " + truncate(safeAcpText(String.valueOf(query)), 100);
         }
         return name;
+    }
+
+    private Map<String, Object> safeAcpMap(Map<String, Object> values) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (values == null || values.isEmpty()) {
+            return result;
+        }
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            result.put(entry.getKey(), safeAcpValue(entry.getValue()));
+        }
+        return result;
+    }
+
+    private List<Object> safeAcpList(List<?> values) {
+        List<Object> result = new ArrayList<Object>();
+        if (values == null || values.isEmpty()) {
+            return result;
+        }
+        for (Object value : values) {
+            result.add(safeAcpValue(value));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object safeAcpValue(Object value) {
+        if (value instanceof String) {
+            return safeAcpText((String) value);
+        }
+        if (value instanceof Map) {
+            Map<String, Object> nested = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (entry.getKey() != null) {
+                    nested.put(String.valueOf(entry.getKey()), safeAcpValue(entry.getValue()));
+                }
+            }
+            return nested;
+        }
+        if (value instanceof List) {
+            List<Object> nested = new ArrayList<Object>();
+            for (Object item : (List<Object>) value) {
+                nested.add(safeAcpValue(item));
+            }
+            return nested;
+        }
+        return value;
+    }
+
+    private String safeAcpText(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 8000);
     }
 
     private String historyMessageText(Object content) {
