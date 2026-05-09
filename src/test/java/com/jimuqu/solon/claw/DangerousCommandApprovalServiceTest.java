@@ -831,6 +831,20 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult terraformStateShow =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform state show module.db.aws_db_instance.main");
+        DangerousCommandApprovalService.DetectionResult tofuDestroy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tofu destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult tofuAutoApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tofu apply -auto-approve");
+        DangerousCommandApprovalService.DetectionResult tofuStatePull =
+                env.dangerousCommandApprovalService.detect("execute_shell", "tofu state pull");
+        DangerousCommandApprovalService.DetectionResult terragruntDestroy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terragrunt destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult terragruntStateShow =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terragrunt state show module.db.aws_db_instance.main");
         DangerousCommandApprovalService.DetectionResult terraformPlan =
                 env.dangerousCommandApprovalService.detect("execute_shell", "terraform plan");
         DangerousCommandApprovalService.DetectionResult ansibleShellAll =
@@ -1023,6 +1037,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(terraformStatePull.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
         assertThat(terraformStateShow).isNotNull();
         assertThat(terraformStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(tofuDestroy).isNotNull();
+        assertThat(tofuDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(tofuAutoApply).isNotNull();
+        assertThat(tofuAutoApply.getPatternKey()).isEqualTo("terraform_auto_approve_apply");
+        assertThat(tofuStatePull).isNotNull();
+        assertThat(tofuStatePull.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(terragruntDestroy).isNotNull();
+        assertThat(terragruntDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(terragruntStateShow).isNotNull();
+        assertThat(terragruntStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
         assertThat(terraformPlan).isNull();
         assertThat(ansibleShellAll).isNotNull();
         assertThat(ansibleShellAll.getPatternKey()).isEqualTo("remote_fleet_command_execution");
