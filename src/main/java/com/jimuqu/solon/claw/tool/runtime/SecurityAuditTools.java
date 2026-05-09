@@ -117,6 +117,9 @@ public class SecurityAuditTools {
 
         Map<String, Object> security = new LinkedHashMap<String, Object>();
         security.put("allowPrivateUrls", Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
+        if (securityPolicyService != null) {
+            security.put("urlPolicy", securityPolicyService.urlPolicySummary());
+        }
         security.put("tirithEnabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         security.put("tirithConfigured", Boolean.valueOf(StrUtil.isNotBlank(appConfig.getSecurity().getTirithPath())));
         security.put("tirithTimeoutSeconds", Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));

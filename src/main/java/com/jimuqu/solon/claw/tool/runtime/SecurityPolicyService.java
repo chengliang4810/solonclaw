@@ -457,6 +457,43 @@ public class SecurityPolicyService {
         return summary;
     }
 
+    public Map<String, Object> urlPolicySummary() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        boolean allowPrivate = resolveAllowPrivateUrls();
+        AppConfig.WebsiteBlocklistConfig blocklist = websiteBlocklistConfig();
+        List<String> configuredDomains =
+                blocklist == null || blocklist.getDomains() == null
+                        ? Collections.<String>emptyList()
+                        : blocklist.getDomains();
+        List<String> configuredSharedFiles =
+                blocklist == null || blocklist.getSharedFiles() == null
+                        ? Collections.<String>emptyList()
+                        : blocklist.getSharedFiles();
+        SharedWebsiteRuleSummary shared = sharedWebsiteRuleSummary();
+        summary.put("allowPrivateUrls", Boolean.valueOf(allowPrivate));
+        summary.put("alwaysBlockedHostCount", Integer.valueOf(ALWAYS_BLOCKED_HOSTS.length));
+        summary.put("alwaysBlockedIpCount", Integer.valueOf(ALWAYS_BLOCKED_IPS.length));
+        summary.put("trustedPrivateIpHostCount", Integer.valueOf(TRUSTED_PRIVATE_IP_HOSTS.length));
+        summary.put("alwaysBlockedHostSamples", sample(Arrays.asList(ALWAYS_BLOCKED_HOSTS), 4));
+        summary.put("alwaysBlockedIpSamples", sample(Arrays.asList(ALWAYS_BLOCKED_IPS), 4));
+        summary.put("sensitiveQueryNameCount", Integer.valueOf(SENSITIVE_URL_PARAMETER_NAMES.size()));
+        summary.put("sensitiveQueryNameSamples", sample(SENSITIVE_URL_PARAMETER_NAMES, 6));
+        summary.put("websiteBlocklistEnabled", Boolean.valueOf(blocklist != null && blocklist.isEnabled()));
+        summary.put("websiteBlocklistDomainCount", Integer.valueOf(configuredDomains.size()));
+        summary.put("websiteBlocklistDomainSamples", redactSample(configuredDomains, 6));
+        summary.put("websiteBlocklistSharedFileCount", Integer.valueOf(configuredSharedFiles.size()));
+        summary.put("websiteBlocklistSharedFileSamples", redactSample(configuredSharedFiles, 6));
+        summary.put("websiteBlocklistSharedRuleCount", Integer.valueOf(shared.ruleCount));
+        summary.put("websiteBlocklistLoadedSharedFileCount", Integer.valueOf(shared.loadedFileCount));
+        summary.put("websiteBlocklistSkippedSharedFileCount", Integer.valueOf(shared.skippedFileCount));
+        summary.put("websiteBlocklistSharedRuleSamples", redactSample(shared.ruleSamples, 6));
+        summary.put("userinfoBlocked", Boolean.TRUE);
+        summary.put("sensitiveQueryBlocked", Boolean.TRUE);
+        summary.put("cloudMetadataBlocked", Boolean.TRUE);
+        summary.put("description", "URL safety blocks cloud metadata, private addresses unless explicitly allowed, userinfo credentials, sensitive query parameters, and configured website rules.");
+        return summary;
+    }
+
     public FileVerdict checkCommandPaths(String command) {
         String code = StrUtil.nullToEmpty(command);
         if (code.length() == 0) {
@@ -1967,31 +2004,54 @@ public class SecurityPolicyService {
         return null;
     }
 
+    private AppConfig.WebsiteBlocklistConfig websiteBlocklistConfig() {
+        if (appConfig == null || appConfig.getSecurity() == null) {
+            return null;
+        }
+        return appConfig.getSecurity().getWebsiteBlocklist();
+    }
+
     private List<String> sharedWebsiteRules() {
-        List<String> rules = new ArrayList<String>();
+        return sharedWebsiteRuleSummary().rules;
+    }
+
+    private SharedWebsiteRuleSummary sharedWebsiteRuleSummary() {
+        SharedWebsiteRuleSummary summary = new SharedWebsiteRuleSummary();
+        if (appConfig == null
+                || appConfig.getSecurity() == null
+                || appConfig.getSecurity().getWebsiteBlocklist() == null) {
+            return summary;
+        }
         List<String> sharedFiles = appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles();
         if (sharedFiles == null || sharedFiles.isEmpty()) {
-            return rules;
+            return summary;
         }
         for (String rawPath : sharedFiles) {
             File file = resolveSharedFile(rawPath);
             if (file == null || !file.isFile()) {
+                summary.skippedFileCount++;
                 continue;
             }
             try {
                 String text = cn.hutool.core.io.FileUtil.readString(file, StandardCharsets.UTF_8);
                 String[] lines = text.split("\\r?\\n");
+                summary.loadedFileCount++;
                 for (String line : lines) {
                     String value = StrUtil.nullToEmpty(line).trim();
                     if (value.length() == 0 || value.startsWith("#")) {
                         continue;
                     }
-                    rules.add(value);
+                    summary.rules.add(value);
+                    summary.ruleCount++;
+                    if (summary.ruleSamples.size() < 6) {
+                        summary.ruleSamples.add(value);
+                    }
                 }
             } catch (Exception ignored) {
+                summary.skippedFileCount++;
             }
         }
-        return rules;
+        return summary;
     }
 
     private File resolveSharedFile(String rawPath) {
@@ -2651,5 +2711,13 @@ public class SecurityPolicyService {
         public String getMessage() {
             return message;
         }
+    }
+
+    private static class SharedWebsiteRuleSummary {
+        private final List<String> rules = new ArrayList<String>();
+        private final List<String> ruleSamples = new ArrayList<String>();
+        private int ruleCount;
+        private int loadedFileCount;
+        private int skippedFileCount;
     }
 }

@@ -264,6 +264,28 @@ public class ToolRegistryExposureTest {
         assertThat(policyStatus.get("summary").getString()).contains("without exposing secret values");
         assertThat(policyStatus.get("policy").get("security").get("allowPrivateUrls").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("security").get("urlPolicy").get("allowPrivateUrls").getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("urlPolicy")
+                                .get("alwaysBlockedIpCount")
+                                .getInt())
+                .isGreaterThan(0);
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("security")
+                                .get("urlPolicy")
+                                .get("sensitiveQueryBlocked")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("security").get("urlPolicy")))
+                .contains("169.254")
+                .contains("blocked.example")
+                .contains("access_token");
         assertThat(policyStatus.get("policy").get("security").get("websiteBlocklistDomainCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("security").get("tirithAvailable").getBoolean())

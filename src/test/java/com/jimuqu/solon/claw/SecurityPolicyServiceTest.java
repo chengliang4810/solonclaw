@@ -490,6 +490,55 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldExposeUrlPolicySummaryWithSharedRuleDiagnostics() throws Exception {
+        Path parent = Files.createTempDirectory("jimuqu-url-policy-summary");
+        Path runtimeHome = Files.createDirectory(parent.resolve("runtime"));
+        File shared = runtimeHome.resolve("community-blocklist.txt").toFile();
+        FileUtil.writeUtf8String(
+                "# comment\n"
+                        + "shared.example\n"
+                        + "token-sk-1234567890abcdef.example\n",
+                shared);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getSecurity().setAllowPrivateUrls(false);
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example", "secret-sk-1234567890abcdef.example"));
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("community-blocklist.txt", "../outside-blocklist.txt"));
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        Map<String, Object> summary = policy.urlPolicySummary();
+
+        assertThat(summary.get("allowPrivateUrls")).isEqualTo(Boolean.FALSE);
+        assertThat(((Integer) summary.get("alwaysBlockedHostCount")).intValue()).isGreaterThan(0);
+        assertThat(((Integer) summary.get("alwaysBlockedIpCount")).intValue()).isGreaterThan(0);
+        assertThat(((Integer) summary.get("sensitiveQueryNameCount")).intValue()).isGreaterThan(5);
+        assertThat(summary.get("websiteBlocklistEnabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("websiteBlocklistDomainCount")).isEqualTo(2);
+        assertThat(summary.get("websiteBlocklistSharedFileCount")).isEqualTo(2);
+        assertThat(summary.get("websiteBlocklistLoadedSharedFileCount")).isEqualTo(1);
+        assertThat(summary.get("websiteBlocklistSkippedSharedFileCount")).isEqualTo(1);
+        assertThat(summary.get("websiteBlocklistSharedRuleCount")).isEqualTo(2);
+        assertThat(String.valueOf(summary.get("alwaysBlockedIpSamples"))).contains("169.254");
+        assertThat(String.valueOf(summary.get("sensitiveQueryNameSamples"))).contains("access_token");
+        assertThat(String.valueOf(summary.get("websiteBlocklistDomainSamples")))
+                .contains("blocked.example")
+                .contains("secret-sk-***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(String.valueOf(summary.get("websiteBlocklistSharedRuleSamples")))
+                .contains("shared.example")
+                .contains("token-sk-***")
+                .doesNotContain("1234567890abcdef");
+        assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("cloudMetadataBlocked")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
     void shouldDenyWritesToSensitiveSystemAndCredentialPathsLikeJimuquPolicy() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         String home = System.getProperty("user.home");
