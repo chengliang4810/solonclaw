@@ -76,11 +76,11 @@ public class DangerousCommandApprovalService {
                     + "\\.(?:netrc|pgpass|npmrc|yarnrc|pnpmrc|pypirc|curlrc|wgetrc)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:m2|gem|nuget|config"
+                    + "\\.(?:m2|gem|nuget|cargo|terraform\\.d|gemini|config"
                     + PATH_SEPARATOR
-                    + "pip)"
+                    + "(?:pip|gemini))"
                     + PATH_SEPARATOR
-                    + "(?:settings\\.xml|credentials|nuget\\.config|pip\\.conf)\\b|"
+                    + "(?:settings\\.xml|credentials|credentials\\.toml|credentials\\.tfrc\\.json|oauth_creds\\.json|nuget\\.config|pip\\.conf)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
                     + "\\.(?:jimuqu-agent|Jimuqu)"
@@ -90,7 +90,7 @@ public class DangerousCommandApprovalService {
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
-            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|token\\.json|pip\\.conf|settings\\.xml|nuget\\.config))";
+            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|config\\.ya?ml|credentials(?:\\.(?:json|toml|tfrc\\.json))?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|oauth_creds\\.json|token\\.json|pip\\.conf|settings\\.xml|nuget\\.config))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String CREDENTIAL_PERMISSION_TARGET =
@@ -401,13 +401,13 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+(?:account\\s+get-access-token|acr\\s+login\\b(?=[^\\n]*--expose-token\\b))|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+(?:get-session-token|get-federation-token)|sso\\s+get-role-credentials|configure\\s+export-credentials)|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
-                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b)"),
+                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b|aliyun\\s+configure\\s+(?:get|export)\\b|(?:tccli|qcloud)\\s+configure\\s+list\\b|huaweicloud\\s+configure\\s+show\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b))|account\\s+export\\b|document\\s+get\\b(?=[^\\n]*(?:Emergency Kit|Secret Key)))|bw\\s+(?:get\\s+(?:password|item|notes)\\b|export\\b)|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|aliyun\\s+kms\\s+GetSecretValue\\b|(?:tccli|qcloud)\\s+ssm\\s+(?:GetSecretValue|DescribeSecret)\\b|huaweicloud\\s+csms\\s+ShowSecretValue\\b|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b))|account\\s+export\\b|document\\s+get\\b(?=[^\\n]*(?:Emergency Kit|Secret Key)))|bw\\s+(?:get\\s+(?:password|item|notes)\\b|export\\b)|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b|gh\\s+secret\\s+(?:list|view)\\b|vercel\\s+env\\s+(?:ls|pull)\\b|netlify\\s+env\\s+(?:list|get)\\b|doppler\\s+secrets\\s+(?:get|download)\\b|fly(?:ctl)?\\s+secrets\\s+list\\b|wrangler\\s+secret\\s+list\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "encrypted_secret_file_decrypt",
@@ -421,19 +421,25 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
-                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b|gh\\s+secret\\s+set\\b|vercel\\s+env\\s+(?:add|import)\\b|netlify\\s+env\\s+(?:set|import|clone)\\b|doppler\\s+secrets\\s+(?:set|upload)\\b|fly(?:ctl)?\\s+secrets\\s+set\\b|wrangler\\s+secret\\s+put\\b)"),
+                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|aliyun\\s+kms\\s+(?:CreateSecret|PutSecretValue|UpdateSecret)\\b|(?:tccli|qcloud)\\s+ssm\\s+(?:CreateSecret|PutSecretValue|UpdateSecret)\\b|huaweicloud\\s+csms\\s+(?:CreateSecret|PutSecretValue|UpdateSecret)\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b|gh\\s+secret\\s+set\\b|vercel\\s+env\\s+(?:add|import)\\b|netlify\\s+env\\s+(?:set|import|clone)\\b|doppler\\s+secrets\\s+(?:set|upload)\\b|fly(?:ctl)?\\s+secrets\\s+set\\b|wrangler\\s+secret\\s+put\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_destroy",
                                     "delete or destroy secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b|gh\\s+secret\\s+(?:delete|remove)\\b|vercel\\s+env\\s+(?:rm|remove)\\b|netlify\\s+env\\s+(?:unset|delete)\\b|doppler\\s+secrets\\s+(?:delete|unset)\\b|fly(?:ctl)?\\s+secrets\\s+unset\\b|wrangler\\s+secret\\s+delete\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|aliyun\\s+kms\\s+DeleteSecret\\b|(?:tccli|qcloud)\\s+ssm\\s+DeleteSecret\\b|huaweicloud\\s+csms\\s+DeleteSecret\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b|gh\\s+secret\\s+(?:delete|remove)\\b|vercel\\s+env\\s+(?:rm|remove)\\b|netlify\\s+env\\s+(?:unset|delete)\\b|doppler\\s+secrets\\s+(?:delete|unset)\\b|fly(?:ctl)?\\s+secrets\\s+unset\\b|wrangler\\s+secret\\s+delete\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_cli_credential_config_change",
                                     "cloud CLI credential configuration changed",
                                     pattern(
                                             "\\b(?:aws\\s+configure\\s+set\\s+(?:aws_access_key_id|aws_secret_access_key|aws_session_token|sso_start_url|credential_process)\\b|gcloud\\s+auth\\s+login\\b(?=[^\\n]*--cred-file\\b)|gcloud\\s+config\\s+set\\s+(?:auth/credential_file_override|account)\\b|az\\s+ad\\s+app\\s+credential\\s+reset\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "domestic_cloud_cli_credential_config_change",
+                                    "domestic cloud CLI credential configuration changed",
+                                    pattern(
+                                            "\\b(?:aliyun\\s+configure\\s+set\\b(?=[^\\n]*(?:--access-key-id|--access-key-secret|--sts-token)\\b)|(?:tccli|qcloud)\\s+configure\\s+set\\b(?=[^\\n]*(?:secretId|secretKey|token)\\b)|huaweicloud\\s+configure\\s+set\\b(?=[^\\n]*(?:access_key|secret_key|security_token)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_keychain_password_read",
@@ -530,7 +536,7 @@ public class DangerousCommandApprovalService {
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(
-                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
+                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
@@ -544,7 +550,7 @@ public class DangerousCommandApprovalService {
                                     "tls_certificate_check_disabled",
                                     "TLS certificate verification disabled",
                                     pattern(
-                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))"),
+                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:strict-ssl|strictSsl)\\s+false\\b|(?:^|[;&|\\n`])\\s*(?:PYTHONHTTPSVERIFY\\s*=\\s*0|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "git_tls_certificate_check_disabled",
