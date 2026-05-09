@@ -148,7 +148,11 @@ public class CommandEnhancementTest {
         bootstrapAdmin(env);
 
         GatewayReply status = env.send("admin-chat", "admin-user", "/busy");
-        assertThat(status.getContent()).contains("busy_policy=interrupt").contains("source_running=false");
+        assertThat(status.getContent())
+                .contains("busy_policy=interrupt")
+                .contains("source_running=false")
+                .contains("active_run_id=-")
+                .contains("queue_pending=0");
 
         GatewayReply steer = env.send("admin-chat", "admin-user", "/busy steer");
         assertThat(steer.getContent()).contains("已切换运行中输入策略为 steer");
@@ -269,6 +273,9 @@ public class CommandEnhancementTest {
         assertThat(env.sessionRepository.getBoundSession(sourceKey).getNdjson())
                 .doesNotContain("run tests next");
 
+        GatewayReply busyWithQueue = env.send("admin-chat", "admin-user", "/busy status");
+        assertThat(busyWithQueue.getContent()).contains("queue_pending=1");
+
         GatewayReply idleSteer = env.send("admin-chat", "admin-user", "/steer summarize README");
 
         assertThat(idleSteer.getContent()).contains("echo:summarize README");
@@ -294,6 +301,8 @@ public class CommandEnhancementTest {
         assertThat(steer.getContent()).contains("steer").contains("注入");
         assertThat(steer.getRuntimeMetadata()).containsEntry("busy_status", "steered");
         String runId = String.valueOf(steer.getRuntimeMetadata().get("run_id"));
+        GatewayReply busy = env.send("admin-chat", "admin-user", "/busy status");
+        assertThat(busy.getContent()).contains("active_run_id=" + runId);
         RunControlCommand pending =
                 env.agentRunRepository.findLatestPendingCommand(runId, "steer");
         assertThat(pending).isNotNull();

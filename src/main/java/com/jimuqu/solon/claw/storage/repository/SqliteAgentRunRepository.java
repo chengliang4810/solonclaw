@@ -453,6 +453,27 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     @Override
+    public int countQueuedMessages(String sourceKey, String sessionId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select count(*) from queued_run_messages where source_key = ? and session_id = ? and status = 'queued'");
+            statement.setString(1, sourceKey);
+            statement.setString(2, sessionId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public void markQueuedMessage(String queueId, String status, long timestamp, String error)
             throws Exception {
         Connection connection = database.openConnection();
