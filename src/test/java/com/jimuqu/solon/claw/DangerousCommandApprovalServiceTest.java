@@ -1768,6 +1768,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict socksMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict envProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "http_proxy=127.0.0.1:8080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict envProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "ALL_PROXY=169.254.169.254:1080 curl https://safe.example/");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -1779,6 +1785,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(proxyPrivate.getMessage()).contains("内网");
         assertThat(socksMetadata.isAllowed()).isFalse();
         assertThat(socksMetadata.getMessage()).contains("元数据");
+        assertThat(envProxyPrivate.isAllowed()).isFalse();
+        assertThat(envProxyPrivate.getMessage()).contains("内网");
+        assertThat(envProxyMetadata.isAllowed()).isFalse();
+        assertThat(envProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test

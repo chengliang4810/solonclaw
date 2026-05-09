@@ -725,9 +725,25 @@ public class SecurityPolicyService {
                 value = token.substring("--socks5=".length());
             } else if (token.startsWith("--socks5-hostname=")) {
                 value = token.substring("--socks5-hostname=".length());
+            } else if (isProxyEnvironmentAssignment(token)) {
+                value = token.substring(token.indexOf('=') + 1);
             }
             addProxyHost(value, urls);
         }
+    }
+
+    private boolean isProxyEnvironmentAssignment(String token) {
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 0) {
+            return false;
+        }
+        String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return "http_proxy".equals(name)
+                || "https_proxy".equals(name)
+                || "all_proxy".equals(name);
     }
 
     private void addProxyHost(String raw, List<String> urls) {
