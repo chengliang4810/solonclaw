@@ -641,8 +641,12 @@ public class SecurityPolicyService {
 
     private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {
         List<String> tokens = shellLikeTokens(command, 200);
-        for (String token : tokens) {
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
             String path = compactOutputOptionPath(token);
+            if (StrUtil.isBlank(path) && isDetachedOutputOption(token) && i + 1 < tokens.size()) {
+                path = cleanUrlToken(tokens.get(++i));
+            }
             if (StrUtil.isBlank(path)) {
                 continue;
             }
@@ -652,6 +656,14 @@ public class SecurityPolicyService {
             }
         }
         return FileVerdict.allow();
+    }
+
+    private boolean isDetachedOutputOption(String raw) {
+        String token = cleanUrlToken(raw);
+        return "-o".equals(token)
+                || "-O".equals(token)
+                || "--output".equals(token)
+                || "--output-document".equals(token);
     }
 
     private String compactOutputOptionPath(String raw) {
@@ -664,6 +676,12 @@ public class SecurityPolicyService {
         }
         if (token.startsWith("-O") && !token.startsWith("--")) {
             return token.substring(2);
+        }
+        if (token.startsWith("--output=")) {
+            return token.substring("--output=".length());
+        }
+        if (token.startsWith("--output-document=")) {
+            return token.substring("--output-document=".length());
         }
         return "";
     }
