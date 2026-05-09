@@ -10,6 +10,7 @@ import java.net.IDN;
 import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.math.BigInteger;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -75,6 +76,9 @@ public class SecurityPolicyService {
                     "application_default_credentials.json",
                     "service_account.json",
                     "service-account.json",
+                    "service_account_key.json",
+                    "service-account-key.json",
+                    "google-credentials.json",
                     "token.json",
                     "authorized_keys",
                     "hosts.yml",
@@ -153,7 +157,7 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:(?:\\.{1,2}|~|\\$[A-Za-z_][A-Za-z0-9_]*|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%)[/\\\\])*(?:(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:\\.envrc)|(?:credentials(?:\\.json)?)|(?:auth\\.json)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:client_secrets?\\.json)|(?:application_default_credentials\\.json)|(?:service[_-]account\\.json)|(?:token\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:kubeconfig)|(?:id_(?:dsa|ecdsa(?:_sk)?|rsa|ed25519(?:_sk)?))|(?:(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))))(?![A-Za-z0-9_./\\\\-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:(?:\\.{1,2}|~|\\$[A-Za-z_][A-Za-z0-9_]*|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%)[/\\\\])*(?:(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:\\.envrc)|(?:credentials(?:\\.json)?)|(?:auth\\.json)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.pypirc)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:client_secrets?\\.json)|(?:application_default_credentials\\.json)|(?:service[_-]account(?:[_-]key)?\\.json)|(?:google-credentials\\.json)|(?:firebase-adminsdk[A-Za-z0-9_.-]*\\.json)|(?:token\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:kubeconfig)|(?:id_(?:dsa|ecdsa(?:_sk)?|rsa|ed25519(?:_sk)?))|(?:(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))))(?![A-Za-z0-9_./\\\\-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
@@ -172,6 +176,21 @@ public class SecurityPolicyService {
                     "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|nc|netcat|ncat|telnet|socat|openssl\\s+s_client|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
     private static final Pattern DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN =
             Pattern.compile("(?iu)^(tcp|tcp4|tcp6|udp|udp4|udp6|ssl|tls|connect):(.+)$");
+    private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
+            Arrays.asList(
+                    "access_token",
+                    "refresh_token",
+                    "id_token",
+                    "auth_token",
+                    "client_secret",
+                    "api_key",
+                    "apikey",
+                    "password",
+                    "private_key",
+                    "secret",
+                    "jwt",
+                    "signature",
+                    "x-amz-signature");
 
     private final AppConfig appConfig;
 
@@ -259,6 +278,9 @@ public class SecurityPolicyService {
         }
         if (hasUserInfo(uri)) {
             return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
+        }
+        if (hasSensitiveUrlParameterName(uri)) {
+            return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
         }
 
         String host = extractUriHost(uri);
@@ -1509,6 +1531,9 @@ public class SecurityPolicyService {
         if (CREDENTIAL_FILE_NAMES.contains(fileName)) {
             return true;
         }
+        if (matchesCloudCredentialJsonFileName(fileName)) {
+            return true;
+        }
         if (matchesSensitiveHomeFile(path, normalized)) {
             return true;
         }
@@ -1540,6 +1565,10 @@ public class SecurityPolicyService {
             }
         }
         return false;
+    }
+
+    private boolean matchesCloudCredentialJsonFileName(String fileName) {
+        return fileName.startsWith("firebase-adminsdk") && fileName.endsWith(".json");
     }
 
     private boolean matchesConfiguredCredentialPath(String normalized, String strippedPath) {
@@ -2032,6 +2061,55 @@ public class SecurityPolicyService {
             authority = StrUtil.nullToEmpty(uri.getAuthority());
         }
         return authority.indexOf('@') >= 0;
+    }
+
+    private boolean hasSensitiveUrlParameterName(URI uri) {
+        if (uri == null) {
+            return false;
+        }
+        return containsSensitiveParameterName(uri.getRawQuery())
+                || containsSensitiveParameterName(uri.getRawFragment());
+    }
+
+    private boolean containsSensitiveParameterName(String rawParameters) {
+        String value = StrUtil.nullToEmpty(rawParameters);
+        if (value.length() == 0) {
+            return false;
+        }
+        String[] parameters = value.split("[&;]");
+        for (String parameter : parameters) {
+            String name = parameter;
+            int question = name.indexOf('?');
+            if (question >= 0) {
+                name = name.substring(question + 1);
+            }
+            int hash = name.indexOf('#');
+            if (hash >= 0) {
+                name = name.substring(hash + 1);
+            }
+            int equals = name.indexOf('=');
+            if (equals >= 0) {
+                name = name.substring(0, equals);
+            }
+            if (isSensitiveUrlParameterName(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSensitiveUrlParameterName(String rawName) {
+        String name = decodeUrlComponent(rawName).trim().toLowerCase(Locale.ROOT);
+        return SENSITIVE_URL_PARAMETER_NAMES.contains(name);
+    }
+
+    private String decodeUrlComponent(String raw) {
+        String value = StrUtil.nullToEmpty(raw);
+        try {
+            return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return value;
+        }
     }
 
     private boolean hasSchemelessUserInfo(String raw) {

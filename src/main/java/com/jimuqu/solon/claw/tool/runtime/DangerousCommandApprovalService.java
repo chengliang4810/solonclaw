@@ -79,12 +79,14 @@ public class DangerousCommandApprovalService {
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
-            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
+            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|token\\.json))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
-    private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
+    private static final String SENSITIVE_HTTP_HEADER_NAME =
+            "(?:authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|x-access-token)";
+    private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
@@ -279,6 +281,48 @@ public class DangerousCommandApprovalService {
                                             "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%)(?:"
                                                     + SENSITIVE_ENV_NAME
                                                     + ")%?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "cli_access_token_read",
+                                    "print CLI access token",
+                                    pattern(
+                                            "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-access-token|az\\s+account\\s+get-access-token|gh\\s+auth\\s+token)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "secret_store_read",
+                                    "read secret manager value",
+                                    pattern(
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "package_manager_secret_read",
+                                    "read package manager credential",
+                                    pattern(
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+get\\s+\\S*(?:_authToken|_auth|password|token)|pip\\s+config\\s+get\\s+\\S*(?:password|token|credential|secret))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sensitive_http_header_send",
+                                    "send credential through HTTP header",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:(?:-H|--header)\\s*(?:=\\s*)?[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:|(?:--header=)[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*[\"']?\\s*=)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "network_credential_send",
+                                    "send credential through network command option",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-Credential\\s+\\S"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "network_credential_file_send",
+                                    "send credential from local netrc or cookie file",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-file)?(?:=|\\s+)?\\S*|\\s--load-cookies(?:=|\\s+)\\S|\\s-c\\s+\\S|\\s-b\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_firewall",
@@ -640,7 +684,8 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:Copy-Item|Move-Item|cp|cpi|mv|mi)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)\\s+)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
-                                                    + "[\"']?"),
+                                                    + "[\"']?"
+                                                    + COMMAND_TAIL),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_sensitive_file_copy",
