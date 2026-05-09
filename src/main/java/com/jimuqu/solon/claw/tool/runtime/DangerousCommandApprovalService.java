@@ -275,20 +275,24 @@ public class DangerousCommandApprovalService {
                                                     + "%?)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sensitive_environment_inline_assignment",
+                                    "set sensitive environment variable inline with a command",
+                                    pattern(
+                                            "(?:^|[;&|\\n`])\\s*(?:(?:env\\s+)?"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+\\s+\\S+|\\$env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s*=\\s*\\S+|(?:Set-Item|New-Item)\\s+Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s+\\S+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
                                             "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%)(?:"
                                                     + SENSITIVE_ENV_NAME
                                                     + ")%?"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "sensitive_environment_inline_assignment",
-                                    "set sensitive environment variable inline with a command",
-                                    pattern(
-                                            "(?:^|[;&|\\n`])\\s*(?:env\\s+)?"
-                                                    + SENSITIVE_ENV_NAME
-                                                    + "=\\S+\\s+\\S+"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cli_access_token_read",

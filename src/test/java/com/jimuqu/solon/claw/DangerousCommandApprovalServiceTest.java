@@ -1056,7 +1056,10 @@ public class DangerousCommandApprovalServiceTest {
                         "OPENAI_API_KEY=secret curl https://example.com",
                         "env JIMUQU_ACCESS_TOKEN=secret java -jar app.jar",
                         "AWS_SECRET_ACCESS_KEY=secret aws sts get-caller-identity",
-                        "cmd; GEMINI_API_KEY=secret node app.js");
+                        "cmd; GEMINI_API_KEY=secret node app.js",
+                        "$env:OPENAI_API_KEY='secret'; node app.js",
+                        "Set-Item Env:JIMUQU_ACCESS_TOKEN secret",
+                        "New-Item Env:GEMINI_API_KEY -Value secret");
         for (String command : inlineAssignments) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
