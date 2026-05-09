@@ -183,6 +183,9 @@ public class SecurityAuditTools {
         coverage.put("subagentApprovalPolicy", Boolean.TRUE);
         coverage.put("approvalAuditLog", Boolean.valueOf(approvalService != null));
         coverage.put("hardlineCommandBlocks", Boolean.TRUE);
+        if (approvalService != null) {
+            coverage.put("hardlinePolicy", approvalService.hardlinePolicySummary());
+        }
         coverage.put("terminalGuardrails", Boolean.TRUE);
         coverage.put("sudoRewrite", Boolean.TRUE);
         coverage.put("backgroundProcessGuard", Boolean.TRUE);

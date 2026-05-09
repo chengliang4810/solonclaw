@@ -341,6 +341,15 @@ public class ToolRegistryExposureTest {
                                 .get("policy")
                                 .get("approvals")
                                 .get("approvalPolicy")
+                                .get("hardlinePolicy")
+                                .get("approvalBypassAllowed")
+                                .getBoolean())
+                .isFalse();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("approvalPolicy")
                                 .get("sudoRewriteConfigured")
                                 .getBoolean())
                 .isTrue();
@@ -363,6 +372,9 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("approvalPolicy")))
                 .contains("recursive_delete")
+                .contains("hardlinePolicy")
+                .contains("hardline_windows")
+                .contains("metadataUrlBlocked")
                 .contains("long_lived_foreground")
                 .contains("terminalGuardrailPolicy")
                 .contains("slashConfirmPolicy")
@@ -555,6 +567,19 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("hardlineCommandBlocks").getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("hardlinePolicy")
+                                .get("slashApproveBypassAllowed")
+                                .getBoolean())
+                .isFalse();
+        assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("hardlinePolicy")))
+                .contains("execute_python")
+                .contains("metadata_url_access")
+                .contains("approvalRequired")
+                .contains("false");
         assertThat(policyStatus.get("policy").get("coverage").get("urlSafety").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())

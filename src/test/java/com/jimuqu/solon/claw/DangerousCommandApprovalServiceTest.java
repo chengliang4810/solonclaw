@@ -68,6 +68,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(((Integer) summary.get("hardlineRuleCount")).intValue()).isGreaterThan(10);
         assertThat(String.valueOf(summary.get("dangerousRuleSamples"))).contains("recursive_delete");
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
+        assertThat(String.valueOf(summary.get("hardlinePolicy")))
+                .contains("hardline_windows")
+                .contains("metadataUrlBlocked")
+                .contains("approvalBypassAllowed=false");
         assertThat(String.valueOf(summary.get("terminalGuardrails"))).contains("long_lived_foreground");
         assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("backgroundProcessGuard")).isEqualTo(Boolean.TRUE);
@@ -88,6 +92,40 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/reload-mcp")
                 .contains("toolChangeNoticeInjected");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeHardlinePolicySummaryWithoutAllowingApprovalBypass() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        Map<String, Object> summary = env.dangerousCommandApprovalService.hardlinePolicySummary();
+
+        assertThat(((Integer) summary.get("ruleCount")).intValue()).isGreaterThan(10);
+        assertThat(String.valueOf(summary.get("ruleSamples")))
+                .contains("hardline_metadata_url")
+                .contains("hardline_windows");
+        assertThat(String.valueOf(summary.get("coveredTools")))
+                .contains("execute_shell")
+                .contains("execute_code")
+                .contains("execute_python")
+                .contains("execute_js");
+        assertThat(String.valueOf(summary.get("blockedCategories")))
+                .contains("root_or_system_recursive_delete")
+                .contains("windows_disk_or_profile_destruction")
+                .contains("metadata_url_access");
+        assertThat(summary.get("metadataUrlBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pythonShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("javascriptChildProcessExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("slashApproveBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("sessionApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("alwaysApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("yoloBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("smartApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("blockingDecision")).isEqualTo("block");
+        assertThat(summary.get("approvalRequired")).isEqualTo(Boolean.FALSE);
+        assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
     }
 
     @Test

@@ -1295,6 +1295,7 @@ public class DangerousCommandApprovalService {
         summary.put("hardlineRuleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
         summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
+        summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(3 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
         summary.put(
                 "terminalGuardrails",
@@ -1312,6 +1313,43 @@ public class DangerousCommandApprovalService {
         summary.put("auditLogPolicy", approvalAuditPolicySummary());
         summary.put("mcpReloadPolicy", mcpReloadPolicySummary());
         summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
+        return summary;
+    }
+
+    public Map<String, Object> hardlinePolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("ruleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
+        summary.put("ruleSamples", hardlineRuleSamples(12));
+        summary.put(
+                "coveredTools",
+                Arrays.asList(
+                        ToolNameConstants.EXECUTE_SHELL,
+                        ToolNameConstants.EXECUTE_CODE,
+                        ToolNameConstants.EXECUTE_PYTHON,
+                        ToolNameConstants.EXECUTE_JS));
+        summary.put(
+                "blockedCategories",
+                Arrays.asList(
+                        "root_or_system_recursive_delete",
+                        "filesystem_format_or_raw_device_write",
+                        "system_shutdown_or_reboot",
+                        "kill_all_or_fork_bomb",
+                        "windows_disk_or_profile_destruction",
+                        "metadata_url_access"));
+        summary.put("metadataUrlBlocked", Boolean.valueOf(securityPolicyService != null));
+        summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
+        summary.put("pythonShellExtractionCovered", Boolean.TRUE);
+        summary.put("javascriptChildProcessExtractionCovered", Boolean.TRUE);
+        summary.put("approvalBypassAllowed", Boolean.FALSE);
+        summary.put("slashApproveBypassAllowed", Boolean.FALSE);
+        summary.put("sessionApprovalBypassAllowed", Boolean.FALSE);
+        summary.put("alwaysApprovalBypassAllowed", Boolean.FALSE);
+        summary.put("yoloBypassAllowed", Boolean.FALSE);
+        summary.put("smartApprovalBypassAllowed", Boolean.FALSE);
+        summary.put("blockingDecision", "block");
+        summary.put("approvalRequired", Boolean.FALSE);
+        summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("description", "Hardline commands are blocked before approval handling and cannot be bypassed by slash approvals, session approvals, always approvals, smart approval, or yolo mode.");
         return summary;
     }
 
@@ -3620,7 +3658,10 @@ public class DangerousCommandApprovalService {
 
     private static List<String> hardlineRuleSamples(int max) {
         List<String> samples = ruleSamples(HARDLINE_RULES, max);
-        if (samples.size() < Math.max(0, max)) {
+        if (max > 0 && !samples.contains("hardline_metadata_url")) {
+            if (samples.size() >= max) {
+                samples.remove(samples.size() - 1);
+            }
             samples.add("hardline_metadata_url");
         }
         return samples;
