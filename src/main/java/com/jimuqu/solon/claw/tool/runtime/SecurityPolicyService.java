@@ -1079,6 +1079,7 @@ public class SecurityPolicyService {
                     || "--http-proxy".equals(token)
                     || "--https-proxy".equals(token)
                     || "--ftp-proxy".equals(token)
+                    || "--proxy-url".equals(token)
                     || "--proxy-server".equals(token)
                     || "--proxy1.0".equals(token)
                     || "--preproxy".equals(token)
@@ -1102,6 +1103,8 @@ public class SecurityPolicyService {
                 value = token.substring("--https-proxy=".length());
             } else if (token.startsWith("--ftp-proxy=")) {
                 value = token.substring("--ftp-proxy=".length());
+            } else if (token.startsWith("--proxy-url=")) {
+                value = token.substring("--proxy-url=".length());
             } else if (token.startsWith("--proxy-server=")) {
                 value = token.substring("--proxy-server=".length());
             } else if (token.startsWith("--proxy1.0=")) {
@@ -1172,6 +1175,7 @@ public class SecurityPolicyService {
                 || "yarn_https_proxy".equals(name)
                 || "pnpm_config_proxy".equals(name)
                 || "pnpm_config_https_proxy".equals(name)
+                || "pip_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 

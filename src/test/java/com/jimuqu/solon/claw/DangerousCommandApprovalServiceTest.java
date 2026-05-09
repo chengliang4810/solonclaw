@@ -3666,6 +3666,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict pnpmProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "pnpm_config_https_proxy=http://169.254.169.254:8080 pnpm install");
+        SecurityPolicyService.UrlVerdict pipProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "PIP_PROXY=http://127.0.0.1:8080 pip install requests");
+        SecurityPolicyService.UrlVerdict pipProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "pip install requests --proxy http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict httpxProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "httpx --proxy-url=http://127.0.0.1:8080 https://safe.example");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3745,6 +3754,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(yarnProxyPrivate.getMessage()).contains("内网");
         assertThat(pnpmProxyMetadata.isAllowed()).isFalse();
         assertThat(pnpmProxyMetadata.getMessage()).contains("元数据");
+        assertThat(pipProxyPrivate.isAllowed()).isFalse();
+        assertThat(pipProxyPrivate.getMessage()).contains("内网");
+        assertThat(pipProxyMetadata.isAllowed()).isFalse();
+        assertThat(pipProxyMetadata.getMessage()).contains("元数据");
+        assertThat(httpxProxyPrivate.isAllowed()).isFalse();
+        assertThat(httpxProxyPrivate.getMessage()).contains("内网");
     }
 
     @Test
