@@ -727,6 +727,14 @@ public class ToolRegistryExposureTest {
                                 .get("codeToolShellExtractionCovered")
                                 .getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("terminalGuardrailPolicy")
+                                .get("downloadOutputPathPrechecked")
+                                .getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("terminalGuardrailPolicy")))
                 .contains("nohup")
                 .contains("npm run dev")
@@ -914,6 +922,10 @@ public class ToolRegistryExposureTest {
         assertThat(coverageTerminalGuardrailPolicy.get("longLivedForegroundBlocked").getBoolean())
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("managedBackgroundProcessRequired").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("credentialPathPrechecked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("downloadOutputDetachedOptionPrechecked").getBoolean())
                 .isTrue();
         assertThat(String.valueOf(coverageTerminalGuardrailPolicy))
                 .contains("nohup")

@@ -1918,6 +1918,10 @@ public class DangerousCommandApprovalService {
         summary.put(
                 "codeToolShellSources",
                 Arrays.asList("execute_code", "execute_python", "execute_js"));
+        summary.put("commandPathPrechecked", Boolean.TRUE);
+        summary.put("credentialPathPrechecked", Boolean.TRUE);
+        summary.put("downloadOutputPathPrechecked", Boolean.TRUE);
+        summary.put("downloadOutputDetachedOptionPrechecked", Boolean.TRUE);
         summary.put("managedBackgroundProcessRequired", Boolean.TRUE);
         summary.put("processRegistryBacked", Boolean.TRUE);
         summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
@@ -1925,7 +1929,7 @@ public class DangerousCommandApprovalService {
         summary.put("foregroundMaxTimeoutSeconds", Integer.valueOf(maxForegroundTimeoutSeconds()));
         summary.put("foregroundMaxRetries", Integer.valueOf(foregroundMaxRetries()));
         summary.put("foregroundRetryBaseDelaySeconds", Integer.valueOf(foregroundRetryBaseDelaySeconds()));
-        summary.put("description", "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
+        summary.put("description", "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, download output to credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
         return summary;
     }
 
