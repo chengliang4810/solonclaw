@@ -225,6 +225,24 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bdd\\s+.*if="),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "hosts_file_tampering",
+                                    "hosts file tampering",
+                                    pattern(
+                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:/etc/hosts\\b|/private/etc/hosts\\b|[A-Za-z]:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\\b|\\$env:windir\\\\System32\\\\drivers\\\\etc\\\\hosts\\b|%windir%\\\\System32\\\\drivers\\\\etc\\\\hosts\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "dns_resolver_tampering",
+                                    "DNS resolver configuration changed",
+                                    pattern(
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*/etc/resolv\\.conf\\b|\\bnmcli\\s+connection\\s+modify\\b[^\\n]*\\bipv[46]\\.dns\\b|\\bnetworksetup\\s+-setdnsservers\\b|\\bSet-DnsClientServerAddress\\b|\\bnetsh\\s+interface\\s+ip\\s+set\\s+dns\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "persistent_proxy_configuration_change",
+                                    "persistent proxy configuration changed",
+                                    pattern(
+                                            "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.proxy\\s+\\S+|\\bnpm\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\byarn\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),
@@ -402,6 +420,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "system_trust_store_change",
+                                    "system trust store changed",
+                                    pattern(
+                                            "\\b(?:update-ca-certificates\\b|trust\\s+anchor\\b|update-ca-trust\\s+(?:extract|enable)\\b|security\\s+add-trusted-cert\\b|certutil(?:\\.exe)?\\s+-addstore\\b|Import-Certificate\\b(?=[^\\n]*-CertStoreLocation\\s+Cert:\\\\LocalMachine))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(
@@ -417,7 +441,7 @@ public class DangerousCommandApprovalService {
                                     "credential_history_erasure",
                                     "erase shell or credential command history",
                                     pattern(
-                                            "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
+                                            "\\b(?:history\\s+-c|unset\\s+HISTFILE\\b|(?:export\\s+)?HISTFILE\\s*=\\s*(?:/dev/null|['\"]{2})|(?:export\\s+)?HIST(?:FILE)?SIZE\\s*=\\s*0\\b|set\\s+\\+o\\s+history\\b|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "audit_log_erasure",

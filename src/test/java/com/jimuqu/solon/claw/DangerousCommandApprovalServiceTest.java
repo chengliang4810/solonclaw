@@ -1541,6 +1541,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectSystemTrustStoreChanges() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "update-ca-certificates",
+                        "trust anchor --store local-ca.pem",
+                        "update-ca-trust extract",
+                        "security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain local-ca.pem",
+                        "certutil -addstore Root local-ca.cer",
+                        "Import-Certificate -FilePath local-ca.cer -CertStoreLocation Cert:\\LocalMachine\\Root");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("system_trust_store_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl x509 -in local-ca.pem -text -noout"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "certutil -dump local-ca.cer"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Import-Certificate -FilePath user.cer -CertStoreLocation Cert:\\CurrentUser\\Root"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeTlsCertificateVerificationBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
@@ -1746,7 +1779,13 @@ public class DangerousCommandApprovalServiceTest {
                         "rm ~/.mysql_history",
                         "Clear-History",
                         "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
-                        "Set-PSReadLineOption -HistorySaveStyle SaveNothing");
+                        "Set-PSReadLineOption -HistorySaveStyle SaveNothing",
+                        "unset HISTFILE",
+                        "export HISTFILE=/dev/null",
+                        "HISTFILE=''",
+                        "HISTSIZE=0",
+                        "export HISTFILESIZE=0",
+                        "set +o history");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1787,6 +1826,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "export HISTFILE=runtime/history.log"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "set -o history"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
@@ -1899,6 +1946,50 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult sshWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo key >> ~/.ssh/authorized_keys");
+        DangerousCommandApprovalService.DetectionResult hostsRedirect =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '127.0.0.1 example.com' >> /etc/hosts");
+        DangerousCommandApprovalService.DetectionResult hostsTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf '127.0.0.1 api.example.com' | tee -a /private/etc/hosts");
+        DangerousCommandApprovalService.DetectionResult windowsHostsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Add-Content $env:windir\\System32\\drivers\\etc\\hosts '127.0.0.1 login.example.com'");
+        DangerousCommandApprovalService.DetectionResult projectHostsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '127.0.0.1 local.test' > fixtures/hosts");
+        DangerousCommandApprovalService.DetectionResult resolvConfWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'nameserver 1.1.1.1' | tee /etc/resolv.conf");
+        DangerousCommandApprovalService.DetectionResult nmcliDnsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nmcli connection modify eth0 ipv4.dns 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult macosDnsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "networksetup -setdnsservers Wi-Fi 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult windowsDnsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult projectResolvWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo nameserver > fixtures/resolv.conf");
+        DangerousCommandApprovalService.DetectionResult gitProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --global http.proxy http://127.0.0.1:8080");
+        DangerousCommandApprovalService.DetectionResult npmProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "npm config set https-proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult winHttpProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "netsh winhttp set proxy 127.0.0.1:8080");
+        DangerousCommandApprovalService.DetectionResult macosProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "networksetup -setwebproxy Wi-Fi 127.0.0.1 8080");
+        DangerousCommandApprovalService.DetectionResult gitProxyRead =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --global --get http.proxy");
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
@@ -1980,6 +2071,35 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(hostsRedirect).isNotNull();
+        assertThat(hostsRedirect.getPatternKey()).isEqualTo("hosts_file_tampering");
+        assertThat(hostsTee).isNotNull();
+        assertThat(hostsTee.getPatternKey()).isEqualTo("hosts_file_tampering");
+        assertThat(windowsHostsWrite).isNotNull();
+        assertThat(windowsHostsWrite.getPatternKey()).isEqualTo("hosts_file_tampering");
+        assertThat(projectHostsWrite).isNull();
+        assertThat(resolvConfWrite).isNotNull();
+        assertThat(resolvConfWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(nmcliDnsWrite).isNotNull();
+        assertThat(nmcliDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(macosDnsWrite).isNotNull();
+        assertThat(macosDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(windowsDnsWrite).isNotNull();
+        assertThat(windowsDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(projectResolvWrite).isNull();
+        assertThat(gitProxyWrite).isNotNull();
+        assertThat(gitProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(npmProxyWrite).isNotNull();
+        assertThat(npmProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(winHttpProxyWrite).isNotNull();
+        assertThat(winHttpProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(macosProxyWrite).isNotNull();
+        assertThat(macosProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(gitProxyRead).isNull();
         assertThat(shellRc).isNotNull();
         assertThat(shellRc.getPatternKey()).isEqualTo("shell_profile_persistence_injection");
         assertThat(shellProfileRedirect).isNotNull();
