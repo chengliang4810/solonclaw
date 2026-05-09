@@ -1079,12 +1079,16 @@ public class SecurityPolicyService {
                     || "--http-proxy".equals(token)
                     || "--https-proxy".equals(token)
                     || "--ftp-proxy".equals(token)
+                    || "--proxy-server".equals(token)
                     || "--proxy1.0".equals(token)
                     || "--preproxy".equals(token)
                     || "--socks4".equals(token)
                     || "--socks4a".equals(token)
                     || "--socks5".equals(token)
-                    || "--socks5-hostname".equals(token)) {
+                    || "--socks5-hostname".equals(token)
+                    || "-Proxy".equalsIgnoreCase(token)
+                    || "-ProxyUri".equalsIgnoreCase(token)
+                    || "-ProxyServer".equalsIgnoreCase(token)) {
                 if (i + 1 < tokens.size()) {
                     value = tokens.get(++i);
                 }
@@ -1098,6 +1102,8 @@ public class SecurityPolicyService {
                 value = token.substring("--https-proxy=".length());
             } else if (token.startsWith("--ftp-proxy=")) {
                 value = token.substring("--ftp-proxy=".length());
+            } else if (token.startsWith("--proxy-server=")) {
+                value = token.substring("--proxy-server=".length());
             } else if (token.startsWith("--proxy1.0=")) {
                 value = token.substring("--proxy1.0=".length());
             } else if (token.startsWith("--preproxy=")) {
@@ -1112,11 +1118,40 @@ public class SecurityPolicyService {
                 value = token.substring("--socks5-hostname=".length());
             } else if (token.startsWith("-x") && token.length() > 2) {
                 value = token.substring(2);
+            } else if (startsWithProxyOption(token, "-Proxy:")) {
+                value = token.substring("-Proxy:".length());
+            } else if (startsWithProxyOption(token, "-ProxyUri:")) {
+                value = token.substring("-ProxyUri:".length());
+            } else if (startsWithProxyOption(token, "-ProxyServer:")) {
+                value = token.substring("-ProxyServer:".length());
+            } else if (isJavaProxyHostProperty(token)) {
+                value = token.substring(token.indexOf('=') + 1);
             } else if (isProxyEnvironmentAssignment(token)) {
                 value = token.substring(token.indexOf('=') + 1);
             }
             addProxyHost(value, urls);
         }
+    }
+
+    private boolean startsWithProxyOption(String token, String prefix) {
+        return token != null
+                && token.length() > prefix.length()
+                && token.regionMatches(true, 0, prefix, 0, prefix.length());
+    }
+
+    private boolean isJavaProxyHostProperty(String token) {
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 2) {
+            return false;
+        }
+        String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return "-dhttp.proxyhost".equals(name)
+                || "-dhttps.proxyhost".equals(name)
+                || "-dftp.proxyhost".equals(name)
+                || "-dsocksproxyhost".equals(name);
     }
 
     private boolean isProxyEnvironmentAssignment(String token) {
@@ -1131,6 +1166,8 @@ public class SecurityPolicyService {
         return "http_proxy".equals(name)
                 || "https_proxy".equals(name)
                 || "ftp_proxy".equals(name)
+                || "npm_config_proxy".equals(name)
+                || "npm_config_https_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 

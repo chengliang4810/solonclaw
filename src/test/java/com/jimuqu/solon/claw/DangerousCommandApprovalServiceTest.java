@@ -3558,6 +3558,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict resolvePrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --resolve safe.example:443:127.0.0.1 https://safe.example/");
+        SecurityPolicyService.UrlVerdict resolveIpv6Private =
+                securityPolicyService.checkCommandUrls(
+                        "curl --resolve safe.example:443:[::1] https://safe.example/");
+        SecurityPolicyService.UrlVerdict connectToIpv6Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --connect-to safe.example:443:[fd00:ec2::254]:8443 https://safe.example/");
         SecurityPolicyService.UrlVerdict proxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy 127.0.0.1:8080 https://safe.example/");
@@ -3627,6 +3633,33 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict schemeProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict powershellProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "Invoke-WebRequest https://safe.example -Proxy http://127.0.0.1:8080");
+        SecurityPolicyService.UrlVerdict powershellProxyUriMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "Invoke-RestMethod https://safe.example -ProxyUri:http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict powershellProxyServerPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "iwr https://safe.example -ProxyServer http://127.0.0.1:8080");
+        SecurityPolicyService.UrlVerdict javaHttpProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "java -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=8080 -jar app.jar");
+        SecurityPolicyService.UrlVerdict javaSocksProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "java -DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080 -jar app.jar");
+        SecurityPolicyService.UrlVerdict chromiumProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "chromium --proxy-server=http://127.0.0.1:8080 https://safe.example");
+        SecurityPolicyService.UrlVerdict nodeProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "node app.js --proxy-server socks5://169.254.169.254:1080");
+        SecurityPolicyService.UrlVerdict npmProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "npm_config_proxy=http://127.0.0.1:8080 npm install");
+        SecurityPolicyService.UrlVerdict npmHttpsProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "npm_config_https_proxy=http://169.254.169.254:8080 npm install");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3634,6 +3667,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(command.getMessage()).contains("元数据");
         assertThat(resolvePrivate.isAllowed()).isFalse();
         assertThat(resolvePrivate.getMessage()).contains("内网");
+        assertThat(resolveIpv6Private.isAllowed()).isFalse();
+        assertThat(resolveIpv6Private.getMessage()).contains("内网");
+        assertThat(connectToIpv6Metadata.isAllowed()).isFalse();
+        assertThat(connectToIpv6Metadata.getMessage()).contains("元数据");
         assertThat(proxyPrivate.isAllowed()).isFalse();
         assertThat(proxyPrivate.getMessage()).contains("内网");
         assertThat(allProxyPrivate.isAllowed()).isFalse();
@@ -3680,6 +3717,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(schemeAuthProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyMetadata.isAllowed()).isFalse();
         assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
+        assertThat(powershellProxyPrivate.isAllowed()).isFalse();
+        assertThat(powershellProxyPrivate.getMessage()).contains("内网");
+        assertThat(powershellProxyUriMetadata.isAllowed()).isFalse();
+        assertThat(powershellProxyUriMetadata.getMessage()).contains("元数据");
+        assertThat(powershellProxyServerPrivate.isAllowed()).isFalse();
+        assertThat(powershellProxyServerPrivate.getMessage()).contains("内网");
+        assertThat(javaHttpProxyPrivate.isAllowed()).isFalse();
+        assertThat(javaHttpProxyPrivate.getMessage()).contains("内网");
+        assertThat(javaSocksProxyMetadata.isAllowed()).isFalse();
+        assertThat(javaSocksProxyMetadata.getMessage()).contains("元数据");
+        assertThat(chromiumProxyPrivate.isAllowed()).isFalse();
+        assertThat(chromiumProxyPrivate.getMessage()).contains("内网");
+        assertThat(nodeProxyMetadata.isAllowed()).isFalse();
+        assertThat(nodeProxyMetadata.getMessage()).contains("元数据");
+        assertThat(npmProxyPrivate.isAllowed()).isFalse();
+        assertThat(npmProxyPrivate.getMessage()).contains("内网");
+        assertThat(npmHttpsProxyMetadata.isAllowed()).isFalse();
+        assertThat(npmHttpsProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test
