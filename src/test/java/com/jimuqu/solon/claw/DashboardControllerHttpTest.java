@@ -415,6 +415,8 @@ public class DashboardControllerHttpTest {
         assertThat(cronNextData.get("count").getInt()).isEqualTo(1);
         assertThat(cronNextData.get("include_disabled").getBoolean()).isFalse();
         assertThat(cronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+        HttpResult cronNextLimited = request("GET", "/api/cron/jobs/next?limit=500", null, token);
+        assertThat(ONode.ofJson(cronNextLimited.body).get("data").get("limit").getInt()).isEqualTo(50);
         HttpResult apiCronNext =
                 request("GET", "/api/jobs/next?include_disabled=true&limit=1", null, token);
         assertThat(apiCronNext.status).isEqualTo(200);
@@ -422,6 +424,8 @@ public class DashboardControllerHttpTest {
         assertThat(apiCronNextData.get("count").getInt()).isEqualTo(1);
         assertThat(apiCronNextData.get("include_disabled").getBoolean()).isTrue();
         assertThat(apiCronNextData.get("jobs").get(0).get("id").getString()).isEqualTo(dashboardCronId);
+        HttpResult apiCronNextDefaulted = request("GET", "/api/jobs/next?limit=0", null, token);
+        assertThat(ONode.ofJson(apiCronNextDefaulted.body).get("limit").getInt()).isEqualTo(5);
 
         HttpResult triggerCron =
                 request("POST", "/api/cron/jobs/" + dashboardCronId + "/trigger", "{}", token);
