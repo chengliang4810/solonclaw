@@ -631,19 +631,19 @@ public class DangerousCommandApprovalService {
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(
-                                            "\\b(?:ufw\\s+disable|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
+                                            "\\b(?:ufw\\s+(?:disable|reset)|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|iptables\\s+-P\\s+(?:INPUT|FORWARD|OUTPUT)\\s+ACCEPT\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_mac_policy",
                                     "Linux mandatory access control disabled",
                                     pattern(
-                                            "\\b(?:setenforce\\s+0|aa-teardown\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+apparmor\\b)"),
+                                            "\\b(?:setenforce\\s+0|(?:sed\\b|perl\\b|tee\\b|Set-Content\\b|Out-File\\b)[^\\n]*(?:SELINUX\\s*=\\s*disabled|/etc/selinux/config)|aa-(?:teardown|disable)\\b|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+apparmor\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_security_policy_weaken",
                                     "macOS security policy weakened",
                                     pattern(
-                                            "\\b(?:spctl\\s+--master-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
+                                            "\\b(?:spctl\\s+--(?:master|global)-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "remote_fleet_command_execution",
@@ -810,17 +810,17 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "terraform_destroy",
                                     "Terraform destroy",
-                                    pattern("\\bterraform\\s+destroy\\b"),
+                                    pattern("\\b(?:terraform|tofu|terragrunt)\\s+destroy\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "terraform_auto_approve_apply",
                                     "Terraform apply with auto approval",
-                                    pattern("\\bterraform\\s+apply\\b(?=[^\\n]*-auto-approve\\b)"),
+                                    pattern("\\b(?:terraform|tofu|terragrunt)\\s+apply\\b(?=[^\\n]*-auto-approve\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "terraform_state_sensitive_read",
                                     "Terraform state sensitive read",
-                                    pattern("\\bterraform\\s+state\\s+(?:pull|show)\\b"),
+                                    pattern("\\b(?:terraform|tofu|terragrunt)\\s+state\\s+(?:pull|show)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "aws_destructive_resource",
@@ -901,9 +901,23 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "sql_update_no_where",
+                                    "SQL UPDATE without WHERE",
+                                    pattern("\\bUPDATE\\s+[A-Za-z0-9_.`\"\\[\\]-]+\\s+SET\\b(?!.*\\bWHERE\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "sql_truncate",
                                     "SQL TRUNCATE",
                                     pattern("\\bTRUNCATE\\s+(TABLE)?\\s*\\w"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "sql_drop_statement",
+                                    "SQL DROP statement",
+                                    pattern("\\bDROP\\s+(?:DATABASE|SCHEMA|TABLE)\\s+(?:IF\\s+EXISTS\\s+)?[A-Za-z0-9_.`\"\\[\\]-]+"),
                                     ToolNameConstants.EXECUTE_SHELL,
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
@@ -1045,7 +1059,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
-                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
+                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+(?:allprofiles|currentprofile|domainprofile|privateprofile|publicprofile)\\s+state\\s+off|netsh\\s+advfirewall\\s+firewall\\s+set\\s+rule\\b[^\\n]*\\bnew\\s+enable\\s*=\\s*no\\b|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_defender",

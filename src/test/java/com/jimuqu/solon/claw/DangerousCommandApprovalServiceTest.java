@@ -568,19 +568,32 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "echo /tmp/hook.so | tee /etc/ld.so.preload");
         DangerousCommandApprovalService.DetectionResult ufwDisable =
                 env.dangerousCommandApprovalService.detect("execute_shell", "ufw disable");
+        DangerousCommandApprovalService.DetectionResult ufwReset =
+                env.dangerousCommandApprovalService.detect("execute_shell", "ufw reset");
         DangerousCommandApprovalService.DetectionResult iptablesFlush =
                 env.dangerousCommandApprovalService.detect("execute_shell", "iptables -F");
+        DangerousCommandApprovalService.DetectionResult iptablesPolicyAccept =
+                env.dangerousCommandApprovalService.detect("execute_shell", "iptables -P INPUT ACCEPT");
         DangerousCommandApprovalService.DetectionResult nftFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "nft flush ruleset");
         DangerousCommandApprovalService.DetectionResult setenforce =
                 env.dangerousCommandApprovalService.detect("execute_shell", "setenforce 0");
+        DangerousCommandApprovalService.DetectionResult selinuxConfigDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config");
         DangerousCommandApprovalService.DetectionResult stopAppArmor =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl disable apparmor");
+        DangerousCommandApprovalService.DetectionResult aaDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aa-disable /etc/apparmor.d/usr.bin.app");
         DangerousCommandApprovalService.DetectionResult spctlDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "spctl --master-disable");
+        DangerousCommandApprovalService.DetectionResult spctlGlobalDisable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "spctl --global-disable");
         DangerousCommandApprovalService.DetectionResult quarantineRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "xattr -d com.apple.quarantine ./payload");
@@ -629,16 +642,26 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(ldSoPreloadWrite.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
         assertThat(ufwDisable).isNotNull();
         assertThat(ufwDisable.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(ufwReset).isNotNull();
+        assertThat(ufwReset.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(iptablesFlush).isNotNull();
         assertThat(iptablesFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(iptablesPolicyAccept).isNotNull();
+        assertThat(iptablesPolicyAccept.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(nftFlush).isNotNull();
         assertThat(nftFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(setenforce).isNotNull();
         assertThat(setenforce.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(selinuxConfigDisable).isNotNull();
+        assertThat(selinuxConfigDisable.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(stopAppArmor).isNotNull();
         assertThat(stopAppArmor.getPatternKey()).isEqualTo("linux_disable_mac_policy");
+        assertThat(aaDisable).isNotNull();
+        assertThat(aaDisable.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(spctlDisable).isNotNull();
         assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
+        assertThat(spctlGlobalDisable).isNotNull();
+        assertThat(spctlGlobalDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(quarantineRemove).isNotNull();
         assertThat(quarantineRemove.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(tccReset).isNotNull();
@@ -661,11 +684,17 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect("execute_shell", "DROP TABLE users");
         DangerousCommandApprovalService.DetectionResult deleteWithoutWhere =
                 env.dangerousCommandApprovalService.detect("execute_shell", "DELETE FROM users");
+        DangerousCommandApprovalService.DetectionResult updateWithoutWhere =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "UPDATE users SET admin = true");
         DangerousCommandApprovalService.DetectionResult truncate =
                 env.dangerousCommandApprovalService.detect("execute_shell", "TRUNCATE TABLE users");
         DangerousCommandApprovalService.DetectionResult deleteWithWhere =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "DELETE FROM users WHERE id = 1");
+        DangerousCommandApprovalService.DetectionResult updateWithWhere =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "UPDATE users SET admin = true WHERE id = 1");
 
         assertThat(bashLcNewline).isNotNull();
         assertThat(bashLcNewline.getPatternKey()).isEqualTo("shell_command_flag");
@@ -675,9 +704,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dropTable.getPatternKey()).isEqualTo("sql_drop");
         assertThat(deleteWithoutWhere).isNotNull();
         assertThat(deleteWithoutWhere.getPatternKey()).isEqualTo("sql_delete_no_where");
+        assertThat(updateWithoutWhere).isNotNull();
+        assertThat(updateWithoutWhere.getPatternKey()).isEqualTo("sql_update_no_where");
         assertThat(truncate).isNotNull();
         assertThat(truncate.getPatternKey()).isEqualTo("sql_truncate");
         assertThat(deleteWithWhere).isNull();
+        assertThat(updateWithWhere).isNull();
     }
 
     @Test
@@ -831,6 +863,20 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult terraformStateShow =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform state show module.db.aws_db_instance.main");
+        DangerousCommandApprovalService.DetectionResult tofuDestroy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tofu destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult tofuAutoApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tofu apply -auto-approve");
+        DangerousCommandApprovalService.DetectionResult tofuStatePull =
+                env.dangerousCommandApprovalService.detect("execute_shell", "tofu state pull");
+        DangerousCommandApprovalService.DetectionResult terragruntDestroy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terragrunt destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult terragruntStateShow =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terragrunt state show module.db.aws_db_instance.main");
         DangerousCommandApprovalService.DetectionResult terraformPlan =
                 env.dangerousCommandApprovalService.detect("execute_shell", "terraform plan");
         DangerousCommandApprovalService.DetectionResult ansibleShellAll =
@@ -886,6 +932,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult mysqlDrop =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "mysqladmin drop prod --force");
+        DangerousCommandApprovalService.DetectionResult mysqlDropStatement =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mysql -e 'DROP DATABASE prod'");
+        DangerousCommandApprovalService.DetectionResult psqlDropTable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "psql -c 'DROP TABLE IF EXISTS public.users'");
+        DangerousCommandApprovalService.DetectionResult sqliteDropSchema =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "sqlite3 app.db \"DROP SCHEMA IF EXISTS tenant_a\"");
         DangerousCommandApprovalService.DetectionResult redisFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli FLUSHALL");
@@ -1023,6 +1078,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(terraformStatePull.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
         assertThat(terraformStateShow).isNotNull();
         assertThat(terraformStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(tofuDestroy).isNotNull();
+        assertThat(tofuDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(tofuAutoApply).isNotNull();
+        assertThat(tofuAutoApply.getPatternKey()).isEqualTo("terraform_auto_approve_apply");
+        assertThat(tofuStatePull).isNotNull();
+        assertThat(tofuStatePull.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(terragruntDestroy).isNotNull();
+        assertThat(terragruntDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(terragruntStateShow).isNotNull();
+        assertThat(terragruntStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
         assertThat(terraformPlan).isNull();
         assertThat(ansibleShellAll).isNotNull();
         assertThat(ansibleShellAll.getPatternKey()).isEqualTo("remote_fleet_command_execution");
@@ -1057,6 +1122,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");
         assertThat(mysqlDrop).isNotNull();
         assertThat(mysqlDrop.getPatternKey()).isEqualTo("database_dropdb");
+        assertThat(mysqlDropStatement).isNotNull();
+        assertThat(mysqlDropStatement.getPatternKey()).isEqualTo("sql_drop_statement");
+        assertThat(psqlDropTable).isNotNull();
+        assertThat(psqlDropTable.getPatternKey()).isEqualTo("sql_drop_statement");
+        assertThat(sqliteDropSchema).isNotNull();
+        assertThat(sqliteDropSchema.getPatternKey()).isEqualTo("sql_drop_statement");
         assertThat(redisFlush).isNotNull();
         assertThat(redisFlush.getPatternKey()).isEqualTo("database_flush");
         assertThat(mongoDropDatabase).isNotNull();
@@ -1155,6 +1226,14 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env,
                 "netsh advfirewall set allprofiles state off",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall set publicprofile state off",
+                "windows_disable_firewall");
+        assertDangerPattern(
+                env,
+                "netsh advfirewall firewall set rule name=\"OpenSSH\" new enable=no",
                 "windows_disable_firewall");
         assertDangerPattern(
                 env,
