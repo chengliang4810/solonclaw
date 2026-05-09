@@ -25,6 +25,7 @@ public final class LocalTerminalHelp {
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
                 + "/approve [确认编号] [session|always] - 批准危险命令审批\n"
                 + "/deny [确认编号] - 拒绝危险命令审批\n"
+                + "/approve list|clear session|clear always|clear all - 查看或清理审批授权\n"
                 + "/acp status - 查看 ACP 本地适配器能力快照\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
                 + TerminalShortcuts.helpLine() + "\n"
