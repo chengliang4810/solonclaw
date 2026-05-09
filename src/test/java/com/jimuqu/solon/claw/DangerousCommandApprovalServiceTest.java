@@ -2161,6 +2161,22 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("package_manager_source_change");
         }
 
+        List<String> packageManagerScriptPolicyChanges =
+                Arrays.asList(
+                        "npm config set ignore-scripts false",
+                        "pnpm config set unsafe-perm true",
+                        "yarn config set enableScripts true",
+                        "pnpm approve-builds",
+                        "bun pm trust sharp");
+        for (String command : packageManagerScriptPolicyChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_script_policy_change");
+        }
+
         List<String> packageManagerRemoteExecutes =
                 Arrays.asList(
                         "npx cowsay hello",
