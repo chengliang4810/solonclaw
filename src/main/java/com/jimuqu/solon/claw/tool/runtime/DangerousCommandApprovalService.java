@@ -1089,7 +1089,7 @@ public class DangerousCommandApprovalService {
                                     "windows_powershell_remote_execute",
                                     "PowerShell remote content execution",
                                     pattern(
-                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b|\\bDownloadFile\\s*\\([^\\n]*(?:https?://)[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|cmd\\s+/c|powershell|pwsh)"),
+                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b|\\bDownloadFile\\s*\\([^\\n]*(?:https?://)[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|cmd\\s+/c|powershell|pwsh)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer)\\b[^\\n]*(?:https?://)[^\\n]*(?:-(?:OutFile|Destination)\\s+|-(?:OutFile|Destination):)\\S*\\.(?:ps1|psm1|bat|cmd|exe|msi|vbs|js|hta)\\b[^\\n]*(?:;|&&|\\|\\|)[^\\n]*(?:Start-Process|&\\s*['\"]?\\.?[/\\\\]|powershell|pwsh|cmd\\s+/c)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_invoke_expression",
