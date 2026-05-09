@@ -209,9 +209,10 @@ public class SecurityPolicyService {
                     "--userconfig",
                     "--globalconfig",
                     "--config",
+                    "-F",
                     "-i");
     private static final List<String> COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES =
-            Arrays.asList("-i", "-K");
+            Arrays.asList("-i", "-F", "-K");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
@@ -690,6 +691,9 @@ public class SecurityPolicyService {
         for (int i = 0; i < tokens.size(); i++) {
             String token = cleanUrlToken(tokens.get(i));
             String path = credentialPathOptionValue(token);
+            if (StrUtil.isBlank(path) && "-o".equals(token) && i + 1 < tokens.size()) {
+                path = sshIdentityFileOptionValue(cleanUrlToken(tokens.get(++i)));
+            }
             if (StrUtil.isBlank(path) && isCredentialPathOption(token) && i + 1 < tokens.size()) {
                 path = cleanUrlToken(tokens.get(++i));
             }
@@ -712,11 +716,33 @@ public class SecurityPolicyService {
                 return token.substring(option.length());
             }
         }
+        String sshIdentityFilePath = sshCompactIdentityFileOptionValue(token);
+        if (StrUtil.isNotBlank(sshIdentityFilePath)) {
+            return sshIdentityFilePath;
+        }
         return "";
     }
 
     private boolean isCredentialPathOption(String token) {
         return CREDENTIAL_PATH_OPTION_NAMES.contains(token);
+    }
+
+    private String sshCompactIdentityFileOptionValue(String token) {
+        if (!token.startsWith("-o") || token.length() <= 2) {
+            return "";
+        }
+        return sshIdentityFileOptionValue(token.substring(2));
+    }
+
+    private String sshIdentityFileOptionValue(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        if (normalized.regionMatches(true, 0, "IdentityFile=", 0, "IdentityFile=".length())) {
+            return normalized.substring("IdentityFile=".length());
+        }
+        return "";
     }
 
     private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {

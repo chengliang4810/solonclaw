@@ -739,6 +739,16 @@ public class SecurityPolicyServiceTest {
         assertCommandCredentialOptionDenied(policy, "curl --cert=client.crt https://example.invalid", "client.crt");
         assertCommandCredentialOptionDenied(policy, "ssh -i deploy_key host.example", "deploy_key");
         assertCommandCredentialOptionDenied(policy, "ssh -ideploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(policy, "ssh -F ssh_config host.example", "ssh_config");
+        assertCommandCredentialOptionDenied(policy, "ssh -Fssh_config host.example", "ssh_config");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -o IdentityFile=deploy_key host.example",
+                "deploy_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "ssh -oIdentityFile=deploy_key host.example",
+                "deploy_key");
         assertCommandCredentialOptionDenied(policy, "curl -K.curlrc https://example.invalid", ".curlrc");
         assertCommandCredentialOptionDenied(
                 policy,

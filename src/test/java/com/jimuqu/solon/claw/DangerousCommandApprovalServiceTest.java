@@ -1693,6 +1693,10 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "ssh -i deploy_key host.example",
                         "ssh -ideploy_key host.example",
+                        "ssh -F ssh_config host.example",
+                        "ssh -Fssh_config host.example",
+                        "ssh -o IdentityFile=deploy_key host.example",
+                        "ssh -oIdentityFile=deploy_key host.example",
                         "curl -K.curlrc https://example.invalid",
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
