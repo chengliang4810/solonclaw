@@ -2539,7 +2539,13 @@ public class DangerousCommandApprovalServiceTest {
                         "skopeo login registry.example --password token",
                         "gh auth login --with-token < token.txt",
                         "npm login --auth-type legacy --password password",
-                        "az login --service-principal --username app --password password");
+                        "az login --service-principal --username app --password password",
+                        "doctl auth init --access-token token",
+                        "fly auth login --access-token token",
+                        "flyctl auth login --access-token=token",
+                        "vercel login --token token",
+                        "netlify login --auth token",
+                        "wrangler login --api-token token");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2564,6 +2570,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "gh auth status"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "vercel login"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "netlify login"))
                 .isNull();
     }
 
