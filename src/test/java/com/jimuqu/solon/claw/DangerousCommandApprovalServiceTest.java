@@ -1710,6 +1710,30 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Export-PfxCertificate -Cert $cert -FilePath cert.pfx",
                 "windows_export_credentials");
+        assertDangerPattern(
+                env,
+                "procdump64.exe -ma lsass.exe lsass.dmp",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "rundll32.exe comsvcs.dll, MiniDump lsass.exe lsass.dmp full",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "reg save HKLM\\SAM C:\\Temp\\sam.save",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "reg.exe save HKLM\\SECURITY C:\\Temp\\security.save",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "ntdsutil \"activate instance ntds\" ifm \"create full C:\\Temp\\ntds\" quit quit",
+                "windows_credential_material_dump");
+        assertDangerPattern(
+                env,
+                "esentutl.exe /y C:\\Windows\\NTDS\\ntds.dit /d C:\\Temp\\ntds.dit",
+                "windows_credential_material_dump");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
         assertDangerPattern(
                 env, "vaultcmd /listcreds:\"Windows Credentials\"", "windows_credential_manager_read");
@@ -1734,6 +1758,14 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(env, "Set-Secret prod-db secret", "windows_credential_manager_change");
         assertDangerPattern(env, "Remove-Secret prod-db", "windows_credential_manager_change");
         assertDangerPattern(env, "cmdkey /list", "windows_credential_manager_read");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "reg query HKLM\\SAM"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "tasklist /FI \"IMAGENAME eq lsass.exe\""))
+                .isNull();
         assertDangerPattern(
                 env,
                 "Set-Content -Path .envrc -Value layout",

@@ -1178,6 +1178,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:Export-PfxCertificate|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_credential_material_dump",
+                                    "Windows credential material dumped",
+                                    pattern(
+                                            "\\b(?:procdump(?:64)?(?:\\.exe)?\\b[^\\n]*\\blsass(?:\\.exe)?\\b|rundll32(?:\\.exe)?\\s+comsvcs\\.dll,\\s*MiniDump\\b[^\\n]*\\blsass\\b|reg(?:\\.exe)?\\s+save\\s+HKLM\\\\(?:SAM|SECURITY|SYSTEM)\\b|ntdsutil(?:\\.exe)?\\b[^\\n]*(?:ifm|create\\s+full|activate\\s+instance\\s+ntds)|esentutl(?:\\.exe)?\\b[^\\n]*(?:ntds\\.dit|\\\\SAM\\b|\\\\SECURITY\\b|\\\\SYSTEM\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_credential_manager_read",
                                     "Windows credential manager read",
                                     pattern(
