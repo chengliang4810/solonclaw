@@ -810,6 +810,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult helmUninstall =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "helm uninstall payments");
+        DangerousCommandApprovalService.DetectionResult helmRepoAdd =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm repo add internal https://charts.example");
+        DangerousCommandApprovalService.DetectionResult helmRepoRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm repo remove internal");
+        DangerousCommandApprovalService.DetectionResult helmRepoUpdate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "helm repo update");
         DangerousCommandApprovalService.DetectionResult terraformDestroy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform destroy -auto-approve");
@@ -1000,6 +1009,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(kubectlLocalApply).isNull();
         assertThat(helmUninstall).isNotNull();
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
+        assertThat(helmRepoAdd).isNotNull();
+        assertThat(helmRepoAdd.getPatternKey()).isEqualTo("helm_repository_configuration_change");
+        assertThat(helmRepoRemove).isNotNull();
+        assertThat(helmRepoRemove.getPatternKey()).isEqualTo("helm_repository_configuration_change");
+        assertThat(helmRepoUpdate).isNotNull();
+        assertThat(helmRepoUpdate.getPatternKey()).isEqualTo("helm_repository_configuration_change");
         assertThat(terraformDestroy).isNotNull();
         assertThat(terraformDestroy.getPatternKey()).isEqualTo("terraform_destroy");
         assertThat(terraformAutoApply).isNotNull();

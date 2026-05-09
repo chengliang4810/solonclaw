@@ -803,6 +803,11 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bhelm\\s+(?:uninstall|delete)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "helm_repository_configuration_change",
+                                    "Helm repository configuration changed",
+                                    pattern("\\bhelm\\s+repo\\s+(?:add|remove|update)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "terraform_destroy",
                                     "Terraform destroy",
                                     pattern("\\bterraform\\s+destroy\\b"),
