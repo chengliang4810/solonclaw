@@ -1514,6 +1514,26 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("macos_keychain_password_read");
         }
 
+        List<String> keychainPasswordChanges =
+                Arrays.asList(
+                        "security add-generic-password -a deploy -s api-token -w token",
+                        "security add-internet-password -s example.com -a deploy -w token",
+                        "security delete-generic-password -s api-token",
+                        "security delete-internet-password -s example.com");
+        for (String command : keychainPasswordChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("macos_keychain_password_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "security find-certificate -a login.keychain-db"))
+                .isNull();
+
         List<String> sshAddPrivateKeys =
                 Arrays.asList(
                         "ssh-add ~/.ssh/id_rsa",
@@ -1965,6 +1985,11 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "s3cmd ls s3://bucket"))
                 .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl -k https://example.com"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("tls_certificate_check_disabled");
     }
 
     @Test
