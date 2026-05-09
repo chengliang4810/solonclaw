@@ -792,6 +792,12 @@ public class DangerousCommandApprovalService {
                                             "\\bkubectl\\s+(?:-[^\\s]+\\s+)*apply\\b(?=[^\\n]*(?:-f|--filename)\\s+(?:https?|wss?)://)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "kubectl_context_or_credential_change",
+                                    "Kubernetes context or credential configuration changed",
+                                    pattern(
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*config\\s+(?:set-credentials|set-context|use-context|unset|delete-context|delete-user)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "helm_uninstall",
                                     "Helm release uninstall",
                                     pattern("\\bhelm\\s+(?:uninstall|delete)\\b"),
