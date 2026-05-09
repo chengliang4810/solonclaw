@@ -1129,6 +1129,8 @@ public class SecurityPolicyService {
                 value = token.substring("-ProxyServer:".length());
             } else if (isJavaProxyHostProperty(token)) {
                 value = token.substring(token.indexOf('=') + 1);
+            } else if (isJavaProxyOptionsAssignment(token)) {
+                addJavaProxyHostsFromOptions(token.substring(token.indexOf('=') + 1), urls);
             } else if (isProxyEnvironmentAssignment(token)) {
                 value = token.substring(token.indexOf('=') + 1);
             }
@@ -1155,6 +1157,30 @@ public class SecurityPolicyService {
                 || "-dhttps.proxyhost".equals(name)
                 || "-dftp.proxyhost".equals(name)
                 || "-dsocksproxyhost".equals(name);
+    }
+
+    private boolean isJavaProxyOptionsAssignment(String token) {
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 0) {
+            return false;
+        }
+        String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return "java_tool_options".equals(name)
+                || "jdk_java_options".equals(name)
+                || "maven_opts".equals(name)
+                || "gradle_opts".equals(name);
+    }
+
+    private void addJavaProxyHostsFromOptions(String raw, List<String> urls) {
+        List<String> tokens = shellLikeTokens(raw, 100);
+        for (String token : tokens) {
+            if (isJavaProxyHostProperty(token)) {
+                addProxyHost(token.substring(token.indexOf('=') + 1), urls);
+            }
+        }
     }
 
     private boolean isProxyEnvironmentAssignment(String token) {
