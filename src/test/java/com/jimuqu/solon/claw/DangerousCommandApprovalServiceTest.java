@@ -728,6 +728,17 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult terraformDestroy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult terraformAutoApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform apply -auto-approve");
+        DangerousCommandApprovalService.DetectionResult terraformStatePull =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform state pull");
+        DangerousCommandApprovalService.DetectionResult terraformStateShow =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform state show module.db.aws_db_instance.main");
+        DangerousCommandApprovalService.DetectionResult terraformPlan =
+                env.dangerousCommandApprovalService.detect("execute_shell", "terraform plan");
         DangerousCommandApprovalService.DetectionResult awsDeleteBucket =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3api delete-bucket --bucket prod-data");
@@ -864,6 +875,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(terraformDestroy).isNotNull();
         assertThat(terraformDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(terraformAutoApply).isNotNull();
+        assertThat(terraformAutoApply.getPatternKey()).isEqualTo("terraform_auto_approve_apply");
+        assertThat(terraformStatePull).isNotNull();
+        assertThat(terraformStatePull.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(terraformStateShow).isNotNull();
+        assertThat(terraformStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(terraformPlan).isNull();
         assertThat(awsDeleteBucket).isNotNull();
         assertThat(awsDeleteBucket.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsTerminateInstances).isNotNull();

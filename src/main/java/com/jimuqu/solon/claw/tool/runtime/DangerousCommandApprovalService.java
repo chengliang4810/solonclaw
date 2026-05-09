@@ -636,6 +636,16 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bterraform\\s+destroy\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "terraform_auto_approve_apply",
+                                    "Terraform apply with auto approval",
+                                    pattern("\\bterraform\\s+apply\\b(?=[^\\n]*-auto-approve\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "terraform_state_sensitive_read",
+                                    "Terraform state sensitive read",
+                                    pattern("\\bterraform\\s+state\\s+(?:pull|show)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "aws_destructive_resource",
                                     "AWS destructive resource operation",
                                     pattern(
