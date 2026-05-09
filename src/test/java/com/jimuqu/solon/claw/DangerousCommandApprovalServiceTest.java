@@ -1598,8 +1598,10 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "curl -H 'Authorization: Bearer token-a' https://example.com",
+                        "curl -HAuthorization:Bearer-token-a https://example.com",
                         "curl --header='X-API-Key: token-a' https://example.com",
                         "curl --proxy-header 'Proxy-Authorization: Basic abc' https://example.com",
+                        "curl --proxy-headerProxy-Authorization:Basic https://example.com",
                         "curl --proxy-header=Proxy-Authorization:Basic https://example.com",
                         "wget --header 'Cookie: session=a' https://example.com",
                         "http GET https://example.com Authorization:'Bearer token-a'",
@@ -1636,6 +1638,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "curl -u user:password https://example.com/private",
                         "curl -uuser:password https://example.com/private",
+                        "curl https://user:password@example.com/private",
+                        "curl https://user%3Apassword@example.com/private",
+                        "curl user:password@example.com/private",
                         "curl --user user:password https://example.com/private",
                         "wget --user user --password password https://example.com/private",
                         "wget --http-password=password https://example.com/private",
