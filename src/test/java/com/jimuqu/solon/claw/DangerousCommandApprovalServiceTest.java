@@ -1413,7 +1413,12 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "printenv OPENAI_API_KEY",
                         "echo $JIMUQU_ACCESS_TOKEN",
+                        "echo ${OPENAI_API_KEY}",
                         "echo %OPENAI_API_KEY%",
+                        "echo !OPENAI_API_KEY!",
+                        "printf '%s' $OPENAI_API_KEY",
+                        "printf '%s' ${OPENAI_API_KEY}",
+                        "printf '%s' !OPENAI_API_KEY!",
                         "Get-Item Env:OPENAI_API_KEY",
                         "Get-Item -Path Env:OPENAI_API_KEY",
                         "Get-Content Env:OPENAI_API_KEY",
