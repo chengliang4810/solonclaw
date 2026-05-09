@@ -1237,9 +1237,13 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentCachePathSafety").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("attachmentDisplayNameRedaction").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentPathSafety").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentPreviewRedaction").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("terminalAttachmentResolvedNameRedaction").getBoolean())
                 .isTrue();
         ONode attachmentPolicy =
                 policyStatus.get("policy").get("coverage").get("attachmentPolicy");
@@ -1251,6 +1255,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(attachmentPolicy.get("mediaCache").get("hostPathsNotReturnedInMediaReference").getBoolean())
                 .isTrue();
+        assertThat(attachmentPolicy.get("mediaCache").get("safeOriginalNameSecretRedacted").getBoolean())
+                .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("pathPolicyCheckedBeforeCache").getBoolean())
                 .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("credentialPathBlocked").getBoolean())
@@ -1258,6 +1264,8 @@ public class ToolRegistryExposureTest {
         assertThat(attachmentPolicy.get("terminalPaste").get("blockedPreviewRedacted").getBoolean())
                 .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("missingPreviewRedacted").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("resolvedDisplayNameRedacted").getBoolean())
                 .isTrue();
         assertThat(String.valueOf(attachmentPolicy))
                 .contains("runtime://cache/media")

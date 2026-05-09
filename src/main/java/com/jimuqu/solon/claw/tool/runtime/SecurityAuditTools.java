@@ -298,8 +298,10 @@ public class SecurityAuditTools {
         coverage.put("mcpRuntimePolicyAuditable", Boolean.TRUE);
         coverage.put("attachmentUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("attachmentCachePathSafety", Boolean.TRUE);
+        coverage.put("attachmentDisplayNameRedaction", Boolean.TRUE);
         coverage.put("terminalAttachmentPathSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("terminalAttachmentPreviewRedaction", Boolean.TRUE);
+        coverage.put("terminalAttachmentResolvedNameRedaction", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         if (tirithSecurityService != null) {
             coverage.put("tirithPolicy", tirithSecurityService.policySummary());
