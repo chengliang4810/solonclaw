@@ -566,6 +566,7 @@ public class SecurityPolicyService {
         summary.put("devicePathBlocked", Boolean.TRUE);
         summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);
+        summary.put("skillsHubInternalWriteBlocked", Boolean.TRUE);
         summary.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(writeSafeRoot)));
         summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
@@ -577,7 +578,7 @@ public class SecurityPolicyService {
         summary.put("writeDeniedHomeFileSamples", sample(WRITE_DENIED_HOME_FILE_NAMES, 6));
         summary.put("blockedDevicePathSamples", sample(BLOCKED_DEVICE_PATHS, 6));
         summary.put("workdirSafePattern", WORKDIR_SAFE_PATTERN.pattern());
-        summary.put("description", "Path safety blocks traversal, control characters, device files, sensitive system writes, internal skill hub reads, and writes outside the configured safe root.");
+        summary.put("description", "Path safety blocks traversal, control characters, device files, sensitive system writes, internal skill hub access, and writes outside the configured safe root.");
         return summary;
     }
 
@@ -712,8 +713,12 @@ public class SecurityPolicyService {
         if (writeLike && matchesRawBlockDevicePath(normalized)) {
             return FileVerdict.block(path, "写入裸块设备可能破坏磁盘数据，已阻断");
         }
-        if (!writeLike && matchesBlockedInternalReadPath(normalized)) {
-            return FileVerdict.block(path, "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
+        if (matchesBlockedInternalSkillHubPath(normalized)) {
+            return FileVerdict.block(
+                    path,
+                    writeLike
+                            ? "写入 Skills Hub 内部缓存文件被阻断，请使用技能管理能力维护技能"
+                            : "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
         }
         if (matchesCredentialPath(normalized)) {
             return FileVerdict.block(
@@ -1255,7 +1260,7 @@ public class SecurityPolicyService {
         if (StrUtil.isBlank(value)) {
             return false;
         }
-        if (value.startsWith("[") && isBracketedIpv6Literal(value)) {
+        if (value.startsWith("[") && containsBracketedIpv6Literal(value)) {
             return false;
         }
         return value.startsWith("(")
@@ -1277,6 +1282,15 @@ public class SecurityPolicyService {
             return false;
         }
         String host = text.substring(1, closing);
+        return host.indexOf(':') >= 0;
+    }
+
+    private boolean containsBracketedIpv6Literal(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (!text.startsWith("[") || !text.contains("]")) {
+            return false;
+        }
+        String host = text.substring(1, text.indexOf(']'));
         return host.indexOf(':') >= 0;
     }
 
@@ -1757,7 +1771,7 @@ public class SecurityPolicyService {
         return RAW_BLOCK_DEVICE_PATTERN.matcher(normalized).matches();
     }
 
-    private boolean matchesBlockedInternalReadPath(String normalized) {
+    private boolean matchesBlockedInternalSkillHubPath(String normalized) {
         String path = stripKnownPrefix(normalized);
         String hub = RuntimePathConstants.SKILLS_DIR_NAME + "/.hub";
         if (path.equals(hub) || path.startsWith(hub + "/")) {
@@ -2357,6 +2371,9 @@ public class SecurityPolicyService {
         int at = value.lastIndexOf('@');
         if (at >= 0) {
             value = value.substring(at + 1);
+        }
+        if (value.startsWith("[") && value.contains("]")) {
+            return normalizeHost(value.substring(0, value.indexOf(']') + 1));
         }
         int colon = value.lastIndexOf(':');
         if (colon > 0 && value.indexOf(':') == colon) {

@@ -663,6 +663,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("devicePathBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawBlockDeviceWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("skillsHubInternalWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("writeSafeRootConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("writeSafeRoot")))
                 .contains("workspace-sk-***")
@@ -674,6 +675,19 @@ public class SecurityPolicyServiceTest {
         assertThat(String.valueOf(summary.get("writeDeniedExactPathSamples"))).contains("/etc/passwd");
         assertThat(String.valueOf(summary.get("blockedDevicePathSamples"))).contains("/dev/zero");
         assertThat(String.valueOf(summary.get("workdirSafePattern"))).contains("A-Za-z0-9");
+    }
+
+    @Test
+    void shouldDenySkillHubInternalCacheWrites() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.FileVerdict writeVerdict = policy.checkPath("skills/.hub/index-cache/catalog.json", true);
+        SecurityPolicyService.FileVerdict readVerdict = policy.checkPath("skills/.hub/index-cache/catalog.json", false);
+
+        assertThat(writeVerdict.isAllowed()).isFalse();
+        assertThat(writeVerdict.getMessage()).contains("Skills Hub").contains("写入");
+        assertThat(readVerdict.isAllowed()).isFalse();
+        assertThat(readVerdict.getMessage()).contains("Skills Hub").contains("读取");
     }
 
     @Test
