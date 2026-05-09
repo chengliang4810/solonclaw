@@ -1184,6 +1184,9 @@ public class DangerousCommandApprovalServiceTest {
                         "curl --netrc https://example.com/private",
                         "curl --netrc-file ~/.netrc https://example.com/private",
                         "wget --load-cookies cookies.txt https://example.com/private",
+                        "curl --cert client.pem --key client.key https://example.com/private",
+                        "curl --proxy-cert=client.pem --proxy-key=client.key https://example.com/private",
+                        "wget --certificate client.pem --private-key client.key https://example.com/private",
                         "curl -b cookies.jar https://example.com/private",
                         "curl -c session-cookies.txt https://example.com/private");
         for (String command : commands) {
