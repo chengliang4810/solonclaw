@@ -622,7 +622,6 @@ public class DashboardDiagnosticsService {
             toolName = value.substring(0, colon);
             patternKey = value.substring(colon + 1);
         }
-        item.put("approval", redactedApprovalKey(value));
         item.put("approval_id", alwaysApprovalId(value));
         item.put("tool_name", safeAuditPreview(toolName, 160));
         item.put("pattern_key", safeAuditPreview(patternKey, 400));
