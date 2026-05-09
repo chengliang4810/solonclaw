@@ -375,6 +375,8 @@ public class CronjobTools {
         execution.put("manualRunSupported", Boolean.TRUE);
         execution.put("retryAliasSupported", Boolean.TRUE);
         execution.put("pauseResumeSupported", Boolean.TRUE);
+        execution.put("stateEditSupported", Boolean.TRUE);
+        execution.put("pausedReasonEditSupported", Boolean.TRUE);
         execution.put("historySupported", Boolean.TRUE);
         execution.put("statusOverviewSupported", Boolean.TRUE);
         execution.put("noAgentScriptSupported", Boolean.TRUE);

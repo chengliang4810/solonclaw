@@ -2680,12 +2680,18 @@ public class DefaultCronSchedulerTest {
                 .contains("Cron jobs should not recursively schedule more cron jobs");
         assertThat(paramDescription(method, "job_id")).contains("先 list 再使用");
         assertThat(paramDescription(method, "deliver")).contains("省略时自动投递回当前来源");
+        assertThat(paramDescription(method, "deliver_chat_id")).contains("投递会话 ID");
+        assertThat(paramDescription(method, "deliver_thread_id")).contains("投递线程 ID");
         assertThat(paramDescription(method, "include_disabled")).contains("默认包含");
         assertThat(paramDescription(method, "script")).contains("传空字符串清空");
         assertThat(paramDescription(method, "workdir")).contains("传空字符串清空");
         assertThat(paramDescription(method, "no_agent")).contains("必须设置 script").contains("空 stdout 静默");
         assertThat(paramDescription(method, "context_from")).contains("update 传空数组清空");
         assertThat(paramDescription(method, "enabled_toolsets")).contains("update 传空数组清空");
+        assertThat(paramDescription(method, "enabled")).contains("false 会暂停").contains("true 会恢复");
+        assertThat(paramDescription(method, "status")).contains("active").contains("paused").contains("completed");
+        assertThat(paramDescription(method, "state")).contains("status 的别名");
+        assertThat(paramDescription(method, "paused_reason")).contains("暂停原因");
     }
 
     @Test
@@ -2756,6 +2762,8 @@ public class DefaultCronSchedulerTest {
         assertThat(execution.get("manualRunSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("retryAliasSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("pauseResumeSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("stateEditSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("pausedReasonEditSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("historySupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("statusOverviewSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("scriptMustStayInRuntimeScripts")).isEqualTo(Boolean.TRUE);
