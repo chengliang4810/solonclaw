@@ -151,12 +151,12 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "recursive_delete",
                                     "recursive delete",
-                                    pattern("\\brm\\s+-(?!-)[^\\s]*r"),
+                                    pattern(SHELL_COMMAND_START + "rm\\s+-(?!-)[^\\s]*r"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "recursive_delete_long_flag",
                                     "recursive delete (long flag)",
-                                    pattern("\\brm\\s+--recursive\\b"),
+                                    pattern(SHELL_COMMAND_START + "rm\\s+--recursive\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "find_delete",
@@ -288,7 +288,7 @@ public class DangerousCommandApprovalService {
                                     "service_persistence_registration",
                                     "service persistence registration",
                                     pattern(
-                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b"),
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b|\\b(?:install|cp|mv)\\b)[^\\n]*(?:/etc/systemd/system/|/usr/lib/systemd/system/|/Library/Launch(?:Agents|Daemons)/|~/Library/LaunchAgents/)[^\\s\"'`]*\\.(?:service|timer|plist)\\b|\\bsystemctl\\s+(?:-[^\\s]+\\s+)*(?:enable|reenable|preset|preset-all|link)\\b|\\blaunchctl\\s+(?:bootstrap|load)\\b|\\bupdate-rc\\.d\\s+\\S+\\s+(?:defaults|enable)\\b|\\bchkconfig\\s+\\S+\\s+on\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "overwrite_etc",
@@ -797,7 +797,7 @@ public class DangerousCommandApprovalService {
                                     "container_secret_exposure",
                                     "container command exposes secret material",
                                     pattern(
-                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:build|buildx\\s+build|run|create)\\b(?=[^\\n]*(?:(?:--build-arg|--env|-e)(?:=|\\s+)[A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY)[A-Za-z0-9_]*\\s*=\\s*\\S+|--env-file(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*|--secret(?:=|\\s+)\\S*(?:src|source|env)\\s*=\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*|--ssh(?:=|\\s+)\\S*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]\\S*))"),
+                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:build|buildx\\s+build|run|create)\\b(?=[^\\n]*(?:(?:--build-arg|--env|-e)(?:=|\\s+)[A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY)[A-Za-z0-9_]*\\s*=\\s*\\S+|--env-file(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|--secret(?:=|\\s+)\\S*(?:src|source|env)\\s*=\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|--ssh(?:=|\\s+)\\S*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]\\S*))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kubectl_delete",
@@ -934,13 +934,6 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\bchmod\\s+\\+x\\b.*[;&|]+\\s*(?:(?:bash|sh|zsh|ksh)\\s+[^\\s;&|]+|(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "sql_drop",
-                                    "SQL DROP",
-                                    pattern("\\bDROP\\s+(TABLE|DATABASE)\\b"),
-                                    ToolNameConstants.EXECUTE_SHELL,
-                                    ToolNameConstants.EXECUTE_PYTHON,
-                                    ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "sql_delete_no_where",
                                     "SQL DELETE without WHERE",

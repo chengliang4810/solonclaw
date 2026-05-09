@@ -701,7 +701,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(kshC).isNotNull();
         assertThat(kshC.getPatternKey()).isEqualTo("shell_command_flag");
         assertThat(dropTable).isNotNull();
-        assertThat(dropTable.getPatternKey()).isEqualTo("sql_drop");
+        assertThat(dropTable.getPatternKey()).isEqualTo("sql_drop_statement");
         assertThat(deleteWithoutWhere).isNotNull();
         assertThat(deleteWithoutWhere.getPatternKey()).isEqualTo("sql_delete_no_where");
         assertThat(updateWithoutWhere).isNotNull();
@@ -760,6 +760,21 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult launchAgentWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cp com.example.agent.plist ~/Library/LaunchAgents/com.example.agent.plist");
+        DangerousCommandApprovalService.DetectionResult systemctlEnable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "systemctl enable app.service");
+        DangerousCommandApprovalService.DetectionResult launchctlBootstrap =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.example.agent.plist");
+        DangerousCommandApprovalService.DetectionResult updateRcEnable =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "update-rc.d app defaults");
+        DangerousCommandApprovalService.DetectionResult chkconfigOn =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "chkconfig app on");
+        DangerousCommandApprovalService.DetectionResult systemctlStatus =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "systemctl status app.service");
         DangerousCommandApprovalService.DetectionResult localServiceFixture =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cp app.service fixtures/app.service");
@@ -1118,6 +1133,16 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("service_persistence_registration");
         assertThat(launchAgentWrite).isNotNull();
         assertThat(launchAgentWrite.getPatternKey()).isEqualTo("service_persistence_registration");
+        assertThat(systemctlEnable).isNotNull();
+        assertThat(systemctlEnable.getPatternKey()).isEqualTo("service_persistence_registration");
+        assertThat(launchctlBootstrap).isNotNull();
+        assertThat(launchctlBootstrap.getPatternKey())
+                .isEqualTo("service_persistence_registration");
+        assertThat(updateRcEnable).isNotNull();
+        assertThat(updateRcEnable.getPatternKey()).isEqualTo("service_persistence_registration");
+        assertThat(chkconfigOn).isNotNull();
+        assertThat(chkconfigOn.getPatternKey()).isEqualTo("service_persistence_registration");
+        assertThat(systemctlStatus).isNull();
         assertThat(localServiceFixture).isNull();
         assertThat(usermodSudo).isNotNull();
         assertThat(usermodSudo.getPatternKey()).isEqualTo("local_admin_permission_change");
