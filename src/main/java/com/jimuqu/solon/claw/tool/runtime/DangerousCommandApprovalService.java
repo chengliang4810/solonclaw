@@ -329,6 +329,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "package_manager_remote_execute",
+                                    "package manager remote package execution",
+                                    pattern(
+                                            "\\b(?:npx|uvx)\\b|\\bnpm\\s+exec\\b|\\bpnpm\\s+(?:dlx|exec)\\b|\\byarn\\s+dlx\\b|\\bpipx\\s+run\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_http_header_send",
                                     "send credential through HTTP header",
                                     pattern(
@@ -416,7 +422,7 @@ public class DangerousCommandApprovalService {
                                     "stop_service",
                                     "stop/restart system service",
                                     pattern(
-                                            "\\bsystemctl\\s+(-[^\\s]+\\s+)*(stop|restart|disable|mask)\\b"),
+                                            "\\b(?:systemctl\\s+(-[^\\s]+\\s+)*(stop|restart|disable|mask)|service\\s+\\S+\\s+(?:stop|restart)|launchctl\\s+(?:bootout|unload|disable))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_all",
@@ -745,6 +751,12 @@ public class DangerousCommandApprovalService {
                                     "Windows Defender exclusion added",
                                     pattern(
                                             "\\b(?:Add-MpPreference|Set-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_stop_service",
+                                    "Windows service stopped or disabled",
+                                    pattern(
+                                            "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_export_credentials",

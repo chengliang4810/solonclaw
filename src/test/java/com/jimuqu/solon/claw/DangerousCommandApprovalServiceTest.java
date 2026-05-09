@@ -607,6 +607,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult systemctlRestart =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "systemctl --user restart Jimuqu-gateway");
+        DangerousCommandApprovalService.DetectionResult serviceStop =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "service nginx stop");
+        DangerousCommandApprovalService.DetectionResult launchctlBootout =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "launchctl bootout system/com.example.daemon");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -698,6 +704,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(safeColon).isNull();
         assertThat(systemctlRestart).isNotNull();
         assertThat(systemctlRestart.getPatternKey()).isEqualTo("stop_service");
+        assertThat(serviceStop).isNotNull();
+        assertThat(serviceStop.getPatternKey()).isEqualTo("stop_service");
+        assertThat(launchctlBootout).isNotNull();
+        assertThat(launchctlBootout.getPatternKey()).isEqualTo("stop_service");
         assertThat(killallGateway).isNotNull();
         assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(pkillUnrelated).isNull();
@@ -840,6 +850,19 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Add-MpPreference -ExclusionExtension ps1",
                 "windows_defender_exclusion");
+        assertDangerPattern(env, "sc.exe stop WinDefend", "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "sc config Spooler start= disabled",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "Stop-Service -Name WinDefend -Force",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "Set-Service -Name Spooler -StartupType Disabled",
+                "windows_stop_service");
         assertDangerPattern(
                 env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
@@ -1140,6 +1163,23 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("package_manager_secret_write");
         }
 
+        List<String> packageManagerRemoteExecutes =
+                Arrays.asList(
+                        "npx cowsay hello",
+                        "npm exec playwright install",
+                        "pnpm dlx create-vite app",
+                        "yarn dlx eslint .",
+                        "pipx run black .",
+                        "uvx ruff check .");
+        for (String command : packageManagerRemoteExecutes) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_remote_execute");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
@@ -1163,6 +1203,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config set registry https://registry.npmjs.org/"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "npm run build"))
                 .isNull();
     }
 
@@ -3952,8 +3994,14 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("cat firebase-adminsdk-prod.json");
         SecurityPolicyService.FileVerdict privatePem =
                 securityPolicyService.checkCommandPaths("openssl rsa -in private-prod.pem -check");
+        SecurityPolicyService.FileVerdict rsaSecurityKey =
+                securityPolicyService.checkCommandPaths("cat ~/.ssh/id_rsa_sk");
         SecurityPolicyService.FileVerdict kubeconfig =
                 securityPolicyService.checkCommandPaths("kubectl --kubeconfig kubeconfig get pods");
+        SecurityPolicyService.FileVerdict knownHostsOld =
+                securityPolicyService.checkCommandPaths("cat ~/.ssh/known_hosts.old");
+        SecurityPolicyService.FileVerdict knownHosts2 =
+                securityPolicyService.checkCommandPaths("cat known_hosts2");
         SecurityPolicyService.FileVerdict safe =
                 securityPolicyService.checkCommandPaths("cat config.example.yml > backup.yml");
         SecurityPolicyService.FileVerdict safeCertificate =
@@ -3978,8 +4026,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(firebaseAdmin.getPath()).isEqualTo("firebase-adminsdk-prod.json");
         assertThat(privatePem.isAllowed()).isFalse();
         assertThat(privatePem.getPath()).isEqualTo("private-prod.pem");
+        assertThat(rsaSecurityKey.isAllowed()).isFalse();
+        assertThat(rsaSecurityKey.getPath()).isEqualTo("~/.ssh/id_rsa_sk");
         assertThat(kubeconfig.isAllowed()).isFalse();
         assertThat(kubeconfig.getPath()).isEqualTo("kubeconfig");
+        assertThat(knownHostsOld.isAllowed()).isFalse();
+        assertThat(knownHostsOld.getPath()).isEqualTo("~/.ssh/known_hosts.old");
+        assertThat(knownHosts2.isAllowed()).isFalse();
+        assertThat(knownHosts2.getPath()).isEqualTo("known_hosts2");
         assertThat(safe.isAllowed()).isTrue();
         assertThat(safeCertificate.isAllowed()).isTrue();
     }
