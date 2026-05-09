@@ -381,6 +381,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:docker\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|-p\\s+\\S+|--password-stdin\\b)|gh\\s+auth\\s+login\\b[^\\n]*--with-token\\b|npm\\s+login\\b[^\\n]*(?:--password(?:=|\\s+)\\S+|--auth-type\\s+legacy)|az\\s+login\\b[^\\n]*--password(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_history_erasure",
+                                    "erase shell or credential command history",
+                                    pattern(
+                                            "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "ssh_host_key_check_disabled",
                                     "SSH host key verification disabled",
                                     pattern(

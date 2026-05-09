@@ -1372,6 +1372,38 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialHistoryErasureCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "history -c",
+                        "rm ~/.bash_history",
+                        "rm -f ~/.zsh_history",
+                        "rm ~/.mysql_history",
+                        "Clear-History",
+                        "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
+                        "Set-PSReadLineOption -HistorySaveStyle SaveNothing");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_history_erasure");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat ~/.bash_history | tail"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectSshHostKeyVerificationBypassCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
