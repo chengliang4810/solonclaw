@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.cli;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.PrintWriter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ public class ConsoleEventSink implements ConversationEventSink {
     public void onRunStarted(String sessionId) {
         sidecar("run.start", "session=" + StrUtil.blankToDefault(sessionId, "-"));
         if (verbose) {
-            line(DIM + "session=" + StrUtil.blankToDefault(sessionId, "-") + RESET);
+            line(DIM + "session=" + safeDisplay(sessionId, 120) + RESET);
         }
     }
 
@@ -59,9 +60,9 @@ public class ConsoleEventSink implements ConversationEventSink {
                             + "attempt "
                             + attemptNo
                             + ": "
-                            + StrUtil.blankToDefault(provider, "-")
+                            + safeDisplay(provider, 120)
                             + " / "
-                            + StrUtil.blankToDefault(model, "-")
+                            + safeDisplay(model, 120)
                             + RESET);
         }
     }
@@ -106,9 +107,9 @@ public class ConsoleEventSink implements ConversationEventSink {
         line(
                 YELLOW
                         + "模型切换："
-                        + StrUtil.blankToDefault(fromProvider, "-")
+                        + safeDisplay(fromProvider, 120)
                         + " -> "
-                        + StrUtil.blankToDefault(toProvider, "-")
+                        + safeDisplay(toProvider, 120)
                         + RESET);
     }
 
@@ -116,7 +117,7 @@ public class ConsoleEventSink implements ConversationEventSink {
     public void onRecoveryStarted(String runId, String recoveryType) {
         sidecar("recovery.start", StrUtil.blankToDefault(recoveryType, "-"));
         if (verbose) {
-            line(DIM + "正在恢复最终答复：" + StrUtil.blankToDefault(recoveryType, "-") + RESET);
+            line(DIM + "正在恢复最终答复：" + safeDisplay(recoveryType, 120) + RESET);
         }
     }
 
@@ -195,7 +196,7 @@ public class ConsoleEventSink implements ConversationEventSink {
     public void onRunFailed(String sessionId, Throwable error) {
         failureCount++;
         sidecar("run.failed", error == null ? "unknown" : error.getMessage());
-        line(RED + "运行失败：" + (error == null ? "unknown" : error.getMessage()) + RESET);
+        line(RED + "运行失败：" + safeDisplay(error == null ? "unknown" : error.getMessage(), 600) + RESET);
     }
 
     public boolean hasAssistantOutput() {
@@ -219,8 +220,8 @@ public class ConsoleEventSink implements ConversationEventSink {
             return "";
         }
         StringBuilder buffer = new StringBuilder();
-        String provider = StrUtil.nullToEmpty(result.getProvider()).trim();
-        String model = StrUtil.nullToEmpty(result.getModel()).trim();
+        String provider = safeDisplay(result.getProvider(), 120);
+        String model = safeDisplay(result.getModel(), 120);
         if (StrUtil.isNotBlank(provider) || StrUtil.isNotBlank(model)) {
             buffer.append("model=");
             buffer.append(StrUtil.blankToDefault(provider, "-"));
@@ -265,7 +266,7 @@ public class ConsoleEventSink implements ConversationEventSink {
     private void sidecar(String type, String summary) {
         eventCount++;
         String event = StrUtil.blankToDefault(type, "event");
-        String text = StrUtil.nullToEmpty(summary).replace('\r', ' ').replace('\n', ' ').trim();
+        String text = safeDisplay(summary, 1200);
         if (StrUtil.isNotBlank(text)) {
             event += " " + trim(text, 120);
         }
@@ -301,8 +302,13 @@ public class ConsoleEventSink implements ConversationEventSink {
     }
 
     private String detail(String value) {
-        String text = StrUtil.nullToEmpty(value).replace('\r', ' ').replace('\n', ' ').trim();
+        String text = safeDisplay(value, 1200);
         return StrUtil.isBlank(text) ? "" : " " + trim(text, 120);
+    }
+
+    private String safeDisplay(String value, int maxLength) {
+        String text = StrUtil.nullToEmpty(value).replace('\r', ' ').replace('\n', ' ').trim();
+        return SecretRedactor.redact(text, maxLength);
     }
 
     private String trim(String value, int maxLength) {

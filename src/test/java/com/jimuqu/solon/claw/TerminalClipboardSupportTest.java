@@ -103,4 +103,38 @@ public class TerminalClipboardSupportTest {
                 .contains("tool.done terminal 12ms")
                 .contains("run.done session=session");
     }
+
+    @Test
+    void shouldRedactSecretsFromTerminalEventsAndFailures() {
+        StringWriter buffer = new StringWriter();
+        ConsoleEventSink sink = new ConsoleEventSink(new PrintWriter(buffer), true);
+        LlmResult result = new LlmResult();
+        result.setProvider("provider?api_key=sk-1234567890abcdef");
+        result.setModel("model");
+
+        sink.onFallback(
+                "run-1",
+                "primary",
+                "fallback",
+                "token=sk-1234567890abcdef");
+        sink.onAttemptCompleted(
+                "run-1",
+                1,
+                "failed",
+                "api_key=sk-1234567890abcdef");
+        sink.onRunFailed("session", new IllegalStateException("bearer sk-1234567890abcdef"));
+        sink.onRunCompleted("session", "done", result);
+
+        String output = buffer.toString();
+        assertThat(output)
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .contains("provider?api_key=***")
+                .doesNotContain("sk-1234567890abcdef");
+        assertThat(sink.eventSnapshot().getRecentEvents().toString())
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .doesNotContain("sk-1234567890abcdef");
+    }
 }
