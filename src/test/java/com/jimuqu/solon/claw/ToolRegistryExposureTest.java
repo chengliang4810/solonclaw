@@ -782,6 +782,26 @@ public class ToolRegistryExposureTest {
                 .contains("session")
                 .contains("always")
                 .doesNotContain("secret-sudo");
+        ONode approvalCardPolicy =
+                policyStatus.get("policy").get("coverage").get("approvalCardPolicy");
+        assertThat(approvalCardPolicy.get("deliveryMode").getString())
+                .isEqualTo("dangerous_command_approval_card");
+        assertThat(approvalCardPolicy.get("unsupportedPlatformsReturnEmptyExtras").getBoolean())
+                .isTrue();
+        assertThat(approvalCardPolicy.get("approvalIdSelectorSupported").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("approveCommandGenerated").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("denyCommandGenerated").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("alwaysScopeCommandGenerated").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("sessionScopeCommandGenerated").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("tirithPermanentApprovalHidden").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("descriptionPreviewRedacted").getBoolean()).isTrue();
+        assertThat(String.valueOf(approvalCardPolicy))
+                .contains("FEISHU")
+                .contains("QQBOT")
+                .contains("dangerous_approve")
+                .contains("dangerous_deny")
+                .doesNotContain("secret-sudo");
         ONode approvalAuditPolicy =
                 policyStatus.get("policy").get("coverage").get("approvalAuditPolicy");
         assertThat(approvalAuditPolicy.get("requestEvents").getBoolean()).isTrue();

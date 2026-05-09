@@ -139,6 +139,7 @@ public class SecurityAuditTools {
             approvals.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
             approvals.put("tirithApprovalPolicy", approvalService.tirithApprovalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
+            approvals.put("approvalCardPolicy", approvalService.approvalCardPolicySummary());
             approvals.put("auditLogPolicy", approvalService.approvalAuditPolicySummary());
             approvals.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
         }
@@ -236,6 +237,7 @@ public class SecurityAuditTools {
             coverage.put("dangerousCommandApprovalPolicy", approvalService.approvalPolicySummary());
             coverage.put("approvalLifecyclePolicy", approvalService.approvalLifecyclePolicySummary());
             coverage.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
+            coverage.put("approvalCardPolicy", approvalService.approvalCardPolicySummary());
             coverage.put("approvalAuditPolicy", approvalService.approvalAuditPolicySummary());
             coverage.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
         }

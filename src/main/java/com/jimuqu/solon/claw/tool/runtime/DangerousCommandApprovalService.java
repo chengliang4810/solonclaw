@@ -1314,6 +1314,7 @@ public class DangerousCommandApprovalService {
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
         summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
         summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
+        summary.put("approvalCardPolicy", approvalCardPolicySummary());
         summary.put("auditLogPolicy", approvalAuditPolicySummary());
         summary.put("mcpReloadPolicy", mcpReloadPolicySummary());
         summary.put("approvalLifecyclePolicy", approvalLifecyclePolicySummary());
@@ -1468,6 +1469,32 @@ public class DangerousCommandApprovalService {
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
         summary.put("description", "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes and redacted approval metadata.");
+        return summary;
+    }
+
+    public Map<String, Object> approvalCardPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("deliveryMode", DELIVERY_MODE_APPROVAL_CARD);
+        summary.put("supportedPlatforms", Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
+        summary.put("unsupportedPlatformsReturnEmptyExtras", Boolean.TRUE);
+        summary.put("actionKey", CARD_ACTION_KEY);
+        summary.put("approveAction", CARD_ACTION_APPROVE);
+        summary.put("denyAction", CARD_ACTION_DENY);
+        summary.put("scopeKey", CARD_SCOPE_KEY);
+        summary.put("approvalIdKey", CARD_APPROVAL_ID_KEY);
+        summary.put("scopeOptions", Arrays.asList("once", "session", "always"));
+        summary.put("defaultScope", "once");
+        summary.put("approvalIdSelectorSupported", Boolean.TRUE);
+        summary.put("approveCommandGenerated", Boolean.TRUE);
+        summary.put("denyCommandGenerated", Boolean.TRUE);
+        summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
+        summary.put("sessionScopeCommandGenerated", Boolean.TRUE);
+        summary.put("tirithPermanentApprovalHidden", Boolean.TRUE);
+        summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("descriptionPreviewRedacted", Boolean.TRUE);
+        summary.put("toolNameRedacted", Boolean.TRUE);
+        summary.put("rawCommandRedactedInExtras", Boolean.TRUE);
+        summary.put("description", "Approval card extras are only emitted for supported domestic card platforms and map card actions back to /approve or /deny commands with redacted previews.");
         return summary;
     }
 

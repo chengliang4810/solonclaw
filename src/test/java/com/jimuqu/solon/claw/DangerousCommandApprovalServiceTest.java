@@ -95,6 +95,13 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/deny")
                 .contains("dangerous_command_approval_card")
                 .contains("tirithAlwaysDowngradedToSession");
+        assertThat(String.valueOf(summary.get("approvalCardPolicy")))
+                .contains("dangerous_command_approval_card")
+                .contains("dangerous_approve")
+                .contains("dangerous_deny")
+                .contains("FEISHU")
+                .contains("QQBOT")
+                .doesNotContain("secret-sudo");
         assertThat(String.valueOf(summary.get("auditLogPolicy")))
                 .contains("request")
                 .contains("response")
@@ -103,6 +110,40 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/reload-mcp")
                 .contains("toolChangeNoticeInjected");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeApprovalCardPolicySummary() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        Map<String, Object> summary =
+                env.dangerousCommandApprovalService.approvalCardPolicySummary();
+
+        assertThat(summary.get("deliveryMode")).isEqualTo("dangerous_command_approval_card");
+        assertThat(String.valueOf(summary.get("supportedPlatforms")))
+                .contains("FEISHU")
+                .contains("QQBOT");
+        assertThat(summary.get("unsupportedPlatformsReturnEmptyExtras")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("actionKey")).isEqualTo("solonclaw_action");
+        assertThat(summary.get("approveAction")).isEqualTo("dangerous_approve");
+        assertThat(summary.get("denyAction")).isEqualTo("dangerous_deny");
+        assertThat(summary.get("scopeKey")).isEqualTo("scope");
+        assertThat(summary.get("approvalIdKey")).isEqualTo("approvalId");
+        assertThat(String.valueOf(summary.get("scopeOptions")))
+                .contains("once")
+                .contains("session")
+                .contains("always");
+        assertThat(summary.get("defaultScope")).isEqualTo("once");
+        assertThat(summary.get("approvalIdSelectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approveCommandGenerated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("denyCommandGenerated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("alwaysScopeCommandGenerated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sessionScopeCommandGenerated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tirithPermanentApprovalHidden")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("descriptionPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("toolNameRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rawCommandRedactedInExtras")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
