@@ -925,6 +925,27 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("coverage")
+                                .get("mcpRuntimePolicyAuditable")
+                                .getBoolean())
+                .isTrue();
+        ONode mcpRuntimePolicy =
+                policyStatus.get("policy").get("coverage").get("mcpRuntimePolicy");
+        assertThat(mcpRuntimePolicy.get("remoteEndpointUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("remoteToolArgumentUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("remoteToolArgumentPathSafety").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("resourceUriUrlSafety").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("toolsChangeNotificationPersisted").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("oauthFailureStructuredReauth").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("recoverableTransportRetry").getBoolean()).isTrue();
+        assertThat(String.valueOf(mcpRuntimePolicy))
+                .contains("streamable_stateless")
+                .contains("file_path")
+                .contains("invalid_token")
+                .doesNotContain("secret-sudo");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
                                 .get("sudoRewritePolicy")
                                 .get("passwordRedacted")
                                 .getBoolean())

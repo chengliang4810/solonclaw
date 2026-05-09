@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
@@ -208,6 +209,7 @@ public class SecurityAuditTools {
         coverage.put("patchParserPolicy", SolonClawPatchTools.patchParserPolicySummary());
         coverage.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
         coverage.put("codeExecutionPolicy", SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig));
+        coverage.put("mcpRuntimePolicy", McpRuntimeService.policySummary(appConfig));
         if (toolResultStorageService != null) {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
         }
@@ -252,6 +254,7 @@ public class SecurityAuditTools {
         coverage.put("mcpUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));
         coverage.put("mcpToolChangeNotice", Boolean.TRUE);
+        coverage.put("mcpRuntimePolicyAuditable", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         if (tirithSecurityService != null) {
             coverage.put("tirithPolicy", tirithSecurityService.policySummary());

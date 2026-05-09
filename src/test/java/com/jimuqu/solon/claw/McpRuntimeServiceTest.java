@@ -42,6 +42,35 @@ import org.noear.solon.ai.mcp.client.McpClientProvider;
 
 public class McpRuntimeServiceTest {
     @Test
+    void shouldExposeMcpRuntimePolicySummaryWithoutSecrets() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+
+        Map<String, Object> summary = McpRuntimeService.policySummary(env.appConfig);
+
+        assertThat(summary.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("remoteEndpointUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("remoteToolArgumentUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("remoteToolArgumentPathSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("resourceUriUrlSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("resourceUriPathSafety")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("nestedUrlExtraction")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("inputSchemaSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("toolsChangeNotificationPersisted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("oauthFailureStructuredReauth")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("recoverableTransportRetry")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("remoteToolTimeoutMillisDefault")).isEqualTo(Long.valueOf(120000L));
+        assertThat(summary.get("connectTimeoutMillisDefault")).isEqualTo(Long.valueOf(60000L));
+        assertThat(summary.get("toolCallExecutorBounded")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary))
+                .contains("streamable_stateless")
+                .contains("file_path")
+                .contains("invalid_token")
+                .contains("token expired")
+                .doesNotContain("secret");
+    }
+
+    @Test
     void shouldRefreshLiveToolsAndExposePrefixedMcpProvider() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);

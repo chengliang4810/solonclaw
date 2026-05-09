@@ -51,6 +51,34 @@ public class McpRuntimeService implements Closeable {
             "{\"type\":\"object\",\"properties\":{\"uri\":{\"type\":\"string\",\"description\":\"MCP resource URI to read.\"}},\"required\":[\"uri\"],\"additionalProperties\":false}";
     private static final String GET_PROMPT_SCHEMA =
             "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"MCP prompt name to fetch.\"},\"arguments\":{\"type\":\"object\",\"description\":\"Prompt arguments.\",\"additionalProperties\":true}},\"required\":[\"name\"],\"additionalProperties\":false}";
+    private static final List<String> SUPPORTED_TRANSPORTS =
+            Collections.unmodifiableList(
+                    java.util.Arrays.asList(
+                            "stdio", "http", "streamable", "streamable_stateless", "sse"));
+    private static final List<String> AUTH_ERROR_MARKERS =
+            Collections.unmodifiableList(
+                    java.util.Arrays.asList(
+                            "oauth",
+                            "unauthorized",
+                            "401",
+                            "invalid_token",
+                            "token expired",
+                            "requires re-auth",
+                            "requires reauth"));
+    private static final List<String> PATHISH_ARGUMENT_KEYS =
+            Collections.unmodifiableList(
+                    java.util.Arrays.asList(
+                            "path",
+                            "file",
+                            "filename",
+                            "file_name",
+                            "file_path",
+                            "filepath",
+                            "dir",
+                            "dirname",
+                            "directory",
+                            "*_path",
+                            "*path"));
 
     private final AppConfig appConfig;
     private final SqliteDatabase database;
@@ -85,6 +113,45 @@ public class McpRuntimeService implements Closeable {
                         : securityPolicyService;
         this.providerFactory =
                 providerFactory == null ? new SolonAiMcpClientProviderFactory(this) : providerFactory;
+    }
+
+    public static Map<String, Object> policySummary(AppConfig appConfig) {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put(
+                "enabled",
+                Boolean.valueOf(appConfig != null && appConfig.getMcp() != null && appConfig.getMcp().isEnabled()));
+        summary.put("supportedTransports", SUPPORTED_TRANSPORTS);
+        summary.put("remoteEndpointUrlSafety", Boolean.TRUE);
+        summary.put("remoteEndpointAllowsPrivateByPolicy", Boolean.TRUE);
+        summary.put("stdioEndpointSkipped", Boolean.TRUE);
+        summary.put("remoteToolArgumentUrlSafety", Boolean.TRUE);
+        summary.put("remoteToolArgumentPathSafety", Boolean.TRUE);
+        summary.put("resourceUriUrlSafety", Boolean.TRUE);
+        summary.put("resourceUriPathSafety", Boolean.TRUE);
+        summary.put("nestedUrlExtraction", Boolean.TRUE);
+        summary.put("pathishArgumentKeys", PATHISH_ARGUMENT_KEYS);
+        summary.put("blockedUrlsMasked", Boolean.TRUE);
+        summary.put("blockedPathsRedacted", Boolean.TRUE);
+        summary.put("inputSchemaSanitized", Boolean.TRUE);
+        summary.put("toolNamesPrefixed", Boolean.TRUE);
+        summary.put("toolIncludeExcludeFilter", Boolean.TRUE);
+        summary.put("resourceUtilityToolsCapabilityGated", Boolean.TRUE);
+        summary.put("promptUtilityToolsCapabilityGated", Boolean.TRUE);
+        summary.put("blockedServersSuppressed", Boolean.TRUE);
+        summary.put("toolsChangeNotificationPersisted", Boolean.TRUE);
+        summary.put("toolChangeHashTracked", Boolean.TRUE);
+        summary.put("toolsChangeClearsProviderCache", Boolean.TRUE);
+        summary.put("oauthFailureStructuredReauth", Boolean.TRUE);
+        summary.put("oauthFailureMarkers", AUTH_ERROR_MARKERS);
+        summary.put("oauthSecretsRedacted", Boolean.TRUE);
+        summary.put("recoverableTransportRetry", Boolean.TRUE);
+        summary.put("remoteToolTimeoutMillisDefault", Long.valueOf(DEFAULT_TOOL_TIMEOUT_MILLIS));
+        summary.put("connectTimeoutMillisDefault", Long.valueOf(DEFAULT_CONNECT_TIMEOUT_MILLIS));
+        summary.put("toolCallExecutorBounded", Boolean.TRUE);
+        summary.put("toolCallExecutorMaxThreads", Integer.valueOf(4));
+        summary.put("toolCallExecutorQueueCapacity", Integer.valueOf(64));
+        summary.put("accessTokenHeaderOnlyForRemote", Boolean.TRUE);
+        return summary;
     }
 
     public List<ToolProvider> resolveEnabledToolProviders() {
