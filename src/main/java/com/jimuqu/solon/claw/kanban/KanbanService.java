@@ -434,6 +434,7 @@ public class KanbanService {
         result.put("runs", runList);
         result.put("events", eventList);
         result.put("execution_overview", drawerExecutionOverview(detail, runList, eventList));
+        result.put("pipeline_overview", drawerPipelineOverview(detail, runList, eventList));
         result.put("context", context(taskId));
         result.put("notifications", notifyList(taskId));
         result.put("log", log(taskId, logTailBytes <= 0 ? 4096 : logTailBytes));
@@ -1690,6 +1691,65 @@ public class KanbanService {
         actions.put("can_unblock", Boolean.valueOf(blocked));
         actions.put("can_edit_result", Boolean.valueOf(done));
         return actions;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> drawerPipelineOverview(
+            Map<String, Object> task, List<Map<String, Object>> runs, List<Map<String, Object>> events) {
+        Map<String, Object> overview = new LinkedHashMap<String, Object>();
+        String status = String.valueOf(task.get("status"));
+        Map<String, Object> activeRun =
+                task.get("active_run") instanceof Map<?, ?> ? (Map<String, Object>) task.get("active_run") : null;
+        Map<String, Object> latestRun =
+                task.get("latest_run") instanceof Map<?, ?> ? (Map<String, Object>) task.get("latest_run") : null;
+        Map<String, Object> lastRun = activeRun != null ? activeRun : latestRun;
+        List<?> warnings = task.get("warnings") instanceof List<?> ? (List<?>) task.get("warnings") : Collections.emptyList();
+        Map<String, Object> actions = drawerActions(task);
+
+        overview.put("workflow_template_id", task.get("workflow_template_id"));
+        overview.put("current_step_key", task.get("current_step_key"));
+        overview.put("status", status);
+        overview.put("stage", drawerStage(status, task, activeRun, warnings));
+        overview.put("assignee", task.get("assignee"));
+        overview.put("worker_id", firstNonNull(task.get("worker_id"), lastRun == null ? null : lastRun.get("worker_id")));
+        overview.put("claim_lock", task.get("claim_lock"));
+        overview.put("claim_expires_at", task.get("claim_expires_at"));
+        overview.put("attempt_count", Integer.valueOf(runs.size()));
+        overview.put("retry_count", task.get("retry_count"));
+        overview.put("event_count", Integer.valueOf(events.size()));
+        overview.put("warning_count", Integer.valueOf(warnings.size()));
+        overview.put("next_action", drawerNextAction(status, task, activeRun, warnings));
+        overview.put("active_run", drawerRunSummary(activeRun));
+        overview.put("latest_run", drawerRunSummary(latestRun));
+        overview.put("supports_history", Boolean.TRUE);
+        overview.put("supports_retry", actions.get("can_retry"));
+        overview.put("supports_reassign", actions.get("can_reassign"));
+        overview.put("supports_reclaim", actions.get("can_reclaim"));
+        overview.put("supports_unblock", actions.get("can_unblock"));
+        overview.put("supports_comment", actions.get("can_comment"));
+        overview.put("schema_task", Boolean.valueOf(!isBlankObject(task.get("workflow_template_id"))
+                || !isBlankObject(task.get("current_step_key"))
+                || (task.get("skills") instanceof List<?> && !((List<?>) task.get("skills")).isEmpty())));
+        return overview;
+    }
+
+    private Map<String, Object> drawerRunSummary(Map<String, Object> run) {
+        if (run == null) {
+            return null;
+        }
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("run_id", run.get("run_id"));
+        summary.put("step_key", run.get("step_key"));
+        summary.put("status", run.get("status"));
+        summary.put("outcome", run.get("outcome"));
+        summary.put("worker_id", run.get("worker_id"));
+        summary.put("started_at", run.get("started_at"));
+        summary.put("ended_at", run.get("ended_at"));
+        summary.put("duration_ms", run.get("duration_ms"));
+        summary.put("timed_out", run.get("timed_out"));
+        summary.put("summary", run.get("summary"));
+        summary.put("error", run.get("error"));
+        return summary;
     }
 
     @SuppressWarnings("unchecked")

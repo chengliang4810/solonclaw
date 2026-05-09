@@ -344,6 +344,22 @@ public class KanbanServiceTest {
         assertThat(String.valueOf(drawer.get("notifications"))).contains("[]");
         assertThat(String.valueOf(drawer.get("log"))).contains("exists=false");
         assertThat(String.valueOf(drawer.get("actions"))).contains("can_retry=false").contains("can_reassign=true");
+        assertThat(String.valueOf(drawer.get("pipeline_overview")))
+                .contains("status=ready")
+                .contains("stage=ready")
+                .contains("assignee=alice")
+                .contains("worker_id=worker-b")
+                .contains("attempt_count=2")
+                .contains("retry_count=1")
+                .contains("supports_history=true")
+                .contains("supports_retry=false")
+                .contains("supports_reassign=true")
+                .contains("supports_reclaim=false")
+                .contains("supports_unblock=false")
+                .contains("schema_task=false")
+                .contains("latest_run={run_id=")
+                .contains("outcome=reclaimed")
+                .contains("summary=worker timeout");
         assertThat(String.valueOf(drawer.get("execution_overview")))
                 .contains("stage=ready")
                 .contains("attempt_count=2")
@@ -354,6 +370,10 @@ public class KanbanServiceTest {
         Map<String, Object> overview = (Map<String, Object>) drawer.get("execution_overview");
         assertThat(((Number) overview.get("last_duration_ms")).longValue()).isGreaterThanOrEqualTo(0L);
         assertThat(overview.get("last_timed_out")).isEqualTo(Boolean.FALSE);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pipeline = (Map<String, Object>) drawer.get("pipeline_overview");
+        assertThat(pipeline.get("active_run")).isNull();
+        assertThat(pipeline.get("next_action")).isEqualTo("dispatch");
         assertThat(service.handleCommand("runs " + taskId, "tester"))
                 .contains("运行历史")
                 .contains("reclaimed");
