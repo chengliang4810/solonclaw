@@ -301,6 +301,8 @@ public class SolonClawShellSkillTest {
                 .isEqualTo("safehiddennext");
         assertThat(TerminalAnsiSanitizer.stripAnsi("line1\n\tline2"))
                 .isEqualTo("line1\n\tline2");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("rm -rf safe\u202Ecod.exe\u2069"))
+                .isEqualTo("rm -rf safecod.exe");
     }
 
     @Test
