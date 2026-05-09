@@ -218,6 +218,20 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}/pause", method = MethodType.POST)
     public Map<String, Object> apiPause(String id, Context context) throws Exception {
+        return apiPauseJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/disable", method = MethodType.POST)
+    public Map<String, Object> apiDisable(String id, Context context) throws Exception {
+        return apiPauseJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/stop", method = MethodType.POST)
+    public Map<String, Object> apiStop(String id, Context context) throws Exception {
+        return apiPauseJob(id, context);
+    }
+
+    private Map<String, Object> apiPauseJob(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.pause(id, body(context)));
@@ -245,6 +259,20 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}/resume", method = MethodType.POST)
     public Map<String, Object> apiResume(String id, Context context) throws Exception {
+        return apiResumeJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/enable", method = MethodType.POST)
+    public Map<String, Object> apiEnable(String id, Context context) throws Exception {
+        return apiResumeJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/start", method = MethodType.POST)
+    public Map<String, Object> apiStart(String id, Context context) throws Exception {
+        return apiResumeJob(id, context);
+    }
+
+    private Map<String, Object> apiResumeJob(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.resume(id));

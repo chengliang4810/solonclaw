@@ -1576,6 +1576,14 @@ public class DashboardControllerHttpTest {
         assertThat(pause.status).isEqualTo(200);
         assertThat(pause.body).contains("\"enabled\":false");
 
+        HttpResult enable = request("POST", "/api/jobs/" + jobId + "/enable", "{}", token);
+        assertThat(enable.status).isEqualTo(200);
+        assertThat(enable.body).contains("\"enabled\":true");
+
+        HttpResult disable = request("POST", "/api/jobs/" + jobId + "/disable", "{}", token);
+        assertThat(disable.status).isEqualTo(200);
+        assertThat(disable.body).contains("\"enabled\":false");
+
         HttpResult listDefault = request("GET", "/api/jobs", null, token);
         assertThat(listDefault.body).doesNotContain("compat-renamed");
 
@@ -1585,6 +1593,14 @@ public class DashboardControllerHttpTest {
         HttpResult resume = request("POST", "/api/jobs/" + jobId + "/resume", "{}", token);
         assertThat(resume.status).isEqualTo(200);
         assertThat(resume.body).contains("\"enabled\":true");
+
+        HttpResult stop = request("POST", "/api/jobs/" + jobId + "/stop", "{}", token);
+        assertThat(stop.status).isEqualTo(200);
+        assertThat(stop.body).contains("\"enabled\":false");
+
+        HttpResult start = request("POST", "/api/jobs/" + jobId + "/start", "{}", token);
+        assertThat(start.status).isEqualTo(200);
+        assertThat(start.body).contains("\"enabled\":true");
 
         File scriptsDir = new File(runtimeHome, "scripts");
         FileUtil.mkdir(scriptsDir);
