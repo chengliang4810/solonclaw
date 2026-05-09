@@ -227,6 +227,7 @@ public class SecurityAuditTools {
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         if (approvalService != null) {
+            coverage.put("dangerousCommandApprovalPolicy", approvalService.approvalPolicySummary());
             coverage.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
             coverage.put("approvalAuditPolicy", approvalService.approvalAuditPolicySummary());
             coverage.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
@@ -236,6 +237,9 @@ public class SecurityAuditTools {
             coverage.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
         }
         coverage.put("tirithSmartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
+        if (approvalService != null) {
+            coverage.put("tirithApprovalPolicy", approvalService.tirithApprovalPolicySummary());
+        }
         coverage.put("cronApprovalPolicy", Boolean.TRUE);
         if (approvalService != null) {
             coverage.put("cronApprovalPolicyDetails", approvalService.cronApprovalPolicySummary());

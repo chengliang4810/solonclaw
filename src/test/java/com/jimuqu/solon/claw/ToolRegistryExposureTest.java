@@ -734,6 +734,21 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
                 .isTrue();
+        ONode dangerousCommandApprovalPolicy =
+                policyStatus.get("policy").get("coverage").get("dangerousCommandApprovalPolicy");
+        assertThat(dangerousCommandApprovalPolicy.get("dangerousRuleCount").getInt())
+                .isGreaterThan(0);
+        assertThat(dangerousCommandApprovalPolicy.get("hardlineRuleCount").getInt())
+                .isGreaterThan(0);
+        assertThat(dangerousCommandApprovalPolicy.get("backgroundProcessGuard").getBoolean())
+                .isTrue();
+        assertThat(dangerousCommandApprovalPolicy.get("approvalTimeoutSeconds").getInt())
+                .isGreaterThan(0);
+        assertThat(String.valueOf(dangerousCommandApprovalPolicy))
+                .contains("rm")
+                .contains("hardlinePolicy")
+                .contains("slashConfirmPolicy")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("slashApprovalConfirm").getBoolean())
                 .isTrue();
         ONode slashConfirmPolicy =
@@ -776,6 +791,13 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("tirithSmartApproval").getBoolean())
                 .isTrue();
+        ONode tirithApprovalPolicy =
+                policyStatus.get("policy").get("coverage").get("tirithApprovalPolicy");
+        assertThat(tirithApprovalPolicy.get("scanRunsInApprovalMode").getBoolean()).isTrue();
+        assertThat(tirithApprovalPolicy.get("combinedWithLocalDangerRules").getBoolean()).isTrue();
+        assertThat(tirithApprovalPolicy.get("permanentApprovalAllowed").getBoolean()).isFalse();
+        assertThat(tirithApprovalPolicy.get("alwaysScopeDowngradedToSession").getBoolean()).isTrue();
+        assertThat(tirithApprovalPolicy.get("descriptionRedacted").getBoolean()).isTrue();
         assertThat(
                         policyStatus
                                 .get("policy")
