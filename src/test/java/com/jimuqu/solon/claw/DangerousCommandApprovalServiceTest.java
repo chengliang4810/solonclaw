@@ -577,6 +577,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult nftFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "nft flush ruleset");
+        DangerousCommandApprovalService.DetectionResult pfctlDisable =
+                env.dangerousCommandApprovalService.detect("execute_shell", "pfctl -d");
+        DangerousCommandApprovalService.DetectionResult pfctlFlush =
+                env.dangerousCommandApprovalService.detect("execute_shell", "pfctl -F all");
+        DangerousCommandApprovalService.DetectionResult pfctlStatus =
+                env.dangerousCommandApprovalService.detect("execute_shell", "pfctl -s info");
         DangerousCommandApprovalService.DetectionResult setenforce =
                 env.dangerousCommandApprovalService.detect("execute_shell", "setenforce 0");
         DangerousCommandApprovalService.DetectionResult selinuxConfigDisable =
@@ -650,6 +656,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(iptablesPolicyAccept.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(nftFlush).isNotNull();
         assertThat(nftFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(pfctlDisable).isNotNull();
+        assertThat(pfctlDisable.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(pfctlFlush).isNotNull();
+        assertThat(pfctlFlush.getPatternKey()).isEqualTo("linux_disable_firewall");
+        assertThat(pfctlStatus).isNull();
         assertThat(setenforce).isNotNull();
         assertThat(setenforce.getPatternKey()).isEqualTo("linux_disable_mac_policy");
         assertThat(selinuxConfigDisable).isNotNull();

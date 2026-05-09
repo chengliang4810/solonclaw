@@ -655,7 +655,7 @@ public class DangerousCommandApprovalService {
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(
-                                            "\\b(?:ufw\\s+(?:disable|reset)|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|iptables\\s+-P\\s+(?:INPUT|FORWARD|OUTPUT)\\s+ACCEPT\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b)"),
+                                            "\\b(?:ufw\\s+(?:disable|reset)|firewall-cmd\\s+--panic-off|systemctl\\s+[^\\n]*(?:stop|disable|mask)\\s+(?:firewalld|ufw)\\b|iptables\\s+-(?:F|X)\\b|iptables\\s+-P\\s+(?:INPUT|FORWARD|OUTPUT)\\s+ACCEPT\\b|nft\\s+(?:flush\\s+ruleset|delete\\s+table)\\b|pfctl\\s+(?:-d\\b|-F\\s+(?:all|rules|nat|states)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_mac_policy",
