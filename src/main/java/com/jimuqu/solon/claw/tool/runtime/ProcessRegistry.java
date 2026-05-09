@@ -923,8 +923,8 @@ public class ProcessRegistry {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("session_id", id);
             map.put("id", id);
-            map.put("command", command);
-            map.put("cwd", cwd);
+            map.put("command", SecretRedactor.redact(command));
+            map.put("cwd", SecretRedactor.redact(cwd));
             map.put("pid", pid);
             map.put("started_at", Long.valueOf(startedAt));
             map.put("started_at_iso", isoLocal(startedAt));
@@ -939,50 +939,28 @@ public class ProcessRegistry {
             }
             map.put("notify_on_complete", Boolean.valueOf(notifyOnComplete));
             if (!watchPatterns.isEmpty()) {
-                map.put("watch_patterns", new ArrayList<String>(watchPatterns));
+                map.put("watch_patterns", redactedStringList(watchPatterns));
             }
             map.put("watch_hits", Integer.valueOf(watchHits));
             map.put("watch_suppressed", Integer.valueOf(watchSuppressed));
             map.put("watch_disabled", Boolean.valueOf(watchDisabled));
-            map.put("output", getOutput());
-            map.put("output_preview", outputPreview(200));
+            map.put("output", SecretRedactor.redact(getOutput()));
+            map.put("output_preview", SecretRedactor.redact(outputPreview(200)));
             map.put("truncated", Boolean.valueOf(truncated));
             map.put("stdin_closed", Boolean.valueOf(isStdinClosed()));
             return map;
         }
 
         public Map<String, Object> toRedactedMap() {
-            Map<String, Object> map = toMap();
-            redactMapText(map, "command");
-            redactMapText(map, "cwd");
-            redactMapText(map, "output");
-            redactMapText(map, "output_preview");
-            redactMapStringList(map, "watch_patterns");
-            return map;
+            return toMap();
         }
 
-        private void redactMapText(Map<String, Object> map, String key) {
-            Object value = map.get(key);
-            if (value instanceof String) {
-                map.put(key, SecretRedactor.redact((String) value));
-            }
-        }
-
-        @SuppressWarnings("unchecked")
-        private void redactMapStringList(Map<String, Object> map, String key) {
-            Object value = map.get(key);
-            if (!(value instanceof List)) {
-                return;
-            }
+        private List<Object> redactedStringList(List<String> values) {
             List<Object> redacted = new ArrayList<Object>();
-            for (Object item : (List<Object>) value) {
-                if (item instanceof String) {
-                    redacted.add(SecretRedactor.redact((String) item));
-                } else {
-                    redacted.add(item);
-                }
+            for (String item : values) {
+                redacted.add(SecretRedactor.redact(item));
             }
-            map.put(key, redacted);
+            return redacted;
         }
 
         public String getId() {
