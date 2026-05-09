@@ -323,6 +323,11 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("nohup")
                 .contains("disown")
                 .contains("setsid");
+        assertThat(String.valueOf(summary.get("detachedSessionLaunchersBlocked")))
+                .contains("tmux")
+                .contains("screen")
+                .contains("systemd-run")
+                .contains("start /B");
         assertThat(String.valueOf(summary.get("powershellBackgroundCommandsBlocked")))
                 .contains("Start-Process")
                 .contains("Start-Job")
@@ -4124,6 +4129,18 @@ public class DangerousCommandApprovalServiceTest {
         String startThreadJob =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-ThreadJob -ScriptBlock { npm run dev }");
+        String tmux =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "tmux new-session -d -s app 'npm run dev'");
+        String screen =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "screen -dmS app npm run dev");
+        String systemdRun =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "systemd-run --user npm run dev");
+        String cmdStart =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "cmd /c start \"app\" /B npm run dev");
         String server =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "python -m http.server 8000");
@@ -4136,6 +4153,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
         assertThat(startJob).contains("PowerShell").contains("Start-Job");
         assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
+        assertThat(tmux).contains("脱离当前终端").contains("tmux");
+        assertThat(screen).contains("脱离当前终端").contains("screen");
+        assertThat(systemdRun).contains("脱离当前终端").contains("systemd-run");
+        assertThat(cmdStart).contains("脱离当前终端").contains("start /B");
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
     }
