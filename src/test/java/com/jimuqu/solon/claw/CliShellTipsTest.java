@@ -18,8 +18,9 @@ public class CliShellTipsTest {
     void shouldHandleTipsLocallyAndExposeCompletion() throws Exception {
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
 
-        assertThat(commandList()).contains("/tips");
+        assertThat(commandList()).contains("/tips", "/skin");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
+        assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
 
         StringWriter buffer = new StringWriter();
         PrintWriter writer = new PrintWriter(buffer);
@@ -27,6 +28,11 @@ public class CliShellTipsTest {
 
         assertThat(exitCode).isEqualTo(0);
         assertThat(buffer.toString()).contains("终端提示").contains("/queue").contains("/steer");
+
+        StringWriter skinBuffer = new StringWriter();
+        int skinExitCode = sendOnce(shell, new PrintWriter(skinBuffer), "/skin mono");
+        assertThat(skinExitCode).isEqualTo(0);
+        assertThat(skinBuffer.toString()).contains("当前皮肤：mono").contains("/skin <名称>");
     }
 
     @Test

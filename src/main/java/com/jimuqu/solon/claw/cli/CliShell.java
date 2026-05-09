@@ -23,7 +23,7 @@ public class CliShell {
                 "/title", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
                 "/cron", "/approve", "/kanban", "/deny", "/restart", "/stop", "/compress",
                 "/rollback", "/version", "/platforms", "/models", "/sessions", "/session",
-                "/history", "/events", "/tasks", "/attachments", "/transcript", "/tips", "/copy", "/exit", "/quit",
+                "/history", "/events", "/tasks", "/attachments", "/transcript", "/tips", "/skin", "/copy", "/exit", "/quit",
                 "/exit!", "/quit!"
             };
 
@@ -35,6 +35,7 @@ public class CliShell {
     private final TerminalHistoryViewer historyViewer;
     private final LocalTerminalTranscript transcript = new LocalTerminalTranscript();
     private ConsoleEventSink.EventSnapshot lastEventSnapshot;
+    private TerminalSkin skin = TerminalSkin.fromEnvironment();
 
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
         this(cliRuntime, mode, null, null, null);
@@ -160,6 +161,7 @@ public class CliShell {
                 || "/copy".equalsIgnoreCase(value)
                 || "/events".equalsIgnoreCase(value)
                 || TerminalTips.isTipsCommand(value)
+                || TerminalSkin.isSkinCommand(value)
                 || "/tasks".equalsIgnoreCase(value)
                 || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
@@ -219,6 +221,15 @@ public class CliShell {
         }
         if (TerminalTips.isTipsCommand(trimmed)) {
             writer.println(TerminalTips.render());
+            writer.flush();
+            return 0;
+        }
+        if (TerminalSkin.isSkinCommand(trimmed)) {
+            String next = trimmed.length() <= "/skin".length() ? "" : trimmed.substring("/skin".length()).trim();
+            if (StrUtil.isNotBlank(next)) {
+                skin = TerminalSkin.resolve(next);
+            }
+            writer.println(skin.renderHelp());
             writer.flush();
             return 0;
         }
