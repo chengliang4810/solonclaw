@@ -1259,6 +1259,34 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectGitTlsCertificateVerificationBypassCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "GIT_SSL_NO_VERIFY=true git clone https://example.com/repo.git",
+                        "GIT_SSL_NO_VERIFY=1 git fetch origin",
+                        "git -c http.sslVerify=false clone https://example.com/repo.git",
+                        "git config http.sslVerify false",
+                        "git config --global http.sslVerify false");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("git_tls_certificate_check_disabled");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git -c http.sslVerify=true fetch origin"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "git status"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
