@@ -1913,6 +1913,19 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult sshWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo key >> ~/.ssh/authorized_keys");
+        DangerousCommandApprovalService.DetectionResult hostsRedirect =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '127.0.0.1 example.com' >> /etc/hosts");
+        DangerousCommandApprovalService.DetectionResult hostsTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf '127.0.0.1 api.example.com' | tee -a /private/etc/hosts");
+        DangerousCommandApprovalService.DetectionResult windowsHostsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "Add-Content $env:windir\\System32\\drivers\\etc\\hosts '127.0.0.1 login.example.com'");
+        DangerousCommandApprovalService.DetectionResult projectHostsWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '127.0.0.1 local.test' > fixtures/hosts");
         DangerousCommandApprovalService.DetectionResult shellRc =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "printf 'x' | tee ~/.bashrc");
@@ -1994,6 +2007,13 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
+        assertThat(hostsRedirect).isNotNull();
+        assertThat(hostsRedirect.getPatternKey()).isEqualTo("hosts_file_tampering");
+        assertThat(hostsTee).isNotNull();
+        assertThat(hostsTee.getPatternKey()).isEqualTo("hosts_file_tampering");
+        assertThat(windowsHostsWrite).isNotNull();
+        assertThat(windowsHostsWrite.getPatternKey()).isEqualTo("hosts_file_tampering");
+        assertThat(projectHostsWrite).isNull();
         assertThat(shellRc).isNotNull();
         assertThat(shellRc.getPatternKey()).isEqualTo("shell_profile_persistence_injection");
         assertThat(shellProfileRedirect).isNotNull();

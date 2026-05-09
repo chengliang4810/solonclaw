@@ -225,6 +225,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bdd\\s+.*if="),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "hosts_file_tampering",
+                                    "hosts file tampering",
+                                    pattern(
+                                            "(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:/etc/hosts\\b|/private/etc/hosts\\b|[A-Za-z]:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\\b|\\$env:windir\\\\System32\\\\drivers\\\\etc\\\\hosts\\b|%windir%\\\\System32\\\\drivers\\\\etc\\\\hosts\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),
