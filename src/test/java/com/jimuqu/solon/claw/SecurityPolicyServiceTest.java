@@ -643,7 +643,11 @@ public class SecurityPolicyServiceTest {
         assertWriteDenied(policy, home + "/.kube/config");
         assertWriteDenied(policy, home + "/.netrc");
         assertWriteDenied(policy, home + "/.npmrc");
+        assertWriteDenied(policy, home + "/.curlrc");
+        assertWriteDenied(policy, home + "/.wgetrc");
         assertWriteDenied(policy, home + "/.pypirc");
+        assertWriteDenied(policy, home + "/.m2/settings.xml");
+        assertWriteDenied(policy, home + "/.gem/credentials");
         assertWriteDenied(policy, home + "/.pgpass");
         assertWriteDenied(policy, home + "/.bashrc");
         assertWriteDenied(policy, home + "/.zshrc");
@@ -689,6 +693,10 @@ public class SecurityPolicyServiceTest {
         assertCommandPathDenied(policy, "cat secrets/token.json", "secrets/token.json");
         assertCommandPathDenied(policy, "cat keys/private-api-key.pem", "keys/private-api-key.pem");
         assertCommandPathDenied(policy, "Get-Content .\\config\\.npmrc", ".\\config\\.npmrc");
+        assertCommandPathDenied(policy, "cat ~/.curlrc", "~/.curlrc");
+        assertCommandPathDenied(policy, "cat .config/pip/pip.conf", ".config/pip/pip.conf");
+        assertCommandPathDenied(policy, "cat .m2/settings.xml", ".m2/settings.xml");
+        assertCommandPathDenied(policy, "cat .gem/credentials", ".gem/credentials");
 
         assertThat(policy.checkCommandPaths("cat .env.example").isAllowed()).isTrue();
         assertThat(policy.checkCommandPaths("cat docs/.env.example").isAllowed()).isTrue();
