@@ -52,8 +52,12 @@ public class SecurityPolicyService {
                     ".claude",
                     ".codex",
                     ".qwen",
+                    ".gemini",
+                    ".cargo",
+                    ".terraform.d",
                     ".config/gh",
                     ".config/gcloud",
+                    ".config/gemini",
                     ".config/pip",
                     ".m2",
                     ".gem",
@@ -92,6 +96,8 @@ public class SecurityPolicyService {
                     "service-account-key.json",
                     "google-credentials.json",
                     "token.json",
+                    "credentials.toml",
+                    "credentials.tfrc.json",
                     "authorized_keys",
                     "hosts.yml",
                     "kubeconfig",
@@ -125,7 +131,11 @@ public class SecurityPolicyService {
                     ".claude/.credentials.json",
                     ".codex/auth.json",
                     ".qwen/oauth_creds.json",
-                    ".config/gcloud/application_default_credentials.json");
+                    ".gemini/oauth_creds.json",
+                    ".config/gemini/oauth_creds.json",
+                    ".config/gcloud/application_default_credentials.json",
+                    ".cargo/credentials.toml",
+                    ".terraform.d/credentials.tfrc.json");
     private static final List<String> WRITE_DENIED_EXACT_PATHS =
             Arrays.asList(
                     "/etc/sudoers",
@@ -174,11 +184,11 @@ public class SecurityPolicyService {
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.codex|\\.qwen|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|pip))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.codex|\\.qwen|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
             Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:(?:\\.{1,2}|~|\\$[A-Za-z_][A-Za-z0-9_]*|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|[A-Za-z0-9_.@=,+-]+)[/\\\\])*(?:(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:\\.envrc)|(?:credentials(?:\\.json)?)|(?:auth\\.json)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.yarnrc)|(?:\\.pnpmrc)|(?:\\.curlrc)|(?:\\.wgetrc)|(?:\\.pypirc)|(?:pip\\.conf)|(?:settings\\.xml)|(?:nuget\\.config)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:client_secrets?\\.json)|(?:application_default_credentials\\.json)|(?:service[_-]account(?:[_-]key)?\\.json)|(?:google-credentials\\.json)|(?:firebase-adminsdk[A-Za-z0-9_.-]*\\.json)|(?:token\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:known_hosts(?:\\.old|2)?)|(?:kubeconfig)|(?:id_(?:dsa|ecdsa(?:_sk)?|rsa(?:_sk)?|ed25519(?:_sk)?))|(?:(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))))(?![A-Za-z0-9_./\\\\-])",
+                    "(?<![A-Za-z0-9_./\\\\-])((?:(?:\\.{1,2}|~|\\$[A-Za-z_][A-Za-z0-9_]*|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|[A-Za-z0-9_.@=,+-]+)[/\\\\])*(?:(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:\\.envrc)|(?:credentials(?:\\.(?:json|toml|tfrc\\.json))?)|(?:auth\\.json)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.yarnrc)|(?:\\.pnpmrc)|(?:\\.curlrc)|(?:\\.wgetrc)|(?:\\.pypirc)|(?:pip\\.conf)|(?:settings\\.xml)|(?:nuget\\.config)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:client_secrets?\\.json)|(?:application_default_credentials\\.json)|(?:service[_-]account(?:[_-]key)?\\.json)|(?:google-credentials\\.json)|(?:firebase-adminsdk[A-Za-z0-9_.-]*\\.json)|(?:token\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:known_hosts(?:\\.old|2)?)|(?:kubeconfig)|(?:id_(?:dsa|ecdsa(?:_sk)?|rsa(?:_sk)?|ed25519(?:_sk)?))|(?:(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))))(?![A-Za-z0-9_./\\\\-])",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern WORKDIR_SAFE_PATTERN =
             Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");

@@ -3024,7 +3024,10 @@ public class DangerousCommandApprovalServiceTest {
                         "chmod o+rw %USERPROFILE%\\.docker\\config.json",
                         "chmod 666 ~/.curlrc",
                         "chmod o+r .m2/settings.xml",
-                        "chmod a+rw .config/pip/pip.conf");
+                        "chmod a+rw .config/pip/pip.conf",
+                        "chmod 666 ~/.gemini/oauth_creds.json",
+                        "chmod o+r ~/.cargo/credentials.toml",
+                        "chmod a+rw ~/.terraform.d/credentials.tfrc.json");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -3051,7 +3054,10 @@ public class DangerousCommandApprovalServiceTest {
                         "chgrp developers ~/.aws/credentials",
                         "takeown /f %USERPROFILE%\\.ssh\\id_ed25519",
                         "icacls %USERPROFILE%\\.docker\\config.json /grant Everyone:F",
-                        "icacls .npmrc /grant Users:R");
+                        "icacls .npmrc /grant Users:R",
+                        "chown app ~/.gemini/oauth_creds.json",
+                        "icacls %USERPROFILE%\\.cargo\\credentials.toml /grant Users:R",
+                        "chgrp developers ~/.terraform.d/credentials.tfrc.json");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4878,6 +4884,10 @@ public class DangerousCommandApprovalServiceTest {
         assertFileReadDenied(securityPolicyService, "~/.Jimuqu/.anthropic_oauth.json");
         assertFileReadDenied(securityPolicyService, "~/.codex/auth.json");
         assertFileReadDenied(securityPolicyService, "~/.qwen/oauth_creds.json");
+        assertFileReadDenied(securityPolicyService, "~/.gemini/oauth_creds.json");
+        assertFileReadDenied(securityPolicyService, "$HOME/.config/gemini/oauth_creds.json");
+        assertFileReadDenied(securityPolicyService, "$HOME/.cargo/credentials.toml");
+        assertFileReadDenied(securityPolicyService, "$HOME/.terraform.d/credentials.tfrc.json");
         assertFileReadDenied(securityPolicyService, "~/.git-credentials");
         assertFileReadDenied(securityPolicyService, "~/.bashrc");
         assertFileReadDenied(securityPolicyService, "$HOME/.zshrc");
@@ -5391,6 +5401,16 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("type ~/.codex/auth.json");
         SecurityPolicyService.FileVerdict qwen =
                 securityPolicyService.checkCommandPaths("Get-Content ~/.qwen/oauth_creds.json");
+        SecurityPolicyService.FileVerdict geminiHome =
+                securityPolicyService.checkCommandPaths("cat ~/.gemini/oauth_creds.json");
+        SecurityPolicyService.FileVerdict geminiConfig =
+                securityPolicyService.checkCommandPaths(
+                        "cat ~/.config/gemini/oauth_creds.json");
+        SecurityPolicyService.FileVerdict cargo =
+                securityPolicyService.checkCommandPaths("cat ~/.cargo/credentials.toml");
+        SecurityPolicyService.FileVerdict terraform =
+                securityPolicyService.checkCommandPaths(
+                        "cat ~/.terraform.d/credentials.tfrc.json");
         SecurityPolicyService.FileVerdict gcloud =
                 securityPolicyService.checkCommandPaths(
                         "cat ~/.config/gcloud/application_default_credentials.json");
@@ -5407,6 +5427,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(codex.getPath()).isEqualTo("~/.codex/auth.json");
         assertThat(qwen.isAllowed()).isFalse();
         assertThat(qwen.getPath()).isEqualTo("~/.qwen/oauth_creds.json");
+        assertThat(geminiHome.isAllowed()).isFalse();
+        assertThat(geminiHome.getPath()).isEqualTo("~/.gemini/oauth_creds.json");
+        assertThat(geminiConfig.isAllowed()).isFalse();
+        assertThat(geminiConfig.getPath()).isEqualTo("~/.config/gemini/oauth_creds.json");
+        assertThat(cargo.isAllowed()).isFalse();
+        assertThat(cargo.getPath()).isEqualTo("~/.cargo/credentials.toml");
+        assertThat(terraform.isAllowed()).isFalse();
+        assertThat(terraform.getPath()).isEqualTo("~/.terraform.d/credentials.tfrc.json");
         assertThat(gcloud.isAllowed()).isFalse();
         assertThat(gcloud.getPath())
                 .isEqualTo("~/.config/gcloud/application_default_credentials.json");
