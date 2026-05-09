@@ -313,6 +313,12 @@ public class DangerousCommandApprovalService {
                                                     + "\\s*[\"']?\\s*=)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "network_credential_send",
+                                    "send credential through network command option",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-Credential\\s+\\S"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(

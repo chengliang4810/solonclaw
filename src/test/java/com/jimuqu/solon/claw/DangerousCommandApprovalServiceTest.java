@@ -710,6 +710,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectNetworkCredentialOptionDisclosureCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "curl -u user:password https://example.com/private",
+                        "curl --user user:password https://example.com/private",
+                        "wget --user user --password password https://example.com/private",
+                        "wget --http-password=password https://example.com/private",
+                        "curl --cookie session=a https://example.com/private",
+                        "curl -b session=a https://example.com/private",
+                        "iwr https://example.com/private -Credential $cred");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("network_credential_send");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl --compressed https://example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "wget --user-agent test https://example.com"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectSensitiveClipboardExportCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
