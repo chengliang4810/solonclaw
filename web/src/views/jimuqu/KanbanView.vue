@@ -8,6 +8,7 @@ import {
   dispatchKanban,
   fetchKanbanBoardsWithArchived,
   fetchKanbanDaemon,
+  fetchKanbanGuide,
   fetchKanbanTaskDrawer,
   fetchKanbanTasks,
   kanbanStatuses,
@@ -25,6 +26,7 @@ import {
   type KanbanBoard,
   type KanbanDaemonStatus,
   type KanbanEvent,
+  type KanbanGuide,
   type KanbanNotification,
   type KanbanPipelineOverview,
   type KanbanRun,
@@ -51,6 +53,8 @@ const stepForm = ref({ workflow_template_id: '', step_key: '', note: '' })
 const dispatching = ref(false)
 const daemonBusy = ref(false)
 const daemon = ref<KanbanDaemonStatus | null>(null)
+const guide = ref<KanbanGuide | null>(null)
+const showGuide = ref(false)
 const daemonInterval = ref(60)
 const daemonMaxSpawn = ref(3)
 const tenantFilter = ref<string | null>('')
@@ -150,6 +154,7 @@ async function loadKanban() {
     activeBoard.value = boards.value.find(board => board.current)?.slug || boards.value[0]?.slug || ''
     tasks.value = await fetchKanbanTasks(taskQuery())
     daemon.value = await fetchKanbanDaemon()
+    guide.value = activeBoard.value ? await fetchKanbanGuide(activeBoard.value) : null
   } finally {
     loading.value = false
   }
@@ -165,6 +170,7 @@ async function reloadTasks() {
   }
   tasks.value = activeBoard.value ? await fetchKanbanTasks(taskQuery()) : []
   daemon.value = await fetchKanbanDaemon()
+  guide.value = activeBoard.value ? await fetchKanbanGuide(activeBoard.value) : null
 }
 
 function taskQuery() {
@@ -627,6 +633,14 @@ function pipelineSupportText(pipeline?: KanbanPipelineOverview | null): string {
   return items.length ? items.join(' / ') : '无可用动作'
 }
 
+function guideStatusFlowText(value?: KanbanStatus[]): string {
+  return (value || []).map(status => statusLabels[status] || status).join(' -> ')
+}
+
+function guideActionText(value?: string[]): string {
+  return (value || []).join(' / ')
+}
+
 function notificationSummary(notification: KanbanNotification): string {
   const thread = notification.thread_id ? ` / ${notification.thread_id}` : ''
   return `${notification.platform} / ${notification.chat_id}${thread}`
@@ -798,6 +812,49 @@ function hasWarnings(task: KanbanTask): boolean {
         <NButton type="primary" size="small" @click="openCreateTask">新建任务</NButton>
       </div>
     </header>
+
+    <section v-if="guide" class="guide-panel" :class="{ expanded: showGuide }">
+      <div class="guide-summary">
+        <div>
+          <div class="guide-title">看板流程指南</div>
+          <div class="guide-objective">{{ guide.objective }}</div>
+        </div>
+        <div class="guide-meta">
+          <span>{{ guide.board?.slug || activeBoard }}</span>
+          <span>任务 {{ guide.stats?.total || 0 }}</span>
+          <span>{{ guideStatusFlowText(guide.status_flow) }}</span>
+        </div>
+        <NButton size="small" quaternary @click="showGuide = !showGuide">
+          {{ showGuide ? '收起指南' : '展开指南' }}
+        </NButton>
+      </div>
+      <div v-if="showGuide" class="guide-body">
+        <div class="guide-steps">
+          <div v-for="step in guide.steps" :key="step.order" class="guide-step">
+            <span class="guide-step-order">{{ step.order }}</span>
+            <div>
+              <strong>{{ step.title }}</strong>
+              <p>{{ step.description }}</p>
+              <code>{{ step.commands.join('  |  ') }}</code>
+            </div>
+          </div>
+        </div>
+        <div class="guide-actions">
+          <div>
+            <span>抽屉区块</span>
+            <strong>{{ guideActionText(guide.drawer_sections) }}</strong>
+          </div>
+          <div>
+            <span>恢复动作</span>
+            <strong>{{ guideActionText(guide.recovery_actions) }}</strong>
+          </div>
+          <div>
+            <span>自动化动作</span>
+            <strong>{{ guideActionText(guide.automation_actions) }}</strong>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <NSpin :show="loading">
       <div class="kanban-board">
@@ -1270,8 +1327,145 @@ function hasWarnings(task: KanbanTask): boolean {
   width: 180px;
 }
 
+.guide-panel {
+  border-top: 1px solid $border-color;
+  border-bottom: 1px solid $border-color;
+  padding: 10px 16px;
+  background: $bg-card;
+}
+
+.guide-summary {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, auto) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.guide-title {
+  color: $text-primary;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.guide-objective {
+  margin-top: 3px;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.guide-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+
+  span {
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    padding: 3px 6px;
+    color: $text-muted;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+}
+
+.guide-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.6fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.guide-step {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 8px;
+  background: $bg-card-hover;
+
+  strong,
+  p,
+  code {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+  }
+
+  p {
+    margin: 4px 0 6px;
+    color: $text-secondary;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  code {
+    color: $text-muted;
+    font-family: $font-code;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
+
+.guide-step-order {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid $border-color;
+  border-radius: 50%;
+  color: $text-secondary;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.guide-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  div {
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    padding: 8px;
+    background: $bg-card-hover;
+  }
+
+  span,
+  strong {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  strong {
+    color: $text-secondary;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+}
+
 .kanban-board {
-  height: calc(100 * var(--vh) - 84px);
+  height: calc(100 * var(--vh) - 141px);
   display: grid;
   grid-template-columns: repeat(6, minmax(210px, 1fr));
   gap: 12px;
@@ -1877,6 +2071,16 @@ function hasWarnings(task: KanbanTask): boolean {
     width: 100%;
   }
 
+  .guide-summary,
+  .guide-body,
+  .guide-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-meta {
+    justify-content: flex-start;
+  }
+
   .daemon-status,
   .daemon-number {
     width: 100%;
@@ -1884,7 +2088,7 @@ function hasWarnings(task: KanbanTask): boolean {
 
   .kanban-board {
     grid-template-columns: repeat(6, 240px);
-    height: calc(100 * var(--vh) - 132px);
+    height: calc(100 * var(--vh) - 214px);
   }
 
   .form-grid {

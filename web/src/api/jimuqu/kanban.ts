@@ -256,6 +256,29 @@ export interface KanbanDaemonStatus {
   stopping?: boolean
 }
 
+export interface KanbanGuideStep {
+  order: number
+  title: string
+  description: string
+  commands: string[]
+}
+
+export interface KanbanGuide {
+  board: KanbanBoard
+  status_flow: KanbanStatus[]
+  objective: string
+  steps: KanbanGuideStep[]
+  drawer_sections: string[]
+  recovery_actions: string[]
+  automation_actions: string[]
+  stats: {
+    by_status?: Record<string, number>
+    by_assignee?: Record<string, Record<string, number>>
+    oldest_ready_age_seconds?: number | null
+    total?: number
+  }
+}
+
 export async function fetchKanbanBoards(): Promise<KanbanBoard[]> {
   return request<KanbanBoard[]>('/api/kanban/boards')
 }
@@ -313,6 +336,13 @@ export async function fetchKanbanTasks(query: string | KanbanTaskQuery = ''): Pr
   }
   const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<KanbanTask[]>(`/api/kanban/tasks${suffix}`)
+}
+
+export async function fetchKanbanGuide(board?: string): Promise<KanbanGuide> {
+  const params = new URLSearchParams()
+  if (board) params.set('board', board)
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return request<KanbanGuide>(`/api/kanban/guide${suffix}`)
 }
 
 export async function fetchKanbanTask(taskId: string): Promise<KanbanTask> {
