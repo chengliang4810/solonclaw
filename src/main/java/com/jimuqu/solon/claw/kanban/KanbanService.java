@@ -535,6 +535,25 @@ public class KanbanService {
                 "heartbeat",
                 "release-stale",
                 "reclaim-timeouts"));
+        result.put("history_actions", Arrays.asList(
+                "drawer",
+                "inspect",
+                "runs",
+                "history",
+                "events",
+                "tail",
+                "context",
+                "log"));
+        result.put("notification_actions", Arrays.asList(
+                "watch",
+                "notify-subscribe",
+                "notify-list",
+                "notify-unsubscribe"));
+        result.put("maintenance_actions", Arrays.asList(
+                "diagnostics",
+                "stats",
+                "assignees",
+                "gc"));
         result.put("stats", stats);
         return result;
     }
@@ -2209,6 +2228,9 @@ public class KanbanService {
         buffer.append("\n抽屉区块：").append(guide.get("drawer_sections"));
         buffer.append("\n恢复动作：").append(guide.get("recovery_actions"));
         buffer.append("\n自动化动作：").append(guide.get("automation_actions"));
+        buffer.append("\n历史与抽屉动作：").append(guide.get("history_actions"));
+        buffer.append("\n通知动作：").append(guide.get("notification_actions"));
+        buffer.append("\n维护动作：").append(guide.get("maintenance_actions"));
         return buffer.toString();
     }
 
