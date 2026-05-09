@@ -3998,6 +3998,10 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("cat ~/.ssh/id_rsa_sk");
         SecurityPolicyService.FileVerdict kubeconfig =
                 securityPolicyService.checkCommandPaths("kubectl --kubeconfig kubeconfig get pods");
+        SecurityPolicyService.FileVerdict knownHostsOld =
+                securityPolicyService.checkCommandPaths("cat ~/.ssh/known_hosts.old");
+        SecurityPolicyService.FileVerdict knownHosts2 =
+                securityPolicyService.checkCommandPaths("cat known_hosts2");
         SecurityPolicyService.FileVerdict safe =
                 securityPolicyService.checkCommandPaths("cat config.example.yml > backup.yml");
         SecurityPolicyService.FileVerdict safeCertificate =
@@ -4026,6 +4030,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(rsaSecurityKey.getPath()).isEqualTo("~/.ssh/id_rsa_sk");
         assertThat(kubeconfig.isAllowed()).isFalse();
         assertThat(kubeconfig.getPath()).isEqualTo("kubeconfig");
+        assertThat(knownHostsOld.isAllowed()).isFalse();
+        assertThat(knownHostsOld.getPath()).isEqualTo("~/.ssh/known_hosts.old");
+        assertThat(knownHosts2.isAllowed()).isFalse();
+        assertThat(knownHosts2.getPath()).isEqualTo("known_hosts2");
         assertThat(safe.isAllowed()).isTrue();
         assertThat(safeCertificate.isAllowed()).isTrue();
     }
