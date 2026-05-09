@@ -3648,6 +3648,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict javaSocksProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "java -DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080 -jar app.jar");
+        SecurityPolicyService.UrlVerdict chromiumProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "chromium --proxy-server=http://127.0.0.1:8080 https://safe.example");
+        SecurityPolicyService.UrlVerdict nodeProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "node app.js --proxy-server socks5://169.254.169.254:1080");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3715,6 +3721,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(javaHttpProxyPrivate.getMessage()).contains("内网");
         assertThat(javaSocksProxyMetadata.isAllowed()).isFalse();
         assertThat(javaSocksProxyMetadata.getMessage()).contains("元数据");
+        assertThat(chromiumProxyPrivate.isAllowed()).isFalse();
+        assertThat(chromiumProxyPrivate.getMessage()).contains("内网");
+        assertThat(nodeProxyMetadata.isAllowed()).isFalse();
+        assertThat(nodeProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test
