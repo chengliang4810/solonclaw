@@ -592,13 +592,17 @@ public class SecurityPolicyService {
         summary.put("recursivePathExtraction", Boolean.TRUE);
         summary.put("writeIntentDetection", Boolean.TRUE);
         summary.put("patchTargetExtraction", Boolean.TRUE);
+        summary.put("downloadOutputPathOptionChecked", Boolean.TRUE);
+        summary.put("downloadOutputDetachedOptionChecked", Boolean.TRUE);
+        summary.put("proxyOptionUrlChecked", Boolean.TRUE);
+        summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
         summary.put("urlKeySamples", toolArgsUrlKeySamples());
         summary.put("pathKeySamples", toolArgsPathKeySamples());
         summary.put("writeIntentSamples", toolArgsWriteIntentSamples());
         summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
         summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
         summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
-        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks returned documents, and parses patch/diff targets before tool execution.");
+        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths, checks returned documents, and parses patch/diff targets before tool execution.");
         return summary;
     }
 
@@ -641,8 +645,12 @@ public class SecurityPolicyService {
 
     private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {
         List<String> tokens = shellLikeTokens(command, 200);
-        for (String token : tokens) {
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
             String path = compactOutputOptionPath(token);
+            if (StrUtil.isBlank(path) && isDetachedOutputOption(token) && i + 1 < tokens.size()) {
+                path = cleanUrlToken(tokens.get(++i));
+            }
             if (StrUtil.isBlank(path)) {
                 continue;
             }
@@ -652,6 +660,14 @@ public class SecurityPolicyService {
             }
         }
         return FileVerdict.allow();
+    }
+
+    private boolean isDetachedOutputOption(String raw) {
+        String token = cleanUrlToken(raw);
+        return "-o".equals(token)
+                || "-O".equals(token)
+                || "--output".equals(token)
+                || "--output-document".equals(token);
     }
 
     private String compactOutputOptionPath(String raw) {
@@ -664,6 +680,12 @@ public class SecurityPolicyService {
         }
         if (token.startsWith("-O") && !token.startsWith("--")) {
             return token.substring(2);
+        }
+        if (token.startsWith("--output=")) {
+            return token.substring("--output=".length());
+        }
+        if (token.startsWith("--output-document=")) {
+            return token.substring("--output-document=".length());
         }
         return "";
     }
@@ -902,6 +924,7 @@ public class SecurityPolicyService {
             String value = null;
             if ("--proxy".equals(token)
                     || "-x".equals(token)
+                    || "--preproxy".equals(token)
                     || "--socks5".equals(token)
                     || "--socks5-hostname".equals(token)) {
                 if (i + 1 < tokens.size()) {
@@ -909,6 +932,8 @@ public class SecurityPolicyService {
                 }
             } else if (token.startsWith("--proxy=")) {
                 value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--preproxy=")) {
+                value = token.substring("--preproxy=".length());
             } else if (token.startsWith("--socks5=")) {
                 value = token.substring("--socks5=".length());
             } else if (token.startsWith("--socks5-hostname=")) {
