@@ -6,8 +6,11 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -1654,6 +1657,68 @@ public class DashboardControllerHttpTest {
         assertThat(get.status).isEqualTo(200);
         assertThat(get.body).contains("\"job\"").contains("compat prompt");
 
+        CronJobRepository cronJobRepository = bean(CronJobRepository.class);
+        CronJobRecord failed = new CronJobRecord();
+        failed.setJobId("abcdef1234567890");
+        failed.setName("api secret cron");
+        failed.setSourceKey("MEMORY:dashboard:cron");
+        failed.setCronExpr("every 1h");
+        failed.setPrompt("api secret prompt");
+        failed.setStatus("ACTIVE");
+        failed.setLastStatus("error");
+        failed.setLastError("api last error token=ghp_apicronstatus12345\u202E");
+        failed.setLastDeliveryError("api delivery error api_key=sk-apicronstatus-secret12345\u202E");
+        failed.setLastOutput("api output Authorization: Bearer ghp_apicronoutput12345\u202E");
+        failed.setCreatedAt(System.currentTimeMillis());
+        failed.setLastRunAt(System.currentTimeMillis());
+        cronJobRepository.save(failed);
+        CronJobRunRecord failedRun = new CronJobRunRecord();
+        failedRun.setRunId("api-secret-run");
+        failedRun.setJobId(failed.getJobId());
+        failedRun.setSourceKey(failed.getSourceKey());
+        failedRun.setTriggerType("manual");
+        failedRun.setAttempt(1);
+        failedRun.setStartedAt(System.currentTimeMillis() - 1000L);
+        failedRun.setFinishedAt(System.currentTimeMillis());
+        failedRun.setStatus("error");
+        failedRun.setOutput("api run output token=ghp_apicronrunoutput12345\u202E");
+        failedRun.setError("api run error api_key=sk-apicronrunerror-secret12345\u202E");
+        failedRun.setDeliveryError("api run delivery bearer ghp_apicronrundelivery12345\u202E");
+        failedRun.setDeliveryResultJson(
+                "{\"targets\":[{\"chat_id\":\"api-room\",\"error\":\"token=ghp_apicrontarget12345\\u202E\"}],"
+                        + "\"summary\":\"api_key=sk-apicronsummary-secret12345\\u202E\"}");
+        failedRun.setSummary("api summary Authorization: Bearer ghp_apicronsummary12345\u202E");
+        cronJobRepository.saveRun(failedRun);
+
+        HttpResult redactedStatus = request("GET", "/api/jobs/status?include_disabled=true&limit=5", null, token);
+        assertThat(redactedStatus.status).isEqualTo(200);
+        assertThat(redactedStatus.body)
+                .contains("abcdef1234567890")
+                .contains("api secret cron")
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain("ghp_apicronstatus12345")
+                .doesNotContain("sk-apicronstatus-secret12345")
+                .doesNotContain("ghp_apicronoutput12345")
+                .doesNotContain("\u202E");
+
+        HttpResult redactedHistory =
+                request("GET", "/api/jobs/" + failed.getJobId() + "/history?limit=1", null, token);
+        assertThat(redactedHistory.status).isEqualTo(200);
+        assertThat(redactedHistory.body)
+                .contains("api-secret-run")
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_apicronrunoutput12345")
+                .doesNotContain("sk-apicronrunerror-secret12345")
+                .doesNotContain("ghp_apicronrundelivery12345")
+                .doesNotContain("ghp_apicrontarget12345")
+                .doesNotContain("sk-apicronsummary-secret12345")
+                .doesNotContain("ghp_apicronsummary12345")
+                .doesNotContain("\u202E");
+
         HttpResult next = request("GET", "/api/jobs/next?limit=1", null, token);
         assertThat(next.status).isEqualTo(200);
         ONode nextJob = ONode.ofJson(next.body).get("jobs").get(0);
@@ -1683,7 +1748,7 @@ public class DashboardControllerHttpTest {
         HttpResult clearRepeat =
                 request("PATCH", "/api/jobs/" + jobId, "{\"repeat\":0}", token);
         assertThat(clearRepeat.status).isEqualTo(200);
-        assertThat(clearRepeat.body).contains("\"times\":null");
+        assertThat(clearRepeat.body).contains("\"repeat\":{\"completed\":0}");
 
         HttpResult patchPaused =
                 request(

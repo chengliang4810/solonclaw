@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -267,10 +268,14 @@ public class DashboardCronService {
         result.put("job_id", record.getJobId());
         result.put("name", record.getName());
         result.put("last_status", record.getLastStatus());
-        result.put("last_error", record.getLastError());
-        result.put("last_delivery_error", record.getLastDeliveryError());
+        result.put("last_error", safeText(record.getLastError()));
+        result.put("last_delivery_error", safeText(record.getLastDeliveryError()));
         result.put("last_run_at", record.getLastRunAt() <= 0L ? null : iso(record.getLastRunAt()));
         return result;
+    }
+
+    private String safeText(String value) {
+        return SecretRedactor.redact(value);
     }
 
     private List<Map<String, Object>> limitedViews(List<CronJobRecord> records, int limit) {

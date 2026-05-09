@@ -977,6 +977,64 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldRedactCronRunViewsWithoutMutatingStoredRuns() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobRecord job = job("job-redacted-run-view", "MEMORY:run-view:user");
+        job.setLastStatus("error");
+        job.setLastError("last error token=ghp_lastview12345\u202E");
+        job.setLastDeliveryError("delivery error api_key=sk-lastview-secret12345\u202E");
+        job.setLastOutput("last output Authorization: Bearer ghp_outputview12345\u202E");
+        env.cronJobRepository.save(job);
+
+        CronJobRunRecord run = new CronJobRunRecord();
+        run.setRunId("run-redacted-view");
+        run.setJobId(job.getJobId());
+        run.setSourceKey(job.getSourceKey());
+        run.setTriggerType("manual");
+        run.setAttempt(1);
+        run.setStartedAt(System.currentTimeMillis() - 100L);
+        run.setFinishedAt(System.currentTimeMillis());
+        run.setStatus("error");
+        run.setOutput("stdout token=ghp_runoutput12345\u202E");
+        run.setError("stderr api_key=sk-runerror-secret12345\u202E");
+        run.setDeliveryError("deliver bearer ghp_deliveryerror12345\u202E");
+        run.setDeliveryResultJson(
+                "{\"targets\":[{\"chat_id\":\"chat-secret\",\"error\":\"token=ghp_targetsecret12345\\u202E\"}],"
+                        + "\"summary\":\"api_key=sk-summary-secret12345\\u202E\"}");
+        run.setSummary("summary Authorization: Bearer ghp_runsummary12345\u202E");
+        env.cronJobRepository.saveRun(run);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> jobView = service.toView(env.cronJobRepository.findById(job.getJobId()));
+        assertThat(String.valueOf(jobView))
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_lastview12345")
+                .doesNotContain("sk-lastview-secret12345")
+                .doesNotContain("ghp_outputview12345")
+                .doesNotContain("\u202E");
+
+        Map<String, Object> runView = service.runToView(env.cronJobRepository.listRuns(job.getJobId(), 1).get(0));
+        assertThat(String.valueOf(runView))
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_runoutput12345")
+                .doesNotContain("sk-runerror-secret12345")
+                .doesNotContain("ghp_deliveryerror12345")
+                .doesNotContain("ghp_targetsecret12345")
+                .doesNotContain("sk-summary-secret12345")
+                .doesNotContain("ghp_runsummary12345")
+                .doesNotContain("\u202E");
+
+        CronJobRunRecord stored = env.cronJobRepository.listRuns(job.getJobId(), 1).get(0);
+        assertThat(stored.getOutput()).contains("ghp_runoutput12345");
+        assertThat(stored.getDeliveryResultJson()).contains("ghp_targetsecret12345");
+    }
+
+    @Test
     void shouldMarkAgentCronEmptyResponseAsError() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobRecord job = job("job-empty-response", "MEMORY:empty-agent:user");

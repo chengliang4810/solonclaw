@@ -6,6 +6,7 @@ import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
+import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
@@ -733,6 +734,62 @@ public class CommandEnhancementTest {
                 .contains("--clear-deliver-chat-id")
                 .contains("--clear-model")
                 .contains("当前没有定时任务。");
+
+        CronJobRecord failed = new CronJobRecord();
+        failed.setJobId("cron-secret-status");
+        failed.setName("secret status");
+        failed.setSourceKey("MEMORY:admin-chat:admin-user");
+        failed.setCronExpr("every 1h");
+        failed.setPrompt("secret status prompt");
+        failed.setStatus("ACTIVE");
+        failed.setLastStatus("error");
+        failed.setLastError("command failed token=ghp_croncommand12345\u202E");
+        failed.setLastDeliveryError("delivery failed api_key=sk-croncommand-secret12345\u202E");
+        failed.setLastRunAt(System.currentTimeMillis());
+        failed.setCreatedAt(System.currentTimeMillis());
+        env.cronJobRepository.save(failed);
+        CronJobRunRecord failedRun = new CronJobRunRecord();
+        failedRun.setRunId("cron-secret-run");
+        failedRun.setJobId(failed.getJobId());
+        failedRun.setSourceKey(failed.getSourceKey());
+        failedRun.setTriggerType("manual");
+        failedRun.setAttempt(1);
+        failedRun.setStartedAt(System.currentTimeMillis() - 1000L);
+        failedRun.setFinishedAt(System.currentTimeMillis());
+        failedRun.setStatus("error");
+        failedRun.setOutput("stdout token=ghp_cronrunoutput12345\u202E");
+        failedRun.setError("stderr api_key=sk-cronrunerror-secret12345\u202E");
+        failedRun.setDeliveryError("delivery bearer ghp_cronrundelivery12345\u202E");
+        env.cronJobRepository.saveRun(failedRun);
+
+        GatewayReply redactedStatus = env.send("admin-chat", "admin-user", "/cron status");
+        assertThat(redactedStatus.getContent())
+                .contains("cron-secret-status")
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain("ghp_croncommand12345")
+                .doesNotContain("sk-croncommand-secret12345")
+                .doesNotContain("\u202E");
+
+        GatewayReply redactedHistory =
+                env.send("admin-chat", "admin-user", "/cron history cron-secret-status");
+        assertThat(redactedHistory.getContent())
+                .contains("cron-secret-run")
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .doesNotContain("ghp_cronrunoutput12345")
+                .doesNotContain("sk-cronrunerror-secret12345")
+                .doesNotContain("ghp_cronrundelivery12345")
+                .doesNotContain("\u202E");
+
+        GatewayReply redactedOverview = env.send("admin-chat", "admin-user", "/cron");
+        assertThat(redactedOverview.getContent())
+                .contains("Cron 定时任务")
+                .contains("cron-secret-status")
+                .contains("api_key=***")
+                .doesNotContain("sk-croncommand-secret12345")
+                .doesNotContain("\u202E");
     }
 
     @Test
