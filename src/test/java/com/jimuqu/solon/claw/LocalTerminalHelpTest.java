@@ -30,6 +30,8 @@ public class LocalTerminalHelpTest {
                 .contains("/tips")
                 .contains("/queue")
                 .contains("/steer")
+                .contains("/approve [确认编号] [session|always]")
+                .contains("/deny [确认编号]")
                 .contains("/skin")
                 .contains("Ctrl-G")
                 .contains("/exit")
