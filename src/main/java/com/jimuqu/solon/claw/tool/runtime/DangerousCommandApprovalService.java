@@ -276,6 +276,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "ssh_config_trust_weaken",
+                                    "SSH config trust weakened",
+                                    pattern(
+                                            "(?=.*(?:StrictHostKeyChecking\\s+(?:no|off|false|accept-new)|UserKnownHostsFile\\s+(?:/dev/null|NUL|nul)|ProxyCommand\\s+\\S))(?=.*(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]config\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_tee",
                                     "overwrite system file via tee",
                                     pattern("\\btee\\b.*[\"']?" + SENSITIVE_WRITE_TARGET),
@@ -354,6 +360,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "ssh_add_private_key",
+                                    "load SSH private key into agent",
+                                    pattern(
+                                            "\\bssh-add\\b(?=[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\][^\\s\"'`]*(?:id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|\\.pem)\\b)(?![^\\n]*\\s-[lLdD]\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "package_manager_secret_read",
                                     "read package manager credential",
                                     pattern(
@@ -364,6 +376,12 @@ public class DangerousCommandApprovalService {
                                     "write package manager credential",
                                     pattern(
                                             "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+(?:set|add)\\s+\\S*(?:_authToken|_auth|password|token)\\s+\\S+|pip\\s+config\\s+set\\s+\\S*(?:password|token|credential|secret)\\s+\\S+)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "package_manager_source_change",
+                                    "package manager source configuration changed",
+                                    pattern(
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:registry|npmRegistryServer)\\s+(?!https://registry\\.npmjs\\.org/?(?:\\s|$))\\S+|pip\\s+config\\s+set\\s+(?:global\\.)?(?:index-url|extra-index-url|trusted-host)\\s+\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_remote_execute",
@@ -478,6 +496,12 @@ public class DangerousCommandApprovalService {
                                     "macOS security policy weakened",
                                     pattern(
                                             "\\b(?:spctl\\s+--master-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "remote_fleet_command_execution",
+                                    "remote fleet command execution",
+                                    pattern(
+                                            "\\b(?:ansible\\s+(?:all|'\\*'|\"\\*\")\\b[^\\n]*(?:-m\\s+(?:shell|command|raw)|-a\\s+\\S)|ansible-playbook\\b(?=[^\\n]*(?:--become\\b|-b\\b|--limit\\s+(?:all|'\\*'|\"\\*\")))|salt\\s+(?:'\\*'|\"\\*\"|\\*)\\s+cmd\\.run\\b|pssh\\b|pdsh\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "stop_service",
@@ -628,6 +652,16 @@ public class DangerousCommandApprovalService {
                                     "terraform_destroy",
                                     "Terraform destroy",
                                     pattern("\\bterraform\\s+destroy\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "terraform_auto_approve_apply",
+                                    "Terraform apply with auto approval",
+                                    pattern("\\bterraform\\s+apply\\b(?=[^\\n]*-auto-approve\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "terraform_state_sensitive_read",
+                                    "Terraform state sensitive read",
+                                    pattern("\\bterraform\\s+state\\s+(?:pull|show)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "aws_destructive_resource",

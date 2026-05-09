@@ -728,6 +728,32 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult terraformDestroy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "terraform destroy -auto-approve");
+        DangerousCommandApprovalService.DetectionResult terraformAutoApply =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform apply -auto-approve");
+        DangerousCommandApprovalService.DetectionResult terraformStatePull =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform state pull");
+        DangerousCommandApprovalService.DetectionResult terraformStateShow =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "terraform state show module.db.aws_db_instance.main");
+        DangerousCommandApprovalService.DetectionResult terraformPlan =
+                env.dangerousCommandApprovalService.detect("execute_shell", "terraform plan");
+        DangerousCommandApprovalService.DetectionResult ansibleShellAll =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ansible all -m shell -a 'id'");
+        DangerousCommandApprovalService.DetectionResult ansiblePlaybookBecome =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ansible-playbook site.yml --become");
+        DangerousCommandApprovalService.DetectionResult saltCmdRun =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "salt '*' cmd.run 'systemctl restart app'");
+        DangerousCommandApprovalService.DetectionResult psshCommand =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pssh -h hosts.txt uptime");
+        DangerousCommandApprovalService.DetectionResult ansibleInventoryList =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ansible-inventory --list");
         DangerousCommandApprovalService.DetectionResult awsDeleteBucket =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3api delete-bucket --bucket prod-data");
@@ -864,6 +890,23 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(terraformDestroy).isNotNull();
         assertThat(terraformDestroy.getPatternKey()).isEqualTo("terraform_destroy");
+        assertThat(terraformAutoApply).isNotNull();
+        assertThat(terraformAutoApply.getPatternKey()).isEqualTo("terraform_auto_approve_apply");
+        assertThat(terraformStatePull).isNotNull();
+        assertThat(terraformStatePull.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(terraformStateShow).isNotNull();
+        assertThat(terraformStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
+        assertThat(terraformPlan).isNull();
+        assertThat(ansibleShellAll).isNotNull();
+        assertThat(ansibleShellAll.getPatternKey()).isEqualTo("remote_fleet_command_execution");
+        assertThat(ansiblePlaybookBecome).isNotNull();
+        assertThat(ansiblePlaybookBecome.getPatternKey())
+                .isEqualTo("remote_fleet_command_execution");
+        assertThat(saltCmdRun).isNotNull();
+        assertThat(saltCmdRun.getPatternKey()).isEqualTo("remote_fleet_command_execution");
+        assertThat(psshCommand).isNotNull();
+        assertThat(psshCommand.getPatternKey()).isEqualTo("remote_fleet_command_execution");
+        assertThat(ansibleInventoryList).isNull();
         assertThat(awsDeleteBucket).isNotNull();
         assertThat(awsDeleteBucket.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsTerminateInstances).isNotNull();
@@ -1312,6 +1355,19 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
         }
 
+        List<String> sshAddPrivateKeys =
+                Arrays.asList(
+                        "ssh-add ~/.ssh/id_rsa",
+                        "ssh-add $HOME/.ssh/id_ed25519",
+                        "ssh-add $env:HOME/.ssh/id_ecdsa_sk",
+                        "ssh-add %USERPROFILE%\\.ssh\\id_dsa");
+        for (String command : sshAddPrivateKeys) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_add_private_key");
+        }
+
         List<String> packageManagerSecretReads =
                 Arrays.asList(
                         "npm config get //registry.npmjs.org/:_authToken",
@@ -1341,6 +1397,23 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey())
                     .as(command)
                     .isEqualTo("package_manager_secret_write");
+        }
+
+        List<String> packageManagerSourceChanges =
+                Arrays.asList(
+                        "npm config set registry https://registry.internal.example/",
+                        "pnpm config set registry http://127.0.0.1:4873/",
+                        "yarn config set npmRegistryServer https://mirror.example/npm/",
+                        "pip config set global.index-url https://mirror.example/simple",
+                        "pip config set global.extra-index-url https://extra.example/simple",
+                        "pip config set global.trusted-host mirror.example");
+        for (String command : packageManagerSourceChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("package_manager_source_change");
         }
 
         List<String> packageManagerRemoteExecutes =
@@ -1376,6 +1449,12 @@ public class DangerousCommandApprovalServiceTest {
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
                 .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "ssh-add -l"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ssh-add runtime/keys/test_key"))
+                .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config get registry"))
@@ -1383,6 +1462,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config set registry https://registry.npmjs.org/"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "pnpm config set registry https://registry.npmjs.org"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "npm run build"))
                 .isNull();
@@ -1869,6 +1952,18 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("ssh_host_key_check_disabled");
         }
 
+        List<String> persistentConfigWeakening =
+                Arrays.asList(
+                        "echo 'StrictHostKeyChecking no' >> ~/.ssh/config",
+                        "printf 'UserKnownHostsFile /dev/null' | tee -a $HOME/.ssh/config",
+                        "Add-Content $env:HOME/.ssh/config 'ProxyCommand nc %h %p'");
+        for (String command : persistentConfigWeakening) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_config_trust_weaken");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ssh -o StrictHostKeyChecking=yes user@example.com"))
@@ -1876,6 +1971,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ssh user@example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "echo 'Host example.com' >> fixtures/ssh_config"))
                 .isNull();
     }
 
