@@ -499,6 +499,7 @@ public class SecurityPolicyService {
         summary.put("websiteBlocklistSharedRuleSamples", redactSample(shared.ruleSamples, 6));
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
+        summary.put("sensitivePathCredentialBlocked", Boolean.TRUE);
         summary.put("cloudMetadataBlocked", Boolean.TRUE);
         summary.put("description", "URL safety blocks cloud metadata, private addresses unless explicitly allowed, userinfo credentials, sensitive query parameters, and configured website rules.");
         return summary;

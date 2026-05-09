@@ -946,6 +946,7 @@ public class ToolRegistryExposureTest {
         assertThat(urlPolicyDetails.get("websiteBlocklistDomainCount").getInt()).isEqualTo(1);
         assertThat(urlPolicyDetails.get("userinfoBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("sensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("sensitivePathCredentialBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("cloudMetadataBlocked").getBoolean()).isTrue();
         assertThat(String.valueOf(urlPolicyDetails))
                 .contains("169.254")
