@@ -49,6 +49,21 @@ public class CliShellTipsTest {
                 .contains("2. run.failed session=cli-test");
     }
 
+    @Test
+    void shouldIncludeRecentEventsInShutdownSummary() throws Exception {
+        CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
+        setField(shell, "lastEventSnapshot", eventSnapshot(4, 2, 1));
+        setField(shell, "lastReply", "ready");
+        StringWriter buffer = new StringWriter();
+
+        renderShutdownSummary(shell, new PrintWriter(buffer), "cli-test");
+
+        assertThat(buffer.toString())
+                .contains("终端会话结束：session=cli-test")
+                .contains("events=4 tools=2 failures=1")
+                .contains("copy=ready");
+    }
+
     private static String[] commandList() throws Exception {
         Field field = CliShell.class.getDeclaredField("COMMANDS");
         field.setAccessible(true);
@@ -84,6 +99,18 @@ public class CliShellTipsTest {
         Field field = CliShell.class.getDeclaredField(name);
         field.setAccessible(true);
         field.set(shell, value);
+    }
+
+    private static void renderShutdownSummary(CliShell shell, PrintWriter writer, String sessionId)
+            throws Exception {
+        Method method =
+                CliShell.class.getDeclaredMethod(
+                        "renderShutdownSummary",
+                        PrintWriter.class,
+                        String.class,
+                        com.jimuqu.solon.claw.cli.LocalTerminalTaskRunner.class);
+        method.setAccessible(true);
+        method.invoke(shell, writer, sessionId, null);
     }
 
     private static Object eventSnapshot(int total, int tools, int failures) throws Exception {

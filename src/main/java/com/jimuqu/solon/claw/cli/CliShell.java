@@ -344,7 +344,11 @@ public class CliShell {
     private void renderShutdownSummary(PrintWriter writer, String sessionId, LocalTerminalTaskRunner taskRunner) {
         writer.println(
                 TerminalLifecycleSummary.render(
-                        sessionId, taskRunner, transcript, null, StrUtil.isNotBlank(lastReply)));
+                        sessionId,
+                        taskRunner,
+                        transcript,
+                        lastEventSnapshot,
+                        StrUtil.isNotBlank(lastReply)));
         writer.flush();
     }
 
