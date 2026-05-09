@@ -14,6 +14,8 @@ public final class TerminalTips {
                             "/steer <提示> 会注入正在运行的任务。",
                             "/events 可查看最近一次运行的事件明细。",
                             "/attachments <路径> 可在发送前预检附件识别结果。",
+                            "/approve <确认编号> session 可批准当前会话的危险命令。",
+                            "/deny <确认编号> 可拒绝危险命令审批。",
                             "/skin mono 可切换到无 ANSI 的纯文本皮肤。",
                             "粘贴本地文件路径会自动作为附件发送。"));
 
