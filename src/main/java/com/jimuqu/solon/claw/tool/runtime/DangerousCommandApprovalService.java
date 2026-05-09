@@ -287,6 +287,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-access-token|az\\s+account\\s+get-access-token|gh\\s+auth\\s+token)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "secret_store_read",
+                                    "read secret manager value",
+                                    pattern(
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "linux_disable_firewall",
                                     "Linux firewall disabled or flushed",
                                     pattern(

@@ -633,6 +633,21 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("cli_access_token_read");
         }
 
+        List<String> secretStoreReads =
+                Arrays.asList(
+                        "aws secretsmanager get-secret-value --secret-id prod/db",
+                        "gcloud secrets versions access latest --secret prod-db",
+                        "az keyvault secret show --vault-name prod --name db-password",
+                        "kubectl get secret app-token -o yaml",
+                        "vault kv get secret/prod",
+                        "vault read secret/data/prod");
+        for (String command : secretStoreReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "env FOO=1 git status"))
@@ -642,6 +657,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "echo $HOME"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
                 .isNull();
     }
 
