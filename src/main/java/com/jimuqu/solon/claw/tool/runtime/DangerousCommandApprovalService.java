@@ -1016,6 +1016,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\breg(?:\\.exe)?\\s+delete\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_security_registry_weaken",
+                                    "Windows security registry policy weakened",
+                                    pattern(
+                                            "\\breg(?:\\.exe)?\\s+add\\b[^\\n]*(?:(?:Windows Defender|DisableAntiSpyware|DisableRealtimeMonitoring|DisableBehaviorMonitoring)|(?:Policies\\\\System\\b[^\\n]*EnableLUA\\b[^\\n]*(?:/d\\s+0|/d\\s+0x0))|(?:PowerShell\\\\\\d+\\\\PowerShellEngine\\b[^\\n]*ExecutionPolicy\\b[^\\n]*(?:Bypass|Unrestricted)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_take_ownership",
                                     "Windows ownership takeover",
                                     pattern("\\btakeown\\b(?=[^\\n]*(?:[-/]r\\b|[-/]f\\b))"),

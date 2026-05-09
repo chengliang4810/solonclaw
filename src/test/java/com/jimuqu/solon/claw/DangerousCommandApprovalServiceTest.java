@@ -1169,6 +1169,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_execution_policy_weaken");
         assertDangerPattern(
                 env,
+                "reg add HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender /v DisableAntiSpyware /t REG_DWORD /d 1 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\PowerShell\\1\\PowerShellEngine /v ExecutionPolicy /d Bypass /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
+                "reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v EnableLUA /t REG_DWORD /d 0 /f",
+                "windows_security_registry_weaken");
+        assertDangerPattern(
+                env,
                 "powershell.exe -NoProfile -EncodedCommand SQBFAFgA",
                 "windows_powershell_encoded_command");
         assertDangerPattern(
