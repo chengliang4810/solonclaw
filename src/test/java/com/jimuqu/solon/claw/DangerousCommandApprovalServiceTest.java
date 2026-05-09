@@ -1227,6 +1227,9 @@ public class DangerousCommandApprovalServiceTest {
                 "powershell_sensitive_file_write");
         assertDangerPattern(env, "sc .env.local TOKEN=value", "powershell_sensitive_file_write");
         assertDangerPattern(env, "ac -Path ~/.npmrc token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "Set-Content -Path ~/.curlrc -Value token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "Set-Content .m2/settings.xml token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "Out-File .config/pip/pip.conf token", "powershell_sensitive_file_write");
         assertDangerPattern(
                 env,
                 "$cred | Export-Clixml -Path credentials",
@@ -2385,7 +2388,10 @@ public class DangerousCommandApprovalServiceTest {
                         "chmod 666 .env",
                         "chmod o+r ~/.aws/credentials",
                         "chmod a+rw $env:USERPROFILE\\.ssh\\id_ed25519",
-                        "chmod o+rw %USERPROFILE%\\.docker\\config.json");
+                        "chmod o+rw %USERPROFILE%\\.docker\\config.json",
+                        "chmod 666 ~/.curlrc",
+                        "chmod o+r .m2/settings.xml",
+                        "chmod a+rw .config/pip/pip.conf");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
