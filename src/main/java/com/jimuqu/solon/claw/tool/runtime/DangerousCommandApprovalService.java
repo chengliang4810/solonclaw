@@ -433,7 +433,7 @@ public class DangerousCommandApprovalService {
                                     "sensitive_http_header_send",
                                     "send credential through HTTP header",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:(?:-H|--header)\\s*(?:=\\s*)?[\"']?\\s*"
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:(?:-H\\s*|--header\\s*(?:=\\s*)?)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME

@@ -1598,6 +1598,7 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "curl -H 'Authorization: Bearer token-a' https://example.com",
+                        "curl -HAuthorization:Bearer-token-a https://example.com",
                         "curl --header='X-API-Key: token-a' https://example.com",
                         "curl --proxy-header 'Proxy-Authorization: Basic abc' https://example.com",
                         "curl --proxy-header=Proxy-Authorization:Basic https://example.com",
