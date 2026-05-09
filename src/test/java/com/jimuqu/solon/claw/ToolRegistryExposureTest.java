@@ -1347,6 +1347,59 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldNormalizeWrappedAndEscapedUrlsBeforeSecurityAudit() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode command =
+                ONode.ofJson(
+                        tools.audit(
+                                "command",
+                                "execute_shell",
+                                "curl '&lt;https://blocked.example/docs?token=secret123&amp;page=1&gt;'",
+                                null,
+                                null,
+                                null,
+                                null));
+        ONode toolArgs =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "webfetch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"url\":\"<https://blocked.example/docs?token=secret123&amp;page=1>\"}"));
+
+        assertThat(command.get("decision").getString()).isEqualTo("block");
+        assertThat(command.toJson())
+                .contains("blocked.example")
+                .contains("token=***")
+                .doesNotContain("secret123")
+                .doesNotContain("&amp;");
+        assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
+        assertThat(toolArgs.toJson())
+                .contains("blocked.example")
+                .contains("token=***")
+                .doesNotContain("secret123")
+                .doesNotContain("&amp;");
+    }
+
+    @Test
     void shouldManageJimuquStyleBackgroundProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessTools tools =

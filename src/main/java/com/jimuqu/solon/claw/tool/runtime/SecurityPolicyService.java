@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
@@ -1216,18 +1217,39 @@ public class SecurityPolicyService {
 
     private String cleanUrlToken(String raw) {
         String value = StrUtil.nullToEmpty(raw).trim();
-        while (value.startsWith("(") || value.startsWith("{")) {
+        value = HtmlUtil.unescape(value).trim();
+        while (startsWithUrlWrapper(value)) {
             value = value.substring(1).trim();
         }
         while (value.endsWith(",")
                 || value.endsWith(".")
                 || value.endsWith(";")
                 || value.endsWith(":")
+                || value.endsWith("\"")
+                || value.endsWith("'")
+                || value.endsWith("`")
+                || value.endsWith(">")
                 || (value.endsWith("]") && !isBracketedIpv6Literal(value))
                 || value.endsWith("}")) {
             value = value.substring(0, value.length() - 1).trim();
         }
         return value;
+    }
+
+    private boolean startsWithUrlWrapper(String value) {
+        if (StrUtil.isBlank(value)) {
+            return false;
+        }
+        if (value.startsWith("[") && isBracketedIpv6Literal(value)) {
+            return false;
+        }
+        return value.startsWith("(")
+                || value.startsWith("{")
+                || value.startsWith("<")
+                || value.startsWith("\"")
+                || value.startsWith("'")
+                || value.startsWith("`")
+                || value.startsWith("[");
     }
 
     private boolean isBracketedIpv6Literal(String value) {
@@ -2442,6 +2464,7 @@ public class SecurityPolicyService {
         String value = StrUtil.nullToEmpty(raw).replace("\u0000", "");
         value = TerminalAnsiSanitizer.stripAnsi(value);
         value = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        value = HtmlUtil.unescape(value);
         return value.trim();
     }
 
