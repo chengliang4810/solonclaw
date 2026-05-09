@@ -1227,6 +1227,9 @@ public class DangerousCommandApprovalServiceTest {
                 "powershell_sensitive_file_write");
         assertDangerPattern(env, "sc .env.local TOKEN=value", "powershell_sensitive_file_write");
         assertDangerPattern(env, "ac -Path ~/.npmrc token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "Set-Content -Path ~/.curlrc -Value token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "Set-Content .m2/settings.xml token", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "Out-File .config/pip/pip.conf token", "powershell_sensitive_file_write");
         assertDangerPattern(
                 env,
                 "$cred | Export-Clixml -Path credentials",
@@ -1680,6 +1683,28 @@ public class DangerousCommandApprovalServiceTest {
                 .isNotNull()
                 .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
                 .isEqualTo("network_credential_send");
+    }
+
+    @Test
+    void shouldDetectCredentialPathOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "ssh -i deploy_key host.example",
+                        "kubectl --kubeconfig kubeconfig get pods",
+                        "helm --kubeconfig=cluster.kubeconfig list",
+                        "gcloud auth activate-service-account --key-file service.json",
+                        "az login --cert cert.pem --key key.pem",
+                        "npm --userconfig .npmrc whoami");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_path_option");
+        }
     }
 
     @Test
@@ -2385,7 +2410,10 @@ public class DangerousCommandApprovalServiceTest {
                         "chmod 666 .env",
                         "chmod o+r ~/.aws/credentials",
                         "chmod a+rw $env:USERPROFILE\\.ssh\\id_ed25519",
-                        "chmod o+rw %USERPROFILE%\\.docker\\config.json");
+                        "chmod o+rw %USERPROFILE%\\.docker\\config.json",
+                        "chmod 666 ~/.curlrc",
+                        "chmod o+r .m2/settings.xml",
+                        "chmod a+rw .config/pip/pip.conf");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);

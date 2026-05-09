@@ -643,7 +643,11 @@ public class SecurityPolicyServiceTest {
         assertWriteDenied(policy, home + "/.kube/config");
         assertWriteDenied(policy, home + "/.netrc");
         assertWriteDenied(policy, home + "/.npmrc");
+        assertWriteDenied(policy, home + "/.curlrc");
+        assertWriteDenied(policy, home + "/.wgetrc");
         assertWriteDenied(policy, home + "/.pypirc");
+        assertWriteDenied(policy, home + "/.m2/settings.xml");
+        assertWriteDenied(policy, home + "/.gem/credentials");
         assertWriteDenied(policy, home + "/.pgpass");
         assertWriteDenied(policy, home + "/.bashrc");
         assertWriteDenied(policy, home + "/.zshrc");
@@ -685,8 +689,17 @@ public class SecurityPolicyServiceTest {
         assertCommandPathDenied(policy, "Get-Content $env:USERPROFILE\\.npmrc", "$env:USERPROFILE\\.npmrc");
         assertCommandPathDenied(policy, "type %USERPROFILE%\\.netrc", "%USERPROFILE%\\.netrc");
         assertCommandPathDenied(policy, "cat ~/.aws/credentials", "~/.aws/credentials");
+        assertCommandPathDenied(policy, "cat config/.env", "config/.env");
+        assertCommandPathDenied(policy, "cat secrets/token.json", "secrets/token.json");
+        assertCommandPathDenied(policy, "cat keys/private-api-key.pem", "keys/private-api-key.pem");
+        assertCommandPathDenied(policy, "Get-Content .\\config\\.npmrc", ".\\config\\.npmrc");
+        assertCommandPathDenied(policy, "cat ~/.curlrc", "~/.curlrc");
+        assertCommandPathDenied(policy, "cat .config/pip/pip.conf", ".config/pip/pip.conf");
+        assertCommandPathDenied(policy, "cat .m2/settings.xml", ".m2/settings.xml");
+        assertCommandPathDenied(policy, "cat .gem/credentials", ".gem/credentials");
 
         assertThat(policy.checkCommandPaths("cat .env.example").isAllowed()).isTrue();
+        assertThat(policy.checkCommandPaths("cat docs/.env.example").isAllowed()).isTrue();
     }
 
     @Test
@@ -716,6 +729,25 @@ public class SecurityPolicyServiceTest {
 
         assertThat(policy.checkCommandPaths("tar czf backup.tgz README.md").isAllowed()).isTrue();
         assertThat(policy.checkCommandPaths("zip backup.zip .env.example").isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldDenyCommandCredentialPathOptions() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        assertCommandCredentialOptionDenied(policy, "curl --key client.pem https://example.invalid", "client.pem");
+        assertCommandCredentialOptionDenied(policy, "curl --cert=client.crt https://example.invalid", "client.crt");
+        assertCommandCredentialOptionDenied(policy, "ssh -i deploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "kubectl --kubeconfig kubeconfig get pods",
+                "kubeconfig");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "gcloud auth activate-service-account --key-file service.json",
+                "service.json");
+
+        assertThat(policy.checkCommandPaths("curl --retry 2 https://example.invalid").isAllowed()).isTrue();
     }
 
     @Test
@@ -877,6 +909,14 @@ public class SecurityPolicyServiceTest {
         assertThat(verdict.isAllowed()).as(command).isFalse();
         assertThat(verdict.getPath()).as(command).isEqualTo(path);
         assertThat(verdict.getMessage()).as(command).contains("凭据");
+    }
+
+    private static void assertCommandCredentialOptionDenied(
+            SecurityPolicyService policy, String command, String path) {
+        SecurityPolicyService.FileVerdict verdict = policy.checkCommandPaths(command);
+        assertThat(verdict.isAllowed()).as(command).isFalse();
+        assertThat(verdict.getPath()).as(command).isEqualTo(path);
+        assertThat(verdict.getMessage()).as(command).contains("凭据用途参数");
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
