@@ -430,6 +430,10 @@ public class CommandEnhancementTest {
 
         GatewayReply clear = env.commandService.handle(message, "/goal clear");
         assertThat(clear.getContent()).contains("Goal cleared");
+
+        GatewayReply help = env.commandService.handle(message, "/help");
+        assertThat(help.getContent())
+                .contains("/goal [status|pause|resume|clear|<目标> --max-turns N|--max N]");
     }
 
     @Test
