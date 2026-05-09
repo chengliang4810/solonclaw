@@ -2043,6 +2043,9 @@ public class DefaultCommandService implements CommandService {
                 || GatewayCommandConstants.ACTION_DELETE.equals(action)) {
             action = GatewayCommandConstants.ACTION_DELETE;
         }
+        if ("retry".equals(action) || "rerun".equals(action)) {
+            action = GatewayCommandConstants.ACTION_RUN;
+        }
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
@@ -2158,7 +2161,7 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run <job-id>");
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run|retry <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.require(jobId);
@@ -2173,7 +2176,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|history|status|tick]");
+                        + " [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|retry|history|status|tick]");
     }
 
     private String cronOverview(String listText) {
@@ -2199,6 +2202,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron pause <job-id> [--reason 原因] - 暂停定时任务\n")
                 .append("/cron resume <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
+                .append("/cron retry <job-id> - 重跑最近失败或需要复核的定时任务\n")
                 .append("/cron tick - 立即执行一次 scheduler tick\n")
                 .append("/cron history <job-id> [--limit 20] - 查看执行历史\n")
                 .append("/cron remove <job-id> - 删除定时任务\n")

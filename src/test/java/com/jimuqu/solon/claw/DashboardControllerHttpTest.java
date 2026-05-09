@@ -1593,6 +1593,14 @@ public class DashboardControllerHttpTest {
         assertThat(run.status).isEqualTo(200);
         assertThat(run.body).contains("\"job\"").contains("compat-renamed");
 
+        HttpResult retry = request("POST", "/api/jobs/" + jobId + "/retry", "{}", token);
+        assertThat(retry.status).isEqualTo(200);
+        assertThat(retry.body).contains("\"job\"").contains("compat-renamed");
+
+        HttpResult rerun = request("POST", "/api/jobs/" + jobId + "/rerun", "{}", token);
+        assertThat(rerun.status).isEqualTo(200);
+        assertThat(rerun.body).contains("\"job\"").contains("compat-renamed");
+
         HttpResult delete = request("DELETE", "/api/jobs/" + jobId, null, token);
         assertThat(delete.status).isEqualTo(200);
         assertThat(delete.body).contains("\"ok\":true");

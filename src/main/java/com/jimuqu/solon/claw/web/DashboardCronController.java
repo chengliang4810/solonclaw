@@ -280,6 +280,16 @@ public class DashboardCronController {
         return apiRunJob(id, context);
     }
 
+    @Mapping(value = "/api/jobs/{id}/retry", method = MethodType.POST)
+    public Map<String, Object> apiRetry(String id, Context context) throws Exception {
+        return apiRunJob(id, context);
+    }
+
+    @Mapping(value = "/api/jobs/{id}/rerun", method = MethodType.POST)
+    public Map<String, Object> apiRerun(String id, Context context) throws Exception {
+        return apiRunJob(id, context);
+    }
+
     private Map<String, Object> apiRunJob(String id, Context context) throws Exception {
         try {
             validateApiJobId(id);

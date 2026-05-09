@@ -564,7 +564,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|history|status|tick]");
+                .contains("/cron [list [--all]|inspect|show|next|add|edit|pause|resume|remove|run|retry|history|status|tick]");
     }
 
     @Test
@@ -607,6 +607,8 @@ public class CommandEnhancementTest {
 
         GatewayReply run = env.send("admin-chat", "admin-user", "/cron run " + jobId + " --accept-hooks");
         assertThat(run.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
+        GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry \"" + jobId + "\" --accept-hooks");
+        assertThat(retry.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
 
         GatewayReply removed =
                 env.send("admin-chat", "admin-user", "/cron delete \"" + jobId + "\" --force");
@@ -621,12 +623,15 @@ public class CommandEnhancementTest {
 
         GatewayReply resume = env.send("admin-chat", "admin-user", "/cron resume");
         GatewayReply run = env.send("admin-chat", "admin-user", "/cron run");
+        GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry");
         GatewayReply remove = env.send("admin-chat", "admin-user", "/cron remove");
 
         assertThat(resume.isError()).isTrue();
         assertThat(resume.getContent()).contains("用法：/cron resume <job-id>");
         assertThat(run.isError()).isTrue();
-        assertThat(run.getContent()).contains("用法：/cron run <job-id>");
+        assertThat(run.getContent()).contains("用法：/cron run|retry <job-id>");
+        assertThat(retry.isError()).isTrue();
+        assertThat(retry.getContent()).contains("用法：/cron run|retry <job-id>");
         assertThat(remove.isError()).isTrue();
         assertThat(remove.getContent()).contains("用法：/cron remove <job-id>");
     }
@@ -680,6 +685,7 @@ public class CommandEnhancementTest {
                 .contains("/cron list --all")
                 .contains("/cron next [--all] [--limit 5]")
                 .contains("/cron status [--all]")
+                .contains("/cron retry <job-id>")
                 .contains("/cron history <job-id>")
                 .contains("--deliver-chat-id")
                 .contains("--clear-deliver-chat-id")
