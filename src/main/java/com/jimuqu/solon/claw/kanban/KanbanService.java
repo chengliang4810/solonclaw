@@ -775,6 +775,9 @@ public class KanbanService {
         if ("show".equals(action)) {
             return showCommand(rest);
         }
+        if ("drawer".equals(action) || "inspect".equals(action)) {
+            return drawerCommand(rest);
+        }
         if ("create".equals(action) || "new".equals(action)) {
             return createCommand(rest, author);
         }
@@ -1104,6 +1107,22 @@ public class KanbanService {
             return ONode.serialize(detail);
         }
         return formatTaskDetail(detail);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String drawerCommand(String rest) throws Exception {
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        List<String> tokens = positionalTokens(parsed);
+        String taskId = firstToken(tokens);
+        if (StrUtil.isBlank(taskId)) {
+            return "用法：/kanban drawer <task-id> [--tail bytes] [--json]";
+        }
+        int tailBytes = intText(parsed.value("tail"), 4096);
+        Map<String, Object> drawer = taskDrawer(taskId, tailBytes);
+        if (parsed.hasFlag("json")) {
+            return ONode.serialize(drawer);
+        }
+        return formatTaskDrawer(drawer);
     }
 
     private String runsCommand(String rest) throws Exception {
@@ -1931,6 +1950,106 @@ public class KanbanService {
         return buffer.toString();
     }
 
+    @SuppressWarnings("unchecked")
+    private String formatTaskDrawer(Map<String, Object> drawer) {
+        Map<String, Object> task = (Map<String, Object>) drawer.get("task");
+        Map<String, Object> pipeline = (Map<String, Object>) drawer.get("pipeline_overview");
+        Map<String, Object> execution = (Map<String, Object>) drawer.get("execution_overview");
+        Map<String, Object> actions = (Map<String, Object>) drawer.get("actions");
+        List<Map<String, Object>> runs =
+                drawer.get("runs") instanceof List<?> ? (List<Map<String, Object>>) drawer.get("runs") : Collections.<Map<String, Object>>emptyList();
+        List<Map<String, Object>> events =
+                drawer.get("events") instanceof List<?> ? (List<Map<String, Object>>) drawer.get("events") : Collections.<Map<String, Object>>emptyList();
+        List<Map<String, Object>> notifications =
+                drawer.get("notifications") instanceof List<?> ? (List<Map<String, Object>>) drawer.get("notifications") : Collections.<Map<String, Object>>emptyList();
+        Map<String, Object> log =
+                drawer.get("log") instanceof Map<?, ?> ? (Map<String, Object>) drawer.get("log") : Collections.<String, Object>emptyMap();
+
+        String taskId = String.valueOf(drawer.get("task_id"));
+        StringBuilder buffer = new StringBuilder("任务抽屉：").append(taskId);
+        if (task != null) {
+            buffer.append('\n')
+                    .append("- 标题：")
+                    .append(task.get("title"))
+                    .append("\n- 状态：")
+                    .append(task.get("status"))
+                    .append("，执行人：")
+                    .append(StrUtil.blankToDefault(String.valueOf(task.get("assignee")), "未分配"));
+        }
+        if (pipeline != null) {
+            buffer.append("\n- 流程：")
+                    .append(StrUtil.blankToDefault(String.valueOf(pipeline.get("workflow_template_id")), "-"))
+                    .append(" / ")
+                    .append(StrUtil.blankToDefault(String.valueOf(pipeline.get("current_step_key")), "-"))
+                    .append("，结构化任务=")
+                    .append(Boolean.TRUE.equals(pipeline.get("schema_task")) ? "yes" : "no")
+                    .append("\n- 流水：尝试 ")
+                    .append(pipeline.get("attempt_count"))
+                    .append(" 次，重试 ")
+                    .append(pipeline.get("retry_count"))
+                    .append(" 次，事件 ")
+                    .append(pipeline.get("event_count"))
+                    .append(" 条")
+                    .append("\n- 可用动作：")
+                    .append(formatDrawerSupports(pipeline));
+        }
+        if (execution != null) {
+            buffer.append("\n- 阶段：")
+                    .append(execution.get("stage"))
+                    .append("，下一步：")
+                    .append(execution.get("next_action"))
+                    .append("，最后事件：")
+                    .append(StrUtil.blankToDefault(String.valueOf(execution.get("last_event_kind")), "-"));
+        }
+        buffer.append("\n- 运行历史：").append(runs.size()).append(" 条");
+        if (!runs.isEmpty()) {
+            Map<String, Object> latest = runs.get(runs.size() - 1);
+            buffer.append("，最近 ")
+                    .append(latest.get("run_id"))
+                    .append(" outcome=")
+                    .append(StrUtil.blankToDefault(String.valueOf(latest.get("outcome")), "-"))
+                    .append(" worker=")
+                    .append(StrUtil.blankToDefault(String.valueOf(latest.get("worker_id")), "-"));
+        }
+        buffer.append("\n- 执行流水：").append(events.size()).append(" 条");
+        if (!events.isEmpty()) {
+            Map<String, Object> latestEvent = events.get(events.size() - 1);
+            buffer.append("，最近 ").append(latestEvent.get("kind"));
+        }
+        buffer.append("\n- 通知订阅：").append(notifications.size()).append(" 条");
+        buffer.append("\n- 日志：")
+                .append(Boolean.TRUE.equals(log.get("exists")) ? "已记录" : "暂无")
+                .append(" ")
+                .append(StrUtil.blankToDefault(String.valueOf(log.get("path")), "-"));
+        if (actions != null) {
+            buffer.append("\n- 操作：").append(actions);
+        }
+        return buffer.toString();
+    }
+
+    private String formatDrawerSupports(Map<String, Object> pipeline) {
+        List<String> parts = new ArrayList<String>();
+        if (Boolean.TRUE.equals(pipeline.get("supports_history"))) {
+            parts.add("history");
+        }
+        if (Boolean.TRUE.equals(pipeline.get("supports_retry"))) {
+            parts.add("retry");
+        }
+        if (Boolean.TRUE.equals(pipeline.get("supports_reassign"))) {
+            parts.add("reassign");
+        }
+        if (Boolean.TRUE.equals(pipeline.get("supports_reclaim"))) {
+            parts.add("reclaim");
+        }
+        if (Boolean.TRUE.equals(pipeline.get("supports_unblock"))) {
+            parts.add("unblock");
+        }
+        if (Boolean.TRUE.equals(pipeline.get("supports_comment"))) {
+            parts.add("comment");
+        }
+        return parts.isEmpty() ? "-" : String.join(", ", parts);
+    }
+
     private String formatRuns(String taskId) throws Exception {
         return formatRuns(taskId, runs(taskId));
     }
@@ -2088,6 +2207,7 @@ public class KanbanService {
                         "/kanban create <title> - 创建任务",
                         "/kanban schema <task-json> - 用 JSON 创建结构化任务",
                         "/kanban show <task-id> - 查看任务详情",
+                        "/kanban drawer <task-id> [--json] - 查看任务抽屉、流水、运行历史和可用动作",
                         "/kanban move <task-id> <status> - 移动任务状态",
                         "/kanban assign <task-id> <assignee> - 分配执行人",
                         "/kanban step <task-id> <step-key> [--workflow template] [--note text] - 推进任务流程步骤",
@@ -2487,6 +2607,17 @@ public class KanbanService {
         }
         try {
             return Integer.parseInt(String.valueOf(value));
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private int intText(String value, int defaultValue) {
+        if (StrUtil.isBlank(value)) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value.trim());
         } catch (Exception e) {
             return defaultValue;
         }

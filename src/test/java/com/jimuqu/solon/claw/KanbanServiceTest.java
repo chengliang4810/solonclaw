@@ -383,6 +383,17 @@ public class KanbanServiceTest {
         assertThat(service.handleCommand("events " + taskId, "tester"))
                 .contains("执行流水")
                 .contains("retry");
+        assertThat(service.handleCommand("drawer " + taskId, "tester"))
+                .contains("任务抽屉")
+                .contains("流水")
+                .contains("可用动作")
+                .contains("最近")
+                .contains("worker-b");
+        assertThat(service.handleCommand("inspect " + taskId + " --json", "tester"))
+                .contains("\"pipeline_overview\"")
+                .contains("\"supports_history\":true")
+                .contains("\"latest_run\"")
+                .contains("\"worker_id\":\"worker-b\"");
         assertThat(service.handleCommand("context " + taskId, "tester"))
                 .contains("Task " + taskId)
                 .contains("Prior attempts");
