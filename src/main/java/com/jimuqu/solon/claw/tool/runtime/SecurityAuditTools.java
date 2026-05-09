@@ -86,9 +86,27 @@ public class SecurityAuditTools {
 
         result.policy = new LinkedHashMap<String, Object>();
         Map<String, Object> approvals = new LinkedHashMap<String, Object>();
-        approvals.put("mode", StrUtil.nullToEmpty(appConfig.getApprovals().getMode()));
-        approvals.put("cronMode", StrUtil.nullToEmpty(appConfig.getApprovals().getCronMode()));
+        String approvalMode =
+                approvalService == null
+                        ? normalizeApprovalMode(appConfig.getApprovals().getMode())
+                        : approvalService.approvalMode();
+        String cronApprovalMode =
+                approvalService == null
+                        ? normalizeCronApprovalMode(appConfig.getApprovals().getCronMode())
+                        : approvalService.cronApprovalMode();
+        boolean smartMode = "smart".equals(approvalMode);
+        boolean smartJudgeConfigured = approvalService != null && approvalService.hasSmartApprovalJudge();
+        approvals.put("mode", approvalMode);
+        approvals.put("smartMode", Boolean.valueOf(smartMode));
+        approvals.put("smartJudgeConfigured", Boolean.valueOf(smartJudgeConfigured));
+        approvals.put("smartApprovalActive", Boolean.valueOf(smartMode && smartJudgeConfigured));
+        approvals.put("smartCoversTirith", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
+        approvals.put("cronMode", cronApprovalMode);
+        approvals.put("cronAutoApprove", Boolean.valueOf("approve".equals(cronApprovalMode)));
         approvals.put("subagentAutoApprove", Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
+        approvals.put(
+                "subagentApprovalDefault",
+                appConfig.getApprovals().isSubagentAutoApprove() ? "approve" : "deny");
         approvals.put("timeoutSeconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
         approvals.put("gatewayTimeoutSeconds", Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
         approvals.put("mcpReloadConfirm", Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
@@ -137,6 +155,10 @@ public class SecurityAuditTools {
         Map<String, Object> coverage = new LinkedHashMap<String, Object>();
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
+        coverage.put("smartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured));
+        coverage.put("tirithSmartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured && tirithSecurityService != null));
+        coverage.put("cronApprovalPolicy", Boolean.TRUE);
+        coverage.put("subagentApprovalPolicy", Boolean.TRUE);
         coverage.put("approvalAuditLog", Boolean.valueOf(approvalService != null));
         coverage.put("hardlineCommandBlocks", Boolean.TRUE);
         coverage.put("terminalGuardrails", Boolean.TRUE);
@@ -157,6 +179,10 @@ public class SecurityAuditTools {
         List<String> activeSurfaces = new ArrayList<String>();
         addSurface(activeSurfaces, "approval", approvalService != null);
         addSurface(activeSurfaces, "slashConfirm", approvalService != null);
+        addSurface(activeSurfaces, "smartApproval", smartMode && smartJudgeConfigured);
+        addSurface(activeSurfaces, "tirithSmartApproval", smartMode && smartJudgeConfigured && tirithSecurityService != null);
+        addSurface(activeSurfaces, "cronApprovalPolicy", true);
+        addSurface(activeSurfaces, "subagentApprovalPolicy", true);
         addSurface(activeSurfaces, "hardlineCommand", true);
         addSurface(activeSurfaces, "terminalGuardrails", true);
         addSurface(activeSurfaces, "sudoRewrite", true);
@@ -553,5 +579,29 @@ public class SecurityAuditTools {
         if (enabled) {
             surfaces.add(name);
         }
+    }
+
+    private static String normalizeApprovalMode(String value) {
+        String mode = StrUtil.blankToDefault(value, "on").trim().toLowerCase(Locale.ROOT);
+        if ("false".equals(mode)) {
+            return "off";
+        }
+        if ("true".equals(mode)) {
+            return "on";
+        }
+        if ("off".equals(mode) || "smart".equals(mode)) {
+            return mode;
+        }
+        return "on";
+    }
+
+    private static String normalizeCronApprovalMode(String value) {
+        String mode = StrUtil.blankToDefault(value, "deny").trim().toLowerCase(Locale.ROOT);
+        return "approve".equals(mode)
+                        || "off".equals(mode)
+                        || "allow".equals(mode)
+                        || "yes".equals(mode)
+                ? "approve"
+                : "deny";
     }
 }

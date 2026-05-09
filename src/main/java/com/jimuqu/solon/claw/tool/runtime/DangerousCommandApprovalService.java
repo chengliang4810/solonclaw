@@ -898,6 +898,10 @@ public class DangerousCommandApprovalService {
         this.smartApprovalJudge = smartApprovalJudge;
     }
 
+    public boolean hasSmartApprovalJudge() {
+        return smartApprovalJudge != null;
+    }
+
     public void addApprovalObserver(ApprovalObserver observer) {
         if (observer != null && !approvalObservers.contains(observer)) {
             approvalObservers.add(observer);

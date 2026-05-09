@@ -17,6 +17,8 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.File;
@@ -153,13 +155,26 @@ public class ToolRegistryExposureTest {
     void shouldAuditSecurityInputsWithoutExecutingThem() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository, env.appConfig, policy, null);
+        approvalService.setSmartApprovalJudge(
+                new SmartApprovalJudge() {
+                    @Override
+                    public SmartApprovalDecision judge(
+                            String toolName, String command, String description) {
+                        return SmartApprovalDecision.escalate("audit only");
+                    }
+                });
         SecurityAuditTools tools =
                 new SecurityAuditTools(
                         policy,
-                        new DangerousCommandApprovalService(
-                                env.globalSettingRepository, env.appConfig, policy, null),
+                        approvalService,
                         new TirithSecurityService(env.appConfig),
                         env.appConfig);
+        env.appConfig.getApprovals().setMode("smart");
+        env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getApprovals().setSubagentAutoApprove(false);
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
         env.appConfig
                 .getSecurity()
@@ -257,6 +272,22 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("security").get("tirithDiagnostic").get("summary").getString())
                 .contains("unavailable");
+        assertThat(policyStatus.get("policy").get("approvals").get("mode").getString())
+                .isEqualTo("smart");
+        assertThat(policyStatus.get("policy").get("approvals").get("smartMode").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("approvals").get("smartJudgeConfigured").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("approvals").get("smartApprovalActive").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("approvals").get("smartCoversTirith").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("approvals").get("cronMode").getString())
+                .isEqualTo("approve");
+        assertThat(policyStatus.get("policy").get("approvals").get("cronAutoApprove").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("approvals").get("subagentApprovalDefault").getString())
+                .isEqualTo("deny");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);
         assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())
@@ -264,6 +295,14 @@ public class ToolRegistryExposureTest {
         assertThat(policyStatus.get("policy").get("terminal").get("sudoPasswordConfigured").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("smartApproval").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("tirithSmartApproval").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("cronApprovalPolicy").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("subagentApprovalPolicy").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("hardlineCommandBlocks").getBoolean())
                 .isTrue();
@@ -275,6 +314,10 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("activeSurfaces")))
                 .contains("approval")
+                .contains("smartApproval")
+                .contains("tirithSmartApproval")
+                .contains("cronApprovalPolicy")
+                .contains("subagentApprovalPolicy")
                 .contains("hardlineCommand")
                 .contains("terminalGuardrails")
                 .contains("urlSafety")
