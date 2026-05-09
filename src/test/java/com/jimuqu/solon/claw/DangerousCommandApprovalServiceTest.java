@@ -513,6 +513,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult setcap =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "setcap cap_net_bind_service+ep ./server");
+        DangerousCommandApprovalService.DetectionResult ldPreload =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "LD_PRELOAD=./hook.so ./server");
+        DangerousCommandApprovalService.DetectionResult dyldPreload =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "DYLD_INSERT_LIBRARIES=./hook.dylib ./app");
+        DangerousCommandApprovalService.DetectionResult ldSoPreloadWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo /tmp/hook.so | tee /etc/ld.so.preload");
         DangerousCommandApprovalService.DetectionResult ufwDisable =
                 env.dangerousCommandApprovalService.detect("execute_shell", "ufw disable");
         DangerousCommandApprovalService.DetectionResult iptablesFlush =
@@ -562,6 +571,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(chmodNumericSetuid.getPatternKey()).isEqualTo("chmod_setuid_setgid");
         assertThat(setcap).isNotNull();
         assertThat(setcap.getPatternKey()).isEqualTo("setcap_privilege");
+        assertThat(ldPreload).isNotNull();
+        assertThat(ldPreload.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
+        assertThat(dyldPreload).isNotNull();
+        assertThat(dyldPreload.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
+        assertThat(ldSoPreloadWrite).isNotNull();
+        assertThat(ldSoPreloadWrite.getPatternKey()).isEqualTo("dynamic_library_preload_injection");
         assertThat(ufwDisable).isNotNull();
         assertThat(ufwDisable.getPatternKey()).isEqualTo("linux_disable_firewall");
         assertThat(iptablesFlush).isNotNull();

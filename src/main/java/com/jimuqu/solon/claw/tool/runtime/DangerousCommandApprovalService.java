@@ -186,6 +186,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bsetcap\\b[^\\n]*\\bcap_[a-z0-9_,+-]+\\+ep\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "dynamic_library_preload_injection",
+                                    "dynamic library preload injection",
+                                    pattern(
+                                            "\\b(?:LD_PRELOAD|DYLD_INSERT_LIBRARIES)\\s*=|(?:>|tee\\b|Set-Content\\b|Out-File\\b)[^\\n]*/etc/ld\\.so\\.preload\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "chown_root",
                                     "recursive chown to root",
                                     pattern("\\bchown\\s+(-[^\\s]*)?R\\s+root"),
