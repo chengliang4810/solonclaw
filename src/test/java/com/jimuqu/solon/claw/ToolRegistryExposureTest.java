@@ -645,6 +645,34 @@ public class ToolRegistryExposureTest {
                 .contains(".ssh")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("credentials/oauth.json");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("credentialMountPolicy")
+                                .get("configCredentialFileCount")
+                                .getInt())
+                .isEqualTo(1);
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("credentialMountPolicy")
+                                .get("runtimeRelativeOnly")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("credentialMountPolicy")
+                                .get("hostPathsOmittedFromMetadata")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("credentialMountPolicy")))
+                .contains("required_credential_files")
+                .contains("terminal.credentialFiles")
+                .doesNotContain("credentials/oauth.json");
         assertThat(policyStatus.get("policy").get("terminal").get("pathPolicy").get("traversalBlocked").getBoolean())
                 .isTrue();
         assertThat(
@@ -776,6 +804,8 @@ public class ToolRegistryExposureTest {
         assertThat(policyStatus.get("policy").get("coverage").get("urlSafety").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialFilePolicy").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("credentialMountPolicy").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
                 .isTrue();

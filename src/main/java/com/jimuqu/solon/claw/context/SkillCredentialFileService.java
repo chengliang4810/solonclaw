@@ -87,6 +87,35 @@ public class SkillCredentialFileService {
         return plan;
     }
 
+    public Map<String, Object> policySummary() {
+        CredentialFilePlan credentialPlan = configPlan(DEFAULT_CONTAINER_BASE);
+        SandboxMountPlan sandboxPlan = sandboxMountPlan(DEFAULT_CONTAINER_BASE);
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("configCredentialFileCount", Integer.valueOf(configCredentialFileCount()));
+        summary.put("configuredMountCount", Integer.valueOf(credentialPlan.getMounts().size()));
+        summary.put("configuredMissingCount", Integer.valueOf(credentialPlan.getMissing().size()));
+        summary.put("configuredRejectedCount", Integer.valueOf(credentialPlan.getRejected().size()));
+        summary.put("sandboxCredentialMountCount", Integer.valueOf(sandboxPlan.getCredentialFiles().size()));
+        summary.put("skillsDirectoryMountCount", Integer.valueOf(sandboxPlan.getSkillsDirectories().size()));
+        summary.put("cacheDirectoryMountCount", Integer.valueOf(sandboxPlan.getCacheDirectories().size()));
+        summary.put("runtimeRelativeOnly", Boolean.TRUE);
+        summary.put("absolutePathRejected", Boolean.TRUE);
+        summary.put("pathTraversalRejected", Boolean.TRUE);
+        summary.put("controlCharacterRejected", Boolean.TRUE);
+        summary.put("runtimeHomeEscapeRejected", Boolean.TRUE);
+        summary.put("missingFilesNotMounted", Boolean.TRUE);
+        summary.put("hostPathsOmittedFromMetadata", Boolean.TRUE);
+        summary.put("rejectedPathsRedacted", Boolean.TRUE);
+        summary.put("customContainerBaseSupported", Boolean.TRUE);
+        summary.put("defaultContainerBase", DEFAULT_CONTAINER_BASE);
+        summary.put("skillsSymlinkSafeCopy", Boolean.TRUE);
+        summary.put("cacheSymlinksSkipped", Boolean.TRUE);
+        summary.put("skillFrontmatterKey", "required_credential_files");
+        summary.put("configKey", "terminal.credentialFiles");
+        summary.put("cacheMountDirectories", cacheMountDirectoryNames());
+        return summary;
+    }
+
     public List<DirectoryMount> skillsDirectoryMounts(String containerBase) {
         String base = stripTrailingSlash(StrUtil.blankToDefault(containerBase, DEFAULT_CONTAINER_BASE)
                 .replace('\\', '/'));
@@ -386,6 +415,22 @@ public class SkillCredentialFileService {
             }
         }
         return false;
+    }
+
+    private int configCredentialFileCount() {
+        if (appConfig == null || appConfig.getTerminal() == null
+                || appConfig.getTerminal().getCredentialFiles() == null) {
+            return 0;
+        }
+        return appConfig.getTerminal().getCredentialFiles().size();
+    }
+
+    private List<String> cacheMountDirectoryNames() {
+        List<String> names = new ArrayList<String>();
+        for (CacheMountDirectory directory : CACHE_MOUNT_DIRS) {
+            names.add(directory.containerName);
+        }
+        return names;
     }
 
     @SuppressWarnings("unchecked")

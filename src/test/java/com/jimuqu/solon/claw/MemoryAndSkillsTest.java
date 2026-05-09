@@ -455,6 +455,40 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldExposeCredentialMountPolicySummaryWithoutPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.mkdir(FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials"));
+        File credentialFile =
+                FileUtil.file(env.appConfig.getRuntime().getHome(), "credentials", "oauth.json");
+        FileUtil.writeUtf8String("{}", credentialFile);
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/oauth.json");
+        env.appConfig.getTerminal().getCredentialFiles().add("credentials/missing.json");
+        env.appConfig.getTerminal().getCredentialFiles().add("../outside.json");
+
+        Map<String, Object> summary =
+                new SkillCredentialFileService(env.appConfig).policySummary();
+
+        assertThat(summary.get("configCredentialFileCount")).isEqualTo(Integer.valueOf(3));
+        assertThat(summary.get("configuredMountCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(summary.get("configuredMissingCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(summary.get("configuredRejectedCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(summary.get("runtimeRelativeOnly")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("absolutePathRejected")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pathTraversalRejected")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("controlCharacterRejected")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("hostPathsOmittedFromMetadata")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rejectedPathsRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary))
+                .contains("required_credential_files")
+                .contains("terminal.credentialFiles")
+                .contains("tool-results")
+                .doesNotContain("credentials/oauth.json")
+                .doesNotContain("credentials/missing.json")
+                .doesNotContain("../outside.json")
+                .doesNotContain(credentialFile.getAbsolutePath());
+    }
+
+    @Test
     void shouldRejectCredentialFilesContainingControlCharactersLikeJimuquPathSecurity()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

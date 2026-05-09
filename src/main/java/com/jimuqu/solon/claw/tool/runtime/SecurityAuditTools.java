@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
@@ -174,6 +175,9 @@ public class SecurityAuditTools {
             terminal.put("credentialPolicy", securityPolicyService.credentialPolicySummary());
             terminal.put("pathPolicy", securityPolicyService.pathPolicySummary());
         }
+        terminal.put(
+                "credentialMountPolicy",
+                new SkillCredentialFileService(appConfig).policySummary());
         terminal.put("envPassthroughCount", Integer.valueOf(size(appConfig.getTerminal().getEnvPassthrough())));
         boolean sudoPasswordConfigured = appConfig.getTerminal().getSudoPassword() != null;
         terminal.put("sudoPasswordConfigured", Boolean.valueOf(sudoPasswordConfigured));
@@ -236,6 +240,7 @@ public class SecurityAuditTools {
         coverage.put("privateUrlPolicy", Boolean.valueOf(securityPolicyService != null));
         coverage.put("websitePolicy", Boolean.valueOf(securityPolicyService != null));
         coverage.put("credentialFilePolicy", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("credentialMountPolicy", Boolean.TRUE);
         coverage.put("pathSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("toolArgsSecurity", Boolean.valueOf(securityPolicyService != null));
         coverage.put("schemaSanitizer", Boolean.TRUE);
