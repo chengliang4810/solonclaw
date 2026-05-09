@@ -402,8 +402,10 @@ public class DashboardDiagnosticOutputTest {
                         approvalService,
                         new SecurityPolicyService(config),
                         null);
+        Map<String, Object> list = diagnosticsService.alwaysApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
         Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("approval", "execute_shell:recursive_delete");
+        body.put("approvalId", String.valueOf(items.get(0).get("approval_id")));
         body.put("approver", "dashboard token=ghp_revokeapprover123");
 
         Map<String, Object> result = diagnosticsService.revokeAlwaysApproval(body);
@@ -414,6 +416,52 @@ public class DashboardDiagnosticOutputTest {
         assertThat(event.getChoice()).isEqualTo("revoke");
         assertThat(event.getApprover()).doesNotContain("ghp_revokeapprover123");
         assertThat(event.getApprover()).contains("token=***");
+    }
+
+    @Test
+    void shouldRejectRawAlwaysApprovalRevokeInput() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-reject-raw-revoke");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(
+                        approvalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
+                                "setup"))
+                .isTrue();
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("approval", "execute_shell:recursive_delete");
+
+        Map<String, Object> result = diagnosticsService.revokeAlwaysApproval(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("code")).isEqualTo("missing_approval");
+        assertThat(approvalService.isAlwaysApproved("execute_shell", "recursive_delete", "rm -rf runtime/cache"))
+                .isTrue();
     }
 
     @Test

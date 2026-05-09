@@ -220,9 +220,7 @@ public class DashboardDiagnosticsService {
     public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         String approval =
-                resolveAlwaysApproval(
-                        StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")),
-                        StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern")));
+                resolveAlwaysApproval(StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")));
         String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
         if (StrUtil.isBlank(approval)) {
             return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
@@ -627,7 +625,7 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
-    private String resolveAlwaysApproval(String approvalId, String fallbackApproval) {
+    private String resolveAlwaysApproval(String approvalId) {
         if (StrUtil.isNotBlank(approvalId) && approvalService != null) {
             for (String approval : approvalService.listAlwaysApprovals()) {
                 if (alwaysApprovalId(approval).equals(approvalId.trim())) {
@@ -635,7 +633,7 @@ public class DashboardDiagnosticsService {
                 }
             }
         }
-        return StrUtil.nullToEmpty(fallbackApproval);
+        return "";
     }
 
     private String alwaysApprovalId(String approval) {
