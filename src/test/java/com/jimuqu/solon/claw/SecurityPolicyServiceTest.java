@@ -778,6 +778,14 @@ public class SecurityPolicyServiceTest {
         assertCommandCredentialOptionDenied(policy, "curl -bcookies.txt https://example.invalid", "cookies.txt");
         assertCommandCredentialOptionDenied(policy, "curl -c cookies.txt https://example.invalid", "cookies.txt");
         assertCommandCredentialOptionDenied(policy, "curl -E client.pem https://example.invalid", "client.pem");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "curl --retry 2 -b cookies.txt https://example.invalid",
+                "cookies.txt");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "wget --timeout=5 -E client.pem https://example.invalid",
+                "client.pem");
         assertCommandCredentialOptionDenied(policy, "wget --load-cookies cookies.txt https://example.invalid", "cookies.txt");
         assertCommandCredentialOptionDenied(
                 policy,

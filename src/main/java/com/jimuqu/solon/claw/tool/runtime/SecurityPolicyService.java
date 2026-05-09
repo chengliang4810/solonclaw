@@ -699,19 +699,20 @@ public class SecurityPolicyService {
 
     private FileVerdict checkCredentialPathOptions(String command) {
         List<String> tokens = shellLikeTokens(command, 200);
+        boolean networkCredentialMode = false;
         for (int i = 0; i < tokens.size(); i++) {
             String token = cleanUrlToken(tokens.get(i));
+            if (isNetworkToolToken(token)) {
+                networkCredentialMode = true;
+                continue;
+            }
             String path = credentialPathOptionValue(token);
-            if (StrUtil.isBlank(path)
-                    && isNetworkToolToken(token)
-                    && i + 1 < tokens.size()) {
-                String option = cleanUrlToken(tokens.get(i + 1));
-                path = networkCredentialShortOptionValue(option);
+            if (StrUtil.isBlank(path) && networkCredentialMode) {
+                path = networkCredentialShortOptionValue(token);
                 if (StrUtil.isNotBlank(path)) {
-                    i++;
-                } else if (isDetachedNetworkCredentialShortOption(option) && i + 2 < tokens.size()) {
-                    path = cleanUrlToken(tokens.get(i + 2));
-                    i += 2;
+                    // compact option, for example: curl -bcookies.txt
+                } else if (isDetachedNetworkCredentialShortOption(token) && i + 1 < tokens.size()) {
+                    path = cleanUrlToken(tokens.get(++i));
                 }
             }
             if (StrUtil.isBlank(path) && "-o".equals(token) && i + 1 < tokens.size()) {
