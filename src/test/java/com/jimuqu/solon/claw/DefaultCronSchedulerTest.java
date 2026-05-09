@@ -1204,6 +1204,11 @@ public class DefaultCronSchedulerTest {
                 .containsEntry("model", "gpt-5.4-mini")
                 .containsEntry("provider", "default")
                 .containsEntry("base_url", "https://api.pin.example/v1");
+        Map<?, ?> initialActions = (Map<?, ?>) service.toView(job).get("actions");
+        assertThat(initialActions.get("can_pause")).isEqualTo(Boolean.TRUE);
+        assertThat(initialActions.get("can_resume")).isEqualTo(Boolean.FALSE);
+        assertThat(initialActions.get("can_run")).isEqualTo(Boolean.TRUE);
+        assertThat(initialActions.get("supports_enable_alias")).isEqualTo(Boolean.TRUE);
 
         Map<String, Object> update = new LinkedHashMap<String, Object>();
         update.put("skills", java.util.Arrays.asList("blogwatcher"));
@@ -1222,6 +1227,20 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getModel()).isEqualTo("gpt-5.4");
         assertThat(updated.getBaseUrl()).isEqualTo("https://api.next.example");
         assertThat(updated.getDeliverPlatform()).isEqualTo("MEMORY:edit-room,origin");
+
+        CronJobRecord paused = service.pause(updated.getJobId(), "action metadata check");
+        Map<?, ?> pausedActions = (Map<?, ?>) service.toView(paused).get("actions");
+        assertThat(pausedActions.get("can_pause")).isEqualTo(Boolean.FALSE);
+        assertThat(pausedActions.get("can_resume")).isEqualTo(Boolean.TRUE);
+        assertThat(pausedActions.get("supports_stop_alias")).isEqualTo(Boolean.TRUE);
+        CronJobRecord enabledAgain = service.resume(paused.getJobId());
+        enabledAgain.setLastStatus("error");
+        enabledAgain.setLastError("failed once");
+        env.cronJobRepository.update(enabledAgain);
+        Map<?, ?> failedActions =
+                (Map<?, ?>) service.toView(env.cronJobRepository.findById(enabledAgain.getJobId())).get("actions");
+        assertThat(failedActions.get("can_retry")).isEqualTo(Boolean.TRUE);
+        assertThat(failedActions.get("supports_rerun_alias")).isEqualTo(Boolean.TRUE);
 
         Map<String, Object> explicitWrap = new LinkedHashMap<String, Object>();
         explicitWrap.put("name", "wrapped");

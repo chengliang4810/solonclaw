@@ -398,6 +398,7 @@ public class CronJobService {
         result.put("schedule_display", schedule.get("display"));
         result.put("enabled", Boolean.valueOf(STATUS_ACTIVE.equalsIgnoreCase(record.getStatus())));
         result.put("state", state(record));
+        result.put("actions", actions(record));
         result.put("deliver", StrUtil.blankToDefault(record.getDeliverPlatform(), "local"));
         result.put("deliver_chat_id", record.getDeliverChatId());
         result.put("deliver_thread_id", record.getDeliverThreadId());
@@ -436,6 +437,32 @@ public class CronJobService {
             return "completed";
         }
         return "scheduled";
+    }
+
+    private Map<String, Object> actions(CronJobRecord record) {
+        String status = record == null || record.getStatus() == null ? "" : record.getStatus();
+        boolean paused = STATUS_PAUSED.equalsIgnoreCase(status);
+        boolean completed = STATUS_COMPLETED.equalsIgnoreCase(status);
+        boolean failed =
+                record != null
+                        && ("error".equalsIgnoreCase(record.getLastStatus())
+                                || StrUtil.isNotBlank(record.getLastError())
+                                || StrUtil.isNotBlank(record.getLastDeliveryError()));
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("can_inspect", Boolean.TRUE);
+        result.put("can_edit", Boolean.TRUE);
+        result.put("can_remove", Boolean.TRUE);
+        result.put("can_history", Boolean.TRUE);
+        result.put("can_pause", Boolean.valueOf(!paused && !completed));
+        result.put("can_resume", Boolean.valueOf(paused || completed));
+        result.put("can_run", Boolean.TRUE);
+        result.put("can_retry", Boolean.valueOf(failed || completed));
+        result.put("supports_enable_alias", Boolean.TRUE);
+        result.put("supports_disable_alias", Boolean.TRUE);
+        result.put("supports_start_alias", Boolean.TRUE);
+        result.put("supports_stop_alias", Boolean.TRUE);
+        result.put("supports_rerun_alias", Boolean.TRUE);
+        return result;
     }
 
     private String scheduleDisplay(CronJobRecord record) {
