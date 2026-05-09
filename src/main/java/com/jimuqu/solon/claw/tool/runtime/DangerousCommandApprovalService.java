@@ -650,6 +650,12 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "mongodb_destructive_eval",
+                                    "MongoDB destructive shell evaluation",
+                                    pattern(
+                                            "\\b(?:mongo|mongosh)\\b(?=[^\\n]*(?:--eval\\b|-eval\\b))[^\\n]*(?:dropDatabase\\s*\\(|\\.drop\\s*\\(|deleteMany\\s*\\(\\s*\\{\\s*\\}\\s*\\))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "volume_delete",
                                     "storage volume or filesystem deletion",
                                     pattern(

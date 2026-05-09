@@ -704,6 +704,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult redisFlush =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli FLUSHALL");
+        DangerousCommandApprovalService.DetectionResult mongoDropDatabase =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mongosh prod --eval 'db.dropDatabase()'");
+        DangerousCommandApprovalService.DetectionResult mongoDropCollection =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mongo prod --eval 'db.users.drop()'");
+        DangerousCommandApprovalService.DetectionResult mongoFind =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mongosh prod --eval 'db.users.findOne()'");
         DangerousCommandApprovalService.DetectionResult redisPing =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "redis-cli ping");
@@ -795,6 +804,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(mysqlDrop.getPatternKey()).isEqualTo("database_dropdb");
         assertThat(redisFlush).isNotNull();
         assertThat(redisFlush.getPatternKey()).isEqualTo("database_flush");
+        assertThat(mongoDropDatabase).isNotNull();
+        assertThat(mongoDropDatabase.getPatternKey()).isEqualTo("mongodb_destructive_eval");
+        assertThat(mongoDropCollection).isNotNull();
+        assertThat(mongoDropCollection.getPatternKey()).isEqualTo("mongodb_destructive_eval");
+        assertThat(mongoFind).isNull();
         assertThat(redisPing).isNull();
         assertThat(lvremove).isNotNull();
         assertThat(lvremove.getPatternKey()).isEqualTo("volume_delete");
