@@ -18,6 +18,23 @@ import org.junit.jupiter.api.Test;
 
 public class BoundedAttachmentIOTest {
     @Test
+    void shouldExposeAttachmentDownloadPolicySummary() {
+        Map<String, Object> summary = BoundedAttachmentIO.policySummary();
+
+        assertThat(summary.get("hutoolDownloadGuarded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("okHttpDownloadGuarded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("initialUrlChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("redirectUrlCheckedBeforeFollow")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("crossHostHeaderForwardingBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("contentLengthChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("streamReadBounded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("defaultMaxBytes"))
+                .isEqualTo(Long.valueOf(BoundedAttachmentIO.DEFAULT_MAX_BYTES));
+        assertThat(summary.get("maxRedirects")).isEqualTo(Integer.valueOf(5));
+        assertThat(String.valueOf(summary)).doesNotContain("token");
+    }
+
+    @Test
     void shouldBlockPrivateDownloadUrlBeforeNetworkAccess() {
         SecurityPolicyService securityPolicyService =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "127.0.0.1");

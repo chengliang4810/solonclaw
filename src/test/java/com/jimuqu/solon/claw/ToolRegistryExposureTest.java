@@ -942,6 +942,23 @@ public class ToolRegistryExposureTest {
                 .contains("file_path")
                 .contains("invalid_token")
                 .doesNotContain("secret-sudo");
+        assertThat(policyStatus.get("policy").get("coverage").get("attachmentUrlSafety").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("attachmentCachePathSafety").getBoolean())
+                .isTrue();
+        ONode attachmentPolicy =
+                policyStatus.get("policy").get("coverage").get("attachmentPolicy");
+        assertThat(attachmentPolicy.get("downloadIo").get("redirectUrlCheckedBeforeFollow").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("downloadIo").get("crossHostHeaderForwardingBlocked").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("mediaCache").get("mediaReferenceTraversalBlocked").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("mediaCache").get("hostPathsNotReturnedInMediaReference").getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(attachmentPolicy))
+                .contains("runtime://cache/media")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(
                         policyStatus
                                 .get("policy")

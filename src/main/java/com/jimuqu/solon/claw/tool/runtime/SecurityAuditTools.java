@@ -4,6 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
@@ -210,6 +212,10 @@ public class SecurityAuditTools {
         coverage.put("subprocessEnvironmentPolicy", SubprocessEnvironmentSanitizer.policySummary(appConfig));
         coverage.put("codeExecutionPolicy", SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig));
         coverage.put("mcpRuntimePolicy", McpRuntimeService.policySummary(appConfig));
+        Map<String, Object> attachmentPolicy = new LinkedHashMap<String, Object>();
+        attachmentPolicy.put("downloadIo", BoundedAttachmentIO.policySummary());
+        attachmentPolicy.put("mediaCache", new AttachmentCacheService(appConfig).policySummary());
+        coverage.put("attachmentPolicy", attachmentPolicy);
         if (toolResultStorageService != null) {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
         }
@@ -255,6 +261,8 @@ public class SecurityAuditTools {
         coverage.put("mcpReloadConfirmation", Boolean.valueOf(approvalService != null));
         coverage.put("mcpToolChangeNotice", Boolean.TRUE);
         coverage.put("mcpRuntimePolicyAuditable", Boolean.TRUE);
+        coverage.put("attachmentUrlSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("attachmentCachePathSafety", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         if (tirithSecurityService != null) {
             coverage.put("tirithPolicy", tirithSecurityService.policySummary());

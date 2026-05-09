@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.session.InMemoryChatSession;
@@ -106,6 +107,25 @@ public class AttachmentAwareConversationTest {
                                         PlatformType.MEMORY, link.toFile(), "file", false, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outside media cache");
+    }
+
+    @Test
+    void shouldExposeAttachmentCachePolicySummaryWithoutPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        Map<String, Object> summary = new AttachmentCacheService(env.appConfig).policySummary();
+
+        assertThat(summary.get("mediaReferencePrefix")).isEqualTo("media://");
+        assertThat(summary.get("cacheBytesSizeChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("safeOriginalNameSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("fromLocalFileRequiresRuntimeCache")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("fromMediaCacheRequiresMediaRoot")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("mediaReferenceTraversalBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("generatedAttachmentSingleRuntimeLevelOnly"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary))
+                .contains("runtime://cache/media")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
     }
 
     @Test

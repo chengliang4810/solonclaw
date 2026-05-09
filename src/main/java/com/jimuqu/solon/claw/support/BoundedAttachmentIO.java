@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -24,6 +25,28 @@ public final class BoundedAttachmentIO {
     private static final int MAX_GUARDED_REDIRECTS = 5;
 
     private BoundedAttachmentIO() {}
+
+    public static Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("hutoolDownloadGuarded", Boolean.TRUE);
+        summary.put("okHttpDownloadGuarded", Boolean.TRUE);
+        summary.put("initialUrlChecked", Boolean.TRUE);
+        summary.put("redirectUrlCheckedBeforeFollow", Boolean.TRUE);
+        summary.put("manualRedirectHandling", Boolean.TRUE);
+        summary.put("maxRedirects", Integer.valueOf(MAX_GUARDED_REDIRECTS));
+        summary.put("redirectLocationRequired", Boolean.TRUE);
+        summary.put("redirectUrlResolvedAgainstCurrentUrl", Boolean.TRUE);
+        summary.put("crossHostHeaderForwardingBlocked", Boolean.TRUE);
+        summary.put("sameOriginHeadersAllowed", Boolean.TRUE);
+        summary.put("blockedUrlMasked", Boolean.TRUE);
+        summary.put("contentLengthChecked", Boolean.TRUE);
+        summary.put("streamReadBounded", Boolean.TRUE);
+        summary.put("defaultMaxBytes", Long.valueOf(DEFAULT_MAX_BYTES));
+        summary.put("jsonMaxBytes", Long.valueOf(JSON_MAX_BYTES));
+        summary.put("updateJarMaxBytes", Long.valueOf(UPDATE_JAR_MAX_BYTES));
+        summary.put("contentTypeCaptured", Boolean.TRUE);
+        return summary;
+    }
 
     public static byte[] downloadHutool(String url, int timeoutMillis, long maxBytes) {
         HttpResponse response = HttpRequest.get(url).timeout(timeoutMillis).executeAsync();

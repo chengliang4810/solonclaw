@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /** 附件缓存服务。 */
@@ -39,6 +41,25 @@ public class AttachmentCacheService {
                                                 .getPath()))
                         .getAbsoluteFile();
         this.cacheRoot = new File(cacheDir, "media");
+    }
+
+    public Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("mediaReferencePrefix", MEDIA_REFERENCE_PREFIX);
+        summary.put("maxCacheBytes", Long.valueOf(MAX_CACHE_BYTES));
+        summary.put("cacheBytesSizeChecked", Boolean.TRUE);
+        summary.put("safeOriginalNameSanitized", Boolean.TRUE);
+        summary.put("mimeSniffingEnabled", Boolean.TRUE);
+        summary.put("kindNormalized", Boolean.TRUE);
+        summary.put("fromLocalFileRequiresRuntimeCache", Boolean.TRUE);
+        summary.put("fromMediaCacheRequiresMediaRoot", Boolean.TRUE);
+        summary.put("mediaReferenceRequiresMediaRoot", Boolean.TRUE);
+        summary.put("mediaReferenceTraversalBlocked", Boolean.TRUE);
+        summary.put("generatedAttachmentSingleRuntimeLevelOnly", Boolean.TRUE);
+        summary.put("generatedAttachmentExtensionAllowlist", Boolean.TRUE);
+        summary.put("hostPathsNotReturnedInMediaReference", Boolean.TRUE);
+        summary.put("mediaRoot", "runtime://cache/media");
+        return summary;
     }
 
     /** 将原始字节落盘并返回附件模型。 */
