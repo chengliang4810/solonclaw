@@ -734,6 +734,36 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("slashApprovalConfirm").getBoolean())
+                .isTrue();
+        ONode slashConfirmPolicy =
+                policyStatus.get("policy").get("coverage").get("slashConfirmPolicy");
+        assertThat(slashConfirmPolicy.get("selectorSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("approveAllSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("denyAllSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("pendingQueueSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
+        assertThat(String.valueOf(slashConfirmPolicy))
+                .contains("/approve")
+                .contains("/deny")
+                .contains("once")
+                .contains("session")
+                .contains("always")
+                .doesNotContain("secret-sudo");
+        ONode approvalAuditPolicy =
+                policyStatus.get("policy").get("coverage").get("approvalAuditPolicy");
+        assertThat(approvalAuditPolicy.get("requestEvents").getBoolean()).isTrue();
+        assertThat(approvalAuditPolicy.get("responseEvents").getBoolean()).isTrue();
+        assertThat(approvalAuditPolicy.get("observerFailureIsolated").getBoolean()).isTrue();
+        assertThat(approvalAuditPolicy.get("approvalKeyRedacted").getBoolean()).isTrue();
+        assertThat(approvalAuditPolicy.get("manualRevocationAudited").getBoolean()).isTrue();
+        ONode mcpReloadPolicy =
+                policyStatus.get("policy").get("coverage").get("mcpReloadPolicy");
+        assertThat(mcpReloadPolicy.get("confirmRequired").getBoolean()).isTrue();
+        assertThat(mcpReloadPolicy.get("slashConfirmBacked").getBoolean()).isTrue();
+        assertThat(mcpReloadPolicy.get("persistentDisableSupported").getBoolean()).isTrue();
+        assertThat(mcpReloadPolicy.get("toolChangeNoticeInjected").getBoolean()).isTrue();
+        assertThat(mcpReloadPolicy.get("oauthUrlSafetyCovered").getBoolean()).isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("smartApproval").getBoolean())
                 .isTrue();
         assertThat(

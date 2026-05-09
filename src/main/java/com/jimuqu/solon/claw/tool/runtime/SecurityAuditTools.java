@@ -226,6 +226,11 @@ public class SecurityAuditTools {
         }
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
+        if (approvalService != null) {
+            coverage.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
+            coverage.put("approvalAuditPolicy", approvalService.approvalAuditPolicySummary());
+            coverage.put("mcpReloadPolicy", approvalService.mcpReloadPolicySummary());
+        }
         coverage.put("smartApproval", Boolean.valueOf(smartMode && smartJudgeConfigured));
         if (approvalService != null) {
             coverage.put("smartApprovalPolicy", approvalService.smartApprovalPolicySummary());
