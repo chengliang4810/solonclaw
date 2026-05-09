@@ -1649,6 +1649,9 @@ public class DangerousCommandApprovalServiceTest {
                         "wget --http-password=password https://example.com/private",
                         "wget --ftp-user user --ftp-password password ftp://example.com/private",
                         "wget --ask-password --user user https://example.com/private",
+                        "aria2c --http-user=user --http-passwd=password https://example.com/private",
+                        "aria2c --ftp-user user --ftp-passwd password ftp://example.com/private",
+                        "aria2c --proxy-user=user --proxy-passwd=password https://example.com/private",
                         "curl --proxy-user user:password https://example.com/private",
                         "curl --proxy-password password https://example.com/private",
                         "wget --proxy-user=user --proxy-password=password https://example.com/private",
@@ -1732,6 +1735,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "wget --tries=3 https://example.com/file"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "aria2c --dir downloads https://example.com/file"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(

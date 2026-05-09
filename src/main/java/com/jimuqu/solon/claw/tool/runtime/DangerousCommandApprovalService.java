@@ -455,7 +455,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*=\\s*\\S+|\\s--json(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "[\"']?\\s*:\\s*[\"']?\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
+                                                    + "[\"']?\\s*:\\s*[\"']?\\S+)|\\baria2c\\b[^\\n]*\\s--(?:http-user|http-passwd|ftp-user|ftp-passwd|proxy-user|proxy-passwd)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
                                                     + "(?:--auth(?:=|\\s+)\\S+|-a(?:=|\\s+)?\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--json)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
