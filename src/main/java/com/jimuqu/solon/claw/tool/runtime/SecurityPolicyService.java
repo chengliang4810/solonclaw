@@ -2408,9 +2408,55 @@ public class SecurityPolicyService {
         if (uri == null) {
             return false;
         }
-        return containsSensitiveParameterName(uri.getRawPath())
+        return containsSensitivePathCredentialName(uri.getRawPath())
+                || containsSensitiveParameterName(uri.getRawPath())
                 || containsSensitiveParameterName(uri.getRawQuery())
                 || containsSensitiveParameterName(uri.getRawFragment());
+    }
+
+    private boolean containsSensitivePathCredentialName(String rawPath) {
+        String value = StrUtil.nullToEmpty(rawPath);
+        if (value.length() == 0) {
+            return false;
+        }
+        String[] segments = value.split("[/\\\\]+");
+        for (int i = 0; i < segments.length; i++) {
+            String segment = decodeUrlComponent(segments[i]).trim();
+            if (segment.length() == 0) {
+                continue;
+            }
+            String name = segment;
+            int equals = name.indexOf('=');
+            int colon = name.indexOf(':');
+            int delimiter = -1;
+            if (equals >= 0 && colon >= 0) {
+                delimiter = Math.min(equals, colon);
+            } else if (equals >= 0) {
+                delimiter = equals;
+            } else if (colon >= 0) {
+                delimiter = colon;
+            }
+            if (delimiter >= 0) {
+                name = name.substring(0, delimiter);
+                if (isSensitiveUrlParameterName(name)) {
+                    return true;
+                }
+                continue;
+            }
+            if (isSensitiveUrlParameterName(name) && hasFollowingPathCredentialValue(segments, i + 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasFollowingPathCredentialValue(String[] segments, int start) {
+        for (int i = start; i < segments.length; i++) {
+            if (decodeUrlComponent(segments[i]).trim().length() > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean containsSensitiveParameterName(String rawParameters) {

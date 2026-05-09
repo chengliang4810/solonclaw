@@ -381,6 +381,38 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("url", "https://example.com/oauth/access_token/secret123");
+
+        SecurityPolicyService.UrlVerdict directEquals =
+                policy.checkUrl("https://example.com/callback/client_secret=secret123");
+        SecurityPolicyService.UrlVerdict directColon =
+                policy.checkUrl("https://example.com/callback/api_key:secret123");
+        SecurityPolicyService.UrlVerdict directSegment =
+                policy.checkUrl("https://example.com/oauth/access_token/secret123");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandUrls("curl https://example.com/oauth/refresh_token/secret123");
+        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("remote_fetch", args);
+        SecurityPolicyService.UrlVerdict safe =
+                policy.checkUrl("https://example.com/docs/access_token");
+
+        assertThat(directEquals.isAllowed()).isFalse();
+        assertThat(directEquals.getMessage()).contains("敏感凭据参数");
+        assertThat(directColon.isAllowed()).isFalse();
+        assertThat(directColon.getMessage()).contains("敏感凭据参数");
+        assertThat(directSegment.isAllowed()).isFalse();
+        assertThat(directSegment.getMessage()).contains("敏感凭据参数");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("敏感凭据参数");
+        assertThat(toolArg.isAllowed()).isFalse();
+        assertThat(toolArg.getMessage()).contains("敏感凭据参数");
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
