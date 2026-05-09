@@ -3573,6 +3573,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict ftpProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --ftp-proxy=169.254.169.254:8080 ftp://safe.example/file");
+        SecurityPolicyService.UrlVerdict dohMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --doh-url http://169.254.169.254/dns-query https://safe.example/");
+        SecurityPolicyService.UrlVerdict dohPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --doh-url=http://127.0.0.1/dns-query https://safe.example/");
         SecurityPolicyService.UrlVerdict socksMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
@@ -3626,6 +3632,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(httpsProxyPrivate.getMessage()).contains("内网");
         assertThat(ftpProxyMetadata.isAllowed()).isFalse();
         assertThat(ftpProxyMetadata.getMessage()).contains("元数据");
+        assertThat(dohMetadata.isAllowed()).isFalse();
+        assertThat(dohMetadata.getMessage()).contains("元数据");
+        assertThat(dohPrivate.isAllowed()).isFalse();
+        assertThat(dohPrivate.getMessage()).contains("内网");
         assertThat(socksMetadata.isAllowed()).isFalse();
         assertThat(socksMetadata.getMessage()).contains("元数据");
         assertThat(socks4Private.isAllowed()).isFalse();

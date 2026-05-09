@@ -1055,6 +1055,7 @@ public class SecurityPolicyService {
         }
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
+        extractCurlDohUrls(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1183,6 +1184,24 @@ public class SecurityPolicyService {
                 mode = "--resolve";
             }
             addCurlOverrideHost(mode, value, urls);
+        }
+    }
+
+    private void extractCurlDohUrls(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--doh-url".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--doh-url=")) {
+                value = token.substring("--doh-url=".length());
+            }
+            if (StrUtil.isNotBlank(value)) {
+                urls.add(cleanUrlToken(value));
+            }
         }
     }
 
