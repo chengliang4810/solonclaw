@@ -2321,6 +2321,71 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExposeCronjobPolicyThroughTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:policy-room:user");
+
+        Map<?, ?> payload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "policy",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> policy = (Map<?, ?>) payload.get("policy");
+        Map<?, ?> delivery = (Map<?, ?>) policy.get("delivery");
+        Map<?, ?> skillBinding = (Map<?, ?>) policy.get("skill_binding");
+        Map<?, ?> execution = (Map<?, ?>) policy.get("execution");
+
+        assertThat(String.valueOf(policy.get("actions")))
+                .contains("add")
+                .contains("edit")
+                .contains("pause")
+                .contains("resume")
+                .contains("run_now")
+                .contains("remove")
+                .contains("history");
+        assertThat(policy.get("sourceScopedList")).isEqualTo(Boolean.TRUE);
+        assertThat(policy.get("freshSessionRuns")).isEqualTo(Boolean.TRUE);
+        assertThat(delivery.get("originDefaultOnCreate")).isEqualTo(Boolean.TRUE);
+        assertThat(delivery.get("multiTargetDeliverySupported")).isEqualTo(Boolean.TRUE);
+        assertThat(delivery.get("wrapResponseSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(delivery.get("supportedPlatforms")))
+                .contains("FEISHU")
+                .contains("DINGTALK")
+                .contains("WEIXIN")
+                .contains("YUANBAO");
+        assertThat(skillBinding.get("singleSkillSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(skillBinding.get("multipleSkillsSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(skillBinding.get("contextFromSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(skillBinding.get("enabledToolsetsSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("manualRunSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("pauseResumeSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("historySupported")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("scriptMustStayInRuntimeScripts")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("dangerousCommandApprovalApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(execution.get("promptThreatScanApplied")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
     void shouldExposeCronRunHistoryThroughSchedulerAndTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
