@@ -1639,6 +1639,20 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("credential_history_erasure");
         }
 
+        List<String> gitRemoteCredentialUrls =
+                Arrays.asList(
+                        "git remote add origin https://user:token@example.com/repo.git",
+                        "git remote set-url origin https://user:password@example.com/repo.git",
+                        "git config --global url.https://user:token@example.com/.insteadOf https://example.com/");
+        for (String command : gitRemoteCredentialUrls) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("git_remote_credential_url");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "history | tail"))
@@ -1646,6 +1660,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "cat ~/.bash_history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git remote set-url origin https://example.com/repo.git"))
                 .isNull();
     }
 

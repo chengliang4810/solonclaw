@@ -401,6 +401,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "git_remote_credential_url",
+                                    "Git remote URL contains credentials",
+                                    pattern(
+                                            "\\bgit\\s+(?:remote\\s+(?:add|set-url)|config\\s+(?:--global\\s+)?url\\.)[^\\n]*(?:https?|ssh)://[^\\s/@:]+:[^\\s/@]+@"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "ssh_host_key_check_disabled",
                                     "SSH host key verification disabled",
                                     pattern(
