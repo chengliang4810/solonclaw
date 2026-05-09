@@ -1341,11 +1341,10 @@ public class DashboardControllerHttpTest {
 
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
         String selector = pendingData.get("selector").getString();
-        String approvalKey = pendingData.get("approval_key").getString();
         assertThat(selector).isNotBlank();
         assertThat(selector).isEqualTo(pendingData.get("approval_id").getString());
         assertThat(selector).doesNotContain("execute_shell:");
-        assertThat(approvalKey).startsWith("execute_shell:").endsWith(":***");
+        assertThat(pending.body).doesNotContain("\"approval_key\":");
 
         HttpResult historyBefore =
                 request("GET", "/api/diagnostics/approvals/history?limit=20", null, token);
@@ -1442,8 +1441,8 @@ public class DashboardControllerHttpTest {
         assertThat(revoke.status).isEqualTo(200);
         assertThat(revoke.body)
                 .contains("\"success\":true")
-                .contains("\"approval_id\":\"" + jsonEscape(approvalId) + "\"")
                 .contains("长期授权已撤销")
+                .doesNotContain("\"approval_id\":")
                 .doesNotContain("\"approval\":")
                 .doesNotContain("\"approval\":\"execute_shell:rm_recursive_root:");
         assertThat(bean(DangerousCommandApprovalService.class)
@@ -1456,8 +1455,7 @@ public class DashboardControllerHttpTest {
         assertThat(history.body)
                 .contains("\"choice\":\"revoke\"")
                 .contains("\"approver\":\"dashboard\"")
-                .contains("\"approval_key\":\"execute_shell:")
-                .contains(":***\"")
+                .doesNotContain("\"approval_key\":")
                 .doesNotContain("execute_shell:rm_recursive_root:97c852eaef0753db")
                 .contains("撤销长期审批授权");
 

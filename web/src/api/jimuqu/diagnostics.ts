@@ -60,7 +60,6 @@ export interface PendingApproval {
   rule_sources?: string[]
   command_preview?: string
   command_hash?: string
-  approval_key?: string
   created_at?: number
   expires_at?: number
   expires_in_seconds?: number
@@ -83,8 +82,6 @@ export interface ApprovalAuditEvent {
   choice?: string
   approver?: string
   tool_name?: string
-  approval_id?: string
-  approval_key?: string
   command_hash?: string
   command_preview?: string
   description?: string

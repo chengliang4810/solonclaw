@@ -220,9 +220,7 @@ public class DashboardDiagnosticsService {
     public Map<String, Object> revokeAlwaysApproval(Map<String, Object> body) throws Exception {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         String approval =
-                resolveAlwaysApproval(
-                        StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")),
-                        StrUtil.blankToDefault(text(input, "approval"), text(input, "pattern")));
+                resolveAlwaysApproval(StrUtil.blankToDefault(text(input, "approvalId"), text(input, "approval_id")));
         String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
         if (StrUtil.isBlank(approval)) {
             return resolveResult(false, "missing_approval", "缺少长期授权项。", null);
@@ -232,9 +230,7 @@ public class DashboardDiagnosticsService {
             return resolveResult(false, "approval_not_found", "长期授权项不存在或已撤销。", null);
         }
         appendAlwaysApprovalRevokedAudit(approval, approver);
-        Map<String, Object> result = resolveResult(true, "ok", "长期授权已撤销。", null);
-        result.put("approval_id", alwaysApprovalId(approval));
-        return result;
+        return resolveResult(true, "ok", "长期授权已撤销。", null);
     }
 
     public Map<String, Object> pendingSlashConfirms(int limit) {
@@ -463,7 +459,6 @@ public class DashboardDiagnosticsService {
         item.put("rule_sources", approvalRuleSources(pending));
         item.put("command_preview", safeAuditPreview(pending.getCommand(), 800));
         item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
-        item.put("approval_key", redactedApprovalKey(pending.approvalKey()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
         item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
@@ -582,8 +577,6 @@ public class DashboardDiagnosticsService {
         item.put("choice", safeAuditPreview(event.getChoice(), 80));
         item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
         item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
-        item.put("approval_id", safeAuditPreview(event.getApprovalId(), 160));
-        item.put("approval_key", redactedApprovalKey(event.getApprovalKey()));
         item.put("command_hash", redactedIdentifier(event.getCommandHash()));
         item.put("command_preview", safeAuditPreview(event.getCommandPreview(), 800));
         item.put("description", safeAuditPreview(event.getDescription(), 1000));
@@ -627,7 +620,7 @@ public class DashboardDiagnosticsService {
         return item;
     }
 
-    private String resolveAlwaysApproval(String approvalId, String fallbackApproval) {
+    private String resolveAlwaysApproval(String approvalId) {
         if (StrUtil.isNotBlank(approvalId) && approvalService != null) {
             for (String approval : approvalService.listAlwaysApprovals()) {
                 if (alwaysApprovalId(approval).equals(approvalId.trim())) {
@@ -635,7 +628,7 @@ public class DashboardDiagnosticsService {
                 }
             }
         }
-        return StrUtil.nullToEmpty(fallbackApproval);
+        return "";
     }
 
     private String alwaysApprovalId(String approval) {

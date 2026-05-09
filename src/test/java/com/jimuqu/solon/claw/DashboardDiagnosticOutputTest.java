@@ -175,9 +175,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat((List<String>) localItem.get("rule_sources")).containsExactly("local_policy");
         assertThat(localItem.get("permanent_allowed")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(localItem.get("permanent_disabled_reason"))).isEmpty();
-        assertThat(String.valueOf(localItem.get("approval_key")))
-                .contains("execute_shell:recursive_delete:***")
-                .doesNotContain("execute_shell:recursive_delete:hash");
+        assertThat(localItem).doesNotContainKey("approval_key");
         assertThat(String.valueOf(localItem.get("selector")))
                 .isEqualTo(String.valueOf(localItem.get("approval_id")))
                 .doesNotContain("execute_shell:");
@@ -231,6 +229,7 @@ public class DashboardDiagnosticOutputTest {
                 .contains("password=***")
                 .contains("command_preview\":\"rm -rf runtime/cache --token ***")
                 .doesNotContain("\\u202E")
+                .doesNotContain("\"approval_key\":")
                 .doesNotContain("ghp_titlepending123")
                 .doesNotContain("pendingpattern123")
                 .doesNotContain("pending-secret")
@@ -298,7 +297,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(item.get("approval_id")).isEqualTo("");
         assertThat(selector).startsWith("key_").hasSize(28);
         assertThat(selector).isNotEqualTo(approvalKey).doesNotContain("execute_shell:");
-        assertThat(String.valueOf(item.get("approval_key"))).isEqualTo("execute_shell:recursive_delete:***");
+        assertThat(item).doesNotContainKey("approval_key");
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("sessionId", "session-legacy\u202E-approval");
@@ -357,10 +356,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
         assertThat(json).doesNotContain("\\u202E");
         assertThat(json).doesNotContain("historypattern123");
+        assertThat(json).doesNotContain("\"approval_id\":");
+        assertThat(json).doesNotContain("\"approval_key\":");
         assertThat(json).contains("\"session_id\":\"session-audit\"");
         assertThat(json).contains("\"tool_name\":\"execute_shell\"");
         assertThat(json).contains("token_ghp_***");
-        assertThat(json).contains("\"approval_key\":\"execute_shell:recursive_delete:***\"");
         assertThat(json).contains("\"command_hash\":\"***\"");
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
     }
@@ -402,8 +402,10 @@ public class DashboardDiagnosticOutputTest {
                         approvalService,
                         new SecurityPolicyService(config),
                         null);
+        Map<String, Object> list = diagnosticsService.alwaysApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
         Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("approval", "execute_shell:recursive_delete");
+        body.put("approvalId", String.valueOf(items.get(0).get("approval_id")));
         body.put("approver", "dashboard token=ghp_revokeapprover123");
 
         Map<String, Object> result = diagnosticsService.revokeAlwaysApproval(body);
@@ -414,6 +416,52 @@ public class DashboardDiagnosticOutputTest {
         assertThat(event.getChoice()).isEqualTo("revoke");
         assertThat(event.getApprover()).doesNotContain("ghp_revokeapprover123");
         assertThat(event.getApprover()).contains("token=***");
+    }
+
+    @Test
+    void shouldRejectRawAlwaysApprovalRevokeInput() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-reject-raw-revoke");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        assertThat(
+                        approvalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
+                                "setup"))
+                .isTrue();
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("approval", "execute_shell:recursive_delete");
+
+        Map<String, Object> result = diagnosticsService.revokeAlwaysApproval(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("code")).isEqualTo("missing_approval");
+        assertThat(approvalService.isAlwaysApproved("execute_shell", "recursive_delete", "rm -rf runtime/cache"))
+                .isTrue();
     }
 
     @Test
