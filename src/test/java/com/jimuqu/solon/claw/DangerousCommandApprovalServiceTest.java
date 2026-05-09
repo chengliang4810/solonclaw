@@ -1510,7 +1510,11 @@ public class DangerousCommandApprovalServiceTest {
                         "gpg --decrypt secrets.gpg",
                         "gpg -d secrets.gpg",
                         "age -d secrets.age",
-                        "age --decrypt secrets.age");
+                        "age --decrypt secrets.age",
+                        "aws kms decrypt --ciphertext-blob fileb://secret.bin",
+                        "gcloud kms decrypt --ciphertext-file secret.bin --plaintext-file secret.txt",
+                        "az keyvault key decrypt --vault-name prod --name key --algorithm RSA-OAEP --value ciphertext",
+                        "vault write transit/decrypt/payments ciphertext=abcd");
         for (String command : encryptedSecretFileDecrypts) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1530,7 +1534,11 @@ public class DangerousCommandApprovalServiceTest {
                         "sops --encrypt secrets.yaml",
                         "ansible-vault edit group_vars/prod/vault.yml",
                         "gpg --list-keys",
-                        "age-keygen -o key.txt");
+                        "age-keygen -o key.txt",
+                        "aws kms describe-key --key-id alias/prod",
+                        "gcloud kms keys list --keyring prod --location global",
+                        "az keyvault key show --vault-name prod --name key",
+                        "vault write transit/encrypt/payments plaintext=abcd");
         for (String command : secretStoreMetadataReads) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)

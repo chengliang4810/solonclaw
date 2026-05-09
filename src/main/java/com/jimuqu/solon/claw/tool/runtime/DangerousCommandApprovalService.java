@@ -403,7 +403,7 @@ public class DangerousCommandApprovalService {
                                     "encrypted_secret_file_decrypt",
                                     "decrypt encrypted secret file",
                                     pattern(
-                                            "\\b(?:sops\\s+(?:-d|--decrypt)\\b|ansible-vault\\s+(?:view|decrypt)\\b|gpg(?:2)?\\s+(?:--decrypt|-d)\\b|age\\s+(?:--decrypt|-d)\\b)"),
+                                            "\\b(?:sops\\s+(?:-d|--decrypt)\\b|ansible-vault\\s+(?:view|decrypt)\\b|gpg(?:2)?\\s+(?:--decrypt|-d)\\b|age\\s+(?:--decrypt|-d)\\b|aws\\s+kms\\s+decrypt\\b|gcloud\\s+kms\\s+decrypt\\b|az\\s+keyvault\\s+key\\s+decrypt\\b|vault\\s+write\\s+transit/decrypt/\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_write",
