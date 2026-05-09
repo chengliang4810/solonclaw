@@ -116,6 +116,7 @@ public class SecurityAuditTools {
         if (approvalService != null) {
             approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
             approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
+            approvals.put("auditLogPolicy", approvalService.approvalAuditPolicySummary());
         }
         result.policy.put("approvals", approvals);
 

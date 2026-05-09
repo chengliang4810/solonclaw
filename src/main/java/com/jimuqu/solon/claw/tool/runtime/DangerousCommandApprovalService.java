@@ -1308,6 +1308,7 @@ public class DangerousCommandApprovalService {
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
         summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
         summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
+        summary.put("auditLogPolicy", approvalAuditPolicySummary());
         summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
         return summary;
     }
@@ -1338,6 +1339,27 @@ public class DangerousCommandApprovalService {
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
         summary.put("description", "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes and redacted approval metadata.");
+        return summary;
+    }
+
+    public Map<String, Object> approvalAuditPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("observerCount", Integer.valueOf(approvalObservers.size()));
+        summary.put("requestEvents", Boolean.TRUE);
+        summary.put("responseEvents", Boolean.TRUE);
+        summary.put("eventTypes", Arrays.asList("request", "response"));
+        summary.put("repositoryBackedWhenConfigured", Boolean.TRUE);
+        summary.put("observerFailureIsolated", Boolean.TRUE);
+        summary.put("approverRedacted", Boolean.TRUE);
+        summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("descriptionRedacted", Boolean.TRUE);
+        summary.put("approvalKeyRedacted", Boolean.TRUE);
+        summary.put("commandHashStored", Boolean.TRUE);
+        summary.put("patternKeysStored", Boolean.TRUE);
+        summary.put("timestampsStored", Boolean.TRUE);
+        summary.put("recentDashboardViewSupported", Boolean.TRUE);
+        summary.put("manualRevocationAudited", Boolean.TRUE);
+        summary.put("description", "Approval request and response events can be persisted with redacted command previews, approvers, descriptions, pattern keys, command hashes, and approval timestamps.");
         return summary;
     }
 

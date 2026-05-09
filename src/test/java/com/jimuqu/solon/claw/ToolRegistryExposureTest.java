@@ -351,6 +351,7 @@ public class ToolRegistryExposureTest {
                 .contains("/approve")
                 .contains("/deny")
                 .contains("dangerous_command_approval_card")
+                .contains("auditLogPolicy")
                 .doesNotContain("secret-sudo");
         assertThat(
                         policyStatus
@@ -396,6 +397,43 @@ public class ToolRegistryExposureTest {
                 .contains("once")
                 .contains("session")
                 .contains("always")
+                .doesNotContain("secret-sudo");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("auditLogPolicy")
+                                .get("requestEvents")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("auditLogPolicy")
+                                .get("responseEvents")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("auditLogPolicy")
+                                .get("observerFailureIsolated")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("auditLogPolicy")
+                                .get("approverRedacted")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("auditLogPolicy")))
+                .contains("commandHashStored")
+                .contains("patternKeysStored")
+                .contains("manualRevocationAudited")
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);

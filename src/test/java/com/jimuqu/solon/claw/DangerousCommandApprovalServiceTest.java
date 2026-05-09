@@ -76,6 +76,10 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("/deny")
                 .contains("dangerous_command_approval_card")
                 .contains("tirithAlwaysDowngradedToSession");
+        assertThat(String.valueOf(summary.get("auditLogPolicy")))
+                .contains("request")
+                .contains("response")
+                .contains("observerFailureIsolated");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
     }
 
@@ -110,6 +114,34 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("observerEventsRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalTimeoutSeconds")).isEqualTo(Integer.valueOf(42));
         assertThat(summary.get("gatewayTimeoutSeconds")).isEqualTo(Integer.valueOf(43));
+        assertThat(summary.toString())
+                .doesNotContain("secret")
+                .doesNotContain("token=")
+                .doesNotContain("sudo");
+    }
+
+    @Test
+    void shouldExposeApprovalAuditPolicySummaryWithoutSecrets() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        Map<String, Object> summary =
+                env.dangerousCommandApprovalService.approvalAuditPolicySummary();
+
+        assertThat(summary.get("observerCount")).isEqualTo(Integer.valueOf(0));
+        assertThat(summary.get("requestEvents")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("responseEvents")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("eventTypes"))).contains("request").contains("response");
+        assertThat(summary.get("repositoryBackedWhenConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("observerFailureIsolated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approverRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("descriptionRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalKeyRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commandHashStored")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("patternKeysStored")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("timestampsStored")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("recentDashboardViewSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("manualRevocationAudited")).isEqualTo(Boolean.TRUE);
         assertThat(summary.toString())
                 .doesNotContain("secret")
                 .doesNotContain("token=")
