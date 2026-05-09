@@ -607,6 +607,16 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult sysctlRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "sysctl kernel.kptr_restrict");
+        DangerousCommandApprovalService.DetectionResult mountRootRw =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "mount -o remount,rw /");
+        DangerousCommandApprovalService.DetectionResult umountBoot =
+                env.dangerousCommandApprovalService.detect("execute_shell", "umount /boot");
+        DangerousCommandApprovalService.DetectionResult fstabWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '/dev/sdb1 /data ext4 defaults 0 0' >> /etc/fstab");
+        DangerousCommandApprovalService.DetectionResult mountList =
+                env.dangerousCommandApprovalService.detect("execute_shell", "mount");
         DangerousCommandApprovalService.DetectionResult spctlDisable =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "spctl --master-disable");
@@ -691,6 +701,13 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(sysctlConfigWrite).isNotNull();
         assertThat(sysctlConfigWrite.getPatternKey()).isEqualTo("linux_kernel_policy_change");
         assertThat(sysctlRead).isNull();
+        assertThat(mountRootRw).isNotNull();
+        assertThat(mountRootRw.getPatternKey()).isEqualTo("filesystem_mount_policy_change");
+        assertThat(umountBoot).isNotNull();
+        assertThat(umountBoot.getPatternKey()).isEqualTo("filesystem_mount_policy_change");
+        assertThat(fstabWrite).isNotNull();
+        assertThat(fstabWrite.getPatternKey()).isEqualTo("filesystem_mount_policy_change");
+        assertThat(mountList).isNull();
         assertThat(spctlDisable).isNotNull();
         assertThat(spctlDisable.getPatternKey()).isEqualTo("macos_security_policy_weaken");
         assertThat(spctlGlobalDisable).isNotNull();

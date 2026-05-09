@@ -303,6 +303,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:modprobe|insmod|rmmod)\\b|\\bsysctl\\s+(?:-w\\s+|--write\\s+)[A-Za-z0-9_.]+\\s*=|(?:>>?|\\btee\\b(?:\\s+-a)?)\\s*[^\\n]*(?:/etc/sysctl\\.conf\\b|/etc/sysctl\\.d/[^\\s\"'`]+\\.conf\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "filesystem_mount_policy_change",
+                                    "filesystem mount policy changed",
+                                    pattern(
+                                            "\\bmount\\b(?=[^\\n]*(?:\\s-o\\s+[^\\n]*(?:remount|rw)|--options\\s+[^\\n]*(?:remount|rw)|\\s(?:/dev/[A-Za-z0-9_.-]+|/sys|/proc|/boot|/)\\b))|\\bumount\\b(?=[^\\n]*(?:\\s/(?:boot|etc|var|usr|sys|proc)\\b|\\s/dev/[A-Za-z0-9_.-]+\\b))|(?:>>?|\\btee\\b(?:\\s+-a)?)\\s*[^\\n]*/etc/fstab\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),
