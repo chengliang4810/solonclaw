@@ -117,6 +117,45 @@ export interface KanbanTask {
   worker_context?: string
 }
 
+export interface KanbanRunSummary {
+  run_id?: string | null
+  step_key?: string | null
+  status?: string | null
+  outcome?: string | null
+  worker_id?: string | null
+  started_at?: string | null
+  ended_at?: string | null
+  duration_ms?: number | null
+  timed_out?: boolean | null
+  summary?: string | null
+  error?: string | null
+}
+
+export interface KanbanPipelineOverview {
+  workflow_template_id?: string | null
+  current_step_key?: string | null
+  status: string
+  stage: string
+  assignee?: string | null
+  worker_id?: string | null
+  claim_lock?: string | null
+  claim_expires_at?: string | null
+  attempt_count: number
+  retry_count?: number | null
+  event_count: number
+  warning_count: number
+  next_action: string
+  active_run?: KanbanRunSummary | null
+  latest_run?: KanbanRunSummary | null
+  supports_history: boolean
+  supports_retry: boolean
+  supports_reassign: boolean
+  supports_reclaim: boolean
+  supports_unblock: boolean
+  supports_comment: boolean
+  schema_task: boolean
+}
+
 export interface KanbanTaskDrawer {
   task_id: string
   task: KanbanTask
@@ -146,6 +185,7 @@ export interface KanbanTaskDrawer {
     last_event_summary?: string | null
     next_action: string
   }
+  pipeline_overview?: KanbanPipelineOverview
   context: {
     task_id: string
     worker_context?: string

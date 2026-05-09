@@ -26,7 +26,9 @@ import {
   type KanbanDaemonStatus,
   type KanbanEvent,
   type KanbanNotification,
+  type KanbanPipelineOverview,
   type KanbanRun,
+  type KanbanRunSummary,
   type KanbanStatus,
   type KanbanTask,
   type KanbanTaskDrawer,
@@ -515,6 +517,33 @@ function runStatusLabel(run: KanbanRun): string {
   return value ? labels[value] || value : '-'
 }
 
+function runSummaryStatusLabel(run?: KanbanRunSummary | null): string {
+  if (!run) return '-'
+  if (run.timed_out) return '已超时'
+  const value = run.outcome || run.status
+  if (!value) return '-'
+  const labels: Record<string, string> = {
+    running: '运行中',
+    ok: '成功',
+    success: '成功',
+    done: '完成',
+    completed: '完成',
+    failed: '失败',
+    error: '错误',
+    cancelled: '已取消',
+    reclaimed: '已收回',
+    timeout: '超时',
+    timed_out: '超时',
+    pending: '等待',
+  }
+  return labels[value] || value
+}
+
+function runSummaryText(run?: KanbanRunSummary | null): string {
+  if (!run) return '暂无'
+  return run.summary || run.error || run.outcome || run.status || run.run_id || '-'
+}
+
 function runStateLabel(run: KanbanRun): string {
   if (run.timed_out) return '超时'
   if (run.running) return '运行中'
@@ -583,6 +612,19 @@ function formatDuration(durationMs?: number | null): string {
   const hours = Math.floor(minutes / 60)
   const remainMinutes = minutes % 60
   return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`
+}
+
+function pipelineSupportText(pipeline?: KanbanPipelineOverview | null): string {
+  if (!pipeline) return '-'
+  const items = [
+    pipeline.supports_history ? '历史' : '',
+    pipeline.supports_retry ? '重试' : '',
+    pipeline.supports_reassign ? '改派' : '',
+    pipeline.supports_reclaim ? '收回' : '',
+    pipeline.supports_unblock ? '解阻' : '',
+    pipeline.supports_comment ? '评论' : '',
+  ].filter(Boolean)
+  return items.length ? items.join(' / ') : '无可用动作'
 }
 
 function notificationSummary(notification: KanbanNotification): string {
@@ -882,6 +924,59 @@ function hasWarnings(task: KanbanTask): boolean {
               <div class="panel-title">后续任务</div>
               <div v-for="child in selectedTask.children || []" :key="child.id" class="relation-row">
                 {{ taskRefLabel(child) }}
+              </div>
+            </div>
+          </div>
+          <div v-if="selectedDrawer?.pipeline_overview" class="pipeline-overview">
+            <div class="panel-title">执行流水概览</div>
+            <div class="overview-grid">
+              <div>
+                <span>流程模板</span>
+                <strong>{{ selectedDrawer.pipeline_overview.workflow_template_id || '-' }}</strong>
+              </div>
+              <div>
+                <span>当前步骤</span>
+                <strong>{{ selectedDrawer.pipeline_overview.current_step_key || '-' }}</strong>
+              </div>
+              <div>
+                <span>结构化任务</span>
+                <strong>{{ selectedDrawer.pipeline_overview.schema_task ? '是' : '否' }}</strong>
+              </div>
+              <div>
+                <span>执行人</span>
+                <strong>{{ selectedDrawer.pipeline_overview.assignee || '未分配' }}</strong>
+              </div>
+              <div>
+                <span>Worker</span>
+                <strong>{{ selectedDrawer.pipeline_overview.worker_id || '-' }}</strong>
+              </div>
+              <div>
+                <span>运行锁</span>
+                <strong>{{ selectedDrawer.pipeline_overview.claim_lock || '-' }}</strong>
+              </div>
+              <div>
+                <span>重试次数</span>
+                <strong>{{ selectedDrawer.pipeline_overview.retry_count || 0 }}</strong>
+              </div>
+              <div>
+                <span>事件数量</span>
+                <strong>{{ selectedDrawer.pipeline_overview.event_count }}</strong>
+              </div>
+              <div>
+                <span>可用动作</span>
+                <strong>{{ pipelineSupportText(selectedDrawer.pipeline_overview) }}</strong>
+              </div>
+            </div>
+            <div class="pipeline-run-grid">
+              <div>
+                <span>活跃运行</span>
+                <strong>{{ runSummaryStatusLabel(selectedDrawer.pipeline_overview.active_run) }}</strong>
+                <p>{{ runSummaryText(selectedDrawer.pipeline_overview.active_run) }}</p>
+              </div>
+              <div>
+                <span>最近运行</span>
+                <strong>{{ runSummaryStatusLabel(selectedDrawer.pipeline_overview.latest_run) }}</strong>
+                <p>{{ runSummaryText(selectedDrawer.pipeline_overview.latest_run) }}</p>
               </div>
             </div>
           </div>
@@ -1378,6 +1473,7 @@ function hasWarnings(task: KanbanTask): boolean {
 
 .recovery-panel,
 .execution-overview,
+.pipeline-overview,
 .pipeline-panel,
 .task-relations,
 .runs,
@@ -1450,6 +1546,47 @@ function hasWarnings(task: KanbanTask): boolean {
     color: $text-primary;
     font-size: 13px;
     font-weight: 600;
+  }
+}
+
+.pipeline-run-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+
+  div {
+    min-width: 0;
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    padding: 8px;
+    background: $bg-card-hover;
+  }
+
+  span,
+  strong,
+  p {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 5px 0 0;
+    color: $text-secondary;
+    font-size: 12px;
+    line-height: 1.4;
   }
 }
 
@@ -1757,6 +1894,7 @@ function hasWarnings(task: KanbanTask): boolean {
   .pipeline-actions,
   .recovery-actions,
   .overview-grid,
+  .pipeline-run-grid,
   .task-relations,
   .run-head,
   .run-grid,
