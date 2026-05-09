@@ -3561,12 +3561,51 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict proxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict allProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --all-proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict httpProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --http-proxy=169.254.169.254:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict httpsProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --https-proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict ftpProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --ftp-proxy=169.254.169.254:8080 ftp://safe.example/file");
+        SecurityPolicyService.UrlVerdict dohMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --doh-url http://169.254.169.254/dns-query https://safe.example/");
+        SecurityPolicyService.UrlVerdict dohPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --doh-url=http://127.0.0.1/dns-query https://safe.example/");
+        SecurityPolicyService.UrlVerdict dnsServerPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --dns-servers 127.0.0.1 https://safe.example/");
+        SecurityPolicyService.UrlVerdict dnsServerMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --dns-servers=8.8.8.8,169.254.169.254 https://safe.example/");
+        SecurityPolicyService.UrlVerdict dnsIpv4Private =
+                securityPolicyService.checkCommandUrls(
+                        "curl --dns-ipv4-addr 127.0.0.1 https://safe.example/");
+        SecurityPolicyService.UrlVerdict dnsIpv6Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --dns-ipv6-addr=fd00:ec2::254 https://safe.example/");
         SecurityPolicyService.UrlVerdict socksMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict socks4Private =
+                securityPolicyService.checkCommandUrls(
+                        "curl --socks4 127.0.0.1:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict proxy10Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy1.0=169.254.169.254:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict envProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "http_proxy=127.0.0.1:8080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict ftpProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "FTP_PROXY=127.0.0.1:8080 curl https://safe.example/");
         SecurityPolicyService.UrlVerdict envProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "ALL_PROXY=169.254.169.254:1080 curl https://safe.example/");
@@ -3597,10 +3636,36 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(resolvePrivate.getMessage()).contains("内网");
         assertThat(proxyPrivate.isAllowed()).isFalse();
         assertThat(proxyPrivate.getMessage()).contains("内网");
+        assertThat(allProxyPrivate.isAllowed()).isFalse();
+        assertThat(allProxyPrivate.getMessage()).contains("内网");
+        assertThat(httpProxyMetadata.isAllowed()).isFalse();
+        assertThat(httpProxyMetadata.getMessage()).contains("元数据");
+        assertThat(httpsProxyPrivate.isAllowed()).isFalse();
+        assertThat(httpsProxyPrivate.getMessage()).contains("内网");
+        assertThat(ftpProxyMetadata.isAllowed()).isFalse();
+        assertThat(ftpProxyMetadata.getMessage()).contains("元数据");
+        assertThat(dohMetadata.isAllowed()).isFalse();
+        assertThat(dohMetadata.getMessage()).contains("元数据");
+        assertThat(dohPrivate.isAllowed()).isFalse();
+        assertThat(dohPrivate.getMessage()).contains("内网");
+        assertThat(dnsServerPrivate.isAllowed()).isFalse();
+        assertThat(dnsServerPrivate.getMessage()).contains("内网");
+        assertThat(dnsServerMetadata.isAllowed()).isFalse();
+        assertThat(dnsServerMetadata.getMessage()).contains("元数据");
+        assertThat(dnsIpv4Private.isAllowed()).isFalse();
+        assertThat(dnsIpv4Private.getMessage()).contains("内网");
+        assertThat(dnsIpv6Metadata.isAllowed()).isFalse();
+        assertThat(dnsIpv6Metadata.getMessage()).contains("元数据");
         assertThat(socksMetadata.isAllowed()).isFalse();
         assertThat(socksMetadata.getMessage()).contains("元数据");
+        assertThat(socks4Private.isAllowed()).isFalse();
+        assertThat(socks4Private.getMessage()).contains("内网");
+        assertThat(proxy10Metadata.isAllowed()).isFalse();
+        assertThat(proxy10Metadata.getMessage()).contains("元数据");
         assertThat(envProxyPrivate.isAllowed()).isFalse();
         assertThat(envProxyPrivate.getMessage()).contains("内网");
+        assertThat(ftpProxyPrivate.isAllowed()).isFalse();
+        assertThat(ftpProxyPrivate.getMessage()).contains("内网");
         assertThat(envProxyMetadata.isAllowed()).isFalse();
         assertThat(envProxyMetadata.getMessage()).contains("元数据");
         assertThat(compactProxyPrivate.isAllowed()).isFalse();

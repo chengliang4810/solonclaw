@@ -1055,6 +1055,8 @@ public class SecurityPolicyService {
         }
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
+        extractCurlDohUrls(text, urls);
+        extractCurlDnsServers(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1073,7 +1075,14 @@ public class SecurityPolicyService {
             String value = null;
             if ("--proxy".equals(token)
                     || "-x".equals(token)
+                    || "--all-proxy".equals(token)
+                    || "--http-proxy".equals(token)
+                    || "--https-proxy".equals(token)
+                    || "--ftp-proxy".equals(token)
+                    || "--proxy1.0".equals(token)
                     || "--preproxy".equals(token)
+                    || "--socks4".equals(token)
+                    || "--socks4a".equals(token)
                     || "--socks5".equals(token)
                     || "--socks5-hostname".equals(token)) {
                 if (i + 1 < tokens.size()) {
@@ -1081,8 +1090,22 @@ public class SecurityPolicyService {
                 }
             } else if (token.startsWith("--proxy=")) {
                 value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--all-proxy=")) {
+                value = token.substring("--all-proxy=".length());
+            } else if (token.startsWith("--http-proxy=")) {
+                value = token.substring("--http-proxy=".length());
+            } else if (token.startsWith("--https-proxy=")) {
+                value = token.substring("--https-proxy=".length());
+            } else if (token.startsWith("--ftp-proxy=")) {
+                value = token.substring("--ftp-proxy=".length());
+            } else if (token.startsWith("--proxy1.0=")) {
+                value = token.substring("--proxy1.0=".length());
             } else if (token.startsWith("--preproxy=")) {
                 value = token.substring("--preproxy=".length());
+            } else if (token.startsWith("--socks4=")) {
+                value = token.substring("--socks4=".length());
+            } else if (token.startsWith("--socks4a=")) {
+                value = token.substring("--socks4a=".length());
             } else if (token.startsWith("--socks5=")) {
                 value = token.substring("--socks5=".length());
             } else if (token.startsWith("--socks5-hostname=")) {
@@ -1107,6 +1130,7 @@ public class SecurityPolicyService {
         String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
         return "http_proxy".equals(name)
                 || "https_proxy".equals(name)
+                || "ftp_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 
@@ -1161,6 +1185,61 @@ public class SecurityPolicyService {
                 mode = "--resolve";
             }
             addCurlOverrideHost(mode, value, urls);
+        }
+    }
+
+    private void extractCurlDohUrls(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--doh-url".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--doh-url=")) {
+                value = token.substring("--doh-url=".length());
+            }
+            if (StrUtil.isNotBlank(value)) {
+                urls.add(cleanUrlToken(value));
+            }
+        }
+    }
+
+    private void extractCurlDnsServers(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--dns-servers".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if ("--dns-ipv4-addr".equals(token) || "--dns-ipv6-addr".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--dns-servers=")) {
+                value = token.substring("--dns-servers=".length());
+            } else if (token.startsWith("--dns-ipv4-addr=")) {
+                value = token.substring("--dns-ipv4-addr=".length());
+            } else if (token.startsWith("--dns-ipv6-addr=")) {
+                value = token.substring("--dns-ipv6-addr=".length());
+            }
+            addDnsServerHosts(value, urls);
+        }
+    }
+
+    private void addDnsServerHosts(String raw, List<String> urls) {
+        String value = cleanUrlToken(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        for (String host : value.split(",")) {
+            String normalized = cleanUrlToken(host);
+            if (StrUtil.isNotBlank(normalized)) {
+                urls.add(normalized);
+            }
         }
     }
 
