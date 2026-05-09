@@ -816,6 +816,12 @@ public class DangerousCommandApprovalService {
                                             "\\bkubectl\\s+(?:-[^\\s]+\\s+)*config\\s+(?:set-credentials|set-context|use-context|unset|delete-context|delete-user)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "kubectl_network_exposure",
+                                    "Kubernetes local proxy or port-forward exposes a broad listen address",
+                                    pattern(
+                                            "\\bkubectl\\s+(?:-[^\\s]+\\s+)*(?:port-forward|proxy)\\b(?=[^\\n]*(?:(?:--address(?:=|\\s+)(?:0\\.0\\.0\\.0|\\[?:::\\]?|\\*)\\b)|(?:--accept-hosts(?:=|\\s+)(?:\\.\\*|['\"]?\\^?\\.\\*\\$?['\"]?|\\S*\\*\\S*))))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "helm_uninstall",
                                     "Helm release uninstall",
                                     pattern("\\bhelm\\s+(?:uninstall|delete)\\b"),

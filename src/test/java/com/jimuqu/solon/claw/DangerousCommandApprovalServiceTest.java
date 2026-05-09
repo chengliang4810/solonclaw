@@ -891,6 +891,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult kubectlLocalApply =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kubectl apply -f deploy/local.yaml");
+        DangerousCommandApprovalService.DetectionResult kubectlWidePortForward =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl port-forward --address 0.0.0.0 svc/app 8080:80");
+        DangerousCommandApprovalService.DetectionResult kubectlWideProxy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl proxy --address=0.0.0.0 --accept-hosts=.*");
+        DangerousCommandApprovalService.DetectionResult kubectlLocalPortForward =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl port-forward svc/app 8080:80");
+        DangerousCommandApprovalService.DetectionResult kubectlLocalProxy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kubectl proxy --address=127.0.0.1");
         DangerousCommandApprovalService.DetectionResult helmUninstall =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "helm uninstall payments");
@@ -1192,6 +1204,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(kubectlDeleteContext.getPatternKey())
                 .isEqualTo("kubectl_context_or_credential_change");
         assertThat(kubectlLocalApply).isNull();
+        assertThat(kubectlWidePortForward).isNotNull();
+        assertThat(kubectlWidePortForward.getPatternKey()).isEqualTo("kubectl_network_exposure");
+        assertThat(kubectlWideProxy).isNotNull();
+        assertThat(kubectlWideProxy.getPatternKey()).isEqualTo("kubectl_network_exposure");
+        assertThat(kubectlLocalPortForward).isNull();
+        assertThat(kubectlLocalProxy).isNull();
         assertThat(helmUninstall).isNotNull();
         assertThat(helmUninstall.getPatternKey()).isEqualTo("helm_uninstall");
         assertThat(helmRepoAdd).isNotNull();
