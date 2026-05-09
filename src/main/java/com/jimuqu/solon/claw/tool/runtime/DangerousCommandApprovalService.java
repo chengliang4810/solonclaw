@@ -593,6 +593,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:update-ca-certificates\\b|trust\\s+anchor\\b|update-ca-trust\\s+(?:extract|enable)\\b|security\\s+add-trusted-cert\\b|certutil(?:\\.exe)?\\s+-addstore\\b|Import-Certificate\\b(?=[^\\n]*-CertStoreLocation\\s+Cert:\\\\LocalMachine))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "system_package_source_trust_change",
+                                    "system package source or trust configuration changed",
+                                    pattern(
+                                            "\\b(?:apt-key\\s+(?:add|adv)\\b|add-apt-repository\\b|rpm\\s+--import\\b|yum-config-manager\\s+--add-repo\\b|dnf\\s+config-manager\\s+--add-repo\\b|zypper\\s+(?:addrepo|ar)\\b|brew\\s+tap(?:\\s|$)|choco\\s+source\\s+(?:add|remove|disable|enable)\\b|winget\\s+source\\s+(?:add|remove|reset|update)\\b|scoop\\s+bucket\\s+(?:add|rm|remove)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(

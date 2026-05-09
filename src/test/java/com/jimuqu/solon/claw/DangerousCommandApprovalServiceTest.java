@@ -2804,6 +2804,47 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectSystemPackageSourceTrustChanges() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "apt-key add vendor.gpg",
+                        "apt-key adv --keyserver keyserver.example --recv-keys ABCD",
+                        "add-apt-repository ppa:vendor/tool",
+                        "rpm --import https://repo.example/key.gpg",
+                        "yum-config-manager --add-repo https://repo.example/yum.repo",
+                        "dnf config-manager --add-repo https://repo.example/dnf.repo",
+                        "zypper addrepo https://repo.example/repo tools",
+                        "zypper ar https://repo.example/repo tools",
+                        "brew tap vendor/tools",
+                        "choco source add -n internal -s https://choco.example/",
+                        "winget source add -n internal https://winget.example/",
+                        "scoop bucket add extras https://github.com/example/scoop-bucket");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("system_package_source_trust_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "apt-cache policy curl"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "brew tap-info vendor/tools"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "winget source list"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeTlsCertificateVerificationBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
