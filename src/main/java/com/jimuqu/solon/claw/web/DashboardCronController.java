@@ -205,6 +205,20 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs/{id}/pause", method = MethodType.POST)
     public Map<String, Object> pause(String id, Context context) throws Exception {
+        return dashboardPauseJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/disable", method = MethodType.POST)
+    public Map<String, Object> disable(String id, Context context) throws Exception {
+        return dashboardPauseJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/stop", method = MethodType.POST)
+    public Map<String, Object> stop(String id, Context context) throws Exception {
+        return dashboardPauseJob(id, context);
+    }
+
+    private Map<String, Object> dashboardPauseJob(String id, Context context) throws Exception {
         try {
             return DashboardResponse.ok(cronService.pause(id, body(context)));
         } catch (IllegalArgumentException e) {
@@ -246,6 +260,20 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs/{id}/resume", method = MethodType.POST)
     public Map<String, Object> resume(String id, Context context) throws Exception {
+        return dashboardResumeJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/enable", method = MethodType.POST)
+    public Map<String, Object> enable(String id, Context context) throws Exception {
+        return dashboardResumeJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/start", method = MethodType.POST)
+    public Map<String, Object> start(String id, Context context) throws Exception {
+        return dashboardResumeJob(id, context);
+    }
+
+    private Map<String, Object> dashboardResumeJob(String id, Context context) throws Exception {
         try {
             return DashboardResponse.ok(cronService.resume(id));
         } catch (IllegalArgumentException e) {
@@ -287,6 +315,25 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs/{id}/trigger", method = MethodType.POST)
     public Map<String, Object> trigger(String id, Context context) throws Exception {
+        return dashboardRunJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/run", method = MethodType.POST)
+    public Map<String, Object> run(String id, Context context) throws Exception {
+        return dashboardRunJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/retry", method = MethodType.POST)
+    public Map<String, Object> retry(String id, Context context) throws Exception {
+        return dashboardRunJob(id, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/rerun", method = MethodType.POST)
+    public Map<String, Object> rerun(String id, Context context) throws Exception {
+        return dashboardRunJob(id, context);
+    }
+
+    private Map<String, Object> dashboardRunJob(String id, Context context) throws Exception {
         try {
             return DashboardResponse.ok(cronService.trigger(id));
         } catch (IllegalArgumentException e) {
