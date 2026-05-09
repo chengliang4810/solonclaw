@@ -26,12 +26,12 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "Manage scheduled cron jobs. Use action='list' or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, inspect/show/detail, next/upcoming, update/edit, pause, resume, remove/delete/rm, run/run_now/trigger, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
+                    "Manage scheduled cron jobs. Use action='list' or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, inspect/show/detail, next/upcoming, update/edit, pause/disable/stop, resume/enable/start, remove/delete/rm, run/run_now/trigger, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
     public String cronjob(
             @Param(
                             name = "action",
                             description =
-                                    "动作：create/add、list、update/edit、pause、resume、remove/delete/rm、run/run_now/trigger、history")
+                                    "动作：create/add、list、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger、history")
                     String action,
             @Param(name = "job_id", description = "任务 ID；update/pause/resume/remove/run/history 必填，先 list 再使用", required = false)
                     String jobId,
@@ -77,6 +77,12 @@ public class CronjobTools {
         }
         if ("edit".equals(normalized)) {
             normalized = "update";
+        }
+        if ("disable".equals(normalized) || "stop".equals(normalized)) {
+            normalized = "pause";
+        }
+        if ("enable".equals(normalized) || "start".equals(normalized)) {
+            normalized = "resume";
         }
         if ("delete".equals(normalized) || "rm".equals(normalized)) {
             normalized = "remove";
@@ -259,7 +265,11 @@ public class CronjobTools {
                         "update",
                         "edit",
                         "pause",
+                        "disable",
+                        "stop",
                         "resume",
+                        "enable",
+                        "start",
                         "run",
                         "run_now",
                         "trigger",

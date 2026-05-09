@@ -2306,6 +2306,8 @@ public class DefaultCronSchedulerTest {
                 .contains("inspect/show/detail")
                 .contains("next/upcoming")
                 .contains("update/edit")
+                .contains("pause/disable/stop")
+                .contains("resume/enable/start")
                 .contains("remove/delete/rm")
                 .contains("run/run_now/trigger")
                 .contains("never guess job IDs")
@@ -2359,7 +2361,11 @@ public class DefaultCronSchedulerTest {
                 .contains("add")
                 .contains("edit")
                 .contains("pause")
+                .contains("disable")
+                .contains("stop")
                 .contains("resume")
+                .contains("enable")
+                .contains("start")
                 .contains("run_now")
                 .contains("remove")
                 .contains("history");
@@ -2383,6 +2389,137 @@ public class DefaultCronSchedulerTest {
         assertThat(execution.get("scriptMustStayInRuntimeScripts")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("dangerousCommandApprovalApplied")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("promptThreatScanApplied")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    void shouldSupportCronjobEnableDisableAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:alias-room:user");
+
+        Map<?, ?> created =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "alias-job",
+                                                "30m",
+                                                "alias prompt",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        String jobId = String.valueOf(created.get("job_id"));
+
+        Map<?, ?> stopped =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "stop",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(((Map<?, ?>) stopped.get("job")).get("state")).isEqualTo("paused");
+        assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("PAUSED");
+
+        Map<?, ?> enabled =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "enable",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(((Map<?, ?>) enabled.get("job")).get("state")).isEqualTo("scheduled");
+        assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("ACTIVE");
+
+        tools.cronjob(
+                "disable",
+                jobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("PAUSED");
+
+        tools.cronjob(
+                "start",
+                jobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("ACTIVE");
     }
 
     @Test
