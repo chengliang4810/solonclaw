@@ -562,46 +562,46 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_taskkill",
                                     "Windows force kill",
-                                    pattern("\\btaskkill\\b.*\\s/f\\b"),
+                                    pattern("\\btaskkill\\b.*\\s[-/]f\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_stop_process",
                                     "PowerShell force stop process",
-                                    pattern("\\bStop-Process\\b.*-Force\\b"),
+                                    pattern("\\b(?:Stop-Process|spps)\\b.*(?:-Force\\b|-fo\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_reg_delete",
                                     "Windows registry delete",
-                                    pattern("\\breg\\s+delete\\b"),
+                                    pattern("\\breg(?:\\.exe)?\\s+delete\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_take_ownership",
                                     "Windows ownership takeover",
-                                    pattern("\\btakeown\\b(?=[^\\n]*(?:/r\\b|/f\\b))"),
+                                    pattern("\\btakeown\\b(?=[^\\n]*(?:[-/]r\\b|[-/]f\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_acl_rewrite",
                                     "Windows ACL rewrite",
                                     pattern(
-                                            "\\bicacls\\b(?=[^\\n]*(?:/grant\\b|/deny\\b|/remove\\b|/reset\\b|/setowner\\b))"),
+                                            "\\bicacls\\b(?=[^\\n]*(?:[-/](?:grant|deny|remove|reset|setowner)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_execution_policy_weaken",
                                     "PowerShell execution policy weakened",
                                     pattern(
-                                            "\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)"),
+                                            "(?:\\bSet-ExecutionPolicy\\b(?=[^\\n]*(?:Bypass|Unrestricted)\\b)|\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:-ExecutionPolicy|-ep)\\s+(?:Bypass|Unrestricted)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_encoded_command",
                                     "PowerShell encoded command execution",
                                     pattern(
-                                            "\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:-EncodedCommand|-enc|-e)\\b)"),
+                                            "\\b(?:powershell|pwsh)(?:\\.exe)?\\b(?=[^\\n]*(?:[-/](?:EncodedCommand|enc|e))\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_remote_execute",
                                     "PowerShell remote content execution",
                                     pattern(
-                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b"),
+                                            "\\b(?:DownloadString|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|curl|wget)\\b[^\\n]*\\|\\s*(?:Invoke-Expression|IEX)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_powershell_invoke_expression",
@@ -612,13 +612,13 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
-                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+\\$?false\\b))"),
+                                            "\\b(?:netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off|Set-NetFirewallProfile\\b(?=[^\\n]*-Enabled\\s+(?:\\$?false|0)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_defender",
                                     "Windows Defender protection disabled",
                                     pattern(
-                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+\\$?true|-DisableBehaviorMonitoring\\s+\\$?true|-DisableIOAVProtection\\s+\\$?true))"),
+                                            "\\bSet-MpPreference\\b(?=[^\\n]*(?:-DisableRealtimeMonitoring\\s+(?:\\$?true|1)\\b|-DisableBehaviorMonitoring\\s+(?:\\$?true|1)\\b|-DisableIOAVProtection\\s+(?:\\$?true|1)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_export_credentials",
@@ -666,7 +666,7 @@ public class DangerousCommandApprovalService {
                                     "windows_disable_recovery",
                                     "Windows recovery disabled or boot entry removed",
                                     pattern(
-                                            "\\b(?:reagentc\\s+/disable|bcdedit\\s+/(?:delete|deletevalue|set)\\b)"),
+                                            "\\b(?:reagentc\\s+[-/]disable|bcdedit\\s+[-/](?:delete|deletevalue|set)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "python_rmtree",
