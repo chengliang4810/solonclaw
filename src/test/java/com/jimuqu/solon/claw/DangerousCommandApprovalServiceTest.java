@@ -948,6 +948,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_stop_service");
         assertDangerPattern(
                 env,
+                "schtasks /create /tn updater /tr payload.exe /sc onlogon",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
+                "Register-ScheduledTask -TaskName updater -Action $action",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
+                "reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v updater /d payload.exe",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
                 "windows_take_ownership");
         assertDangerPattern(

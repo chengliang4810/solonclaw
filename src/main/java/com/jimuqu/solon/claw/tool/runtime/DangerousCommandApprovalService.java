@@ -800,6 +800,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_persistence_registration",
+                                    "Windows scheduled task or startup persistence",
+                                    pattern(
+                                            "\\b(?:schtasks(?:\\.exe)?\\s+/create|Register-ScheduledTask\\b|New-ScheduledTask\\b|reg(?:\\.exe)?\\s+(?:add|copy)\\b[^\\n]*(?:\\\\CurrentVersion\\\\Run(?:Once)?\\b|\\\\RunServices(?:Once)?\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_export_credentials",
                                     "Windows credential or certificate export",
                                     pattern(
