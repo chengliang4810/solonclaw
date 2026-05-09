@@ -655,6 +655,20 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "echo '* * * * * payload' | crontab -");
         DangerousCommandApprovalService.DetectionResult crontabList =
                 env.dangerousCommandApprovalService.detect("execute_shell", "crontab -l");
+        DangerousCommandApprovalService.DetectionResult sudoersTee =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo 'deploy ALL=(ALL) NOPASSWD:ALL' | tee /etc/sudoers.d/deploy");
+        DangerousCommandApprovalService.DetectionResult sudoersAppend =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '%admin ALL=(ALL) ALL' >> /etc/sudoers");
+        DangerousCommandApprovalService.DetectionResult doasWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf 'permit nopass deploy' > /etc/doas.conf");
+        DangerousCommandApprovalService.DetectionResult visudo =
+                env.dangerousCommandApprovalService.detect("execute_shell", "visudo");
+        DangerousCommandApprovalService.DetectionResult sudoersFixture =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo note > fixtures/sudoers");
         DangerousCommandApprovalService.DetectionResult usermodSudo =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "usermod -aG sudo deploy");
@@ -843,6 +857,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(crontabPipe).isNotNull();
         assertThat(crontabPipe.getPatternKey()).isEqualTo("unix_cron_persistence_change");
         assertThat(crontabList).isNull();
+        assertThat(sudoersTee).isNotNull();
+        assertThat(sudoersTee.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(sudoersAppend).isNotNull();
+        assertThat(sudoersAppend.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(doasWrite).isNotNull();
+        assertThat(doasWrite.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(visudo).isNotNull();
+        assertThat(visudo.getPatternKey()).isEqualTo("sudoers_policy_change");
+        assertThat(sudoersFixture).isNull();
         assertThat(usermodSudo).isNotNull();
         assertThat(usermodSudo.getPatternKey()).isEqualTo("local_admin_permission_change");
         assertThat(gpasswdDocker).isNotNull();

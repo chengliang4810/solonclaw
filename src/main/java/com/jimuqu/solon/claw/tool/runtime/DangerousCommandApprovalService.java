@@ -243,6 +243,12 @@ public class DangerousCommandApprovalService {
                                             "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.proxy\\s+\\S+|\\bnpm\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\byarn\\s+config\\s+set\\s+(?:proxy|https-proxy)\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sudoers_policy_change",
+                                    "sudoers or privilege policy changed",
+                                    pattern(
+                                            "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*(?:/etc/sudoers\\b|/etc/sudoers\\.d/|/etc/doas\\.conf\\b)|\\bvisudo\\b|\\b(?:install|cp|mv)\\b[^\\n]*(?:/etc/sudoers\\b|/etc/sudoers\\.d/|/etc/doas\\.conf\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "overwrite_etc",
                                     "overwrite system config",
                                     pattern("(>|tee\\b).*?/etc/"),
