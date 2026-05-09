@@ -1636,6 +1636,7 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "curl -u user:password https://example.com/private",
                         "curl -uuser:password https://example.com/private",
+                        "curl https://user:password@example.com/private",
                         "curl --user user:password https://example.com/private",
                         "wget --user user --password password https://example.com/private",
                         "wget --http-password=password https://example.com/private",
