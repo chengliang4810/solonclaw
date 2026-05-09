@@ -347,6 +347,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_powershell_encoded_command");
         assertDangerPattern(
                 env,
+                "powershell.exe /EncodedCommand SQBFAFgA",
+                "windows_powershell_encoded_command");
+        assertDangerPattern(
+                env,
+                "pwsh /enc SQBFAFgA",
+                "windows_powershell_encoded_command");
+        assertDangerPattern(
+                env,
                 "Invoke-Expression $payload",
                 "windows_powershell_invoke_expression");
         assertDangerPattern(
