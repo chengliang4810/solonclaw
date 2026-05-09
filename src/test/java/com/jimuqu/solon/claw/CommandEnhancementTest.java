@@ -632,7 +632,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]");
+                .contains("/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
     }
 
     @Test
@@ -704,6 +704,8 @@ public class CommandEnhancementTest {
         GatewayReply stop = env.send("admin-chat", "admin-user", "/cron stop");
         GatewayReply run = env.send("admin-chat", "admin-user", "/cron run");
         GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry");
+        GatewayReply trigger = env.send("admin-chat", "admin-user", "/cron trigger");
+        GatewayReply rerun = env.send("admin-chat", "admin-user", "/cron rerun");
         GatewayReply remove = env.send("admin-chat", "admin-user", "/cron remove");
 
         assertThat(resume.isError()).isTrue();
@@ -713,9 +715,11 @@ public class CommandEnhancementTest {
         assertThat(stop.isError()).isTrue();
         assertThat(stop.getContent()).contains("用法：/cron pause|disable|stop <job-id>");
         assertThat(run.isError()).isTrue();
-        assertThat(run.getContent()).contains("用法：/cron run|retry <job-id>");
+        assertThat(run.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
         assertThat(retry.isError()).isTrue();
-        assertThat(retry.getContent()).contains("用法：/cron run|retry <job-id>");
+        assertThat(retry.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
+        assertThat(trigger.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
+        assertThat(rerun.getContent()).contains("用法：/cron run|trigger|retry|rerun <job-id>");
         assertThat(remove.isError()).isTrue();
         assertThat(remove.getContent()).contains("用法：/cron remove <job-id>");
     }

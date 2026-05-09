@@ -2180,7 +2180,7 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.ACTION_RUN.equalsIgnoreCase(action)) {
             CronFlagOptions options = parseCronFlags(splitCommandLine(tail));
             if (options.positionals.isEmpty()) {
-                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run|retry <job-id>");
+                return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_CRON + " run|trigger|retry|rerun <job-id>");
             }
             String jobId = options.positionals.get(0);
             cronJobService.require(jobId);
@@ -2195,7 +2195,7 @@ public class DefaultCommandService implements CommandService {
         return GatewayReply.error(
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
-                        + " [list [--all]|inspect|show|next|guide|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
+                        + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
     }
 
     private String formatCronGuide(Map<String, Object> guide) {
@@ -3988,7 +3988,7 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]",
+                                        + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
