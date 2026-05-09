@@ -84,6 +84,8 @@ public class DangerousCommandApprovalService {
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
+    private static final String SENSITIVE_HTTP_HEADER_NAME =
+            "(?:authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|x-access-token)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
@@ -297,6 +299,18 @@ public class DangerousCommandApprovalService {
                                     "read package manager credential",
                                     pattern(
                                             "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+get\\s+\\S*(?:_authToken|_auth|password|token)|pip\\s+config\\s+get\\s+\\S*(?:password|token|credential|secret))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "sensitive_http_header_send",
+                                    "send credential through HTTP header",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:(?:-H|--header)\\s*(?:=\\s*)?[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:|(?:--header=)[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*[\"']?\\s*=)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "linux_disable_firewall",
