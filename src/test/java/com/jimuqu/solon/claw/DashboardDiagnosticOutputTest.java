@@ -420,24 +420,13 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldRedactAlwaysApprovalListIdentifiers() throws Exception {
         AppConfig config = new AppConfig();
+        MemoryGlobalSettingRepository globalSettings = new MemoryGlobalSettingRepository();
+        globalSettings.set(
+                "dangerous_command_always_patterns",
+                "[\"execute_shell\\u202E:token_ghp_alwayspattern123\\u202E\"]");
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
-                        new MemoryGlobalSettingRepository(), config, new SecurityPolicyService(config));
-        SessionRecord record = new SessionRecord();
-        record.setSessionId("session-always-list");
-        SqliteAgentSession session = new SqliteAgentSession(record);
-        approvalService.storePendingApproval(
-                session,
-                "execute_shell",
-                "recursive_delete",
-                "recursive delete",
-                "rm -rf runtime/cache");
-        assertThat(
-                        approvalService.approve(
-                                session,
-                                DangerousCommandApprovalService.ApprovalScope.ALWAYS,
-                                "dashboard"))
-                .isTrue();
+                        globalSettings, config, new SecurityPolicyService(config));
 
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -459,9 +448,13 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> item = items.get(0);
 
         assertThat(String.valueOf(item.get("approval"))).endsWith(":***");
-        assertThat(String.valueOf(item.get("approval"))).doesNotContain("recursive_delete:");
+        assertThat(String.valueOf(item.get("approval"))).doesNotContain("alwayspattern123");
         assertThat(String.valueOf(item.get("approval_id"))).isNotBlank();
-        assertThat(String.valueOf(item.get("pattern_key"))).isNotBlank();
+        assertThat(String.valueOf(item.get("tool_name"))).isEqualTo("execute_shell");
+        assertThat(String.valueOf(item.get("pattern_key")))
+                .contains("token_ghp_***")
+                .doesNotContain("\u202E")
+                .doesNotContain("alwayspattern123");
     }
 
     private static Map<String, Object> findApprovalItem(
