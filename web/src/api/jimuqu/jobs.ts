@@ -129,7 +129,7 @@ export interface UpdateJobRequest {
   deliver_thread_id?: string | null
   skills?: string[]
   skill?: string
-  repeat?: number
+  repeat?: number | null
   enabled?: boolean
   wrap_response?: boolean
   script?: string | null

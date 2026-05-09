@@ -1641,6 +1641,11 @@ public class DashboardControllerHttpTest {
         assertThat(patch.body).doesNotContain("evil_field");
         assertThat(patch.body).doesNotContain("__proto__");
 
+        HttpResult clearRepeat =
+                request("PATCH", "/api/jobs/" + jobId, "{\"repeat\":0}", token);
+        assertThat(clearRepeat.status).isEqualTo(200);
+        assertThat(clearRepeat.body).contains("\"times\":null");
+
         HttpResult patchPaused =
                 request(
                         "PATCH",

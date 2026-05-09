@@ -207,6 +207,7 @@ async function handleSave() {
     const skills = splitCsv(formData.value.skills_text)
     const contextFrom = splitCsv(formData.value.context_from_text)
     const enabledToolsets = splitCsv(formData.value.enabled_toolsets_text)
+    const repeatValue = formData.value.repeat_times
     const payload: any = {
       name: formData.value.name,
       schedule: scheduleValue,
@@ -214,7 +215,7 @@ async function handleSave() {
       deliver: formData.value.deliver,
       deliver_chat_id: formData.value.deliver_chat_id.trim() || undefined,
       deliver_thread_id: formData.value.deliver_thread_id.trim() || undefined,
-      repeat: formData.value.repeat_times ?? undefined,
+      repeat: repeatValue ?? (isEdit.value ? null : undefined),
       skills,
       wrap_response: formData.value.wrap_response,
       no_agent: formData.value.no_agent,

@@ -311,7 +311,7 @@ public class DashboardCronService {
             throw new IllegalArgumentException("schedule is required");
         }
         validatePromptLength(body.get("prompt"));
-        validateApiRepeat(body.get("repeat"));
+        validateApiRepeat(body.get("repeat"), false);
     }
 
     private String pauseReason(Map<String, Object> body) {
@@ -330,7 +330,7 @@ public class DashboardCronService {
             throw new IllegalArgumentException("name must be at most 200 characters");
         }
         validatePromptLength(updates.get("prompt"));
-        validateApiRepeat(updates.get("repeat"));
+        validateApiRepeat(updates.get("repeat"), true);
     }
 
     private void validatePromptLength(Object prompt) {
@@ -339,7 +339,7 @@ public class DashboardCronService {
         }
     }
 
-    private void validateApiRepeat(Object repeat) {
+    private void validateApiRepeat(Object repeat, boolean allowZero) {
         if (repeat == null) {
             return;
         }
@@ -349,8 +349,9 @@ public class DashboardCronService {
         } else {
             value = Integer.parseInt(String.valueOf(repeat));
         }
-        if (value <= 0) {
-            throw new IllegalArgumentException("repeat must be a positive integer");
+        if (value < 0 || (!allowZero && value == 0)) {
+            throw new IllegalArgumentException(
+                    allowZero ? "repeat must be a non-negative integer" : "repeat must be a positive integer");
         }
     }
 
