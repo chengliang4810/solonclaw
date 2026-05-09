@@ -738,6 +738,8 @@ public class SecurityPolicyServiceTest {
         assertCommandCredentialOptionDenied(policy, "curl --key client.pem https://example.invalid", "client.pem");
         assertCommandCredentialOptionDenied(policy, "curl --cert=client.crt https://example.invalid", "client.crt");
         assertCommandCredentialOptionDenied(policy, "ssh -i deploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(policy, "ssh -ideploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(policy, "curl -K.curlrc https://example.invalid", ".curlrc");
         assertCommandCredentialOptionDenied(
                 policy,
                 "kubectl --kubeconfig kubeconfig get pods",

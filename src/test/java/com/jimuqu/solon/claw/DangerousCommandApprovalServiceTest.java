@@ -1692,6 +1692,8 @@ public class DangerousCommandApprovalServiceTest {
         List<String> commands =
                 Arrays.asList(
                         "ssh -i deploy_key host.example",
+                        "ssh -ideploy_key host.example",
+                        "curl -K.curlrc https://example.invalid",
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",

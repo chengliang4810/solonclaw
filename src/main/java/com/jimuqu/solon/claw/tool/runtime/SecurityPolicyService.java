@@ -210,6 +210,8 @@ public class SecurityPolicyService {
                     "--globalconfig",
                     "--config",
                     "-i");
+    private static final List<String> COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES =
+            Arrays.asList("-i", "-K");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
@@ -703,6 +705,11 @@ public class SecurityPolicyService {
         for (String option : CREDENTIAL_PATH_OPTION_NAMES) {
             if (token.startsWith(option + "=")) {
                 return token.substring(option.length() + 1);
+            }
+        }
+        for (String option : COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES) {
+            if (token.startsWith(option) && token.length() > option.length()) {
+                return token.substring(option.length());
             }
         }
         return "";
