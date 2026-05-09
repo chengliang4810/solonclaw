@@ -34,6 +34,7 @@ public class CliShell {
     private final TerminalSessionBrowser sessionBrowser;
     private final TerminalHistoryViewer historyViewer;
     private final LocalTerminalTranscript transcript = new LocalTerminalTranscript();
+    private ConsoleEventSink.EventSnapshot lastEventSnapshot;
 
     public CliShell(CliRuntime cliRuntime, CliMode mode) {
         this(cliRuntime, mode, null, null, null);
@@ -157,6 +158,7 @@ public class CliShell {
         String value = StrUtil.nullToEmpty(input).trim();
         if (LocalTerminalHelp.isHelp(value)
                 || "/copy".equalsIgnoreCase(value)
+                || "/events".equalsIgnoreCase(value)
                 || TerminalTips.isTipsCommand(value)
                 || "/tasks".equalsIgnoreCase(value)
                 || transcript.isTranscriptCommand(value)
@@ -210,6 +212,11 @@ public class CliShell {
         if ("/copy".equalsIgnoreCase(trimmed)) {
             return copyLastReply(writer);
         }
+        if ("/events".equalsIgnoreCase(trimmed)) {
+            writer.println(renderEvents());
+            writer.flush();
+            return 0;
+        }
         if (TerminalTips.isTipsCommand(trimmed)) {
             writer.println(TerminalTips.render());
             writer.flush();
@@ -247,6 +254,7 @@ public class CliShell {
             lastReply = finalText;
             transcript.assistant(finalText);
         }
+        lastEventSnapshot = sink.eventSnapshot();
         if (reply != null && StrUtil.isNotBlank(reply.getContent()) && !sink.hasAssistantOutput()) {
             writer.println(reply.getContent());
             writer.flush();
@@ -255,6 +263,28 @@ public class CliShell {
     }
 
     private String lastReply;
+
+    private String renderEvents() {
+        if (lastEventSnapshot == null || lastEventSnapshot.getEventCount() <= 0) {
+            return "暂无终端事件。";
+        }
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("最近一次运行事件：total=")
+                .append(lastEventSnapshot.getEventCount())
+                .append(" tools=")
+                .append(lastEventSnapshot.getToolCount())
+                .append(" failures=")
+                .append(lastEventSnapshot.getFailureCount());
+        java.util.List<String> events = lastEventSnapshot.getRecentEvents();
+        if (!events.isEmpty()) {
+            int index = 1;
+            for (String event : events) {
+                buffer.append('\n').append(index).append(". ").append(event);
+                index++;
+            }
+        }
+        return buffer.toString();
+    }
 
     private int copyLastReply(PrintWriter writer) {
         if (StrUtil.isBlank(lastReply)) {
