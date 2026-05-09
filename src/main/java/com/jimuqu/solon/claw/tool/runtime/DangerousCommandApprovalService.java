@@ -184,6 +184,16 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_owner_or_acl_change",
+                                    "credential file owner or ACL changed",
+                                    pattern(
+                                            "\\b(?:chown|chgrp|takeown|icacls)\\b[^\\n]*[\"']?"
+                                                    + "(?:"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + ")"
+                                                    + "[\"']?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "world_writable",
                                     "world/other-writable permissions",
                                     pattern(
@@ -397,7 +407,13 @@ public class DangerousCommandApprovalService {
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+get-secret-value|gcloud\\s+secrets\\s+versions\\s+access|az\\s+keyvault\\s+secret\\s+show|kubectl\\s+(?:-[^\\s]+\\s+)*get\\s+secret\\b|vault\\s+(?:kv\\s+get|read)\\b|op\\s+(?:read\\s+op://|item\\s+get\\b(?=[^\\n]*(?:--fields?\\s+\\S*(?:password|passwd|secret|token|credential)|--fields?=\\S*(?:password|passwd|secret|token|credential)|--reveal\\b)))|bw\\s+get\\s+(?:password|item|notes)\\b|(?:pass|gopass)\\s+(?:show\\s+)?(?!(?:git|ls|list|search|find|grep|init|insert|edit|rm|remove|delete|mv|cp|generate)\\b)[^\\s-][^\\n]*|secret-tool\\s+lookup\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "encrypted_secret_file_decrypt",
+                                    "decrypt encrypted secret file",
+                                    pattern(
+                                            "\\b(?:sops\\s+(?:-d|--decrypt)\\b|ansible-vault\\s+(?:view|decrypt)\\b|gpg(?:2)?\\s+(?:--decrypt|-d)\\b|age\\s+(?:--decrypt|-d)\\b|aws\\s+kms\\s+decrypt\\b|gcloud\\s+kms\\s+decrypt\\b|az\\s+keyvault\\s+key\\s+decrypt\\b|vault\\s+write\\s+transit/decrypt/\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_write",
@@ -406,6 +422,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
                                                     + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "secret_store_destroy",
+                                    "delete or destroy secret manager value",
+                                    pattern(
+                                            "\\b(?:aws\\s+secretsmanager\\s+delete-secret|gcloud\\s+secrets\\s+(?:delete|versions\\s+destroy)\\b|az\\s+keyvault\\s+secret\\s+(?:delete|purge)\\b|vault\\s+kv\\s+(?:delete|destroy|metadata\\s+delete)\\b|op\\s+item\\s+delete\\b|bw\\s+delete\\s+item\\b|(?:pass|gopass)\\s+(?:rm|remove|delete)\\b|secret-tool\\s+clear\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_cli_credential_config_change",
@@ -497,6 +519,12 @@ public class DangerousCommandApprovalService {
                                     "send credential from local netrc or cookie file",
                                     pattern(
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies)(?:=|\\s+)\\S|\\s(?-i:-K)\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|ca-certificate|cacert|capath)(?:=|\\s+)\\S+|\\s(?-i:-E)\\s+\\S+|\\s(?-i:-[bcEK])\\S+|\\s(?-i:-c)\\s+\\S|\\s(?-i:-b)\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s-T\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[^\\s'\"|;&]*=@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[^\\s'\"|;&]+@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "remote_credential_file_transfer",
+                                    "transfer credential file with remote copy tool",
+                                    pattern(
+                                            "\\b(?:scp|sftp|rsync|rclone|s3cmd)\\b(?=[^\\n]*(?:\\s|=|:)(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.json)?|auth\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)[\"']?(?:\\s|$|:)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_path_option",
