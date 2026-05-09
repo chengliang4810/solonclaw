@@ -687,11 +687,11 @@ public class DashboardDiagnosticsService {
                 actionOptions.add("always");
             }
         }
-        item.put("confirm_id", pending.getConfirmId());
+        item.put("confirm_id", safeAuditPreview(pending.getConfirmId(), 160));
         item.put("confirm_ref", shortId(pending.getConfirmId()));
         item.put("source_ref", sourceRef(pending.getSourceKey()));
-        item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 1000));
-        item.put("prompt_preview", SecretRedactor.redact(pending.getPrompt(), 1000));
+        item.put("command_preview", safeAuditPreview(pending.getCommand(), 1000));
+        item.put("prompt_preview", safeAuditPreview(pending.getPrompt(), 1000));
         item.put("allow_always", Boolean.valueOf(pending.isAllowAlways()));
         item.put("action_options", actionOptions);
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
@@ -723,12 +723,12 @@ public class DashboardDiagnosticsService {
     }
 
     private String shortId(String value) {
-        String safe = StrUtil.nullToEmpty(value).trim();
+        String safe = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         return safe.length() <= 8 ? safe : safe.substring(0, 8);
     }
 
     private String sourceRef(String value) {
-        String safe = StrUtil.nullToEmpty(value).trim();
+        String safe = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
         return safe.isEmpty() ? "" : SecureUtil.sha256(safe).substring(0, 12);
     }
 

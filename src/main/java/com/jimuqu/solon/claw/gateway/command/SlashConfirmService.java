@@ -37,7 +37,7 @@ public class SlashConfirmService {
             String sourceKey, String command, String prompt, boolean allowAlways) {
         PendingConfirm confirm = new PendingConfirm();
         confirm.setConfirmId(com.jimuqu.solon.claw.support.IdSupport.newId());
-        confirm.setSourceKey(StrUtil.nullToEmpty(sourceKey));
+        confirm.setSourceKey(cleanDisplay(sourceKey));
         confirm.setCommand(StrUtil.nullToEmpty(command));
         confirm.setPrompt(StrUtil.nullToEmpty(prompt));
         confirm.setAllowAlways(allowAlways);
@@ -47,12 +47,13 @@ public class SlashConfirmService {
     }
 
     public synchronized PendingConfirm getPending(String sourceKey) {
-        PendingConfirm confirm = pendingBySource.get(StrUtil.nullToEmpty(sourceKey));
+        String key = cleanDisplay(sourceKey);
+        PendingConfirm confirm = pendingBySource.get(key);
         if (confirm == null) {
             return null;
         }
         if (isExpired(confirm)) {
-            pendingBySource.remove(StrUtil.nullToEmpty(sourceKey));
+            pendingBySource.remove(key);
             return null;
         }
         return confirm.copy();
@@ -84,7 +85,7 @@ public class SlashConfirmService {
     }
 
     private PendingConfirm resolve(String sourceKey, String confirmId, boolean requireConfirmId) {
-        String key = StrUtil.nullToEmpty(sourceKey);
+        String key = cleanDisplay(sourceKey);
         PendingConfirm confirm = pendingBySource.get(key);
         if (confirm == null) {
             return null;
@@ -104,11 +105,11 @@ public class SlashConfirmService {
     }
 
     public synchronized boolean clear(String sourceKey) {
-        return pendingBySource.remove(StrUtil.nullToEmpty(sourceKey)) != null;
+        return pendingBySource.remove(cleanDisplay(sourceKey)) != null;
     }
 
     public synchronized boolean clearIfStale(String sourceKey, long timeoutMs) {
-        String key = StrUtil.nullToEmpty(sourceKey);
+        String key = cleanDisplay(sourceKey);
         PendingConfirm confirm = pendingBySource.get(key);
         if (confirm == null || !isExpired(confirm, timeoutMs)) {
             return false;

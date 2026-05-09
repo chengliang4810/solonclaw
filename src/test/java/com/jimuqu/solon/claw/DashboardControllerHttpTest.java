@@ -1541,6 +1541,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"prompt_preview\":\"确认刷新 Authorization: Bearer ***\"")
                 .contains("\"command_preview\":\"reload-mcp --token=***\"")
                 .contains("\"source_ref\"")
+                .doesNotContain("\\u202E")
                 .contains("Authorization: Bearer ***")
                 .contains("reload-mcp --token=***")
                 .doesNotContain("\"prompt\":")
