@@ -770,6 +770,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\b(?:Invoke-Expression|IEX)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_lolbin_remote_execution",
+                                    "Windows signed binary remote execution",
+                                    pattern(
+                                            "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_disable_firewall",
                                     "Windows firewall disabled",
                                     pattern(
