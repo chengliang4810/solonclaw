@@ -362,8 +362,22 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(String.valueOf(summary.get("commands"))).contains("/approve").contains("/deny");
         assertThat(summary.get("selectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("listSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("statusAliasSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("denyAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearSessionSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearAlwaysSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("managementCommands")))
+                .contains("/approve list")
+                .contains("/approve status")
+                .contains("/approve clear session")
+                .contains("/approve clear always")
+                .contains("/approve clear all")
+                .contains("/deny list")
+                .contains("/deny status")
+                .contains("/deny all");
         assertThat(String.valueOf(summary.get("scopes")))
                 .contains("once")
                 .contains("session")
@@ -425,8 +439,13 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(summary.get("pendingListPrunedBeforeRead")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("selectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("listSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("statusAliasSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rejectAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearSessionSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearAlwaysSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("clearAllSupported")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("scopes")))
                 .contains("once")
                 .contains("session")

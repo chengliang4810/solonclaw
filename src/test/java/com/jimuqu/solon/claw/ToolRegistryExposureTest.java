@@ -752,8 +752,13 @@ public class ToolRegistryExposureTest {
         ONode approvalLifecyclePolicy =
                 policyStatus.get("policy").get("coverage").get("approvalLifecyclePolicy");
         assertThat(approvalLifecyclePolicy.get("pendingListPrunedBeforeRead").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("listSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("statusAliasSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("approveAllSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("rejectAllSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("clearSessionSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("clearAlwaysSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("clearAllSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("alwaysScopeUsesGlobalSettings").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("tirithAlwaysScopeDowngradedToSession").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("currentThreadApprovalTtlMillis").getLong())
@@ -771,13 +776,20 @@ public class ToolRegistryExposureTest {
         ONode slashConfirmPolicy =
                 policyStatus.get("policy").get("coverage").get("slashConfirmPolicy");
         assertThat(slashConfirmPolicy.get("selectorSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("listSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("statusAliasSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("approveAllSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("denyAllSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("clearSessionSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("clearAlwaysSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("clearAllSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("pendingQueueSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
         assertThat(String.valueOf(slashConfirmPolicy))
                 .contains("/approve")
                 .contains("/deny")
+                .contains("/approve clear all")
+                .contains("/deny status")
                 .contains("once")
                 .contains("session")
                 .contains("always")
