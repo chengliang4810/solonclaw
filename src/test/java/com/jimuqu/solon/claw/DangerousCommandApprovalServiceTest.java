@@ -2903,6 +2903,13 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkCommandPaths("type id_ecdsa_sk");
         SecurityPolicyService.FileVerdict serviceAccount =
                 securityPolicyService.checkCommandPaths("cat service_account.json");
+        SecurityPolicyService.FileVerdict serviceAccountKey =
+                securityPolicyService.checkCommandPaths(
+                        "gcloud auth activate-service-account --key-file service-account-key.json");
+        SecurityPolicyService.FileVerdict googleCredentials =
+                securityPolicyService.checkCommandPaths("cat google-credentials.json");
+        SecurityPolicyService.FileVerdict firebaseAdmin =
+                securityPolicyService.checkCommandPaths("cat firebase-adminsdk-prod.json");
         SecurityPolicyService.FileVerdict privatePem =
                 securityPolicyService.checkCommandPaths("openssl rsa -in private-prod.pem -check");
         SecurityPolicyService.FileVerdict kubeconfig =
@@ -2923,6 +2930,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(ecdsaSk.getPath()).isEqualTo("id_ecdsa_sk");
         assertThat(serviceAccount.isAllowed()).isFalse();
         assertThat(serviceAccount.getPath()).isEqualTo("service_account.json");
+        assertThat(serviceAccountKey.isAllowed()).isFalse();
+        assertThat(serviceAccountKey.getPath()).isEqualTo("service-account-key.json");
+        assertThat(googleCredentials.isAllowed()).isFalse();
+        assertThat(googleCredentials.getPath()).isEqualTo("google-credentials.json");
+        assertThat(firebaseAdmin.isAllowed()).isFalse();
+        assertThat(firebaseAdmin.getPath()).isEqualTo("firebase-adminsdk-prod.json");
         assertThat(privatePem.isAllowed()).isFalse();
         assertThat(privatePem.getPath()).isEqualTo("private-prod.pem");
         assertThat(kubeconfig.isAllowed()).isFalse();
