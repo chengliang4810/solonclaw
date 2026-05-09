@@ -752,6 +752,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("recursivePathExtraction")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("writeIntentDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("patchTargetExtraction")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("downloadOutputPathOptionChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("downloadOutputDetachedOptionChecked")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("urlKeySamples"))).contains("url", "endpoint", "*_url");
         assertThat(String.valueOf(summary.get("returnedUrlKeySamples"))).contains("browser_download_url", "href");
         assertThat(String.valueOf(summary.get("pathKeySamples"))).contains("path", "file_path", "*_path");

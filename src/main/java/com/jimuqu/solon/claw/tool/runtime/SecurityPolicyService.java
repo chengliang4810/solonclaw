@@ -592,13 +592,15 @@ public class SecurityPolicyService {
         summary.put("recursivePathExtraction", Boolean.TRUE);
         summary.put("writeIntentDetection", Boolean.TRUE);
         summary.put("patchTargetExtraction", Boolean.TRUE);
+        summary.put("downloadOutputPathOptionChecked", Boolean.TRUE);
+        summary.put("downloadOutputDetachedOptionChecked", Boolean.TRUE);
         summary.put("urlKeySamples", toolArgsUrlKeySamples());
         summary.put("pathKeySamples", toolArgsPathKeySamples());
         summary.put("writeIntentSamples", toolArgsWriteIntentSamples());
         summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
         summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
         summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
-        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks returned documents, and parses patch/diff targets before tool execution.");
+        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths, checks returned documents, and parses patch/diff targets before tool execution.");
         return summary;
     }
 

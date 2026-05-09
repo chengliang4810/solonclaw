@@ -1046,6 +1046,10 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("writeIntentDetection").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("downloadOutputPathOptionChecked").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("downloadOutputDetachedOptionChecked").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolArgsPolicy")))
                 .contains("file_path")
                 .contains("endpoint")
