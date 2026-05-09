@@ -458,9 +458,11 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-Credential\\b\\s*(?::|=|\\s+)\\S|\\s-Body\\b\\s*(?::|=|\\s+)\\s*@\\{[^\\n}]*[\"']?\\s*"
+                                                    + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-Credential\\b\\s*(?::|=|\\s+)\\S|\\s-Body\\b\\s*(?::|=|\\s+)\\s*(?:@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "\\s*[\"']?\\s*=)"),
+                                                    + "\\s*[\"']?\\s*=|[\"']?[^\\s'\"|;&]*[\"']?"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "(?:\\s*=|[\"']?\\s*:\\s*[\"']?)\\S+))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "network_credential_file_send",
