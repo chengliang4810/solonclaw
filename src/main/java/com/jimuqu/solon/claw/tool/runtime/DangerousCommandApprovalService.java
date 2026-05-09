@@ -385,7 +385,11 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\s*=\\s*\\S+|(?:Set-Item|New-Item)\\s+Env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+|Set-Content\\s+Env:"
+                                                    + "\\s+\\S+|(?:export|declare\\s+-x|typeset\\s+-x)\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+|(?:cmd(?:\\.exe)?\\s+/c\\s+)?set\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "=\\S+|Set-Content\\s+Env:"
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\s+\\S+|setx\\s+"
                                                     + SENSITIVE_ENV_NAME
