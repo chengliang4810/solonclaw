@@ -2457,9 +2457,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict authProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy user:pass@127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict authProxyPublic =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy user:pass@proxy.example:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict schemeProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy socks5h://127.0.0.1:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict schemeAuthProxyPublic =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy http://user:pass@proxy.example:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict schemeProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
@@ -2482,8 +2488,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(compactProxyPrivate.getMessage()).contains("内网");
         assertThat(authProxyPrivate.isAllowed()).isFalse();
         assertThat(authProxyPrivate.getMessage()).contains("内网");
+        assertThat(authProxyPublic.isAllowed()).isFalse();
+        assertThat(authProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyPrivate.isAllowed()).isFalse();
         assertThat(schemeProxyPrivate.getMessage()).contains("内网");
+        assertThat(schemeAuthProxyPublic.isAllowed()).isFalse();
+        assertThat(schemeAuthProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyMetadata.isAllowed()).isFalse();
         assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
     }

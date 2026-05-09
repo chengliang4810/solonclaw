@@ -928,6 +928,12 @@ public class SecurityPolicyService {
         }
         int at = value.lastIndexOf('@');
         if (at >= 0 && at + 1 < value.length()) {
+            String hostWithCredential =
+                    value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
+            if (StrUtil.isNotBlank(hostWithCredential) && !shouldCheckBareHost(hostWithCredential)) {
+                urls.add(value);
+                return;
+            }
             value = value.substring(at + 1);
         }
         String host = value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
