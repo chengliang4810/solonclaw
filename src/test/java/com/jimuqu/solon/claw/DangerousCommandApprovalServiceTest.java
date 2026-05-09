@@ -3533,6 +3533,18 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
                         "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 1.1.1.1");
+        DangerousCommandApprovalService.DetectionResult ipRouteAdd =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ip route add 169.254.169.254 via 10.0.0.1");
+        DangerousCommandApprovalService.DetectionResult routeDelete =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "route delete default");
+        DangerousCommandApprovalService.DetectionResult windowsPortProxy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "netsh interface portproxy add v4tov4 listenport=8080 connectaddress=127.0.0.1 connectport=80");
+        DangerousCommandApprovalService.DetectionResult ipRouteShow =
+                env.dangerousCommandApprovalService.detect("execute_shell", "ip route show");
         DangerousCommandApprovalService.DetectionResult projectResolvWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "echo nameserver > fixtures/resolv.conf");
@@ -3671,6 +3683,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(macosDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
         assertThat(windowsDnsWrite).isNotNull();
         assertThat(windowsDnsWrite.getPatternKey()).isEqualTo("dns_resolver_tampering");
+        assertThat(ipRouteAdd).isNotNull();
+        assertThat(ipRouteAdd.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
+        assertThat(routeDelete).isNotNull();
+        assertThat(routeDelete.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
+        assertThat(windowsPortProxy).isNotNull();
+        assertThat(windowsPortProxy.getPatternKey())
+                .isEqualTo("network_route_or_portproxy_change");
+        assertThat(ipRouteShow).isNull();
         assertThat(projectResolvWrite).isNull();
         assertThat(gitProxyWrite).isNotNull();
         assertThat(gitProxyWrite.getPatternKey())

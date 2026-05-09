@@ -273,6 +273,12 @@ public class DangerousCommandApprovalService {
                                             "(?:(?:>>?|\\btee\\b(?:\\s+-a)?|\\b(?:Set-Content|Add-Content|Out-File)\\b)[^\\n]*/etc/resolv\\.conf\\b|\\bnmcli\\s+connection\\s+modify\\b[^\\n]*\\bipv[46]\\.dns\\b|\\bnetworksetup\\s+-setdnsservers\\b|\\bSet-DnsClientServerAddress\\b|\\bnetsh\\s+interface\\s+ip\\s+set\\s+dns\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "network_route_or_portproxy_change",
+                                    "network route or port proxy changed",
+                                    pattern(
+                                            "\\b(?:ip\\s+route\\s+(?:add|replace|del|delete)|route\\s+(?:add|delete|del)|netsh\\s+interface\\s+portproxy\\s+(?:add|delete|del|reset))\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "persistent_proxy_configuration_change",
                                     "persistent proxy configuration changed",
                                     pattern(
