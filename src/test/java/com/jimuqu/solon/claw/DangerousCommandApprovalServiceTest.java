@@ -2486,6 +2486,11 @@ public class DangerousCommandApprovalServiceTest {
                         "mysql --password=password -e 'select 1'",
                         "mysqldump -ppassword db",
                         "mariadb --password password -e 'select 1'",
+                        "pg_dump --password password dbname",
+                        "pg_restore --password=password dumpfile",
+                        "mongo --username user --password password admin",
+                        "mongosh --password=password mongodb://db.example/admin",
+                        "cockroach sql --password password --host db.example",
                         "redis-cli -a password ping",
                         "redis-cli --pass=password ping",
                         "PGPASSWORD=password psql -h db.example -c 'select 1'",
@@ -2500,6 +2505,11 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("plaintext_cli_password_option");
         }
 
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "PGPASSWORD=password pg_dump dbname"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("sensitive_environment_inline_assignment");
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "mysql --protocol=tcp -e 'select 1'"))
