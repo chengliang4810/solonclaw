@@ -1520,6 +1520,11 @@ public class DangerousCommandApprovalServiceTest {
                         "gcloud secrets versions add prod-db --data-file=secret.txt",
                         "az keyvault secret set --vault-name prod --name db-password --value password",
                         "kubectl create secret generic app-token --from-literal=token=abc",
+                        "kubectl -n prod patch secret app-token -p '{\"data\":{\"token\":\"abc\"}}'",
+                        "kubectl replace secret app-token -f app-token-secret.yml",
+                        "kubectl apply -f app-secret.yml",
+                        "kubectl apply --filename credentials-secret.yml",
+                        "kubectl delete secret app-token",
                         "vault kv put secret/prod password=abc",
                         "vault kv patch secret/prod token=abc",
                         "op item create --category login --title prod-db password=abc",
@@ -1534,6 +1539,19 @@ public class DangerousCommandApprovalServiceTest {
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_write");
+        }
+
+        List<String> secretStoreNonWrites =
+                Arrays.asList(
+                        "kubectl apply -f configmap.yml",
+                        "kubectl replace configmap app-config -f configmap.yml",
+                        "kubectl delete configmap app-config");
+        for (String command : secretStoreNonWrites) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            if (result != null) {
+                assertThat(result.getPatternKey()).as(command).isNotEqualTo("secret_store_write");
+            }
         }
 
         List<String> cloudCredentialConfigChanges =

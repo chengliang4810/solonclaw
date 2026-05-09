@@ -403,7 +403,9 @@ public class DangerousCommandApprovalService {
                                     "secret_store_write",
                                     "write secret manager value",
                                     pattern(
-                                            "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl\\s+(?:-[^\\s]+\\s+)*create\\s+secret\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
+                                            "\\b(?:aws\\s+secretsmanager\\s+(?:put-secret-value|create-secret|update-secret)|gcloud\\s+secrets\\s+versions\\s+add|az\\s+keyvault\\s+secret\\s+set|kubectl"
+                                                    + KUBECTL_OPTION_PREFIX
+                                                    + "\\s+(?:create\\s+secret|(?:patch|replace|delete)\\s+secret|apply\\b[^\\n]*(?:\\s-f\\s+\\S*(?:secret|credential|token)\\S*|--filename(?:=|\\s+)\\S*(?:secret|credential|token)\\S*))\\b|vault\\s+kv\\s+(?:put|patch)\\b|op\\s+item\\s+(?:create|edit)\\b|bw\\s+(?:create|edit)\\s+item\\b|(?:pass|gopass)\\s+(?:insert|edit|generate)\\b|secret-tool\\s+store\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_cli_credential_config_change",
