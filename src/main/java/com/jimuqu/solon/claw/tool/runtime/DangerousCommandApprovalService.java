@@ -86,7 +86,7 @@ public class DangerousCommandApprovalService {
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
     private static final String HARDLINE_COMMAND_POSITION =
-            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
@@ -337,8 +337,9 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
-                                    "kill process via pgrep expansion (self-termination)",
-                                    pattern("\\bkill\\b.*\\$\\(\\s*pgrep\\b|\\bkill\\b.*`\\s*pgrep\\b"),
+                                    "kill process via process lookup expansion (self-termination)",
+                                    pattern(
+                                            "\\bkill\\b.*\\$\\(\\s*(?:pgrep|pidof)\\b|\\bkill\\b.*`\\s*(?:pgrep|pidof)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "copy_into_etc",
@@ -521,7 +522,7 @@ public class DangerousCommandApprovalService {
                                     "windows_remove_item",
                                     "PowerShell recursive delete",
                                     pattern(
-                                            "\\b(?:Remove-Item|ri|rm)\\b(?=[^\\n]*(?:-Recurse\\b|-r\\b))"),
+                                            "\\b(?:Remove-Item|ri|rm)\\b(?=[^\\n]*(?:-Recurse\\b|-rec\\b|-r\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_del_force",
@@ -629,7 +630,7 @@ public class DangerousCommandApprovalService {
                                     "powershell_sensitive_file_write",
                                     "PowerShell write to sensitive credential file",
                                     pattern(
-                                            "\\b(?:Set-Content|Add-Content|Out-File)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
+                                            "\\b(?:Set-Content|Add-Content|Out-File|sc|ac)\\b[^\\n]*(?:-Path\\s+|-LiteralPath\\s+|-FilePath\\s+)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -637,7 +638,7 @@ public class DangerousCommandApprovalService {
                                     "powershell_sensitive_file_copy",
                                     "PowerShell copy or move to sensitive credential file",
                                     pattern(
-                                            "\\b(?:Copy-Item|Move-Item)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)\\s+)?[\"']?"
+                                            "\\b(?:Copy-Item|Move-Item|cp|cpi|mv|mi)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)\\s+)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
                                                     + "[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -1189,11 +1190,34 @@ public class DangerousCommandApprovalService {
     }
 
     public String foregroundBackgroundGuidance(String toolName, String code) {
-        if (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
-            return null;
-        }
         String normalized = normalize(code);
         if (StrUtil.isBlank(normalized) || looksLikeHelpOrVersionCommand(normalized)) {
+            return null;
+        }
+        if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
+            for (String shellCommand : extractPythonShellCommands(normalized)) {
+                String guidance =
+                        foregroundBackgroundGuidance(ToolNameConstants.EXECUTE_SHELL, shellCommand);
+                if (guidance != null) {
+                    return "BLOCKED: Python 脚本中的 shell 调用需要改用受管后台进程能力。\n" + guidance;
+                }
+            }
+            return null;
+        }
+        if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
+            String childProcessCommand = extractJavaScriptChildProcessCommand(normalized);
+            if (StrUtil.isNotBlank(childProcessCommand)) {
+                String guidance =
+                        foregroundBackgroundGuidance(
+                                ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
+                if (guidance != null) {
+                    return "BLOCKED: Node 脚本中的 child_process 调用需要改用受管后台进程能力。\n"
+                            + guidance;
+                }
+            }
+            return null;
+        }
+        if (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
             return null;
         }
 
@@ -3028,6 +3052,87 @@ public class DangerousCommandApprovalService {
             }
         }
         return commands;
+    }
+
+    private static String extractJavaScriptChildProcessCommand(String code) {
+        if (StrUtil.isBlank(code)) {
+            return null;
+        }
+        Pattern callPattern =
+                Pattern.compile(
+                        "\\b(?:child_process\\.)?(?:exec|execSync|spawn|spawnSync|execFile|execFileSync)\\s*\\(",
+                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        Matcher matcher = callPattern.matcher(code);
+        if (!matcher.find()) {
+            return null;
+        }
+        String firstArgument = readFirstShellCommandArgument(code, matcher.end());
+        if (StrUtil.isBlank(firstArgument)) {
+            return null;
+        }
+        String listArguments = readSecondJavaScriptArgumentList(code, matcher.end());
+        if (StrUtil.isBlank(listArguments)) {
+            return firstArgument;
+        }
+        return firstArgument + " " + listArguments;
+    }
+
+    private static String readSecondJavaScriptArgumentList(String code, int offset) {
+        int index = skipWhitespace(code, offset);
+        if (index < 0 || index >= code.length()) {
+            return null;
+        }
+        index = skipFirstArgument(code, index);
+        index = skipWhitespace(code, index);
+        if (index < 0 || index >= code.length() || code.charAt(index) != ',') {
+            return null;
+        }
+        index = skipWhitespace(code, index + 1);
+        if (index < 0 || index >= code.length() || code.charAt(index) != '[') {
+            return null;
+        }
+        return readQuotedStringListCommand(code, index + 1);
+    }
+
+    private static int skipFirstArgument(String code, int offset) {
+        int index = skipWhitespace(code, offset);
+        if (index < 0 || index >= code.length()) {
+            return -1;
+        }
+        char current = code.charAt(index);
+        if (current == '\'' || current == '"') {
+            return skipQuotedString(code, index);
+        }
+        if (current == '[') {
+            return skipBracketedList(code, index);
+        }
+        return -1;
+    }
+
+    private static int skipBracketedList(String code, int offset) {
+        if (code == null || offset < 0 || offset >= code.length() || code.charAt(offset) != '[') {
+            return -1;
+        }
+        int depth = 0;
+        for (int i = offset; i < code.length(); i++) {
+            char current = code.charAt(i);
+            if (current == '\'' || current == '"') {
+                i = skipQuotedString(code, i) - 1;
+                if (i < 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (current == '[') {
+                depth++;
+            } else if (current == ']') {
+                depth--;
+                if (depth == 0) {
+                    return i + 1;
+                }
+            }
+        }
+        return -1;
     }
 
     private static String readFirstShellCommandArgument(String code, int offset) {

@@ -696,6 +696,7 @@ public class SecurityPolicyService {
         }
         String text = normalizeUrlText(String.valueOf(raw));
         extractCurlConnectionOverrideHosts(text, urls);
+        extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
@@ -704,6 +705,73 @@ public class SecurityPolicyService {
         }
         extractBareSecurityRelevantHosts(text, urls);
         extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    private void extractProxyHosts(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String value = null;
+            if ("--proxy".equals(token)
+                    || "-x".equals(token)
+                    || "--socks5".equals(token)
+                    || "--socks5-hostname".equals(token)) {
+                if (i + 1 < tokens.size()) {
+                    value = tokens.get(++i);
+                }
+            } else if (token.startsWith("--proxy=")) {
+                value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--socks5=")) {
+                value = token.substring("--socks5=".length());
+            } else if (token.startsWith("--socks5-hostname=")) {
+                value = token.substring("--socks5-hostname=".length());
+            } else if (token.startsWith("-x") && token.length() > 2) {
+                value = token.substring(2);
+            } else if (isProxyEnvironmentAssignment(token)) {
+                value = token.substring(token.indexOf('=') + 1);
+            }
+            addProxyHost(value, urls);
+        }
+    }
+
+    private boolean isProxyEnvironmentAssignment(String token) {
+        if (StrUtil.isBlank(token)) {
+            return false;
+        }
+        int equals = token.indexOf('=');
+        if (equals <= 0) {
+            return false;
+        }
+        String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return "http_proxy".equals(name)
+                || "https_proxy".equals(name)
+                || "all_proxy".equals(name);
+    }
+
+    private void addProxyHost(String raw, List<String> urls) {
+        String value = cleanUrlToken(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        int at = value.lastIndexOf('@');
+        if (at >= 0 && at + 1 < value.length()) {
+            value = value.substring(at + 1);
+        }
+        String host = value.contains("://") ? extractUrlishHost(value) : extractSchemelessHost(value);
+        if (StrUtil.isBlank(host)) {
+            return;
+        }
+        if (shouldCheckBareHost(host)) {
+            urls.add(value.contains("://") ? host : value);
+        }
+    }
+
+    private String extractUrlishHost(String raw) {
+        URI uri = parseUri(cleanUrlToken(raw));
+        if (uri == null) {
+            return "";
+        }
+        return normalizeHost(uri.getHost());
     }
 
     private void extractCurlConnectionOverrideHosts(String text, List<String> urls) {

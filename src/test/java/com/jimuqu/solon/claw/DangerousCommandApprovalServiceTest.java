@@ -393,6 +393,8 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Out-File -FilePath ~/.ssh/authorized_keys -InputObject $key",
                 "powershell_sensitive_file_write");
+        assertDangerPattern(env, "sc .env.local TOKEN=value", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "ac -Path ~/.npmrc token", "powershell_sensitive_file_write");
         assertDangerPattern(
                 env,
                 "$cred | Export-Clixml -Path credentials",
@@ -405,6 +407,8 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Move-Item token.json runtime\\config.yml",
                 "powershell_sensitive_file_copy");
+        assertDangerPattern(env, "cpi template.env .env.local", "powershell_sensitive_file_copy");
+        assertDangerPattern(env, "mi token.json credentials.json", "powershell_sensitive_file_copy");
         assertDangerPattern(
                 env,
                 "copy template.env .env.local /Y",
@@ -757,6 +761,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult killByPgrep =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "kill -9 $(pgrep -f jimuqu-agent)");
+        DangerousCommandApprovalService.DetectionResult killByPidof =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kill -TERM $(pidof jimuqu-agent)");
+        DangerousCommandApprovalService.DetectionResult killByBacktickPidof =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "kill -9 `pidof jimuqu-agent`");
         DangerousCommandApprovalService.DetectionResult removeItemReordered =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "Remove-Item .\\runtime\\cache -Force -Recurse");
@@ -771,6 +781,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult removeItemAlias =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "ri .\\runtime\\cache -r -fo");
+        DangerousCommandApprovalService.DetectionResult removeItemRecursePrefix =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "Remove-Item .\\runtime\\cache -rec -fo");
         DangerousCommandApprovalService.DetectionResult delReordered =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "del /q /s .\\runtime\\cache\\*");
@@ -786,6 +799,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(killByName.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(killByPgrep).isNotNull();
         assertThat(killByPgrep.getPatternKey()).isEqualTo("kill_pgrep_expansion");
+        assertThat(killByPidof).isNotNull();
+        assertThat(killByPidof.getPatternKey()).isEqualTo("kill_pgrep_expansion");
+        assertThat(killByBacktickPidof).isNotNull();
+        assertThat(killByBacktickPidof.getPatternKey()).isEqualTo("kill_pgrep_expansion");
         assertThat(removeItemReordered).isNotNull();
         assertThat(removeItemReordered.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(removeItemLiteralPathShortFlags).isNotNull();
@@ -794,6 +811,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(removeItemConfirmFalse.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(removeItemAlias).isNotNull();
         assertThat(removeItemAlias.getPatternKey()).isEqualTo("windows_remove_item");
+        assertThat(removeItemRecursePrefix).isNotNull();
+        assertThat(removeItemRecursePrefix.getPatternKey()).isEqualTo("windows_remove_item");
         assertThat(delReordered).isNotNull();
         assertThat(delReordered.getPatternKey()).isEqualTo("windows_del_force");
         assertThat(rdReordered).isNotNull();
@@ -964,6 +983,38 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(amp).contains("&");
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
+    }
+
+    @Test
+    void shouldWarnForForegroundBackgroundShellPatternsInsideScripts() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        String pythonNohup =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_python",
+                        "import os\nos.system('nohup npm run dev > app.log 2>&1')");
+        String pythonSpawn =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_python",
+                        "import subprocess\nsubprocess.Popen(['npm', 'run', 'dev'])");
+        String jsExec =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_js",
+                        "child_process.exec('python -m http.server 8000')");
+        String jsSpawn =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_js",
+                        "child_process.spawn('npm', ['run', 'dev'])");
+        String jsSpawnSafe =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_js",
+                        "child_process.spawn('git', ['status'])");
+
+        assertThat(pythonNohup).contains("Python").contains("nohup");
+        assertThat(pythonSpawn).contains("Python").contains("长驻服务");
+        assertThat(jsExec).contains("Node").contains("长驻服务");
+        assertThat(jsSpawn).contains("Node").contains("长驻服务");
+        assertThat(jsSpawnSafe).isNull();
     }
 
     @Test
@@ -1294,6 +1345,8 @@ public class DangerousCommandApprovalServiceTest {
                     "`shutdown now`",
                     "sudo -E shutdown now",
                     "env FOO=1 reboot",
+                    "env -i reboot",
+                    "env --ignore-environment FOO=1 shutdown now",
                     "exec shutdown",
                     "nohup reboot",
                     "setsid poweroff",
@@ -1718,6 +1771,30 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict resolvePrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --resolve safe.example:443:127.0.0.1 https://safe.example/");
+        SecurityPolicyService.UrlVerdict proxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict socksMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict envProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "http_proxy=127.0.0.1:8080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict envProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "ALL_PROXY=169.254.169.254:1080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict compactProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl -x127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict authProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy user:pass@127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict schemeProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy socks5h://127.0.0.1:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict schemeProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -1725,6 +1802,22 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(command.getMessage()).contains("元数据");
         assertThat(resolvePrivate.isAllowed()).isFalse();
         assertThat(resolvePrivate.getMessage()).contains("内网");
+        assertThat(proxyPrivate.isAllowed()).isFalse();
+        assertThat(proxyPrivate.getMessage()).contains("内网");
+        assertThat(socksMetadata.isAllowed()).isFalse();
+        assertThat(socksMetadata.getMessage()).contains("元数据");
+        assertThat(envProxyPrivate.isAllowed()).isFalse();
+        assertThat(envProxyPrivate.getMessage()).contains("内网");
+        assertThat(envProxyMetadata.isAllowed()).isFalse();
+        assertThat(envProxyMetadata.getMessage()).contains("元数据");
+        assertThat(compactProxyPrivate.isAllowed()).isFalse();
+        assertThat(compactProxyPrivate.getMessage()).contains("内网");
+        assertThat(authProxyPrivate.isAllowed()).isFalse();
+        assertThat(authProxyPrivate.getMessage()).contains("内网");
+        assertThat(schemeProxyPrivate.isAllowed()).isFalse();
+        assertThat(schemeProxyPrivate.getMessage()).contains("内网");
+        assertThat(schemeProxyMetadata.isAllowed()).isFalse();
+        assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
     }
 
     @Test
