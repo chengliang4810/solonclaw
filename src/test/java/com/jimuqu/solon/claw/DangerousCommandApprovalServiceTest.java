@@ -403,7 +403,15 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_take_ownership");
         assertDangerPattern(
                 env,
+                "takeown -f C:\\ProgramData\\app -r -d y",
+                "windows_take_ownership");
+        assertDangerPattern(
+                env,
                 "icacls C:\\ProgramData\\app /grant Everyone:F /t",
+                "windows_acl_rewrite");
+        assertDangerPattern(
+                env,
+                "icacls C:\\ProgramData\\app -grant Everyone:F -t",
                 "windows_acl_rewrite");
         assertDangerPattern(
                 env,
