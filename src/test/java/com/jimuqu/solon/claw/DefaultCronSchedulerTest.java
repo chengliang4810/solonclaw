@@ -1549,6 +1549,94 @@ public class DefaultCronSchedulerTest {
         assertThat(((Map<?, ?>) created.get("job")).get("wrap_response")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("schedule")).isEqualTo("30m");
 
+        Map<?, ?> deliveryPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-delivery-target",
+                                                "30m",
+                                                "delivery prompt",
+                                                "FEISHU",
+                                                "chat-tool",
+                                                "thread-tool",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        String deliveryJobId = String.valueOf(deliveryPayload.get("job_id"));
+        Map<?, ?> deliveryJob = (Map<?, ?>) deliveryPayload.get("job");
+        assertThat(deliveryJob.get("deliver")).isEqualTo("FEISHU");
+        assertThat(deliveryJob.get("deliver_chat_id")).isEqualTo("chat-tool");
+        assertThat(deliveryJob.get("deliver_thread_id")).isEqualTo("thread-tool");
+
+        Map<?, ?> clearedDeliveryPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "update",
+                                                deliveryJobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                "",
+                                                "",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        Map<?, ?> clearedDeliveryJob = (Map<?, ?>) clearedDeliveryPayload.get("job");
+        assertThat(clearedDeliveryJob.get("deliver_chat_id")).isNull();
+        assertThat(clearedDeliveryJob.get("deliver_thread_id")).isNull();
+        tools.cronjob(
+                "remove",
+                deliveryJobId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         FileUtil.writeString("print('metadata')", FileUtil.file(scriptsDir, "metadata.py"), StandardCharsets.UTF_8);
@@ -1596,6 +1684,8 @@ public class DefaultCronSchedulerTest {
                                                 "30m",
                                                 "depends payload prompt",
                                                 "local",
+                                                null,
+                                                null,
                                                 null,
                                                 null,
                                                 null,

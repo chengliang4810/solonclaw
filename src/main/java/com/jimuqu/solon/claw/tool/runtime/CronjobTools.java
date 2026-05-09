@@ -26,7 +26,7 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "Manage scheduled cron jobs. Use action='list', action='status', or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, status, inspect/show/detail, next/upcoming, update/edit, pause/disable/stop, resume/enable/start, remove/delete/rm, run/run_now/trigger/retry/rerun, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
+                    "Manage scheduled cron jobs. Use action='list', action='status', or action='next' to inspect jobs before remove; never guess job IDs. action can be create/add, list, status, inspect/show/detail, next/upcoming, update/edit, pause/disable/stop, resume/enable/start, remove/delete/rm, run/run_now/trigger/retry/rerun, or history. Jobs run in fresh sessions, so prompts must be self-contained. Cron jobs should not recursively schedule more cron jobs. Supports per-job skills, delivery, deliver_chat_id, deliver_thread_id, script, workdir, context_from, enabled_toolsets, wrap_response, model, provider, and base_url pinning.")
     public String cronjob(
             @Param(
                             name = "action",
@@ -43,6 +43,10 @@ public class CronjobTools {
                             description =
                                     "省略时自动投递回当前来源；仅在用户要求投递到别处时设置。local 不投递，origin 回原会话，platform:chat_id[:thread_id] 指定目标，支持字符串、数组或逗号分隔多目标")
                     Object deliver,
+            @Param(name = "deliver_chat_id", description = "指定投递会话 ID；update 时传空字符串清空", required = false)
+                    String deliverChatId,
+            @Param(name = "deliver_thread_id", description = "指定投递线程 ID；update 时传空字符串清空", required = false)
+                    String deliverThreadId,
             @Param(name = "skill", description = "单个技能名；兼容字符串或数组", required = false) Object skill,
             @Param(name = "skills", description = "技能列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object skills,
             @Param(name = "repeat", description = "重复次数；0 表示无限", required = false) Integer repeat,
@@ -152,6 +156,8 @@ public class CronjobTools {
                             schedule,
                             prompt,
                             deliver,
+                            deliverChatId,
+                            deliverThreadId,
                             skill,
                             skills,
                             repeat,
@@ -217,7 +223,26 @@ public class CronjobTools {
         CronJobRecord job;
         if ("update".equals(normalized)) {
             Map<String, Object> updateBody =
-                    body(name, schedule, prompt, deliver, skill, skills, repeat, wrapResponse, script, workdir, noAgent, contextFrom, dependsOn, enabledToolsets, model, provider, baseUrl);
+                    body(
+                            name,
+                            schedule,
+                            prompt,
+                            deliver,
+                            deliverChatId,
+                            deliverThreadId,
+                            skill,
+                            skills,
+                            repeat,
+                            wrapResponse,
+                            script,
+                            workdir,
+                            noAgent,
+                            contextFrom,
+                            dependsOn,
+                            enabledToolsets,
+                            model,
+                            provider,
+                            baseUrl);
             if (updateBody.isEmpty()) {
                 return ToolResultEnvelope.error("No updates provided.").toJson();
             }
@@ -315,6 +340,7 @@ public class CronjobTools {
         delivery.put("localDeliverySupported", Boolean.TRUE);
         delivery.put("originDeliverySupported", Boolean.TRUE);
         delivery.put("explicitPlatformTargetsSupported", Boolean.TRUE);
+        delivery.put("explicitChatTargetSupported", Boolean.TRUE);
         delivery.put("multiTargetDeliverySupported", Boolean.TRUE);
         delivery.put("threadTargetSupported", Boolean.TRUE);
         delivery.put("wrapResponseSupported", Boolean.TRUE);
@@ -379,6 +405,8 @@ public class CronjobTools {
                 schedule,
                 prompt,
                 deliver,
+                null,
+                null,
                 skill,
                 skills,
                 repeat,
@@ -426,6 +454,8 @@ public class CronjobTools {
                 schedule,
                 prompt,
                 deliver,
+                null,
+                null,
                 skill,
                 skills,
                 repeat,
@@ -474,6 +504,8 @@ public class CronjobTools {
                 schedule,
                 prompt,
                 deliver,
+                null,
+                null,
                 skill,
                 skills,
                 repeat,
@@ -497,6 +529,8 @@ public class CronjobTools {
             String schedule,
             String prompt,
             Object deliver,
+            String deliverChatId,
+            String deliverThreadId,
             Object skill,
             Object skills,
             Integer repeat,
@@ -515,6 +549,8 @@ public class CronjobTools {
         put(body, "schedule", schedule);
         put(body, "prompt", prompt);
         put(body, "deliver", deliver);
+        put(body, "deliver_chat_id", deliverChatId);
+        put(body, "deliver_thread_id", deliverThreadId);
         put(body, "skill", skill);
         put(body, "skills", skills);
         if (repeat != null) {
@@ -716,6 +752,8 @@ public class CronjobTools {
         result.put("schedule_display", base.get("schedule_display"));
         result.put("repeat", repeatDisplay(job));
         result.put("deliver", base.get("deliver"));
+        result.put("deliver_chat_id", base.get("deliver_chat_id"));
+        result.put("deliver_thread_id", base.get("deliver_thread_id"));
         result.put("next_run_at", base.get("next_run_at"));
         result.put("last_run_at", base.get("last_run_at"));
         result.put("last_status", job.getLastStatus());
