@@ -1885,7 +1885,9 @@ public class DangerousCommandApprovalServiceTest {
                         "rsync -e \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
                         "rsync --rsh='ssh -i deploy_key' ./ user@example.com:/tmp/",
                         "rsync --rsh \"ssh -oIdentityFile=deploy_key\" ./ user@example.com:/tmp/",
-                        "npm --userconfig .npmrc whoami");
+                        "npm --userconfig .npmrc whoami",
+                        "rclone --config rclone.conf copy remote:bucket .",
+                        "s3cmd --config=.s3cfg ls s3://bucket");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1898,6 +1900,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "rsync -av ./ user@example.com:/tmp/"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "rclone copy remote:bucket ."))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "s3cmd ls s3://bucket"))
                 .isNull();
     }
 
