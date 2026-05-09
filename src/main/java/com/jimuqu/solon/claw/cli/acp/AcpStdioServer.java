@@ -509,31 +509,33 @@ public class AcpStdioServer {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", state.getSessionId());
         result.put("sessionId", state.getSessionId());
-        result.put("cwd", state.getCwd());
+        result.put("cwd", safeAcpText(state.getCwd()));
         result.put("updated_at", state.getUpdatedAt());
         result.put("updatedAt", state.getUpdatedAt());
         if (StrUtil.isNotBlank(state.getTitle())) {
-            result.put("title", state.getTitle());
+            result.put("title", safeAcpText(state.getTitle()));
         }
         result.put("history", safeAcpList(state.getHistory()));
         result.put("models", modelState(state));
         result.put(
                 "source_key",
-                StrUtil.blankToDefault(state.getSourceKey(), cliRuntime.sourceKey(state.getSessionId())));
-        result.put("mcp_servers", state.getMcpServers());
+                safeAcpText(
+                        StrUtil.blankToDefault(
+                                state.getSourceKey(), cliRuntime.sourceKey(state.getSessionId()))));
+        result.put("mcp_servers", safeAcpList(state.getMcpServers()));
         result.put("mcp_tool_count", state.getMcpToolCount());
-        result.put("mcp_changed_servers", state.getMcpChangedServers());
+        result.put("mcp_changed_servers", safeAcpList(state.getMcpChangedServers()));
         if (StrUtil.isNotBlank(state.getModelId())) {
-            result.put("model_id", state.getModelId());
-            result.put("modelId", state.getModelId());
+            result.put("model_id", safeAcpText(state.getModelId()));
+            result.put("modelId", safeAcpText(state.getModelId()));
         }
         if (StrUtil.isNotBlank(state.getModeId())) {
-            result.put("mode_id", state.getModeId());
-            result.put("modeId", state.getModeId());
+            result.put("mode_id", safeAcpText(state.getModeId()));
+            result.put("modeId", safeAcpText(state.getModeId()));
         }
         if (!state.getConfigOptions().isEmpty()) {
-            result.put("config_options", state.getConfigOptions());
-            result.put("configOptions", state.getConfigOptions());
+            result.put("config_options", safeAcpMap(state.getConfigOptions()));
+            result.put("configOptions", safeAcpMap(state.getConfigOptions()));
         }
         return result;
     }
@@ -710,9 +712,9 @@ public class AcpStdioServer {
         result.put("sessionId", state.getSessionId());
         result.put("config_id", configId.trim());
         result.put("configId", configId.trim());
-        result.put("value", value);
-        result.put("config_options", state.getConfigOptions());
-        result.put("configOptions", state.getConfigOptions());
+        result.put("value", safeAcpValue(value));
+        result.put("config_options", safeAcpMap(state.getConfigOptions()));
+        result.put("configOptions", safeAcpMap(state.getConfigOptions()));
         return result;
     }
 

@@ -674,6 +674,69 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactAcpSessionMetadataViews() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardMcpService mcpService = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        mcpService);
+
+        String created =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":69,\"method\":\"session/new\","
+                                + "\"params\":{\"cwd\":\"D:/workspace/token=ghp_acpcwd12345\","
+                                + "\"mcp_servers\":[{\"name\":\"docs\","
+                                + "\"command\":\"node server.js --api_key=sk-test-acpmcp12345\","
+                                + "\"args\":[\"--token=ghp_acpmcparg12345\"],"
+                                + "\"auth\":{\"header\":\"Authorization: Bearer ghp_acpmcpauth12345\"},"
+                                + "\"tools\":[{\"name\":\"read_file\"}]}]}}");
+
+        assertThat(created)
+                .contains("\"id\":69")
+                .contains("token=***")
+                .contains("api_key=***")
+                .contains("Bearer ***")
+                .doesNotContain("ghp_acpcwd12345")
+                .doesNotContain("sk-test-acpmcp12345")
+                .doesNotContain("ghp_acpmcparg12345")
+                .doesNotContain("ghp_acpmcpauth12345");
+
+        String sessionId = extractSessionId(created);
+        String config =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":70,\"method\":\"session/set_config_option\","
+                                + "\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"config_id\":\"runtime.token\","
+                                + "\"value\":{\"access_token\":\"ghp_acpconfig12345\","
+                                + "\"nested\":{\"api_key\":\"sk-test-acpconfig12345\"}}}}");
+
+        assertThat(config)
+                .contains("\"id\":70")
+                .contains("\"access_token\":\"***\"")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_acpconfig12345")
+                .doesNotContain("sk-test-acpconfig12345");
+
+        String listed =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":71,\"method\":\"session/list\","
+                                + "\"params\":{\"cwd\":\"D:/workspace/token=ghp_acpcwd12345\"}}");
+        assertThat(listed)
+                .contains("\"id\":71")
+                .contains(sessionId)
+                .contains("token=***")
+                .doesNotContain("ghp_acpcwd12345")
+                .doesNotContain("sk-test-acpmcp12345")
+                .doesNotContain("ghp_acpmcparg12345")
+                .doesNotContain("ghp_acpmcpauth12345")
+                .doesNotContain("ghp_acpconfig12345")
+                .doesNotContain("sk-test-acpconfig12345");
+    }
+
+    @Test
     void shouldIsolateDangerousApprovalBetweenAcpSessions() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =
