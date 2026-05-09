@@ -860,6 +860,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerHostNetwork =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --network=host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCapAddSysAdmin =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cap-add SYS_ADMIN alpine");
+        DangerousCommandApprovalService.DetectionResult podmanSeccompUnconfined =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --security-opt seccomp=unconfined alpine");
+        DangerousCommandApprovalService.DetectionResult nerdctlDevice =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl run --device /dev/kvm alpine");
+        DangerousCommandApprovalService.DetectionResult dockerIpcHost =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --ipc=host alpine");
         DangerousCommandApprovalService.DetectionResult podmanPrivileged =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run --privileged alpine");
@@ -1213,6 +1225,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerHostRootMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerHostNetwork).isNotNull();
         assertThat(dockerHostNetwork.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCapAddSysAdmin).isNotNull();
+        assertThat(dockerCapAddSysAdmin.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanSeccompUnconfined).isNotNull();
+        assertThat(podmanSeccompUnconfined.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(nerdctlDevice).isNotNull();
+        assertThat(nerdctlDevice.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerIpcHost).isNotNull();
+        assertThat(dockerIpcHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(podmanPrivileged).isNotNull();
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
