@@ -2612,7 +2612,9 @@ public class DangerousCommandApprovalServiceTest {
                         "flyctl auth login --access-token=token",
                         "vercel login --token token",
                         "netlify login --auth token",
-                        "wrangler login --api-token token");
+                        "wrangler login --api-token token",
+                        "aliyun configure --access-key-id AKID --access-key-secret secret",
+                        "aliyun configure --sts-token token");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2645,6 +2647,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "netlify login"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "aliyun configure --region cn-hangzhou"))
                 .isNull();
     }
 
