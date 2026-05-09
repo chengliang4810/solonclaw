@@ -417,7 +417,7 @@ public class DangerousCommandApprovalService {
                                     "credential_history_erasure",
                                     "erase shell or credential command history",
                                     pattern(
-                                            "\\b(?:history\\s+-c|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
+                                            "\\b(?:history\\s+-c|unset\\s+HISTFILE\\b|(?:export\\s+)?HISTFILE\\s*=\\s*(?:/dev/null|['\"]{2})|(?:export\\s+)?HIST(?:FILE)?SIZE\\s*=\\s*0\\b|set\\s+\\+o\\s+history\\b|Clear-History\\b|Remove-Item\\b[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|rm\\s+[^\\n]*(?:\\.bash_history|\\.zsh_history|\\.mysql_history|\\.psql_history|ConsoleHost_history\\.txt)|del\\s+[^\\n]*(?:ConsoleHost_history\\.txt|\\.bash_history|\\.zsh_history)|Set-PSReadLineOption\\s+-HistorySaveStyle\\s+SaveNothing)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "audit_log_erasure",

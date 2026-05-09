@@ -1746,7 +1746,13 @@ public class DangerousCommandApprovalServiceTest {
                         "rm ~/.mysql_history",
                         "Clear-History",
                         "Remove-Item $env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt",
-                        "Set-PSReadLineOption -HistorySaveStyle SaveNothing");
+                        "Set-PSReadLineOption -HistorySaveStyle SaveNothing",
+                        "unset HISTFILE",
+                        "export HISTFILE=/dev/null",
+                        "HISTFILE=''",
+                        "HISTSIZE=0",
+                        "export HISTFILESIZE=0",
+                        "set +o history");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1787,6 +1793,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "export HISTFILE=runtime/history.log"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "set -o history"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
