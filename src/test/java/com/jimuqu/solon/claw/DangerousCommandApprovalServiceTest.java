@@ -2345,6 +2345,21 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("git_remote_credential_url");
         }
 
+        List<String> gitCredentialStoreChanges =
+                Arrays.asList(
+                        "printf 'protocol=https\\nhost=example.com\\nusername=user\\npassword=token\\n' | git credential approve",
+                        "git credential reject",
+                        "git credential store",
+                        "git credential erase");
+        for (String command : gitCredentialStoreChanges) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("git_credential_store_change");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "history | tail"))
@@ -2368,6 +2383,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "git remote set-url origin https://example.com/repo.git"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git credential fill"))
                 .isNull();
     }
 

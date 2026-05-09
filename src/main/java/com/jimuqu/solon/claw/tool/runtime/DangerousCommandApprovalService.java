@@ -551,6 +551,11 @@ public class DangerousCommandApprovalService {
                                             "\\bgit\\s+(?:remote\\s+(?:add|set-url)|config\\s+(?:--global\\s+)?url\\.)[^\\n]*(?:https?|ssh)://[^\\s/@:]+:[^\\s/@]+@"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "git_credential_store_change",
+                                    "Git credential helper store changed",
+                                    pattern("\\bgit\\s+credential\\s+(?:approve|reject|store|erase)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "ssh_host_key_check_disabled",
                                     "SSH host key verification disabled",
                                     pattern(
