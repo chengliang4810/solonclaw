@@ -605,8 +605,23 @@ public class DashboardControllerHttpTest {
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
         assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
         assertThat(stringsAt(changedMcp.body, "added_tools"))
-                .containsExactly("docs_fetch", "docs_search");
+                .containsExactly("docs_fetch");
         assertThat(stringsAt(changedMcp.body, "removed_tools")).isEmpty();
+
+        HttpResult removeMcpTool =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"dashboard-local-docs\",\"name\":\"Local Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"args\":[\"--stdio\"],\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"status\":\"pending\"},\"capabilities\":{\"resources\":true,\"tools\":true},\"tools\":[{\"name\":\"docs_fetch\",\"description\":\"Fetch docs\"}]}",
+                        token);
+        assertThat(removeMcpTool.status).isEqualTo(200);
+
+        HttpResult removedMcp =
+                request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
+        assertThat(removedMcp.status).isEqualTo(200);
+        assertThat(removedMcp.body).contains("\"tool_changed_notification\":true");
+        assertThat(stringsAt(removedMcp.body, "added_tools")).isEmpty();
+        assertThat(stringsAt(removedMcp.body, "removed_tools")).containsExactly("docs_search");
 
         HttpResult updateMcpForReloadAll =
                 request(

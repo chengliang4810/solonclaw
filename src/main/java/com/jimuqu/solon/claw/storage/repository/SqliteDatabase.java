@@ -721,6 +721,7 @@ public class SqliteDatabase {
                             + "status text not null,"
                             + "tools_json text,"
                             + "last_tools_hash text,"
+                            + "last_tools_json text,"
                             + "last_error text,"
                             + "enabled integer not null default 1,"
                             + "created_at integer not null,"
@@ -731,6 +732,7 @@ public class SqliteDatabase {
             addColumn(statement, "mcp_servers", "oauth_json text");
             addColumn(statement, "mcp_servers", "capabilities_json text");
             addColumn(statement, "mcp_servers", "last_tools_hash text");
+            addColumn(statement, "mcp_servers", "last_tools_json text");
             addColumn(
                     statement,
                     "mcp_servers",

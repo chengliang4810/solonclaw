@@ -781,7 +781,7 @@ public class McpRuntimeServiceTest {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_tools_json, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, "remote-docs");
             statement.setString(2, "Remote Docs");
             statement.setString(3, "sse");
@@ -794,12 +794,13 @@ public class McpRuntimeServiceTest {
             statement.setString(10, "configured");
             statement.setString(11, "[]");
             statement.setString(12, "");
-            statement.setString(13, null);
-            statement.setInt(14, 1);
-            statement.setLong(15, now);
+            statement.setString(13, "");
+            statement.setString(14, null);
+            statement.setInt(15, 1);
             statement.setLong(16, now);
-            statement.setLong(17, 0L);
+            statement.setLong(17, now);
             statement.setLong(18, 0L);
+            statement.setLong(19, 0L);
             statement.executeUpdate();
             statement.close();
         } finally {

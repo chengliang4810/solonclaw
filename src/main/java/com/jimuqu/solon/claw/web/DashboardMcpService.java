@@ -140,21 +140,22 @@ public class DashboardMcpService {
         long now = System.currentTimeMillis();
         Connection connection = database.openConnection();
         try {
-            String previousToolsJson = "";
             String previousToolsHash = "";
+            String previousLastToolsJson = "";
             long createdAt = now;
             long lastCheckedAt = 0L;
             long lastToolsChangedAt = 0L;
             PreparedStatement query =
                     connection.prepareStatement(
-                            "select tools_json, last_tools_hash, created_at, last_checked_at, last_tools_changed_at from mcp_servers where server_id = ?");
+                            "select last_tools_hash, last_tools_json, created_at, last_checked_at, last_tools_changed_at from mcp_servers where server_id = ?");
             query.setString(1, serverId);
             ResultSet queryResult = query.executeQuery();
             try {
                 if (queryResult.next()) {
-                    previousToolsJson = StrUtil.nullToEmpty(queryResult.getString("tools_json"));
                     previousToolsHash =
                             StrUtil.nullToEmpty(queryResult.getString("last_tools_hash"));
+                    previousLastToolsJson =
+                            StrUtil.nullToEmpty(queryResult.getString("last_tools_json"));
                     createdAt = queryResult.getLong("created_at");
                     lastCheckedAt = queryResult.getLong("last_checked_at");
                     lastToolsChangedAt = queryResult.getLong("last_tools_changed_at");
@@ -169,9 +170,10 @@ public class DashboardMcpService {
                     StrUtil.isNotBlank(toolsHash) && toolsHash.equals(previousToolsHash)
                             ? previousToolsHash
                             : "";
+            String lastToolsJson = StrUtil.isNotBlank(lastToolsHash) ? previousLastToolsJson : "";
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_tools_json, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, serverId);
             statement.setString(2, name);
             statement.setString(3, transport);
@@ -184,12 +186,13 @@ public class DashboardMcpService {
             statement.setString(10, securityVerdict.isAllowed() ? "configured" : "blocked");
             statement.setString(11, toolsJson);
             statement.setString(12, lastToolsHash);
-            statement.setString(13, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
-            statement.setInt(14, asBoolean(body.get("enabled"), true) ? 1 : 0);
-            statement.setLong(15, createdAt);
-            statement.setLong(16, now);
-            statement.setLong(17, lastCheckedAt);
-            statement.setLong(18, lastToolsChangedAt);
+            statement.setString(13, lastToolsJson);
+            statement.setString(14, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
+            statement.setInt(15, asBoolean(body.get("enabled"), true) ? 1 : 0);
+            statement.setLong(16, createdAt);
+            statement.setLong(17, now);
+            statement.setLong(18, lastCheckedAt);
+            statement.setLong(19, lastToolsChangedAt);
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -575,6 +578,7 @@ public class DashboardMcpService {
 
     private McpCheckState checkServer(String serverId, boolean baselineInitial) throws Exception {
         String previousHash = "";
+        String previousToolsJson = "";
         String toolsJson = null;
         String command = "";
         Object args = null;
@@ -583,7 +587,7 @@ public class DashboardMcpService {
         try {
             PreparedStatement query =
                     connection.prepareStatement(
-                            "select command, args_json, tools_json, last_tools_hash from mcp_servers where server_id = ?");
+                            "select command, args_json, tools_json, last_tools_hash, last_tools_json from mcp_servers where server_id = ?");
             query.setString(1, serverId);
             ResultSet queryResult = query.executeQuery();
             try {
@@ -593,6 +597,7 @@ public class DashboardMcpService {
                     args = parse(queryResult.getString("args_json"));
                     toolsJson = queryResult.getString("tools_json");
                     previousHash = StrUtil.nullToEmpty(queryResult.getString("last_tools_hash"));
+                    previousToolsJson = StrUtil.nullToEmpty(queryResult.getString("last_tools_json"));
                 }
             } finally {
                 queryResult.close();
@@ -640,13 +645,15 @@ public class DashboardMcpService {
                             && StrUtil.isNotBlank(nextHash)
                             && !nextHash.equals(previousHash)
                             && !initialBaseline;
+            List<String> previousTools = toolNames(previousToolsJson);
+            List<String> nextTools = toolNames(toolsJson);
             List<String> addedTools =
-                    toolsChanged && StrUtil.isBlank(previousHash)
-                            ? toolNames(toolsJson)
-                            : Collections.<String>emptyList();
+                    toolsChanged ? difference(nextTools, previousTools) : Collections.<String>emptyList();
+            List<String> removedTools =
+                    toolsChanged ? difference(previousTools, nextTools) : Collections.<String>emptyList();
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_hash = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end where server_id = ?");
+                            "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_hash = ?, last_tools_json = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end where server_id = ?");
             statement.setString(
                     1,
                     securityVerdict.isAllowed()
@@ -663,9 +670,10 @@ public class DashboardMcpService {
             statement.setLong(3, now);
             statement.setLong(4, now);
             statement.setString(5, nextHash);
-            statement.setInt(6, toolsChanged ? 1 : 0);
-            statement.setLong(7, now);
-            statement.setString(8, serverId);
+            statement.setString(6, toolsJson);
+            statement.setInt(7, toolsChanged ? 1 : 0);
+            statement.setLong(8, now);
+            statement.setString(9, serverId);
             statement.executeUpdate();
             statement.close();
             return new McpCheckState(
@@ -673,7 +681,7 @@ public class DashboardMcpService {
                     toolsChanged,
                     countTools(toolsJson),
                     addedTools,
-                    Collections.<String>emptyList(),
+                    removedTools,
                     securityVerdict,
                     securityVerdict.isAllowed()
                             ? (appConfig.getMcp().isEnabled() ? "ready" : "disabled")
@@ -1349,6 +1357,20 @@ public class DashboardMcpService {
             }
         }
         Collections.sort(result);
+        return result;
+    }
+
+    private List<String> difference(List<String> left, List<String> right) {
+        List<String> result = new ArrayList<String>();
+        List<String> safeRight = right == null ? Collections.<String>emptyList() : right;
+        if (left == null) {
+            return result;
+        }
+        for (String item : left) {
+            if (StrUtil.isNotBlank(item) && !safeRight.contains(item) && !result.contains(item)) {
+                result.add(item);
+            }
+        }
         return result;
     }
 

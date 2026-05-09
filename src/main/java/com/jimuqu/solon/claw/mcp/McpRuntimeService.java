@@ -397,7 +397,7 @@ public class McpRuntimeService implements Closeable {
                     new StringBuilder(
                             "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end");
             if (toolsJson != null) {
-                sql.append(", tools_json = ?, last_tools_hash = ?");
+                sql.append(", tools_json = ?, last_tools_hash = ?, last_tools_json = ?");
             } else {
                 sql.append(", last_tools_hash = coalesce(last_tools_hash, '')");
             }
@@ -414,6 +414,7 @@ public class McpRuntimeService implements Closeable {
             if (toolsJson != null) {
                 statement.setString(index++, toolsJson);
                 statement.setString(index++, hash(toolsJson));
+                statement.setString(index++, toolsJson);
             }
             statement.setString(index, serverId);
             statement.executeUpdate();
