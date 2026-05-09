@@ -122,7 +122,7 @@ public class TerminalSessionBrowser {
         }
         buffer.append("建议：/resume ")
                 .append(record.getSessionId())
-                .append("，/recap，/trajectory，/branch <名称>，/undo，/retry");
+                .append("，/recap，/trajectory，/goal status，/compact，/branch <名称>，/undo，/retry");
         return buffer.toString();
     }
 
