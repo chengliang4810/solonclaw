@@ -207,6 +207,7 @@ public class SecurityAuditTools {
         Map<String, Object> coverage = new LinkedHashMap<String, Object>();
         if (securityPolicyService != null) {
             coverage.put("urlPolicyDetails", securityPolicyService.urlPolicySummary());
+            coverage.put("pathPolicyDetails", securityPolicyService.pathPolicySummary());
             coverage.put("toolArgsPolicy", securityPolicyService.toolArgsPolicySummary());
         }
         coverage.put("schemaSanitizerPolicy", SolonClawToolSchemaSanitizer.policySummary());

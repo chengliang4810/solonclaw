@@ -822,6 +822,20 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("credentialMountPolicy").getBoolean())
                 .isTrue();
+        ONode pathPolicyDetails =
+                policyStatus.get("policy").get("coverage").get("pathPolicyDetails");
+        assertThat(pathPolicyDetails.get("traversalBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("controlCharactersBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("devicePathBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("rawBlockDeviceWriteBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("skillsHubInternalReadBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("writeDeniedExactPathCount").getInt()).isGreaterThan(0);
+        assertThat(pathPolicyDetails.get("writeDeniedPrefixCount").getInt()).isGreaterThan(0);
+        assertThat(String.valueOf(pathPolicyDetails))
+                .contains("/etc/passwd")
+                .contains("/dev/zero")
+                .contains("A-Za-z0-9")
+                .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("recursiveUrlExtraction").getBoolean())
