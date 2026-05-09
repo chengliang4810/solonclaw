@@ -3951,7 +3951,7 @@ public class DefaultCommandService implements CommandService {
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
-                                        + " [list|create|schema|show|drawer|move|assign|comment|boards|pipeline|retry|history|guide|stats|watch|dispatch]",
+                                        + " [list|create|schema|show|drawer|inspect|move|assign|comment|boards|pipeline|step|retry|history|runs|events|tail|guide|stats|watch|dispatch]",
                                 "管理协作看板、任务抽屉、执行流水和多 Agent 派发"),
                         helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"),
