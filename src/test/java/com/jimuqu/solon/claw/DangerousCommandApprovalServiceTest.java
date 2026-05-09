@@ -739,6 +739,21 @@ public class DangerousCommandApprovalServiceTest {
                         "execute_shell", "terraform state show module.db.aws_db_instance.main");
         DangerousCommandApprovalService.DetectionResult terraformPlan =
                 env.dangerousCommandApprovalService.detect("execute_shell", "terraform plan");
+        DangerousCommandApprovalService.DetectionResult ansibleShellAll =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ansible all -m shell -a 'id'");
+        DangerousCommandApprovalService.DetectionResult ansiblePlaybookBecome =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ansible-playbook site.yml --become");
+        DangerousCommandApprovalService.DetectionResult saltCmdRun =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "salt '*' cmd.run 'systemctl restart app'");
+        DangerousCommandApprovalService.DetectionResult psshCommand =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pssh -h hosts.txt uptime");
+        DangerousCommandApprovalService.DetectionResult ansibleInventoryList =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ansible-inventory --list");
         DangerousCommandApprovalService.DetectionResult awsDeleteBucket =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3api delete-bucket --bucket prod-data");
@@ -882,6 +897,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(terraformStateShow).isNotNull();
         assertThat(terraformStateShow.getPatternKey()).isEqualTo("terraform_state_sensitive_read");
         assertThat(terraformPlan).isNull();
+        assertThat(ansibleShellAll).isNotNull();
+        assertThat(ansibleShellAll.getPatternKey()).isEqualTo("remote_fleet_command_execution");
+        assertThat(ansiblePlaybookBecome).isNotNull();
+        assertThat(ansiblePlaybookBecome.getPatternKey())
+                .isEqualTo("remote_fleet_command_execution");
+        assertThat(saltCmdRun).isNotNull();
+        assertThat(saltCmdRun.getPatternKey()).isEqualTo("remote_fleet_command_execution");
+        assertThat(psshCommand).isNotNull();
+        assertThat(psshCommand.getPatternKey()).isEqualTo("remote_fleet_command_execution");
+        assertThat(ansibleInventoryList).isNull();
         assertThat(awsDeleteBucket).isNotNull();
         assertThat(awsDeleteBucket.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsTerminateInstances).isNotNull();

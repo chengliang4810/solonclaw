@@ -486,6 +486,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:spctl\\s+--master-disable|xattr\\s+(?:-[^\\s]*d[^\\s]*\\s+)?com\\.apple\\.quarantine\\b|tccutil\\s+reset\\b|csrutil\\s+(?:disable|authenticated-root\\s+disable)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "remote_fleet_command_execution",
+                                    "remote fleet command execution",
+                                    pattern(
+                                            "\\b(?:ansible\\s+(?:all|'\\*'|\"\\*\")\\b[^\\n]*(?:-m\\s+(?:shell|command|raw)|-a\\s+\\S)|ansible-playbook\\b(?=[^\\n]*(?:--become\\b|-b\\b|--limit\\s+(?:all|'\\*'|\"\\*\")))|salt\\s+(?:'\\*'|\"\\*\"|\\*)\\s+cmd\\.run\\b|pssh\\b|pdsh\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "stop_service",
                                     "stop/restart system service",
                                     pattern(
