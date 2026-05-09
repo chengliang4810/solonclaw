@@ -3561,6 +3561,18 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict proxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict allProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --all-proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict httpProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --http-proxy=169.254.169.254:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict httpsProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "curl --https-proxy 127.0.0.1:8080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict ftpProxyMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --ftp-proxy=169.254.169.254:8080 ftp://safe.example/file");
         SecurityPolicyService.UrlVerdict socksMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
@@ -3606,6 +3618,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(resolvePrivate.getMessage()).contains("内网");
         assertThat(proxyPrivate.isAllowed()).isFalse();
         assertThat(proxyPrivate.getMessage()).contains("内网");
+        assertThat(allProxyPrivate.isAllowed()).isFalse();
+        assertThat(allProxyPrivate.getMessage()).contains("内网");
+        assertThat(httpProxyMetadata.isAllowed()).isFalse();
+        assertThat(httpProxyMetadata.getMessage()).contains("元数据");
+        assertThat(httpsProxyPrivate.isAllowed()).isFalse();
+        assertThat(httpsProxyPrivate.getMessage()).contains("内网");
+        assertThat(ftpProxyMetadata.isAllowed()).isFalse();
+        assertThat(ftpProxyMetadata.getMessage()).contains("元数据");
         assertThat(socksMetadata.isAllowed()).isFalse();
         assertThat(socksMetadata.getMessage()).contains("元数据");
         assertThat(socks4Private.isAllowed()).isFalse();

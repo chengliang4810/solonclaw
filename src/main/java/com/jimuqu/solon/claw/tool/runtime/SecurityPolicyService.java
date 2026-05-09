@@ -1073,6 +1073,10 @@ public class SecurityPolicyService {
             String value = null;
             if ("--proxy".equals(token)
                     || "-x".equals(token)
+                    || "--all-proxy".equals(token)
+                    || "--http-proxy".equals(token)
+                    || "--https-proxy".equals(token)
+                    || "--ftp-proxy".equals(token)
                     || "--proxy1.0".equals(token)
                     || "--preproxy".equals(token)
                     || "--socks4".equals(token)
@@ -1084,6 +1088,14 @@ public class SecurityPolicyService {
                 }
             } else if (token.startsWith("--proxy=")) {
                 value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--all-proxy=")) {
+                value = token.substring("--all-proxy=".length());
+            } else if (token.startsWith("--http-proxy=")) {
+                value = token.substring("--http-proxy=".length());
+            } else if (token.startsWith("--https-proxy=")) {
+                value = token.substring("--https-proxy=".length());
+            } else if (token.startsWith("--ftp-proxy=")) {
+                value = token.substring("--ftp-proxy=".length());
             } else if (token.startsWith("--proxy1.0=")) {
                 value = token.substring("--proxy1.0=".length());
             } else if (token.startsWith("--preproxy=")) {
