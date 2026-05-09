@@ -819,6 +819,23 @@ public class ToolRegistryExposureTest {
                 .contains("metadata_url_access")
                 .contains("approvalRequired")
                 .contains("false");
+        assertThat(policyStatus.get("policy").get("coverage").get("terminalGuardrails").getBoolean())
+                .isTrue();
+        ONode coverageTerminalGuardrailPolicy =
+                policyStatus.get("policy").get("coverage").get("terminalGuardrailPolicy");
+        assertThat(coverageTerminalGuardrailPolicy.get("inlineAmpersandBlocked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("trailingAmpersandBlocked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("longLivedForegroundBlocked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("managedBackgroundProcessRequired").getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(coverageTerminalGuardrailPolicy))
+                .contains("nohup")
+                .contains("docker compose up")
+                .contains("execute_js")
+                .doesNotContain("secret-sudo");
         assertThat(
                         policyStatus
                                 .get("policy")

@@ -248,6 +248,9 @@ public class SecurityAuditTools {
             coverage.put("hardlinePolicy", approvalService.hardlinePolicySummary());
         }
         coverage.put("terminalGuardrails", Boolean.TRUE);
+        if (approvalService != null) {
+            coverage.put("terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
+        }
         coverage.put("sudoRewrite", Boolean.TRUE);
         coverage.put(
                 "sudoRewritePolicy",
