@@ -828,6 +828,35 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult nerdctlSocketMount =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "nerdctl run -v /var/run/docker.sock:/var/run/docker.sock alpine");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretArg =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --build-arg API_TOKEN=abc .");
+        DangerousCommandApprovalService.DetectionResult buildahSecretArg =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "buildah build --build-arg DB_PASSWORD=abc .");
+        DangerousCommandApprovalService.DetectionResult dockerEnvFile =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --env-file .env.production app");
+        DangerousCommandApprovalService.DetectionResult podmanSecretEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run -e CLIENT_SECRET=abc app");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretSrc =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --secret id=npm,src=.npmrc .");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --secret id=token,env=API_TOKEN .");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSshKey =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker buildx build --ssh default=~/.ssh/id_ed25519 .");
+        DangerousCommandApprovalService.DetectionResult dockerPlainBuild =
+                env.dangerousCommandApprovalService.detect("execute_shell", "docker build .");
+        DangerousCommandApprovalService.DetectionResult dockerNonSecretBuildArg =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --build-arg VERSION=1.0 .");
+        DangerousCommandApprovalService.DetectionResult dockerSecretIdOnly =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker build --secret id=cache .");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
@@ -1110,6 +1139,23 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
         assertThat(nerdctlSocketMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerBuildSecretArg).isNotNull();
+        assertThat(dockerBuildSecretArg.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(buildahSecretArg).isNotNull();
+        assertThat(buildahSecretArg.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerEnvFile).isNotNull();
+        assertThat(dockerEnvFile.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(podmanSecretEnv).isNotNull();
+        assertThat(podmanSecretEnv.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSecretSrc).isNotNull();
+        assertThat(dockerBuildSecretSrc.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSecretEnv).isNotNull();
+        assertThat(dockerBuildSecretEnv.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSshKey).isNotNull();
+        assertThat(dockerBuildSshKey.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerPlainBuild).isNull();
+        assertThat(dockerNonSecretBuildArg).isNull();
+        assertThat(dockerSecretIdOnly).isNull();
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
@@ -2656,6 +2702,9 @@ public class DangerousCommandApprovalServiceTest {
                         "npm config set strict-ssl false",
                         "pnpm config set strictSsl false",
                         "yarn config set strict-ssl false",
+                        "pip install --trusted-host mirror.example package-name",
+                        "pip3 install --trusted-host=mirror.example package-name",
+                        "poetry config certificates.internal.cert false",
                         "PYTHONHTTPSVERIFY=0 python script.py");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -2677,6 +2726,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config set strict-ssl true"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "pip install package-name"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "poetry config certificates.internal.cert ./ca.pem"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
@@ -2743,6 +2800,47 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "Import-Certificate -FilePath user.cer -CertStoreLocation Cert:\\CurrentUser\\Root"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectSystemPackageSourceTrustChanges() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "apt-key add vendor.gpg",
+                        "apt-key adv --keyserver keyserver.example --recv-keys ABCD",
+                        "add-apt-repository ppa:vendor/tool",
+                        "rpm --import https://repo.example/key.gpg",
+                        "yum-config-manager --add-repo https://repo.example/yum.repo",
+                        "dnf config-manager --add-repo https://repo.example/dnf.repo",
+                        "zypper addrepo https://repo.example/repo tools",
+                        "zypper ar https://repo.example/repo tools",
+                        "brew tap vendor/tools",
+                        "choco source add -n internal -s https://choco.example/",
+                        "winget source add -n internal https://winget.example/",
+                        "scoop bucket add extras https://github.com/example/scoop-bucket");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("system_package_source_trust_change");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "apt-cache policy curl"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "brew tap-info vendor/tools"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "winget source list"))
                 .isNull();
     }
 
@@ -4515,6 +4613,14 @@ public class DangerousCommandApprovalServiceTest {
                         "https://example.com/callback?client_secret=abc",
                         "https://example.com/callback?password=p",
                         "https://example.com/callback?x-amz-signature=abc",
+                        "https://storage.example/object?X-Amz-Credential=abc",
+                        "https://storage.example/object?x-amz-security-token=abc",
+                        "https://storage.example/object?x-goog-signature=abc",
+                        "https://storage.example/object?x-oss-signature=abc",
+                        "https://storage.example/object?x-cos-security-token=abc",
+                        "https://storage.example/object?x-obs-signature=abc",
+                        "https://storage.example/object?x-ms-signature=abc",
+                        "https://storage.example/object?security-token=abc",
                         "https://example.com/callback?api%5Fkey=abc",
                         "https://example.com/callback;access_token=short",
                         "https://example.com/oauth/;client_secret=abc",

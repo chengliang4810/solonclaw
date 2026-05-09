@@ -570,7 +570,7 @@ public class DangerousCommandApprovalService {
                                     "tls_certificate_check_disabled",
                                     "TLS certificate verification disabled",
                                     pattern(
-                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:strict-ssl|strictSsl)\\s+false\\b|(?:^|[;&|\\n`])\\s*(?:PYTHONHTTPSVERIFY\\s*=\\s*0|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0)\\b"),
+                                            "\\b(?:curl|wget|aria2c)\\b[^\\n]*(?:\\s-k(?:\\s|$)|\\s--insecure\\b|\\s--no-check-certificate\\b|\\s--check-certificate\\s*=\\s*off\\b|\\s--allow-untrusted(?:\\s|$))|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:strict-ssl|strictSsl)\\s+false\\b|\\bpip(?:3)?\\b[^\\n]*\\s--trusted-host(?:=|\\s+)\\S+|\\bpoetry\\s+config\\s+certificates\\.[A-Za-z0-9_.-]+\\.cert\\s+false\\b|(?:^|[;&|\\n`])\\s*(?:PYTHONHTTPSVERIFY\\s*=\\s*0|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "git_tls_certificate_check_disabled",
@@ -591,6 +591,12 @@ public class DangerousCommandApprovalService {
                                     "system trust store changed",
                                     pattern(
                                             "\\b(?:update-ca-certificates\\b|trust\\s+anchor\\b|update-ca-trust\\s+(?:extract|enable)\\b|security\\s+add-trusted-cert\\b|certutil(?:\\.exe)?\\s+-addstore\\b|Import-Certificate\\b(?=[^\\n]*-CertStoreLocation\\s+Cert:\\\\LocalMachine))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "system_package_source_trust_change",
+                                    "system package source or trust configuration changed",
+                                    pattern(
+                                            "\\b(?:apt-key\\s+(?:add|adv)\\b|add-apt-repository\\b|rpm\\s+--import\\b|yum-config-manager\\s+--add-repo\\b|dnf\\s+config-manager\\s+--add-repo\\b|zypper\\s+(?:addrepo|ar)\\b|brew\\s+tap(?:\\s|$)|choco\\s+source\\s+(?:add|remove|disable|enable)\\b|winget\\s+source\\s+(?:add|remove|reset|update)\\b|scoop\\s+bucket\\s+(?:add|rm|remove)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "plaintext_cli_password_option",
@@ -780,6 +786,12 @@ public class DangerousCommandApprovalService {
                                     "Docker privileged container or host mount",
                                     pattern(
                                             "\\b(?:docker|podman|nerdctl)\\s+(?:run|create)\\b(?=[^\\n]*(?:--privileged\\b|--pid\\s*=\\s*host\\b|--network\\s*=\\s*host\\b|(?:-v|--volume)\\s+(?:/\\s*:|/var/run/docker\\.sock\\b)|--mount\\s+[^\\n]*(?:source|src)\\s*=\\s*(?:/\\s*(?:,|$)|/var/run/docker\\.sock\\b)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "container_secret_exposure",
+                                    "container command exposes secret material",
+                                    pattern(
+                                            "\\b(?:docker|podman|nerdctl|buildah)\\s+(?:build|buildx\\s+build|run|create)\\b(?=[^\\n]*(?:(?:--build-arg|--env|-e)(?:=|\\s+)[A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY)[A-Za-z0-9_]*\\s*=\\s*\\S+|--env-file(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*|--secret(?:=|\\s+)\\S*(?:src|source|env)\\s*=\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key)\\S*|--ssh(?:=|\\s+)\\S*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\]\\S*))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kubectl_delete",
