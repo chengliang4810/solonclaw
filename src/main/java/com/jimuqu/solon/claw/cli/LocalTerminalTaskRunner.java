@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -157,7 +158,10 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
     }
 
     private String label(String input) {
-        String value = StrUtil.nullToEmpty(input).trim();
+        String value =
+                SecretRedactor.redact(
+                        StrUtil.nullToEmpty(input).replace('\r', ' ').replace('\n', ' ').trim(),
+                        1200);
         if (value.length() <= 40) {
             return StrUtil.blankToDefault(value, "-");
         }

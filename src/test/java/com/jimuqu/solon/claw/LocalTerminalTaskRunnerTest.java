@@ -134,6 +134,37 @@ public class LocalTerminalTaskRunnerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromTerminalTaskLabelsAndLogs() throws Exception {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        LocalTerminalTaskRunner runner =
+                new LocalTerminalTaskRunner(
+                        new PrintWriter(
+                                new java.io.OutputStreamWriter(buffer, StandardCharsets.UTF_8),
+                                true));
+
+        runner.submit(
+                        "curl https://example.test?api_key=sk-1234567890abcdef",
+                        new Callable<Integer>() {
+                            @Override
+                            public Integer call() {
+                                throw new IllegalStateException("failed");
+                            }
+                        })
+                .get(1, TimeUnit.SECONDS);
+
+        assertThat(runner.renderTasks())
+                .contains("api_key=***")
+                .doesNotContain("sk-1234567890abcdef");
+        assertThat(runner.snapshots().get(0).getLabel())
+                .contains("api_key=***")
+                .doesNotContain("sk-1234567890abcdef");
+        assertThat(buffer.toString(StandardCharsets.UTF_8.name()))
+                .contains("api_key=***")
+                .doesNotContain("sk-1234567890abcdef");
+        runner.close();
+    }
+
+    @Test
     void shouldRetainOnlyRecentTerminalTasks() throws Exception {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         LocalTerminalTaskRunner runner =
