@@ -900,12 +900,33 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsTerminateInstances =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws ec2 terminate-instances --instance-ids i-123");
+        DangerousCommandApprovalService.DetectionResult aliyunReleaseInstance =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aliyun ecs DeleteInstance --InstanceId i-prod --Force true");
+        DangerousCommandApprovalService.DetectionResult tccliTerminateInstances =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccli cvm TerminateInstances --InstanceIds i-prod");
+        DangerousCommandApprovalService.DetectionResult huaweicloudDeleteServer =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "huaweicloud ecs NovaDeleteServer --server_id i-prod");
         DangerousCommandApprovalService.DetectionResult awsS3RecursiveRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3 rm s3://prod-data --recursive");
+        DangerousCommandApprovalService.DetectionResult ossRecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ossutil rm -r oss://prod-data/private");
+        DangerousCommandApprovalService.DetectionResult cosRecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "coscli rm -r cos://prod-data/private");
+        DangerousCommandApprovalService.DetectionResult obsRecursiveRemove =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "obsutil rm -r obs://prod-data/private");
         DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
+        DangerousCommandApprovalService.DetectionResult awsSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws ec2 authorize-security-group-ingress --group-id sg-123 --cidr 0.0.0.0/0 --port 22");
         DangerousCommandApprovalService.DetectionResult awsStsRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws sts get-caller-identity");
@@ -915,6 +936,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult gcloudIamBinding =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud projects add-iam-policy-binding prod --member user:a@example.com --role roles/owner");
+        DangerousCommandApprovalService.DetectionResult gcloudFirewallCreate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "gcloud compute firewall-rules create open-ssh --allow tcp:22 --source-ranges 0.0.0.0/0");
         DangerousCommandApprovalService.DetectionResult gcloudList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "gcloud compute instances list");
@@ -924,6 +948,27 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult azureRoleAssign =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az role assignment create --assignee app --role Owner");
+        DangerousCommandApprovalService.DetectionResult aliyunRamAttachPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aliyun ram AttachPolicyToUser --PolicyName AdministratorAccess --UserName bot");
+        DangerousCommandApprovalService.DetectionResult tccliCamAttachPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccli cam AttachUserPolicy --PolicyId 1 --TargetUin 10001");
+        DangerousCommandApprovalService.DetectionResult huaweicloudIamAgency =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "huaweicloud iam CreateAgency --name deployer");
+        DangerousCommandApprovalService.DetectionResult azureNsgRuleCreate =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "az network nsg rule create --name open-ssh --source-address-prefixes Internet --destination-port-ranges 22");
+        DangerousCommandApprovalService.DetectionResult aliyunSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aliyun ecs AuthorizeSecurityGroup --SecurityGroupId sg-prod --IpProtocol tcp --PortRange 22/22 --SourceCidrIp 0.0.0.0/0");
+        DangerousCommandApprovalService.DetectionResult tccliSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccli cvm AuthorizeSecurityGroupIngress --SecurityGroupId sg-prod --IpProtocol tcp --Port 22");
+        DangerousCommandApprovalService.DetectionResult huaweicloudSecurityGroupIngress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "huaweicloud vpc AddSecurityGroupRule --security_group_id sg-prod --protocol tcp");
         DangerousCommandApprovalService.DetectionResult azureList =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az group list");
@@ -1103,20 +1148,61 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsDeleteBucket.getPatternKey()).isEqualTo("aws_destructive_resource");
         assertThat(awsTerminateInstances).isNotNull();
         assertThat(awsTerminateInstances.getPatternKey()).isEqualTo("aws_destructive_resource");
+        assertThat(aliyunReleaseInstance).isNotNull();
+        assertThat(aliyunReleaseInstance.getPatternKey())
+                .isEqualTo("domestic_cloud_destructive_resource");
+        assertThat(tccliTerminateInstances).isNotNull();
+        assertThat(tccliTerminateInstances.getPatternKey())
+                .isEqualTo("domestic_cloud_destructive_resource");
+        assertThat(huaweicloudDeleteServer).isNotNull();
+        assertThat(huaweicloudDeleteServer.getPatternKey())
+                .isEqualTo("domestic_cloud_destructive_resource");
         assertThat(awsS3RecursiveRemove).isNotNull();
         assertThat(awsS3RecursiveRemove.getPatternKey()).isEqualTo("aws_s3_recursive_remove");
+        assertThat(ossRecursiveRemove).isNotNull();
+        assertThat(ossRecursiveRemove.getPatternKey())
+                .isEqualTo("domestic_object_storage_recursive_remove");
+        assertThat(cosRecursiveRemove).isNotNull();
+        assertThat(cosRecursiveRemove.getPatternKey())
+                .isEqualTo("domestic_object_storage_recursive_remove");
+        assertThat(obsRecursiveRemove).isNotNull();
+        assertThat(obsRecursiveRemove.getPatternKey())
+                .isEqualTo("domestic_object_storage_recursive_remove");
         assertThat(awsAttachPolicy).isNotNull();
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(awsSecurityGroupIngress).isNotNull();
+        assertThat(awsSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(awsStsRead).isNull();
         assertThat(gcloudDelete).isNotNull();
         assertThat(gcloudDelete.getPatternKey()).isEqualTo("gcloud_delete");
         assertThat(gcloudIamBinding).isNotNull();
         assertThat(gcloudIamBinding.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(gcloudFirewallCreate).isNotNull();
+        assertThat(gcloudFirewallCreate.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(gcloudList).isNull();
         assertThat(azureDelete).isNotNull();
         assertThat(azureDelete.getPatternKey()).isEqualTo("azure_delete");
         assertThat(azureRoleAssign).isNotNull();
         assertThat(azureRoleAssign.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(aliyunRamAttachPolicy).isNotNull();
+        assertThat(aliyunRamAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(tccliCamAttachPolicy).isNotNull();
+        assertThat(tccliCamAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(huaweicloudIamAgency).isNotNull();
+        assertThat(huaweicloudIamAgency.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(azureNsgRuleCreate).isNotNull();
+        assertThat(azureNsgRuleCreate.getPatternKey()).isEqualTo("cloud_network_exposure_change");
+        assertThat(aliyunSecurityGroupIngress).isNotNull();
+        assertThat(aliyunSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
+        assertThat(tccliSecurityGroupIngress).isNotNull();
+        assertThat(tccliSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
+        assertThat(huaweicloudSecurityGroupIngress).isNotNull();
+        assertThat(huaweicloudSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(azureList).isNull();
         assertThat(dropdb).isNotNull();
         assertThat(dropdb.getPatternKey()).isEqualTo("database_dropdb");

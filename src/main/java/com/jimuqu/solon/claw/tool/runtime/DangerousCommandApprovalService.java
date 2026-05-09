@@ -829,16 +829,34 @@ public class DangerousCommandApprovalService {
                                             "\\baws\\s+\\S+\\s+(?:delete|terminate|remove|deregister|detach)-[a-z0-9-]+\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "domestic_cloud_destructive_resource",
+                                    "Domestic cloud destructive resource operation",
+                                    pattern(
+                                            "\\b(?:aliyun\\s+(?:ecs|vpc|slb|rds)\\s+(?:Delete|Release|Stop|Reboot)[A-Za-z]+\\b|(?:tccli|qcloud)\\s+(?:cvm|vpc|clb|cdb)\\s+(?:Terminate|Delete|Release)[A-Za-z]+\\b|huaweicloud\\s+(?:ecs|evs|vpc|rds)\\s+(?:Delete|NovaDelete|BatchDelete|Terminate)[A-Za-z]+\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "aws_s3_recursive_remove",
                                     "AWS S3 recursive remove",
                                     pattern(
                                             "\\baws\\s+s3\\s+rm\\b(?=[^\\n]*(?:--recursive\\b|s3://))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "domestic_object_storage_recursive_remove",
+                                    "Domestic object storage recursive remove",
+                                    pattern(
+                                            "\\b(?:ossutil|coscli|obsutil)\\s+(?:rm|delete)\\b(?=[^\\n]*(?:\\s-r\\b|\\s--recursive\\b|oss://|cos://|obs://))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "cloud_iam_permission_change",
                                     "Cloud IAM permission change",
                                     pattern(
-                                            "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update)))"),
+                                            "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update))|aliyun\\s+ram\\s+(?:AttachPolicyToUser|AttachPolicyToRole|CreatePolicy|UpdatePolicy|AddUserToGroup)\\b|(?:tccli|qcloud)\\s+cam\\s+(?:AttachUserPolicy|AttachRolePolicy|CreatePolicy|UpdatePolicy|AddUser)\\b|huaweicloud\\s+iam\\s+(?:KeystoneCreateUserGroup|KeystoneAssociateUserGroup|CreateAgency|UpdateAgency|CreateRole)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "cloud_network_exposure_change",
+                                    "Cloud network exposure rule changed",
+                                    pattern(
+                                            "\\b(?:aws\\s+ec2\\s+(?:authorize-security-group-ingress|modify-security-group-rules)\\b|gcloud\\s+compute\\s+firewall-rules\\s+(?:create|update)\\b|az\\s+network\\s+nsg\\s+rule\\s+(?:create|update)\\b|aliyun\\s+ecs\\s+(?:AuthorizeSecurityGroup|ModifySecurityGroupRule)\\b|(?:tccli|qcloud)\\s+cvm\\s+(?:AuthorizeSecurityGroupIngress|ModifySecurityGroupPolicies)\\b|huaweicloud\\s+(?:vpc\\s+AddSecurityGroupRule|ecs\\s+NovaCreateSecurityGroupRule)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gcloud_delete",
