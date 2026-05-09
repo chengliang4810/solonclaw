@@ -431,6 +431,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:systemctl\\s+(-[^\\s]+\\s+)*(stop|restart|disable|mask)|service\\s+\\S+\\s+(?:stop|restart)|launchctl\\s+(?:bootout|unload|disable))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "unix_cron_persistence_change",
+                                    "Unix cron persistence change",
+                                    pattern(
+                                            "(?:\\bcrontab\\s+(?:-[er]\\b|-u\\s+\\S+\\s+-[er]\\b|-(?:\\s|$))|\\|\\s*crontab\\s+-?(?:\\s|$))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "kill_all",
                                     "kill all processes",
                                     pattern("\\bkill\\s+-9\\s+-1\\b"),

@@ -613,6 +613,13 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult launchctlBootout =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "launchctl bootout system/com.example.daemon");
+        DangerousCommandApprovalService.DetectionResult crontabEdit =
+                env.dangerousCommandApprovalService.detect("execute_shell", "crontab -e");
+        DangerousCommandApprovalService.DetectionResult crontabPipe =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "echo '* * * * * payload' | crontab -");
+        DangerousCommandApprovalService.DetectionResult crontabList =
+                env.dangerousCommandApprovalService.detect("execute_shell", "crontab -l");
         DangerousCommandApprovalService.DetectionResult killallGateway =
                 env.dangerousCommandApprovalService.detect("execute_shell", "killall gateway");
         DangerousCommandApprovalService.DetectionResult pkillUnrelated =
@@ -747,6 +754,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(serviceStop.getPatternKey()).isEqualTo("stop_service");
         assertThat(launchctlBootout).isNotNull();
         assertThat(launchctlBootout.getPatternKey()).isEqualTo("stop_service");
+        assertThat(crontabEdit).isNotNull();
+        assertThat(crontabEdit.getPatternKey()).isEqualTo("unix_cron_persistence_change");
+        assertThat(crontabPipe).isNotNull();
+        assertThat(crontabPipe.getPatternKey()).isEqualTo("unix_cron_persistence_change");
+        assertThat(crontabList).isNull();
         assertThat(killallGateway).isNotNull();
         assertThat(killallGateway.getPatternKey()).isEqualTo("kill_agent_process");
         assertThat(pkillUnrelated).isNull();
