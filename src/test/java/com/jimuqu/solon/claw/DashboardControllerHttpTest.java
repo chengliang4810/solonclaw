@@ -667,11 +667,26 @@ public class DashboardControllerHttpTest {
         assertThat(secretToolMcpList.body)
                 .contains("token=***")
                 .contains("bearer ***")
-                .contains("OPENAI_API_KEY=***")
+                .contains("\"description\":\"***\"")
                 .doesNotContain("secret-title-token")
                 .doesNotContain("ghp_toolsecret12345")
+                .doesNotContain("OPENAI_API_KEY")
                 .doesNotContain("sk-test-tool-secret")
                 .doesNotContain("secret-output-token");
+
+        HttpResult secretChangedToolMcp =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"secret-changed-tool-docs\",\"name\":\"Secret Changed Tool Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"tools\":[{\"name\":\"docs_token_ghp_mcpchanged12345\",\"description\":\"Search docs\"}]}",
+                        token);
+        assertThat(secretChangedToolMcp.status).isEqualTo(200);
+        HttpResult secretChangedToolCheck =
+                request("POST", "/api/jimuqu/mcp/secret-changed-tool-docs/check", "{}", token);
+        assertThat(secretChangedToolCheck.status).isEqualTo(200);
+        assertThat(stringsAt(secretChangedToolCheck.body, "added_tools"))
+                .containsExactly("docs_token_ghp_***");
+        assertThat(secretChangedToolCheck.body).doesNotContain("ghp_mcpchanged12345");
 
         HttpResult secretMcp =
                 request(

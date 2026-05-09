@@ -165,12 +165,6 @@ public class DashboardMcpService {
                 query.close();
             }
             String toolsJson = json(body.get("tools"));
-            String toolsHash = hash(toolsJson);
-            String lastToolsHash =
-                    StrUtil.isNotBlank(toolsHash) && toolsHash.equals(previousToolsHash)
-                            ? previousToolsHash
-                            : "";
-            String lastToolsJson = StrUtil.isNotBlank(lastToolsHash) ? previousLastToolsJson : "";
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert or replace into mcp_servers (server_id, name, transport, endpoint, command, args_json, auth_json, oauth_json, capabilities_json, status, tools_json, last_tools_hash, last_tools_json, last_error, enabled, created_at, updated_at, last_checked_at, last_tools_changed_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -185,8 +179,8 @@ public class DashboardMcpService {
             statement.setString(9, json(body.get("capabilities")));
             statement.setString(10, securityVerdict.isAllowed() ? "configured" : "blocked");
             statement.setString(11, toolsJson);
-            statement.setString(12, lastToolsHash);
-            statement.setString(13, lastToolsJson);
+            statement.setString(12, previousToolsHash);
+            statement.setString(13, previousLastToolsJson);
             statement.setString(14, securityVerdict.isAllowed() ? null : securityVerdict.getMessage());
             statement.setInt(15, asBoolean(body.get("enabled"), true) ? 1 : 0);
             statement.setLong(16, createdAt);
@@ -244,8 +238,8 @@ public class DashboardMcpService {
         result.put("schema_sanitizer", "snack4");
         result.put("tools_hash", state.getNextHash());
         result.put("tool_changed_notification", state.isToolsChanged());
-        result.put("added_tools", state.getAddedTools());
-        result.put("removed_tools", state.getRemovedTools());
+        result.put("added_tools", safeToolNames(state.getAddedTools()));
+        result.put("removed_tools", safeToolNames(state.getRemovedTools()));
         result.put("security", securityMap(state.getSecurityVerdict()));
         if (StrUtil.isNotBlank(state.getError())) {
             result.put("error", safeDisplayError(state.getError()));
@@ -755,24 +749,67 @@ public class DashboardMcpService {
 
     @SuppressWarnings("unchecked")
     private Object redactParsed(Object value) {
+        return redactParsed(value, false, "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object redactParsed(Object value, boolean sensitiveContext, String key) {
         if (value instanceof String) {
+            if (sensitiveContext && isSensitiveDisplayKey(key)) {
+                return "***";
+            }
             return SecretRedactor.redact((String) value, 800);
         }
         if (value instanceof Map) {
             Map<String, Object> redacted = new LinkedHashMap<String, Object>();
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
-                redacted.put(String.valueOf(entry.getKey()), redactParsed(entry.getValue()));
+                String childKey = String.valueOf(entry.getKey());
+                redacted.put(
+                        childKey,
+                        redactParsed(
+                                entry.getValue(),
+                                sensitiveContext || isSensitiveKey(childKey),
+                                childKey));
             }
             return redacted;
         }
         if (value instanceof List) {
             List<Object> redacted = new ArrayList<Object>();
             for (Object item : (List<Object>) value) {
-                redacted.add(redactParsed(item));
+                redacted.add(redactParsed(item, sensitiveContext, key));
             }
             return redacted;
         }
         return value;
+    }
+
+    private boolean isSensitiveKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase();
+        return normalized.contains("api_key")
+                || normalized.contains("apikey")
+                || normalized.contains("access_token")
+                || normalized.contains("refresh_token")
+                || normalized.contains("auth_token")
+                || normalized.contains("client_secret")
+                || normalized.contains("secret")
+                || normalized.contains("password")
+                || normalized.contains("passwd")
+                || normalized.contains("credential")
+                || normalized.contains("private_key")
+                || normalized.contains("authorization");
+    }
+
+    private boolean isSensitiveDisplayKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).trim().toLowerCase();
+        return normalized.length() == 0
+                || "description".equals(normalized)
+                || "title".equals(normalized)
+                || "default".equals(normalized)
+                || "example".equals(normalized)
+                || "examples".equals(normalized)
+                || "const".equals(normalized)
+                || "enum".equals(normalized)
+                || isSensitiveKey(normalized);
     }
 
     private boolean asBoolean(Object value, boolean fallback) {
@@ -1152,8 +1189,8 @@ public class DashboardMcpService {
         result.put("current_tool_count", Integer.valueOf(state.getToolCount()));
         result.put("tool_count", Integer.valueOf(state.getToolCount()));
         result.put("tool_changed_notification", Boolean.valueOf(state.isToolsChanged()));
-        result.put("added_tools", state.getAddedTools());
-        result.put("removed_tools", state.getRemovedTools());
+        result.put("added_tools", safeToolNames(state.getAddedTools()));
+        result.put("removed_tools", safeToolNames(state.getRemovedTools()));
         result.put("schema_sanitizer", "snack4");
         if (StrUtil.isNotBlank(state.getError())) {
             result.put("error", safeDisplayError(state.getError()));
@@ -1173,6 +1210,17 @@ public class DashboardMcpService {
                 safeDisplayError(
                         StrUtil.blankToDefault(
                                 message, "MCP server requires re-authentication.")));
+        return result;
+    }
+
+    private List<String> safeToolNames(List<String> toolNames) {
+        if (toolNames == null || toolNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> result = new ArrayList<String>();
+        for (String toolName : toolNames) {
+            result.add(SecretRedactor.redact(StrUtil.nullToEmpty(toolName), 400));
+        }
         return result;
     }
 
