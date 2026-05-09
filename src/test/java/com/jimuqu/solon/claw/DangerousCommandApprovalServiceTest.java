@@ -816,6 +816,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerHostNetwork =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --network=host alpine");
+        DangerousCommandApprovalService.DetectionResult podmanPrivileged =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --privileged alpine");
+        DangerousCommandApprovalService.DetectionResult nerdctlSocketMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl run -v /var/run/docker.sock:/var/run/docker.sock alpine");
         DangerousCommandApprovalService.DetectionResult dockerPs =
                 env.dangerousCommandApprovalService.detect("execute_shell", "docker ps");
         DangerousCommandApprovalService.DetectionResult kubectlDelete =
@@ -1090,6 +1096,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerHostRootMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerHostNetwork).isNotNull();
         assertThat(dockerHostNetwork.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanPrivileged).isNotNull();
+        assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(nerdctlSocketMount).isNotNull();
+        assertThat(nerdctlSocketMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerPs).isNull();
         assertThat(kubectlDelete).isNotNull();
         assertThat(kubectlDelete.getPatternKey()).isEqualTo("kubectl_delete");
