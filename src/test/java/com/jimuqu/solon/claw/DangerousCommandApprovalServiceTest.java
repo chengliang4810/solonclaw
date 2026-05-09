@@ -1415,9 +1415,12 @@ public class DangerousCommandApprovalServiceTest {
                         "echo $JIMUQU_ACCESS_TOKEN",
                         "echo %OPENAI_API_KEY%",
                         "Get-Item Env:OPENAI_API_KEY",
+                        "Get-Item -Path Env:OPENAI_API_KEY",
                         "Get-Content Env:OPENAI_API_KEY",
+                        "Get-Content -Path Env:OPENAI_API_KEY",
                         "Write-Output $env:OPENAI_API_KEY",
                         "echo $env:OPENAI_API_KEY",
+                        "Write-Output ${env:OPENAI_API_KEY}",
                         "$env:ANTHROPIC_API_KEY",
                         "[Environment]::GetEnvironmentVariable('OPENAI_API_KEY')");
         for (String command : sensitiveReads) {
@@ -1442,6 +1445,9 @@ public class DangerousCommandApprovalServiceTest {
                         "set OPENAI_API_KEY=secret",
                         "cmd /c set OPENAI_API_KEY=secret",
                         "Set-Content Env:OPENAI_API_KEY secret",
+                        "Set-Content -Path Env:OPENAI_API_KEY secret",
+                        "Remove-Item Env:OPENAI_API_KEY",
+                        "Remove-Item -Path Env:OPENAI_API_KEY",
                         "setx OPENAI_API_KEY secret",
                         "[Environment]::SetEnvironmentVariable('OPENAI_API_KEY','secret','User')");
         for (String command : inlineAssignments) {

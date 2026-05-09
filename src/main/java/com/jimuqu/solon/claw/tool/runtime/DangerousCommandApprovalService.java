@@ -389,9 +389,11 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "=\\S+|(?:cmd(?:\\.exe)?\\s+/c\\s+)?set\\s+"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "=\\S+|Set-Content\\s+Env:"
+                                                    + "=\\S+|(?:Set-Item|New-Item|Set-Content)\\s+(?:-[A-Za-z]+\\s+)*Env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+|setx\\s+"
+                                                    + "\\s+\\S+|Remove-Item\\s+(?:-[A-Za-z]+\\s+)*Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "|setx\\s+"
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\s+\\S+|\\[Environment\\]::SetEnvironmentVariable\\(\\s*['\"]?"
                                                     + SENSITIVE_ENV_NAME
@@ -401,9 +403,9 @@ public class DangerousCommandApprovalService {
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
-                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
+                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+(?:-[A-Za-z]+\\s+)*Env:|\\$\\{env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + ")%?"),
+                                                    + ")(?:%|\\})?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cli_access_token_read",
