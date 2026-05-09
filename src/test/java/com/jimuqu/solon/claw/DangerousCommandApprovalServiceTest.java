@@ -478,6 +478,8 @@ public class DangerousCommandApprovalServiceTest {
         assertDangerPattern(
                 env, "spps -Name node -Force", "windows_stop_process");
         assertDangerPattern(
+                env, "reg.exe delete HKCU\\Software\\Demo /f", "windows_reg_delete");
+        assertDangerPattern(
                 env,
                 "vssadmin delete shadows /all /quiet",
                 "windows_delete_shadow_copies");

@@ -572,7 +572,7 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "windows_reg_delete",
                                     "Windows registry delete",
-                                    pattern("\\breg\\s+delete\\b"),
+                                    pattern("\\breg(?:\\.exe)?\\s+delete\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_take_ownership",
