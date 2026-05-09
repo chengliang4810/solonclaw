@@ -347,6 +347,55 @@ public class ToolRegistryExposureTest {
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("approvalPolicy")))
                 .contains("recursive_delete")
                 .contains("long_lived_foreground")
+                .contains("slashConfirmPolicy")
+                .contains("/approve")
+                .contains("/deny")
+                .contains("dangerous_command_approval_card")
+                .doesNotContain("secret-sudo");
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("slashConfirmPolicy")
+                                .get("selectorSupported")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("slashConfirmPolicy")
+                                .get("approveAllSupported")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("slashConfirmPolicy")
+                                .get("denyAllSupported")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("slashConfirmPolicy")
+                                .get("tirithAlwaysDowngradedToSession")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("slashConfirmPolicy")
+                                .get("approverRedacted")
+                                .getBoolean())
+                .isTrue();
+        assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("slashConfirmPolicy")))
+                .contains("once")
+                .contains("session")
+                .contains("always")
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("terminal").get("credentialFileCount").getInt())
                 .isEqualTo(1);

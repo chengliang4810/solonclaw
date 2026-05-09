@@ -71,7 +71,49 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(String.valueOf(summary.get("terminalGuardrails"))).contains("long_lived_foreground");
         assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("backgroundProcessGuard")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("slashConfirmPolicy")))
+                .contains("/approve")
+                .contains("/deny")
+                .contains("dangerous_command_approval_card")
+                .contains("tirithAlwaysDowngradedToSession");
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeSlashApprovalPolicySummaryWithoutSecrets() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getApprovals().setTimeoutSeconds(42);
+        env.appConfig.getApprovals().setGatewayTimeoutSeconds(43);
+
+        Map<String, Object> summary =
+                env.dangerousCommandApprovalService.slashConfirmPolicySummary();
+
+        assertThat(String.valueOf(summary.get("commands"))).contains("/approve").contains("/deny");
+        assertThat(summary.get("selectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("denyAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("scopes")))
+                .contains("once")
+                .contains("session")
+                .contains("always");
+        assertThat(summary.get("defaultScope")).isEqualTo("once");
+        assertThat(summary.get("pendingQueueSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalCardDeliveryMode"))
+                .isEqualTo(DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        assertThat(String.valueOf(summary.get("approvalCardPlatforms")))
+                .contains("FEISHU")
+                .contains("QQBOT");
+        assertThat(summary.get("permanentApprovalAllowedExceptTirith")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tirithAlwaysDowngradedToSession")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approverRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("observerEventsRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalTimeoutSeconds")).isEqualTo(Integer.valueOf(42));
+        assertThat(summary.get("gatewayTimeoutSeconds")).isEqualTo(Integer.valueOf(43));
+        assertThat(summary.toString())
+                .doesNotContain("secret")
+                .doesNotContain("token=")
+                .doesNotContain("sudo");
     }
 
     @Test

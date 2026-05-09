@@ -115,6 +115,7 @@ public class SecurityAuditTools {
                 Integer.valueOf(approvalService == null ? 0 : approvalService.listAlwaysApprovals().size()));
         if (approvalService != null) {
             approvals.put("approvalPolicy", approvalService.approvalPolicySummary());
+            approvals.put("slashConfirmPolicy", approvalService.slashConfirmPolicySummary());
         }
         result.policy.put("approvals", approvals);
 

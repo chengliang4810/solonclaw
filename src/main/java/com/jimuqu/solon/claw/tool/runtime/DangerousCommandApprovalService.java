@@ -1307,7 +1307,37 @@ public class DangerousCommandApprovalService {
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
         summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
+        summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
         summary.put("description", "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
+        return summary;
+    }
+
+    public Map<String, Object> slashConfirmPolicySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("commands", Arrays.asList("/approve", "/deny"));
+        summary.put("selectorSupported", Boolean.TRUE);
+        summary.put("approveAllSupported", Boolean.TRUE);
+        summary.put("denyAllSupported", Boolean.TRUE);
+        summary.put("scopes", Arrays.asList("once", "session", "always"));
+        summary.put("defaultScope", "once");
+        summary.put("pendingQueueSupported", Boolean.TRUE);
+        summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
+        summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
+        summary.put("approvalCardDeliveryMode", DELIVERY_MODE_APPROVAL_CARD);
+        summary.put("approvalCardPlatforms", Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
+        summary.put("approvalCardActionKey", CARD_ACTION_KEY);
+        summary.put("approvalCardApproveAction", CARD_ACTION_APPROVE);
+        summary.put("approvalCardDenyAction", CARD_ACTION_DENY);
+        summary.put("approvalCardScopeKey", CARD_SCOPE_KEY);
+        summary.put("approvalCardApprovalIdKey", CARD_APPROVAL_ID_KEY);
+        summary.put("permanentApprovalAllowedExceptTirith", Boolean.TRUE);
+        summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
+        summary.put("approverRedacted", Boolean.TRUE);
+        summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("observerEventsRedacted", Boolean.TRUE);
+        summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
+        summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
+        summary.put("description", "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes and redacted approval metadata.");
         return summary;
     }
 
