@@ -1655,6 +1655,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_stop_service");
         assertDangerPattern(
                 env,
+                "sc.exe config DemoService obj= LocalSystem",
+                "windows_service_privilege_or_recovery_change");
+        assertDangerPattern(
+                env,
+                "sc config DemoService obj= \"NT AUTHORITY\\SYSTEM\"",
+                "windows_service_privilege_or_recovery_change");
+        assertDangerPattern(
+                env,
+                "sc.exe failure DemoService actions= restart/60000/restart/60000/\"\"/60000 reset= 86400",
+                "windows_service_privilege_or_recovery_change");
+        assertDangerPattern(
+                env,
                 "schtasks /create /tn updater /tr payload.exe /sc onlogon",
                 "windows_persistence_registration");
         assertDangerPattern(
@@ -1801,6 +1813,10 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "bcdedit /set {default} recoveryenabled No",
                 "windows_disable_recovery");
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc.exe query Spooler"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc qc DemoService"))
+                .isNull();
     }
 
     @Test

@@ -1157,6 +1157,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_service_privilege_or_recovery_change",
+                                    "Windows service privilege or recovery policy changed",
+                                    pattern(
+                                            "\\b(?:sc(?:\\.exe)?\\s+config\\s+\\S+\\s+obj\\s*=\\s*\"?(?:LocalSystem|NT\\s+AUTHORITY\\\\SYSTEM|Administrator|\\.\\\\Administrator)\"?(?=\\s|$)|sc(?:\\.exe)?\\s+failure\\s+\\S+\\s+actions\\s*=\\s*(?:restart|run|reboot)(?:/|\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_persistence_registration",
                                     "Windows scheduled task or startup persistence",
                                     pattern(
