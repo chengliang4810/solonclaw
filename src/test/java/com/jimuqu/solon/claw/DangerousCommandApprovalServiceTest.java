@@ -2038,6 +2038,14 @@ public class DangerousCommandApprovalServiceTest {
                         "qcloud ssm DescribeSecret --SecretName prod-db",
                         "huaweicloud csms ShowSecretValue --secret-name prod-db",
                         "kubectl get secret app-token -o yaml",
+                        "kubectl describe secret app-token",
+                        "docker secret inspect app-token",
+                        "podman secret ls",
+                        "nerdctl secret list",
+                        "docker compose config --environment",
+                        "docker compose config --hash app-secret",
+                        "docker-compose config --hash db-password",
+                        "podman compose config --hash oauth-token",
                         "vault kv get secret/prod",
                         "vault read secret/data/prod",
                         "op read op://prod/db/password",
@@ -2067,6 +2075,19 @@ public class DangerousCommandApprovalServiceTest {
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("secret_store_read");
+        }
+
+        List<String> secretStoreSafeReads =
+                Arrays.asList(
+                        "kubectl describe service app",
+                        "docker secret --help",
+                        "docker compose config --services",
+                        "docker compose config --images",
+                        "podman compose config --services");
+        for (String command : secretStoreSafeReads) {
+            assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
+                    .as(command)
+                    .isNull();
         }
 
         List<String> encryptedSecretFileDecrypts =
