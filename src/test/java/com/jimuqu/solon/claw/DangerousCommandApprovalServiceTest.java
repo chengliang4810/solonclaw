@@ -2656,6 +2656,9 @@ public class DangerousCommandApprovalServiceTest {
                         "npm config set strict-ssl false",
                         "pnpm config set strictSsl false",
                         "yarn config set strict-ssl false",
+                        "pip install --trusted-host mirror.example package-name",
+                        "pip3 install --trusted-host=mirror.example package-name",
+                        "poetry config certificates.internal.cert false",
                         "PYTHONHTTPSVERIFY=0 python script.py");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -2677,6 +2680,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "npm config set strict-ssl true"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "pip install package-name"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "poetry config certificates.internal.cert ./ca.pem"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
