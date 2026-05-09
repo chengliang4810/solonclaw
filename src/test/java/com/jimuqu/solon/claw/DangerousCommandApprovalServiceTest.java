@@ -1341,6 +1341,37 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCliLoginCredentialOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "docker login --username user --password password registry.example",
+                        "docker login -u user -p password registry.example",
+                        "echo token | docker login --username user --password-stdin registry.example",
+                        "gh auth login --with-token < token.txt",
+                        "npm login --auth-type legacy --password password",
+                        "az login --service-principal --username app --password password");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("cli_login_credential_option");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "docker login registry.example"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "gh auth status"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectSshHostKeyVerificationBypassCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
