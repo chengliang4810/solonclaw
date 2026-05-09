@@ -838,7 +838,7 @@ public class DangerousCommandApprovalService {
                                     "cloud_iam_permission_change",
                                     "Cloud IAM permission change",
                                     pattern(
-                                            "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update)))"),
+                                            "\\b(?:aws\\s+iam\\s+(?:attach|put|create|update|set|add)-[a-z0-9-]+|gcloud\\s+\\S+(?:\\s+\\S+)*\\s+add-iam-policy-binding\\b|az\\s+role\\s+(?:assignment\\s+create|definition\\s+(?:create|update))|aliyun\\s+ram\\s+(?:AttachPolicyToUser|AttachPolicyToRole|CreatePolicy|UpdatePolicy|AddUserToGroup)\\b|(?:tccli|qcloud)\\s+cam\\s+(?:AttachUserPolicy|AttachRolePolicy|CreatePolicy|UpdatePolicy|AddUser)\\b|huaweicloud\\s+iam\\s+(?:KeystoneCreateUserGroup|KeystoneAssociateUserGroup|CreateAgency|UpdateAgency|CreateRole)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_network_exposure_change",

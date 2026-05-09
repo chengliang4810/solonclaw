@@ -930,6 +930,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult azureRoleAssign =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az role assignment create --assignee app --role Owner");
+        DangerousCommandApprovalService.DetectionResult aliyunRamAttachPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aliyun ram AttachPolicyToUser --PolicyName AdministratorAccess --UserName bot");
+        DangerousCommandApprovalService.DetectionResult tccliCamAttachPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "tccli cam AttachUserPolicy --PolicyId 1 --TargetUin 10001");
+        DangerousCommandApprovalService.DetectionResult huaweicloudIamAgency =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "huaweicloud iam CreateAgency --name deployer");
         DangerousCommandApprovalService.DetectionResult azureNsgRuleCreate =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "az network nsg rule create --name open-ssh --source-address-prefixes Internet --destination-port-ranges 22");
@@ -1141,6 +1150,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(azureDelete.getPatternKey()).isEqualTo("azure_delete");
         assertThat(azureRoleAssign).isNotNull();
         assertThat(azureRoleAssign.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(aliyunRamAttachPolicy).isNotNull();
+        assertThat(aliyunRamAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(tccliCamAttachPolicy).isNotNull();
+        assertThat(tccliCamAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
+        assertThat(huaweicloudIamAgency).isNotNull();
+        assertThat(huaweicloudIamAgency.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(azureNsgRuleCreate).isNotNull();
         assertThat(azureNsgRuleCreate.getPatternKey()).isEqualTo("cloud_network_exposure_change");
         assertThat(aliyunSecurityGroupIngress).isNotNull();
