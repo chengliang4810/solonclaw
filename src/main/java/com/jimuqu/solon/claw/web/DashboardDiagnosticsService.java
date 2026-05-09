@@ -449,19 +449,20 @@ public class DashboardDiagnosticsService {
     private Map<String, Object> pendingApprovalItem(
             SessionRecord session, DangerousCommandApprovalService.PendingApproval pending) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
-        item.put("session_id", session.getSessionId());
+        item.put("session_id", safeAuditPreview(session.getSessionId(), 240));
         item.put("source_ref", sourceRef(session.getSourceKey()));
-        item.put("title", StrUtil.blankToDefault(session.getTitle(), session.getSessionId()));
-        item.put("branch_name", session.getBranchName());
+        item.put("title", safeAuditPreview(
+                StrUtil.blankToDefault(session.getTitle(), session.getSessionId()), 240));
+        item.put("branch_name", safeAuditPreview(session.getBranchName(), 160));
         item.put("updated_at", Long.valueOf(session.getUpdatedAt()));
-        item.put("approval_id", pending.getApprovalId());
+        item.put("approval_id", safeAuditPreview(pending.getApprovalId(), 160));
         item.put("selector", DangerousCommandApprovalService.approvalSelector(pending));
-        item.put("tool_name", pending.getToolName());
-        item.put("description", SecretRedactor.redact(pending.getDescription(), 1000));
-        item.put("pattern_key", pending.getPatternKey());
-        item.put("pattern_keys", pending.effectivePatternKeys());
+        item.put("tool_name", safeAuditPreview(pending.getToolName(), 160));
+        item.put("description", safeAuditPreview(pending.getDescription(), 1000));
+        item.put("pattern_key", safeAuditPreview(pending.getPatternKey(), 400));
+        item.put("pattern_keys", redactedTextList(pending.effectivePatternKeys(), 400));
         item.put("rule_sources", approvalRuleSources(pending));
-        item.put("command_preview", SecretRedactor.redact(pending.getCommand(), 800));
+        item.put("command_preview", safeAuditPreview(pending.getCommand(), 800));
         item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
         item.put("approval_key", redactedApprovalKey(pending.approvalKey()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
@@ -473,6 +474,19 @@ public class DashboardDiagnosticsService {
         item.put("permanent_allowed", Boolean.valueOf(pending.isPermanentApprovalAllowed()));
         item.put("permanent_disabled_reason", permanentDisabledReason(pending));
         return item;
+    }
+
+    private List<Object> redactedTextList(List<String> source, int maxLength) {
+        List<Object> values = new ArrayList<Object>();
+        if (source == null) {
+            return values;
+        }
+        for (String item : source) {
+            if (StrUtil.isNotBlank(item)) {
+                values.add(safeAuditPreview(item, maxLength));
+            }
+        }
+        return values;
     }
 
     private List<String> approvalRuleSources(

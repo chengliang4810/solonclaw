@@ -186,6 +186,59 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldRedactPendingApprovalDiagnosticOutput() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-pending\u202E");
+        record.setSourceKey("source-pending");
+        record.setTitle("审批标题 token=ghp_titlepending123\u202E");
+        record.setBranchName("main\u202E");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell\u202E",
+                "token_ghp_pendingpattern123\u202E",
+                "pending password=pending-secret\u202E",
+                "rm -rf runtime/cache --token ghp_pendingcommand123\u202E");
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(Collections.singletonList(record)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        String json = ONode.serialize(items.get(0));
+
+        assertThat(json)
+                .contains("\"session_id\":\"session-pending\"")
+                .contains("\"branch_name\":\"main\"")
+                .contains("\"tool_name\":\"execute_shell\"")
+                .contains("token_ghp_***")
+                .contains("password=***")
+                .contains("command_preview\":\"rm -rf runtime/cache --token ***")
+                .doesNotContain("\\u202E")
+                .doesNotContain("ghp_titlepending123")
+                .doesNotContain("pendingpattern123")
+                .doesNotContain("pending-secret")
+                .doesNotContain("ghp_pendingcommand123");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldUseOpaqueSelectorForLegacyApprovalWithoutApprovalId() throws Exception {
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService approvalService =
