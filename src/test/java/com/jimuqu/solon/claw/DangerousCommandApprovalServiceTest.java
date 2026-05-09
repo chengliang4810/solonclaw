@@ -393,6 +393,8 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Out-File -FilePath ~/.ssh/authorized_keys -InputObject $key",
                 "powershell_sensitive_file_write");
+        assertDangerPattern(env, "sc .env.local TOKEN=value", "powershell_sensitive_file_write");
+        assertDangerPattern(env, "ac -Path ~/.npmrc token", "powershell_sensitive_file_write");
         assertDangerPattern(
                 env,
                 "$cred | Export-Clixml -Path credentials",
