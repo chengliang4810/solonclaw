@@ -79,12 +79,12 @@ public class DangerousCommandApprovalService {
                     + PATH_SEPARATOR
                     + "\\.env\\b)";
     private static final String PROJECT_SENSITIVE_WRITE_TARGET =
-            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account\\.json|auth\\.json|token\\.json))";
+            "(?:(?<![A-Za-z0-9_.-])(?:[/\\\\]|\\.{1,2}[/\\\\])?(?:[^\\s/\\\\\"'`]+[/\\\\])*(?:\\.env(?:\\.[^/\\\\\\s\"'`]+)*|\\.envrc|config\\.ya?ml|credentials(?:\\.json)?|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[^/\\\\\\s\"'`]*\\.json|auth\\.json|token\\.json))";
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
-    private static final String COMMAND_TAIL = "(?:\\s*(?:&&|\\|\\||;).*)?$";
+    private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
     private static final Pattern SHELL_LEVEL_BACKGROUND =
@@ -640,7 +640,8 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:Copy-Item|Move-Item|cp|cpi|mv|mi)\\b[^\\n]*(?:(?:-Destination|-Path|-LiteralPath)\\s+)?[\"']?"
                                                     + POWERSHELL_SENSITIVE_WRITE_TARGET
-                                                    + "[\"']?"),
+                                                    + "[\"']?"
+                                                    + COMMAND_TAIL),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_sensitive_file_copy",

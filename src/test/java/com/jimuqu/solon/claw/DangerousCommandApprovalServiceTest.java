@@ -757,6 +757,12 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult serviceAccountWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cp service-account.template.json service_account.json");
+        DangerousCommandApprovalService.DetectionResult serviceAccountKeyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "printf token > service-account-key.json");
+        DangerousCommandApprovalService.DetectionResult firebaseAdminCopy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "cp firebase.template.json firebase-adminsdk-prod.json");
 
         assertThat(sshWrite).isNotNull();
         assertThat(sshWrite.getPatternKey()).isEqualTo("sensitive_redirection");
@@ -802,6 +808,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(credentialsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(serviceAccountWrite).isNotNull();
         assertThat(serviceAccountWrite.getPatternKey()).isEqualTo("copy_into_project_sensitive");
+        assertThat(serviceAccountKeyWrite).isNotNull();
+        assertThat(serviceAccountKeyWrite.getPatternKey())
+                .isEqualTo("project_sensitive_redirection");
+        assertThat(firebaseAdminCopy).isNotNull();
+        assertThat(firebaseAdminCopy.getPatternKey()).isEqualTo("copy_into_project_sensitive");
     }
 
     @Test
