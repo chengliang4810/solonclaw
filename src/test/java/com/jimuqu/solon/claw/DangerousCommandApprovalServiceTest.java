@@ -3558,6 +3558,12 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict resolvePrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --resolve safe.example:443:127.0.0.1 https://safe.example/");
+        SecurityPolicyService.UrlVerdict resolveIpv6Private =
+                securityPolicyService.checkCommandUrls(
+                        "curl --resolve safe.example:443:[::1] https://safe.example/");
+        SecurityPolicyService.UrlVerdict connectToIpv6Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --connect-to safe.example:443:[fd00:ec2::254]:8443 https://safe.example/");
         SecurityPolicyService.UrlVerdict proxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy 127.0.0.1:8080 https://safe.example/");
@@ -3634,6 +3640,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(command.getMessage()).contains("元数据");
         assertThat(resolvePrivate.isAllowed()).isFalse();
         assertThat(resolvePrivate.getMessage()).contains("内网");
+        assertThat(resolveIpv6Private.isAllowed()).isFalse();
+        assertThat(resolveIpv6Private.getMessage()).contains("内网");
+        assertThat(connectToIpv6Metadata.isAllowed()).isFalse();
+        assertThat(connectToIpv6Metadata.getMessage()).contains("元数据");
         assertThat(proxyPrivate.isAllowed()).isFalse();
         assertThat(proxyPrivate.getMessage()).contains("内网");
         assertThat(allProxyPrivate.isAllowed()).isFalse();
