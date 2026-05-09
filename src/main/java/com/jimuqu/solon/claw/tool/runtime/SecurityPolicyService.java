@@ -186,6 +186,30 @@ public class SecurityPolicyService {
             Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
     private static final Pattern RAW_BLOCK_DEVICE_PATTERN =
             Pattern.compile("^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
+    private static final List<String> CREDENTIAL_PATH_OPTION_NAMES =
+            Arrays.asList(
+                    "--key",
+                    "--private-key",
+                    "--proxy-key",
+                    "--cert",
+                    "--certificate",
+                    "--proxy-cert",
+                    "--cacert",
+                    "--netrc-file",
+                    "--cookie",
+                    "--cookie-jar",
+                    "--load-cookies",
+                    "--kubeconfig",
+                    "--key-file",
+                    "--service-account-key-file",
+                    "--credential-file",
+                    "--credentials-file",
+                    "--token-file",
+                    "--password-file",
+                    "--userconfig",
+                    "--globalconfig",
+                    "--config",
+                    "-i");
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
@@ -627,6 +651,10 @@ public class SecurityPolicyService {
         if (!compactOutputVerdict.allowed) {
             return compactOutputVerdict;
         }
+        FileVerdict credentialOptionVerdict = checkCredentialPathOptions(code);
+        if (!credentialOptionVerdict.allowed) {
+            return credentialOptionVerdict;
+        }
         Matcher relativeCredentialMatcher = SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN.matcher(code);
         while (relativeCredentialMatcher.find()) {
             FileVerdict verdict = checkPath(relativeCredentialMatcher.group(1), false);
@@ -653,6 +681,35 @@ public class SecurityPolicyService {
             return configuredCredentialVerdict;
         }
         return FileVerdict.allow();
+    }
+
+    private FileVerdict checkCredentialPathOptions(String command) {
+        List<String> tokens = shellLikeTokens(command, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = cleanUrlToken(tokens.get(i));
+            String path = credentialPathOptionValue(token);
+            if (StrUtil.isBlank(path) && isCredentialPathOption(token) && i + 1 < tokens.size()) {
+                path = cleanUrlToken(tokens.get(++i));
+            }
+            if (StrUtil.isBlank(path)) {
+                continue;
+            }
+            return FileVerdict.block(path, "凭据用途参数引用的文件被阻断");
+        }
+        return FileVerdict.allow();
+    }
+
+    private String credentialPathOptionValue(String token) {
+        for (String option : CREDENTIAL_PATH_OPTION_NAMES) {
+            if (token.startsWith(option + "=")) {
+                return token.substring(option.length() + 1);
+            }
+        }
+        return "";
+    }
+
+    private boolean isCredentialPathOption(String token) {
+        return CREDENTIAL_PATH_OPTION_NAMES.contains(token);
     }
 
     private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {

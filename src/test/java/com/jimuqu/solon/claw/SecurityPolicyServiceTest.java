@@ -732,6 +732,25 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyCommandCredentialPathOptions() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        assertCommandCredentialOptionDenied(policy, "curl --key client.pem https://example.invalid", "client.pem");
+        assertCommandCredentialOptionDenied(policy, "curl --cert=client.crt https://example.invalid", "client.crt");
+        assertCommandCredentialOptionDenied(policy, "ssh -i deploy_key host.example", "deploy_key");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "kubectl --kubeconfig kubeconfig get pods",
+                "kubeconfig");
+        assertCommandCredentialOptionDenied(
+                policy,
+                "gcloud auth activate-service-account --key-file service.json",
+                "service.json");
+
+        assertThat(policy.checkCommandPaths("curl --retry 2 https://example.invalid").isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldExposeCredentialPolicySummaryWithoutLeakingConfiguredPaths() {
         AppConfig config = new AppConfig();
         config.getTerminal()
@@ -890,6 +909,14 @@ public class SecurityPolicyServiceTest {
         assertThat(verdict.isAllowed()).as(command).isFalse();
         assertThat(verdict.getPath()).as(command).isEqualTo(path);
         assertThat(verdict.getMessage()).as(command).contains("凭据");
+    }
+
+    private static void assertCommandCredentialOptionDenied(
+            SecurityPolicyService policy, String command, String path) {
+        SecurityPolicyService.FileVerdict verdict = policy.checkCommandPaths(command);
+        assertThat(verdict.isAllowed()).as(command).isFalse();
+        assertThat(verdict.getPath()).as(command).isEqualTo(path);
+        assertThat(verdict.getMessage()).as(command).contains("凭据用途参数");
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
