@@ -1073,7 +1073,10 @@ public class SecurityPolicyService {
             String value = null;
             if ("--proxy".equals(token)
                     || "-x".equals(token)
+                    || "--proxy1.0".equals(token)
                     || "--preproxy".equals(token)
+                    || "--socks4".equals(token)
+                    || "--socks4a".equals(token)
                     || "--socks5".equals(token)
                     || "--socks5-hostname".equals(token)) {
                 if (i + 1 < tokens.size()) {
@@ -1081,8 +1084,14 @@ public class SecurityPolicyService {
                 }
             } else if (token.startsWith("--proxy=")) {
                 value = token.substring("--proxy=".length());
+            } else if (token.startsWith("--proxy1.0=")) {
+                value = token.substring("--proxy1.0=".length());
             } else if (token.startsWith("--preproxy=")) {
                 value = token.substring("--preproxy=".length());
+            } else if (token.startsWith("--socks4=")) {
+                value = token.substring("--socks4=".length());
+            } else if (token.startsWith("--socks4a=")) {
+                value = token.substring("--socks4a=".length());
             } else if (token.startsWith("--socks5=")) {
                 value = token.substring("--socks5=".length());
             } else if (token.startsWith("--socks5-hostname=")) {
@@ -1107,6 +1116,7 @@ public class SecurityPolicyService {
         String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
         return "http_proxy".equals(name)
                 || "https_proxy".equals(name)
+                || "ftp_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
 

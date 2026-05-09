@@ -3564,9 +3564,18 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict socksMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict socks4Private =
+                securityPolicyService.checkCommandUrls(
+                        "curl --socks4 127.0.0.1:1080 https://safe.example/");
+        SecurityPolicyService.UrlVerdict proxy10Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl --proxy1.0=169.254.169.254:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict envProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "http_proxy=127.0.0.1:8080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict ftpProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "FTP_PROXY=127.0.0.1:8080 curl https://safe.example/");
         SecurityPolicyService.UrlVerdict envProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "ALL_PROXY=169.254.169.254:1080 curl https://safe.example/");
@@ -3599,8 +3608,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(proxyPrivate.getMessage()).contains("内网");
         assertThat(socksMetadata.isAllowed()).isFalse();
         assertThat(socksMetadata.getMessage()).contains("元数据");
+        assertThat(socks4Private.isAllowed()).isFalse();
+        assertThat(socks4Private.getMessage()).contains("内网");
+        assertThat(proxy10Metadata.isAllowed()).isFalse();
+        assertThat(proxy10Metadata.getMessage()).contains("元数据");
         assertThat(envProxyPrivate.isAllowed()).isFalse();
         assertThat(envProxyPrivate.getMessage()).contains("内网");
+        assertThat(ftpProxyPrivate.isAllowed()).isFalse();
+        assertThat(ftpProxyPrivate.getMessage()).contains("内网");
         assertThat(envProxyMetadata.isAllowed()).isFalse();
         assertThat(envProxyMetadata.getMessage()).contains("元数据");
         assertThat(compactProxyPrivate.isAllowed()).isFalse();
