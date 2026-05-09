@@ -2053,8 +2053,11 @@ public class DefaultCommandService implements CommandService {
         if ("enable".equals(action) || "start".equals(action)) {
             action = GatewayCommandConstants.ACTION_RESUME;
         }
-        if ("retry".equals(action) || "rerun".equals(action)) {
+        if ("retry".equals(action) || "rerun".equals(action) || "trigger".equals(action)) {
             action = GatewayCommandConstants.ACTION_RUN;
+        }
+        if ("upcoming".equals(action)) {
+            action = "next";
         }
 
         if (GatewayCommandConstants.ACTION_LIST.equalsIgnoreCase(action)) {
@@ -2290,6 +2293,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron list --all - 查看全部定时任务，包括已暂停任务\n")
                 .append("/cron inspect <job-id> - 查看单个任务详情\n")
                 .append("/cron next [--all] [--limit 5] - 查看即将运行的任务\n")
+                .append("/cron upcoming [--all] [--limit 5] - next 的别名\n")
                 .append("/cron guide [--json] - 查看自动化能力、字段、别名、投递、技能绑定和安全策略\n")
                 .append("/cron status [--all] - 查看任务计数、到期任务、最近失败与下次运行\n")
                 .append("/cron add \"every 2h\" \"Check server status\" [--skill blogwatcher] - 创建定时任务\n")
@@ -2307,6 +2311,7 @@ public class DefaultCommandService implements CommandService {
                 .append("/cron pause|disable|stop <job-id> [--reason 原因] - 暂停定时任务\n")
                 .append("/cron resume|enable|start <job-id> - 恢复定时任务\n")
                 .append("/cron run <job-id> - 立即触发定时任务\n")
+                .append("/cron trigger <job-id> - run 的别名\n")
                 .append("/cron retry <job-id> - 重跑最近失败或需要复核的定时任务\n")
                 .append("/cron tick - 立即执行一次 scheduler tick\n")
                 .append("/cron history <job-id> [--limit 20] - 查看执行历史\n")
@@ -3942,12 +3947,12 @@ public class DefaultCommandService implements CommandService {
                                 "切换或管理当前会话 Agent"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_CRON
-                                        + " [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]",
+                                        + " [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]",
                                 "管理定时任务"),
                         helpLine(
                                 GatewayCommandConstants.SLASH_KANBAN
-                                        + " [list|create|show|move|assign|comment|boards]",
-                                "管理 Jimuqu 风格协作看板"),
+                                        + " [list|create|schema|show|drawer|inspect|move|assign|comment|boards|pipeline|step|retry|history|runs|events|tail|guide|stats|watch|dispatch]",
+                                "管理协作看板、任务抽屉、执行流水和多 Agent 派发"),
                         helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"),
                         helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]", "追加保存 trajectory JSONL 到 runtime/artifacts"),

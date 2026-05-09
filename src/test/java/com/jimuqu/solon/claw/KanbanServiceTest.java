@@ -55,16 +55,25 @@ public class KanbanServiceTest {
                 .contains("status_flow")
                 .contains("drawer_sections")
                 .contains("automation_actions")
+                .contains("history_actions")
+                .contains("notification_actions")
+                .contains("maintenance_actions")
                 .contains("创建或切换看板");
         assertThat(service.handleCommand("guide", "tester"))
                 .contains("Kanban 操作指南")
                 .contains("任务抽屉")
                 .contains("恢复动作")
+                .contains("历史与抽屉动作")
+                .contains("通知动作")
+                .contains("维护动作")
                 .contains("/kanban dispatch");
         assertThat(service.handleCommand("guide --json", "tester"))
                 .contains("\"drawer_sections\"")
                 .contains("\"pipeline_overview\"")
-                .contains("\"automation_actions\"");
+                .contains("\"automation_actions\"")
+                .contains("\"history_actions\"")
+                .contains("\"notify-subscribe\"")
+                .contains("\"maintenance_actions\"");
         assertThatThrownBy(() -> service.guide("missing-board"))
                 .hasMessageContaining("Kanban board not found: missing-board");
 

@@ -183,6 +183,20 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldExposeKanbanAdvancedCommandsInSlashHelp() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+
+        GatewayReply help = env.send("admin-chat", "admin-user", "/help");
+
+        assertThat(help.getContent())
+                .contains("/kanban [list|create|schema|show|drawer|inspect|move|assign|comment|boards|pipeline|step|retry|history|runs|events|tail|guide|stats|watch|dispatch]")
+                .contains("任务抽屉")
+                .contains("执行流水")
+                .contains("多 Agent 派发");
+    }
+
+    @Test
     void shouldExposeAcpStatusCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
@@ -605,7 +619,7 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent())
-                .contains("/cron [list [--all]|inspect|show|next|add|edit|pause|disable|resume|enable|remove|run|retry|history|status|tick]");
+                .contains("/cron [list [--all]|inspect|show|next|upcoming|add|edit|pause|disable|resume|enable|remove|run|trigger|retry|history|status|tick]");
     }
 
     @Test
@@ -658,6 +672,8 @@ public class CommandEnhancementTest {
         assertThat(run.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
         GatewayReply retry = env.send("admin-chat", "admin-user", "/cron retry \"" + jobId + "\" --accept-hooks");
         assertThat(retry.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
+        GatewayReply trigger = env.send("admin-chat", "admin-user", "/cron trigger \"" + jobId + "\" --accept-hooks");
+        assertThat(trigger.getContent()).contains("已标记定时任务将在下一次 tick 执行：" + jobId);
 
         GatewayReply removed =
                 env.send("admin-chat", "admin-user", "/cron delete \"" + jobId + "\" --force");
@@ -739,9 +755,11 @@ public class CommandEnhancementTest {
                 .contains("Cron 定时任务")
                 .contains("/cron list --all")
                 .contains("/cron next [--all] [--limit 5]")
+                .contains("/cron upcoming [--all] [--limit 5]")
                 .contains("/cron status [--all]")
                 .contains("/cron pause|disable|stop <job-id>")
                 .contains("/cron resume|enable|start <job-id>")
+                .contains("/cron trigger <job-id>")
                 .contains("/cron retry <job-id>")
                 .contains("/cron history <job-id>")
                 .contains("--deliver-chat-id")
@@ -849,6 +867,12 @@ public class CommandEnhancementTest {
                 .doesNotContain(paused.getJobId());
         assertThat(allNext.getContent().indexOf(soon.getJobId()))
                 .isLessThan(allNext.getContent().indexOf(later.getJobId()));
+
+        GatewayReply upcoming = env.send("admin-chat", "admin-user", "/cron upcoming --limit 1");
+        assertThat(upcoming.getContent())
+                .contains("Cron 即将运行")
+                .contains(soon.getJobId())
+                .doesNotContain(later.getJobId());
     }
 
     @Test
@@ -890,6 +914,8 @@ public class CommandEnhancementTest {
                 .contains("state")
                 .contains("paused_reason");
         assertThat(data.get("aliases").get("pause").toJson()).contains("disable").contains("stop");
+        assertThat(data.get("aliases").get("run").toJson()).contains("trigger").contains("retry");
+        assertThat(data.get("aliases").get("next").toJson()).contains("upcoming");
         assertThat(data.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
         assertThat(data.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
         assertThat(data.get("delivery").get("wrap_flags").toJson()).contains("--no-wrap-response");
