@@ -460,7 +460,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*(?:=|:=)\\s*\\S+|\\b(?:curl|wget)\\b[^\\n]*\\s(?:--data(?:-[a-z-]+)?|-d|--post-data|--json)(?:=|\\s+)['\"]?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
-                                                    + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-(?:Credential|ProxyCredential|Token|Certificate|CertificateThumbprint)\\b\\s*(?::|=|\\s+)\\S|\\s-(?:UseDefaultCredentials|ProxyUseDefaultCredentials)\\b(?!\\s*:\\s*\\$?false\\b)|\\s-Body\\b\\s*(?::|=|\\s+)\\s*(?:@\\{[^\\n}]*[\"']?\\s*"
+                                                    + "[\"']?\\s*:\\s*[\"']?\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-(?:Credential|ProxyCredential|Token|Certificate|CertificateThumbprint)\\b\\s*(?::|=|\\s+)\\S|\\s-(?:UseDefaultCredentials|ProxyUseDefaultCredentials)\\b(?!\\s*:\\s*\\$?false\\b)|\\s-(?:Body|Form)\\b\\s*(?::|=|\\s+)\\s*(?:@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "\\s*[\"']?\\s*=|[\"']?[^\\s'\"|;&]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
