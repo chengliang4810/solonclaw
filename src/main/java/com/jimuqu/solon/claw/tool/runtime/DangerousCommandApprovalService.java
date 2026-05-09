@@ -747,6 +747,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:Add-MpPreference|Set-MpPreference)\\b(?=[^\\n]*(?:-ExclusionPath|-ExclusionProcess|-ExclusionExtension|-ExclusionIpAddress)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "windows_stop_service",
+                                    "Windows service stopped or disabled",
+                                    pattern(
+                                            "\\b(?:sc(?:\\.exe)?\\s+(?:stop|delete|config\\s+\\S+\\s+start\\s*=\\s*disabled)|Stop-Service\\b(?=[^\\n]*(?:-Force\\b|-Name\\s+|-DisplayName\\s+))|Set-Service\\b(?=[^\\n]*-StartupType\\s+Disabled\\b))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "windows_export_credentials",
                                     "Windows credential or certificate export",
                                     pattern(

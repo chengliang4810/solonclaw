@@ -840,6 +840,19 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "Add-MpPreference -ExclusionExtension ps1",
                 "windows_defender_exclusion");
+        assertDangerPattern(env, "sc.exe stop WinDefend", "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "sc config Spooler start= disabled",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "Stop-Service -Name WinDefend -Force",
+                "windows_stop_service");
+        assertDangerPattern(
+                env,
+                "Set-Service -Name Spooler -StartupType Disabled",
+                "windows_stop_service");
         assertDangerPattern(
                 env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
