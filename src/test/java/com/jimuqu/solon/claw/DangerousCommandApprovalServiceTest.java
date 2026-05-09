@@ -1686,6 +1686,28 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialPathOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "ssh -i deploy_key host.example",
+                        "kubectl --kubeconfig kubeconfig get pods",
+                        "helm --kubeconfig=cluster.kubeconfig list",
+                        "gcloud auth activate-service-account --key-file service.json",
+                        "az login --cert cert.pem --key key.pem",
+                        "npm --userconfig .npmrc whoami");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_path_option");
+        }
+    }
+
+    @Test
     void shouldDetectTlsCertificateVerificationBypassCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
