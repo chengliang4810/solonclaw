@@ -385,13 +385,19 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "\\s*=\\s*\\S+|(?:Set-Item|New-Item)\\s+Env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\s+\\S+)"),
+                                                    + "\\s+\\S+|Set-Content\\s+Env:"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s+\\S+|setx\\s+"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "\\s+\\S+|\\[Environment\\]::SetEnvironmentVariable\\(\\s*['\"]?"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "['\"]?\\s*,\\s*[^,)]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
-                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%)(?:"
+                                            "(?:\\bprintenv\\s+|\\becho\\s+\\$|\\becho\\s+%|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+Env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
                                                     + SENSITIVE_ENV_NAME
                                                     + ")%?"),
                                     ToolNameConstants.EXECUTE_SHELL),

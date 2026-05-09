@@ -1415,7 +1415,11 @@ public class DangerousCommandApprovalServiceTest {
                         "echo $JIMUQU_ACCESS_TOKEN",
                         "echo %OPENAI_API_KEY%",
                         "Get-Item Env:OPENAI_API_KEY",
-                        "$env:ANTHROPIC_API_KEY");
+                        "Get-Content Env:OPENAI_API_KEY",
+                        "Write-Output $env:OPENAI_API_KEY",
+                        "echo $env:OPENAI_API_KEY",
+                        "$env:ANTHROPIC_API_KEY",
+                        "[Environment]::GetEnvironmentVariable('OPENAI_API_KEY')");
         for (String command : sensitiveReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -1431,7 +1435,10 @@ public class DangerousCommandApprovalServiceTest {
                         "cmd; GEMINI_API_KEY=secret node app.js",
                         "$env:OPENAI_API_KEY='secret'; node app.js",
                         "Set-Item Env:JIMUQU_ACCESS_TOKEN secret",
-                        "New-Item Env:GEMINI_API_KEY -Value secret");
+                        "New-Item Env:GEMINI_API_KEY -Value secret",
+                        "Set-Content Env:OPENAI_API_KEY secret",
+                        "setx OPENAI_API_KEY secret",
+                        "[Environment]::SetEnvironmentVariable('OPENAI_API_KEY','secret','User')");
         for (String command : inlineAssignments) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
