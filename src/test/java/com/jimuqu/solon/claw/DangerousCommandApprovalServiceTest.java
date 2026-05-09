@@ -2950,6 +2950,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult npmProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "npm config set https-proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult pnpmProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pnpm config set https-proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult yarnProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "yarn config set httpsProxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult pipProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pip config set global.proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult setxProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "setx HTTPS_PROXY http://proxy.example:8080");
         DangerousCommandApprovalService.DetectionResult winHttpProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "netsh winhttp set proxy 127.0.0.1:8080");
@@ -3073,6 +3085,18 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(npmProxyWrite).isNotNull();
         assertThat(npmProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(pnpmProxyWrite).isNotNull();
+        assertThat(pnpmProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(yarnProxyWrite).isNotNull();
+        assertThat(yarnProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(pipProxyWrite).isNotNull();
+        assertThat(pipProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(setxProxyWrite).isNotNull();
+        assertThat(setxProxyWrite.getPatternKey())
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(winHttpProxyWrite).isNotNull();
         assertThat(winHttpProxyWrite.getPatternKey())
