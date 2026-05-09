@@ -12,9 +12,11 @@ import java.io.File;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,6 +52,23 @@ public class CliAttachmentResolver {
             SecurityPolicyService securityPolicyService) {
         this.attachmentCacheService = attachmentCacheService;
         this.securityPolicyService = securityPolicyService;
+    }
+
+    public static Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("pastedLocalPathDetection", Boolean.TRUE);
+        summary.put("fileUriDetection", Boolean.TRUE);
+        summary.put("windowsPathDetection", Boolean.TRUE);
+        summary.put("posixPathDetection", Boolean.TRUE);
+        summary.put("pathPolicyCheckedBeforeCache", Boolean.TRUE);
+        summary.put("credentialPathBlocked", Boolean.TRUE);
+        summary.put("blockedPreviewRedacted", Boolean.TRUE);
+        summary.put("missingPreviewRedacted", Boolean.TRUE);
+        summary.put("rawPathHiddenInPrompt", Boolean.TRUE);
+        summary.put("maxAttachmentPaths", Integer.valueOf(MAX_ATTACHMENT_PATHS));
+        summary.put("maxAttachmentBytes", Long.valueOf(MAX_ATTACHMENT_BYTES));
+        summary.put("description", "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; blocked and missing previews are secret-redacted.");
+        return summary;
     }
 
     public ResolvedInput resolve(String input) {

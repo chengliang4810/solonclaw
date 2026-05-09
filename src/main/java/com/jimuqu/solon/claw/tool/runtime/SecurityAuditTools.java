@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
@@ -227,6 +228,7 @@ public class SecurityAuditTools {
         Map<String, Object> attachmentPolicy = new LinkedHashMap<String, Object>();
         attachmentPolicy.put("downloadIo", BoundedAttachmentIO.policySummary());
         attachmentPolicy.put("mediaCache", new AttachmentCacheService(appConfig).policySummary());
+        attachmentPolicy.put("terminalPaste", CliAttachmentResolver.policySummary());
         coverage.put("attachmentPolicy", attachmentPolicy);
         if (toolResultStorageService != null) {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
@@ -296,6 +298,8 @@ public class SecurityAuditTools {
         coverage.put("mcpRuntimePolicyAuditable", Boolean.TRUE);
         coverage.put("attachmentUrlSafety", Boolean.valueOf(securityPolicyService != null));
         coverage.put("attachmentCachePathSafety", Boolean.TRUE);
+        coverage.put("terminalAttachmentPathSafety", Boolean.valueOf(securityPolicyService != null));
+        coverage.put("terminalAttachmentPreviewRedaction", Boolean.TRUE);
         coverage.put("tirithSecurity", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         if (tirithSecurityService != null) {
             coverage.put("tirithPolicy", tirithSecurityService.policySummary());
@@ -334,6 +338,7 @@ public class SecurityAuditTools {
         addSurface(activeSurfaces, "mcpReloadConfirmation", approvalService != null);
         addSurface(activeSurfaces, "mcpToolChangeNotice", true);
         addSurface(activeSurfaces, "attachmentPolicy", true);
+        addSurface(activeSurfaces, "terminalAttachmentPathSafety", securityPolicyService != null);
         addSurface(activeSurfaces, "tirithSecurity", appConfig.getSecurity().isTirithEnabled());
         addSurface(activeSurfaces, "readOnlyAuditTool", true);
         result.policy.put("activeSurfaces", activeSurfaces);
