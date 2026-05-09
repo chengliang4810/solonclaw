@@ -1134,6 +1134,42 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromPersistedAcpMessageHistoryReplay() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord record = env.sessionRepository.bindNewSession("MEMORY:cli:persisted-acp-secret-history");
+        record.setTitle("Persisted ACP Secret History");
+        record.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser(
+                                        "user api_key=sk-test-acpuserhistory12345"),
+                                ChatMessage.ofAssistant(
+                                        "assistant bearer ghp_acpassistanthistory12345"))));
+        env.sessionRepository.save(record);
+
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":75,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + record.getSessionId()
+                                + "\",\"cwd\":\"D:/projects/jimuqu-agent\"}}");
+
+        assertThat(loaded)
+                .contains("\"id\":75")
+                .contains("\"user_message_chunk\"")
+                .contains("\"agent_message_chunk\"")
+                .contains("api_key=***")
+                .contains("bearer ***")
+                .doesNotContain("sk-test-acpuserhistory12345")
+                .doesNotContain("ghp_acpassistanthistory12345");
+    }
+
+    @Test
     void shouldPageAcpSessionListWithCursorAndLimit() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =

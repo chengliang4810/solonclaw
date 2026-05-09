@@ -1052,7 +1052,7 @@ public class AcpStdioServer {
                             "session_update",
                             "user".equals(role) ? "user_message_chunk" : "agent_message_chunk");
                     update.put("type", update.get("session_update"));
-                    update.put("content", textBlock(text));
+                    update.put("content", textBlock(safeAcpText(text)));
                     updates.add(update);
                 }
             }
