@@ -2146,7 +2146,12 @@ public class DangerousCommandApprovalServiceTest {
                         "yarn config set npmRegistryServer https://mirror.example/npm/",
                         "pip config set global.index-url https://mirror.example/simple",
                         "pip config set global.extra-index-url https://extra.example/simple",
-                        "pip config set global.trusted-host mirror.example");
+                        "pip config set global.trusted-host mirror.example",
+                        "poetry source add internal https://mirror.example/simple",
+                        "poetry source remove internal",
+                        "cargo owner --add deployer crate-name",
+                        "gem sources --add https://mirror.example/rubygems/",
+                        "nuget sources add -Name internal -Source https://nuget.example/v3/index.json");
         for (String command : packageManagerSourceChanges) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);

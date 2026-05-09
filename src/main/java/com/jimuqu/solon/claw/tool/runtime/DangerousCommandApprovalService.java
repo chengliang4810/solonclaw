@@ -495,7 +495,7 @@ public class DangerousCommandApprovalService {
                                     "package_manager_source_change",
                                     "package manager source configuration changed",
                                     pattern(
-                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:registry|npmRegistryServer)\\s+(?!https://registry\\.npmjs\\.org/?(?:\\s|$))\\S+|pip\\s+config\\s+set\\s+(?:global\\.)?(?:index-url|extra-index-url|trusted-host)\\s+\\S+)"),
+                                            "\\b(?:(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:registry|npmRegistryServer)\\s+(?!https://registry\\.npmjs\\.org/?(?:\\s|$))\\S+|pip\\s+config\\s+set\\s+(?:global\\.)?(?:index-url|extra-index-url|trusted-host)\\s+\\S+|poetry\\s+source\\s+(?:add|remove)\\b|cargo\\s+login\\b|cargo\\s+owner\\s+--add\\b|gem\\s+sources\\s+(?:--add|--remove)\\b|nuget\\s+sources\\s+(?:add|update|remove)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_remote_execute",
