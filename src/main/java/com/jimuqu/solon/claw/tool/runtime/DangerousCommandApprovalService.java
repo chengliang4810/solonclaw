@@ -99,6 +99,8 @@ public class DangerousCommandApprovalService {
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
             "(?:authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|x-access-token)";
+    private static final String SENSITIVE_REQUEST_FIELD_NAME =
+            "(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|secret|client[_-]?secret|password|passwd|credential|authorization|auth[_-]?token)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
@@ -439,7 +441,9 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:|(?:--proxy-header=)[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "\\s*:)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
+                                                    + "\\s*:)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\s+@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*[\"']?\\s*=)"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -447,7 +451,14 @@ public class DangerousCommandApprovalService {
                                     "network_credential_send",
                                     "send credential through network command option",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-Credential\\s+\\S"),
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s-u\\s+\\S|\\s--user(?:=|\\s+)\\S|\\s--password(?:=|\\s+)\\S|\\s--http-password(?:=|\\s+)\\S|\\s--proxy-user(?:=|\\s+)\\S|\\s--proxy-password(?:=|\\s+)\\S|\\s--cookie(?:=|\\s+)\\S|\\s-b\\s+\\S+=\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--post-data)(?:=|\\s+)['\"]?[^\\s'\"|;&]*"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "\\s*=\\s*\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
+                                                    + "(?:--auth(?:=|\\s+)\\S+|-a\\s+\\S+)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "\\s*=\\s*\\S+|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:\\s-Credential\\s+\\S|\\s-Body\\s+@\\{[^\\n}]*[\"']?\\s*"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "\\s*[\"']?\\s*=)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "network_credential_file_send",
