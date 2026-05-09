@@ -1084,7 +1084,10 @@ public class SecurityPolicyService {
                     || "--socks4".equals(token)
                     || "--socks4a".equals(token)
                     || "--socks5".equals(token)
-                    || "--socks5-hostname".equals(token)) {
+                    || "--socks5-hostname".equals(token)
+                    || "-Proxy".equalsIgnoreCase(token)
+                    || "-ProxyUri".equalsIgnoreCase(token)
+                    || "-ProxyServer".equalsIgnoreCase(token)) {
                 if (i + 1 < tokens.size()) {
                     value = tokens.get(++i);
                 }
@@ -1112,11 +1115,23 @@ public class SecurityPolicyService {
                 value = token.substring("--socks5-hostname=".length());
             } else if (token.startsWith("-x") && token.length() > 2) {
                 value = token.substring(2);
+            } else if (startsWithProxyOption(token, "-Proxy:")) {
+                value = token.substring("-Proxy:".length());
+            } else if (startsWithProxyOption(token, "-ProxyUri:")) {
+                value = token.substring("-ProxyUri:".length());
+            } else if (startsWithProxyOption(token, "-ProxyServer:")) {
+                value = token.substring("-ProxyServer:".length());
             } else if (isProxyEnvironmentAssignment(token)) {
                 value = token.substring(token.indexOf('=') + 1);
             }
             addProxyHost(value, urls);
         }
+    }
+
+    private boolean startsWithProxyOption(String token, String prefix) {
+        return token != null
+                && token.length() > prefix.length()
+                && token.regionMatches(true, 0, prefix, 0, prefix.length());
     }
 
     private boolean isProxyEnvironmentAssignment(String token) {

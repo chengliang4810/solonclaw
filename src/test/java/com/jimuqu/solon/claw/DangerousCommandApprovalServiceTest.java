@@ -3633,6 +3633,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict schemeProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
+        SecurityPolicyService.UrlVerdict powershellProxyPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "Invoke-WebRequest https://safe.example -Proxy http://127.0.0.1:8080");
+        SecurityPolicyService.UrlVerdict powershellProxyUriMetadata =
+                securityPolicyService.checkCommandUrls(
+                        "Invoke-RestMethod https://safe.example -ProxyUri:http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict powershellProxyServerPrivate =
+                securityPolicyService.checkCommandUrls(
+                        "iwr https://safe.example -ProxyServer http://127.0.0.1:8080");
 
         assertThat(toolArgs.isAllowed()).isFalse();
         assertThat(toolArgs.getMessage()).contains("阻断");
@@ -3690,6 +3699,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(schemeAuthProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyMetadata.isAllowed()).isFalse();
         assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
+        assertThat(powershellProxyPrivate.isAllowed()).isFalse();
+        assertThat(powershellProxyPrivate.getMessage()).contains("内网");
+        assertThat(powershellProxyUriMetadata.isAllowed()).isFalse();
+        assertThat(powershellProxyUriMetadata.getMessage()).contains("元数据");
+        assertThat(powershellProxyServerPrivate.isAllowed()).isFalse();
+        assertThat(powershellProxyServerPrivate.getMessage()).contains("内网");
     }
 
     @Test
