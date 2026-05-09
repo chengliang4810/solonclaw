@@ -1269,6 +1269,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_disable_defender");
         assertDangerPattern(
                 env,
+                "Set-MpPreference -DisableBlockAtFirstSeen $true",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -DisableArchiveScanning 1",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
+                "Set-MpPreference -SubmitSamplesConsent NeverSend",
+                "windows_disable_defender");
+        assertDangerPattern(
+                env,
                 "Add-MpPreference -ExclusionPath C:\\Users\\Public\\Downloads",
                 "windows_defender_exclusion");
         assertDangerPattern(
