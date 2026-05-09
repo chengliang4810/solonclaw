@@ -1307,6 +1307,47 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCodeTlsCertificateVerificationBypass() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        DangerousCommandApprovalService.DetectionResult pythonVerifyFalse =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_python",
+                        "import requests\nrequests.get('https://example.com', verify=False)");
+        DangerousCommandApprovalService.DetectionResult jsRejectUnauthorized =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_js",
+                        "https.request(url, { rejectUnauthorized: false }, cb)");
+        DangerousCommandApprovalService.DetectionResult nodeEnv =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_js",
+                        "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; fetch(url)");
+        DangerousCommandApprovalService.DetectionResult shellPython =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "python -c \"import requests; requests.get('https://example.com', verify=False)\"");
+
+        assertThat(pythonVerifyFalse).isNotNull();
+        assertThat(pythonVerifyFalse.getPatternKey())
+                .isEqualTo("code_tls_certificate_check_disabled");
+        assertThat(jsRejectUnauthorized).isNotNull();
+        assertThat(jsRejectUnauthorized.getPatternKey())
+                .isEqualTo("code_tls_certificate_check_disabled");
+        assertThat(nodeEnv).isNotNull();
+        assertThat(nodeEnv.getPatternKey()).isEqualTo("code_tls_certificate_check_disabled");
+        assertThat(shellPython).isNotNull();
+        assertThat(shellPython.getPatternKey()).isIn(
+                "code_tls_certificate_check_disabled",
+                "script_eval_flag");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "import requests\nrequests.get('https://example.com', verify=True)"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectPlaintextCliPasswordOptionCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

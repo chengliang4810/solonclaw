@@ -369,6 +369,14 @@ public class DangerousCommandApprovalService {
                                             "(?:^|[;&|\\n`])\\s*(?:GIT_SSL_NO_VERIFY\\s*=\\s*(?:true|1|yes)\\s+git\\b|git\\s+-c\\s+http\\.sslVerify\\s*=\\s*false\\b|git\\s+config\\s+(?:--global\\s+)?http\\.sslVerify\\s+false\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "code_tls_certificate_check_disabled",
+                                    "code disables TLS certificate verification",
+                                    pattern(
+                                            "(?:verify\\s*=\\s*False\\b|rejectUnauthorized\\s*[:=]\\s*false\\b|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*['\"]?0['\"]?)"),
+                                    ToolNameConstants.EXECUTE_SHELL,
+                                    ToolNameConstants.EXECUTE_PYTHON,
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(
