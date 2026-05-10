@@ -112,9 +112,9 @@ public class DangerousCommandApprovalService {
             pattern("\\b(?:nohup|disown|setsid)\\b");
     private static final Pattern DETACHED_TERMINAL_SESSION =
             pattern(
-                    "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\s+(?:\"[^\"]*\"\\s+)?/b\\b)");
+                    "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\b(?![^\\n]*\\s/wait\\b))");
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
-            pattern("\\b(?:start-process|start-job|start-threadjob)\\b");
+            pattern("\\b(?:start-process\\b(?![^\\n]*\\s-wait\\b)|start-job|start-threadjob)\\b");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
     private static final Pattern PYTHON_SHELL_EXEC_CALL =

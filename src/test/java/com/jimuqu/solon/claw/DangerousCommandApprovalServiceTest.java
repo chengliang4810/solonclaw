@@ -4406,6 +4406,9 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell",
                         "Start-Process npm -ArgumentList 'run dev' -WindowStyle Hidden");
+        String waitedStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait");
         String startJob =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Job -ScriptBlock { npm run dev }");
@@ -4424,6 +4427,12 @@ public class DangerousCommandApprovalServiceTest {
         String cmdStart =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "cmd /c start \"app\" /B npm run dev");
+        String cmdStartDetached =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "cmd /c start \"app\" npm run dev");
+        String cmdStartWait =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "cmd /c start \"app\" /WAIT npm run build");
         String server =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "python -m http.server 8000");
@@ -4435,12 +4444,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(amp).contains("&");
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
         assertThat(hiddenStartProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(waitedStartProcess).isNull();
         assertThat(startJob).contains("PowerShell").contains("Start-Job");
         assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
         assertThat(tmux).contains("脱离当前终端").contains("tmux");
         assertThat(screen).contains("脱离当前终端").contains("screen");
         assertThat(systemdRun).contains("脱离当前终端").contains("systemd-run");
         assertThat(cmdStart).contains("脱离当前终端").contains("start /B");
+        assertThat(cmdStartDetached).contains("脱离当前终端").contains("start");
+        assertThat(cmdStartWait).isNull();
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
     }
@@ -7796,6 +7808,73 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldHardBlockGatewayShellMetadataUrlsBeforeApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
+        shellArgs.put("command", "curl http://169.254.169.254/latest/meta-data/");
+        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
+        gatewayShell.put("tool_name", "execute_shell_command");
+        gatewayShell.put("tool_args", shellArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayShell);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("元数据");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
+    void shouldBlockGatewayWebfetchWebsitePolicyBeforeApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
+        webfetchArgs.put("url", "https://docs.blocked.example/page");
+        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
+        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_args", webfetchArgs);
+        TestTrace webfetchTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(webfetchTrace, "call_tool", gatewayWebfetch);
+
+        assertThat(webfetchTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(webfetchTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("blocked.example");
+        assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
+
+        Map<String, Object> httpArgs = new LinkedHashMap<String, Object>();
+        httpArgs.put("url", "https://blocked.example/status");
+        Map<String, Object> gatewayHttp = new LinkedHashMap<String, Object>();
+        gatewayHttp.put("tool_name", "http_get");
+        gatewayHttp.put("tool_args", httpArgs);
+        TestTrace httpTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(httpTrace, "call_tool", gatewayHttp);
+
+        assertThat(httpTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(httpTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("blocked.example");
+        assertThat(service.getPendingApproval(httpTrace.session)).isNull();
+    }
+
+    @Test
     void shouldCanonicalizeGatewayToolAliasesForSecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
@@ -7933,6 +8012,32 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(ariaCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(ariaCredentialTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+
+        Map<String, Object> ariaOutputCredentialArgs = new LinkedHashMap<String, Object>();
+        ariaOutputCredentialArgs.put(
+                "code", "aria2c --out=credentials.json https://example.invalid/token");
+        TestTrace ariaOutputCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(ariaOutputCredentialTrace, "execute_shell", ariaOutputCredentialArgs);
+
+        assertThat(ariaOutputCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(ariaOutputCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+
+        Map<String, Object> ariaDirCredentialArgs = new LinkedHashMap<String, Object>();
+        ariaDirCredentialArgs.put(
+                "code", "aria2c --dir .aws https://example.invalid/token");
+        TestTrace ariaDirCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(ariaDirCredentialTrace, "execute_shell", ariaDirCredentialArgs);
+
+        assertThat(ariaDirCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(ariaDirCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
 
         Map<String, Object> archiveCredentialArgs = new LinkedHashMap<String, Object>();
         archiveCredentialArgs.put("command", "tar czf backup.tgz .env");

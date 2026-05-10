@@ -855,8 +855,11 @@ public class SecurityPolicyService {
         String token = cleanUrlToken(raw);
         return "-o".equals(token)
                 || "-O".equals(token)
+                || "-d".equals(token)
                 || "--output".equals(token)
                 || "--output-document".equals(token)
+                || "--out".equals(token)
+                || "--dir".equals(token)
                 || "-outfile".equalsIgnoreCase(token)
                 || "-destination".equalsIgnoreCase(token);
     }
@@ -872,11 +875,20 @@ public class SecurityPolicyService {
         if (token.startsWith("-O") && !token.startsWith("--")) {
             return token.substring(2);
         }
+        if (token.startsWith("-d") && !token.startsWith("--")) {
+            return token.substring(2);
+        }
         if (token.startsWith("--output=")) {
             return token.substring("--output=".length());
         }
         if (token.startsWith("--output-document=")) {
             return token.substring("--output-document=".length());
+        }
+        if (token.startsWith("--out=")) {
+            return token.substring("--out=".length());
+        }
+        if (token.startsWith("--dir=")) {
+            return token.substring("--dir=".length());
         }
         if (startsWithPowerShellOptionValue(token, "-OutFile")) {
             return token.substring("-OutFile".length() + 1);
