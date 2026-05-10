@@ -7808,6 +7808,28 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldHardBlockGatewayShellMetadataUrlsBeforeApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
+        shellArgs.put("command", "curl http://169.254.169.254/latest/meta-data/");
+        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
+        gatewayShell.put("tool_name", "execute_shell_command");
+        gatewayShell.put("tool_args", shellArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayShell);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("元数据");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldCanonicalizeGatewayToolAliasesForSecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
