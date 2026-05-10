@@ -815,6 +815,14 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "remote_archive_extract_execute",
+                                    "download remote archive, extract it, then execute extracted content",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b(?=[^\\n]*(?:https?|ftp)://)(?=[^\\n]*(?:\\s(?:-o|-O|--output|--output-document)(?:=|\\s+)\\S+|>\\s*\\S+\\.(?:tar|tgz|tbz2|txz|zip|gz|bz2|xz)))"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*\\b(?:tar|bsdtar|gtar|unzip)\\b"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "docker_destructive_prune",
                                     "Docker destructive prune",
                                     pattern(
