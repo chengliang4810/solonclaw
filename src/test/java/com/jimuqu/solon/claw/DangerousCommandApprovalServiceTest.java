@@ -1085,6 +1085,10 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsSecurityGroupIngress =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws ec2 authorize-security-group-ingress --group-id sg-123 --cidr 0.0.0.0/0 --port 22");
+        DangerousCommandApprovalService.DetectionResult awsSecurityGroupEgress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "aws ec2 authorize-security-group-egress --group-id sg-123 --cidr 0.0.0.0/0 --port 0");
         DangerousCommandApprovalService.DetectionResult awsStsRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws sts get-caller-identity");
@@ -1397,6 +1401,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsSecurityGroupIngress).isNotNull();
         assertThat(awsSecurityGroupIngress.getPatternKey())
                 .isEqualTo("cloud_network_exposure_change");
+        assertThat(awsSecurityGroupEgress).isNotNull();
+        assertThat(awsSecurityGroupEgress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
         assertThat(awsStsRead).isNull();
         assertThat(gcloudDelete).isNotNull();
         assertThat(gcloudDelete.getPatternKey()).isEqualTo("gcloud_delete");
@@ -1577,6 +1584,14 @@ public class DangerousCommandApprovalServiceTest {
                 env,
                 "wmic process call create \"powershell -NoProfile -Command calc\"",
                 "windows_lolbin_remote_execution");
+        assertDangerPattern(
+                env,
+                "auditpol /set /category:* /success:disable /failure:disable",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "wevtutil sl Security /e:false",
+                "windows_audit_policy_disabled");
         assertDangerPattern(
                 env,
                 "netsh advfirewall set allprofiles state off",
@@ -2124,12 +2139,43 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("cli_access_token_read");
         }
 
+        List<String> kubernetesCredentialConfigReads =
+                Arrays.asList("kubectl config view --raw", "kubectl -n prod config view --raw");
+        for (String command : kubernetesCredentialConfigReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("kubernetes_credential_config_read");
+        }
+
+        List<String> cloudCredentialConfigReads =
+                Arrays.asList(
+                        "aws configure get aws_secret_access_key",
+                        "aws configure get aws_session_token",
+                        "aws configure get credential_process",
+                        "gcloud config get-value auth/credential_file_override",
+                        "az account show --query accessToken");
+        for (String command : cloudCredentialConfigReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("cloud_cli_credential_config_read");
+        }
+
         List<String> cliTokenSafeCommands =
                 Arrays.asList(
                         "aws sts get-caller-identity",
                         "aws configure list",
+                        "aws configure get region",
+                        "gcloud config get-value project",
+                        "az account show --query name",
                         "az acr login --name registry",
                         "kubectl get serviceaccount deployer",
+                        "kubectl config view --minify",
                         "vault token capabilities secret/data/prod",
                         "doctl auth init",
                         "flyctl auth whoami",
@@ -3720,6 +3766,14 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
                         "netsh interface portproxy add v4tov4 listenport=8080 connectaddress=127.0.0.1 connectport=80");
+        DangerousCommandApprovalService.DetectionResult windowsNetRoute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "New-NetRoute -DestinationPrefix 169.254.169.254/32 -InterfaceAlias Ethernet -NextHop 10.0.0.1");
+        DangerousCommandApprovalService.DetectionResult windowsNetNat =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "New-NetNat -Name proxy -InternalIPInterfaceAddressPrefix 10.0.0.0/24");
         DangerousCommandApprovalService.DetectionResult ipRouteShow =
                 env.dangerousCommandApprovalService.detect("execute_shell", "ip route show");
         DangerousCommandApprovalService.DetectionResult projectResolvWrite =
@@ -3867,6 +3921,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsPortProxy).isNotNull();
         assertThat(windowsPortProxy.getPatternKey())
                 .isEqualTo("network_route_or_portproxy_change");
+        assertThat(windowsNetRoute).isNotNull();
+        assertThat(windowsNetRoute.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
+        assertThat(windowsNetNat).isNotNull();
+        assertThat(windowsNetNat.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
         assertThat(ipRouteShow).isNull();
         assertThat(projectResolvWrite).isNull();
         assertThat(gitProxyWrite).isNotNull();

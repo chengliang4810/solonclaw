@@ -279,7 +279,7 @@ public class DangerousCommandApprovalService {
                                     "network_route_or_portproxy_change",
                                     "network route or port proxy changed",
                                     pattern(
-                                            "\\b(?:ip\\s+route\\s+(?:add|replace|del|delete)|route\\s+(?:add|delete|del)|netsh\\s+interface\\s+portproxy\\s+(?:add|delete|del|reset))\\b"),
+                                            "\\b(?:ip\\s+route\\s+(?:add|replace|del|delete)|route\\s+(?:add|delete|del)|netsh\\s+interface\\s+portproxy\\s+(?:add|delete|del|reset)|(?:New|Set|Remove)-NetRoute\\b|(?:New|Set|Remove)-NetNat\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "persistent_proxy_configuration_change",
@@ -456,6 +456,20 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+(?:account\\s+get-access-token|acr\\s+login\\b(?=[^\\n]*--expose-token\\b))|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+(?:get-session-token|get-federation-token)|sso\\s+get-role-credentials|configure\\s+export-credentials)|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
                                                     + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b|aliyun\\s+configure\\s+(?:get|export)\\b|(?:tccli|qcloud)\\s+configure\\s+list\\b|huaweicloud\\s+configure\\s+show\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "kubernetes_credential_config_read",
+                                    "read Kubernetes credential configuration",
+                                    pattern(
+                                            "\\bkubectl"
+                                                    + KUBECTL_OPTION_PREFIX
+                                                    + "\\s+config\\s+view\\b(?=[^\\n]*--raw\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "cloud_cli_credential_config_read",
+                                    "read cloud CLI credential configuration",
+                                    pattern(
+                                            "\\b(?:aws\\s+configure\\s+get\\s+(?:aws_secret_access_key|aws_session_token|credential_process|sso_start_url|sso_role_name|sso_account_id)\\b|gcloud\\s+config\\s+get(?:-value)?\\s+(?:auth/credential_file_override|account)\\b|az\\s+account\\s+show\\b(?=[^\\n]*--query\\s+[^\\n]*(?:accessToken|refreshToken|password|secret|credential|tenantId)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_read",
@@ -947,7 +961,7 @@ public class DangerousCommandApprovalService {
                                     "cloud_network_exposure_change",
                                     "Cloud network exposure rule changed",
                                     pattern(
-                                            "\\b(?:aws\\s+ec2\\s+(?:authorize-security-group-ingress|modify-security-group-rules)\\b|gcloud\\s+compute\\s+firewall-rules\\s+(?:create|update)\\b|az\\s+network\\s+nsg\\s+rule\\s+(?:create|update)\\b|aliyun\\s+ecs\\s+(?:AuthorizeSecurityGroup|ModifySecurityGroupRule)\\b|(?:tccli|qcloud)\\s+cvm\\s+(?:AuthorizeSecurityGroupIngress|ModifySecurityGroupPolicies)\\b|huaweicloud\\s+(?:vpc\\s+AddSecurityGroupRule|ecs\\s+NovaCreateSecurityGroupRule)\\b)"),
+                                            "\\b(?:aws\\s+ec2\\s+(?:authorize-security-group-(?:ingress|egress)|modify-security-group-rules)\\b|gcloud\\s+compute\\s+firewall-rules\\s+(?:create|update)\\b|az\\s+network\\s+nsg\\s+rule\\s+(?:create|update)\\b|aliyun\\s+ecs\\s+(?:AuthorizeSecurityGroup|ModifySecurityGroupRule)\\b|(?:tccli|qcloud)\\s+cvm\\s+(?:AuthorizeSecurityGroupIngress|ModifySecurityGroupPolicies)\\b|huaweicloud\\s+(?:vpc\\s+AddSecurityGroupRule|ecs\\s+NovaCreateSecurityGroupRule)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gcloud_delete",
@@ -1162,6 +1176,12 @@ public class DangerousCommandApprovalService {
                                     "Windows signed binary remote execution",
                                     pattern(
                                             "\\b(?:mshta|regsvr32|rundll32|certutil|bitsadmin|msiexec|installutil|regasm)(?:\\.exe)?\\b(?=[^\\n]*(?:https?://|javascript:|-urlcache\\b|/transfer\\b|scrobj\\.dll|/i\\s+https?://))|\\bwmic(?:\\.exe)?\\s+process\\s+call\\s+create\\b(?=[^\\n]*(?:https?://|powershell|cmd\\s+/c))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_audit_policy_disabled",
+                                    "Windows audit policy or event log disabled",
+                                    pattern(
+                                            "\\b(?:auditpol(?:\\.exe)?\\s+/set\\b(?=[^\\n]*(?:/success\\s*:\\s*disable|/failure\\s*:\\s*disable))|wevtutil(?:\\.exe)?\\s+sl\\s+(?:Security|System|Application)\\b(?=[^\\n]*(?:/e\\s*:\\s*false|/enabled\\s*:\\s*false)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_disable_firewall",
