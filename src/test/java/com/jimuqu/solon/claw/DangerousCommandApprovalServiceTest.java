@@ -6953,6 +6953,12 @@ public class DangerousCommandApprovalServiceTest {
 
         payload.put(DangerousCommandApprovalService.CARD_ACTION_KEY, "dangerous_approve_all");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123 always");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
     }
 
     @Test

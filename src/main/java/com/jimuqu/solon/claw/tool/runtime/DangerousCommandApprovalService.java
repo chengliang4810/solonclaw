@@ -2392,6 +2392,9 @@ public class DangerousCommandApprovalService {
         String action = safeCardToken(map.get(CARD_ACTION_KEY)).toLowerCase(Locale.ROOT);
         String approvalId =
                 safeCardToken(map.get(CARD_APPROVAL_ID_KEY));
+        if (containsWhitespace(approvalId)) {
+            return null;
+        }
         if (CARD_ACTION_DENY.equals(action)) {
             return StrUtil.isBlank(approvalId) ? "/deny" : "/deny " + approvalId;
         }
@@ -2414,6 +2417,18 @@ public class DangerousCommandApprovalService {
         return SecretRedactor.stripDisplayControls(
                         TerminalAnsiSanitizer.stripAnsi(stringValueStatic(value)))
                 .trim();
+    }
+
+    private static boolean containsWhitespace(String value) {
+        if (StrUtil.isBlank(value)) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isWhitespace(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
