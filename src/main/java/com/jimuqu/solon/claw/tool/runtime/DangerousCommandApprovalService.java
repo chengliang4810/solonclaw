@@ -458,6 +458,14 @@ public class DangerousCommandApprovalService {
                                                     + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b|aliyun\\s+configure\\s+(?:get|export)\\b|(?:tccli|qcloud)\\s+configure\\s+list\\b|huaweicloud\\s+configure\\s+show\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "kubernetes_credential_config_read",
+                                    "read Kubernetes credential configuration",
+                                    pattern(
+                                            "\\bkubectl"
+                                                    + KUBECTL_OPTION_PREFIX
+                                                    + "\\s+config\\s+view\\b(?=[^\\n]*--raw\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "secret_store_read",
                                     "read secret manager value",
                                     pattern(

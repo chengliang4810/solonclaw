@@ -2124,12 +2124,24 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("cli_access_token_read");
         }
 
+        List<String> kubernetesCredentialConfigReads =
+                Arrays.asList("kubectl config view --raw", "kubectl -n prod config view --raw");
+        for (String command : kubernetesCredentialConfigReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("kubernetes_credential_config_read");
+        }
+
         List<String> cliTokenSafeCommands =
                 Arrays.asList(
                         "aws sts get-caller-identity",
                         "aws configure list",
                         "az acr login --name registry",
                         "kubectl get serviceaccount deployer",
+                        "kubectl config view --minify",
                         "vault token capabilities secret/data/prod",
                         "doctl auth init",
                         "flyctl auth whoami",
