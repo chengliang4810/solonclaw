@@ -7934,6 +7934,32 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(ariaCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(ariaCredentialTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
+        Map<String, Object> ariaOutputCredentialArgs = new LinkedHashMap<String, Object>();
+        ariaOutputCredentialArgs.put(
+                "code", "aria2c --out=credentials.json https://example.invalid/token");
+        TestTrace ariaOutputCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(ariaOutputCredentialTrace, "execute_shell", ariaOutputCredentialArgs);
+
+        assertThat(ariaOutputCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(ariaOutputCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+
+        Map<String, Object> ariaDirCredentialArgs = new LinkedHashMap<String, Object>();
+        ariaDirCredentialArgs.put(
+                "code", "aria2c --dir .aws https://example.invalid/token");
+        TestTrace ariaDirCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(ariaDirCredentialTrace, "execute_shell", ariaDirCredentialArgs);
+
+        assertThat(ariaDirCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(ariaDirCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+
         Map<String, Object> archiveCredentialArgs = new LinkedHashMap<String, Object>();
         archiveCredentialArgs.put("command", "tar czf backup.tgz .env");
         Map<String, Object> gatewayArchiveCredential = new LinkedHashMap<String, Object>();
