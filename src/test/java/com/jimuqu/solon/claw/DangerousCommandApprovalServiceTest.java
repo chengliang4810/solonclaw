@@ -4409,6 +4409,12 @@ public class DangerousCommandApprovalServiceTest {
         String waitedStartProcess =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait");
+        String waitedTrueStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait:$true");
+        String waitFalseStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait:$false");
         String startJob =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Job -ScriptBlock { npm run dev }");
@@ -4445,6 +4451,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
         assertThat(hiddenStartProcess).contains("PowerShell").contains("Start-Process");
         assertThat(waitedStartProcess).isNull();
+        assertThat(waitedTrueStartProcess).isNull();
+        assertThat(waitFalseStartProcess).contains("PowerShell").contains("Start-Process");
         assertThat(startJob).contains("PowerShell").contains("Start-Job");
         assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
         assertThat(tmux).contains("脱离当前终端").contains("tmux");

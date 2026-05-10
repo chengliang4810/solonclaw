@@ -114,7 +114,11 @@ public class DangerousCommandApprovalService {
             pattern(
                     "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\b(?![^\\n]*\\s/wait\\b))");
     private static final Pattern POWERSHELL_BACKGROUND_JOB =
-            pattern("\\b(?:start-process\\b(?![^\\n]*\\s-wait\\b)|start-job|start-threadjob)\\b");
+            pattern("\\b(?:start-process|start-job|start-threadjob)\\b");
+    private static final Pattern POWERSHELL_WAIT_TRUE_FLAG =
+            pattern("\\s-wait(?:\\s|$|:(?:\\$?true|1)\\b|=(?:\\$?true|1)\\b)");
+    private static final Pattern POWERSHELL_WAIT_FALSE_FLAG =
+            pattern("\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b)");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
     private static final Pattern PYTHON_SHELL_EXEC_CALL =
@@ -1874,7 +1878,7 @@ public class DangerousCommandApprovalService {
         if (DETACHED_TERMINAL_SESSION.matcher(normalized).find()) {
             return "BLOCKED: 前台命令使用了脱离当前终端的会话启动器（tmux/screen/systemd-run/start /B）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出。";
         }
-        if (POWERSHELL_BACKGROUND_JOB.matcher(normalized).find()) {
+        if (isPowerShellBackgroundLaunch(normalized)) {
             return "BLOCKED: 前台命令使用了 PowerShell 后台启动命令（Start-Process/Start-Job/Start-ThreadJob）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
         }
         if (INLINE_BACKGROUND_AMP.matcher(normalized).find()
@@ -1887,6 +1891,17 @@ public class DangerousCommandApprovalService {
             }
         }
         return null;
+    }
+
+    private boolean isPowerShellBackgroundLaunch(String normalized) {
+        if (!POWERSHELL_BACKGROUND_JOB.matcher(normalized).find()) {
+            return false;
+        }
+        if (!pattern("\\bstart-process\\b").matcher(normalized).find()) {
+            return true;
+        }
+        return POWERSHELL_WAIT_FALSE_FLAG.matcher(normalized).find()
+                || !POWERSHELL_WAIT_TRUE_FLAG.matcher(normalized).find();
     }
 
     public Map<String, Object> approvalPolicySummary() {
