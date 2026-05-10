@@ -118,7 +118,7 @@ public class DangerousCommandApprovalService {
     private static final Pattern POWERSHELL_WAIT_TRUE_FLAG =
             pattern("\\s-wait(?:\\s|$|:(?:\\$?true|1)\\b|=(?:\\$?true|1)\\b)");
     private static final Pattern POWERSHELL_WAIT_FALSE_FLAG =
-            pattern("\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b)");
+            pattern("\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b|\\s+(?:\\$?false|0)\\b)");
     private static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
     private static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
     private static final Pattern PYTHON_SHELL_EXEC_CALL =
