@@ -1579,6 +1579,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_lolbin_remote_execution");
         assertDangerPattern(
                 env,
+                "auditpol /set /category:* /success:disable /failure:disable",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
+                "wevtutil sl Security /e:false",
+                "windows_audit_policy_disabled");
+        assertDangerPattern(
+                env,
                 "netsh advfirewall set allprofiles state off",
                 "windows_disable_firewall");
         assertDangerPattern(
