@@ -907,6 +907,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerCapAddSysAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --cap-add SYS_ADMIN alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCapAddNetAdmin =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cap-add=NET_ADMIN alpine");
+        DangerousCommandApprovalService.DetectionResult podmanCapAddSysPtrace =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --cap-add SYS_PTRACE alpine");
+        DangerousCommandApprovalService.DetectionResult nerdctlCapAddSysModule =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl run --cap-add SYS_MODULE alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCapDropAll =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cap-drop ALL alpine");
         DangerousCommandApprovalService.DetectionResult podmanSeccompUnconfined =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run --security-opt seccomp=unconfined alpine");
@@ -916,6 +928,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerIpcHost =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --ipc=host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCgroupnsHost =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cgroupns=host alpine");
+        DangerousCommandApprovalService.DetectionResult podmanUsernsHost =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --userns host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerWindowsPipeMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run -v //./pipe/docker_engine://./pipe/docker_engine app");
         DangerousCommandApprovalService.DetectionResult podmanPrivileged =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run --privileged alpine");
@@ -1276,6 +1297,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerCapAddSysAdmin).isNotNull();
         assertThat(dockerCapAddSysAdmin.getPatternKey())
                 .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCapAddNetAdmin).isNotNull();
+        assertThat(dockerCapAddNetAdmin.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanCapAddSysPtrace).isNotNull();
+        assertThat(podmanCapAddSysPtrace.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(nerdctlCapAddSysModule).isNotNull();
+        assertThat(nerdctlCapAddSysModule.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCapDropAll).isNull();
         assertThat(podmanSeccompUnconfined).isNotNull();
         assertThat(podmanSeccompUnconfined.getPatternKey())
                 .isEqualTo("docker_privileged_or_host_mount");
@@ -1283,6 +1314,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(nerdctlDevice.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerIpcHost).isNotNull();
         assertThat(dockerIpcHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCgroupnsHost).isNotNull();
+        assertThat(dockerCgroupnsHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanUsernsHost).isNotNull();
+        assertThat(podmanUsernsHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerWindowsPipeMount).isNotNull();
+        assertThat(dockerWindowsPipeMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(podmanPrivileged).isNotNull();
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
@@ -2118,6 +2155,9 @@ public class DangerousCommandApprovalServiceTest {
                         "aws codeartifact get-authorization-token --domain internal",
                         "aws sts get-session-token",
                         "aws sts get-federation-token --name deployer",
+                        "aws sts assume-role --role-arn arn --role-session-name deployer",
+                        "aws sts assume-role-with-web-identity --role-arn arn --web-identity-token token",
+                        "aws sts assume-role-with-saml --role-arn arn --saml-assertion assertion",
                         "aws sso get-role-credentials --account-id 123 --role-name Admin",
                         "aws configure export-credentials --profile prod",
                         "az acr login --name registry --expose-token",
@@ -2192,6 +2232,8 @@ public class DangerousCommandApprovalServiceTest {
         List<String> secretStoreReads =
                 Arrays.asList(
                         "aws secretsmanager get-secret-value --secret-id prod/db",
+                        "aws ssm get-parameter --name /prod/db/password --with-decryption",
+                        "aws ssm get-parameters --names /prod/db/password --with-decryption",
                         "gcloud secrets versions access latest --secret prod-db",
                         "az keyvault secret show --vault-name prod --name db-password",
                         "aliyun kms GetSecretValue --SecretName prod-db",
@@ -2244,7 +2286,8 @@ public class DangerousCommandApprovalServiceTest {
                         "docker secret --help",
                         "docker compose config --services",
                         "docker compose config --images",
-                        "podman compose config --services");
+                        "podman compose config --services",
+                        "aws ssm get-parameter --name /prod/db/password");
         for (String command : secretStoreSafeReads) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)
@@ -2630,7 +2673,15 @@ public class DangerousCommandApprovalServiceTest {
                         "bun create vite app",
                         "bunx create-vite app",
                         "deno run https://example.invalid/install.ts",
-                        "deno run jsr:@scope/tool");
+                        "deno run jsr:@scope/tool",
+                        "npm install https://example.invalid/pkg.tgz",
+                        "pnpm add git+https://example.invalid/pkg.git",
+                        "yarn add github:owner/pkg",
+                        "bun add gitlab:owner/pkg",
+                        "pip install git+https://example.invalid/tool.git",
+                        "pip3 install https://example.invalid/pkg-1.0.0.tar.gz",
+                        "cargo install --git https://example.invalid/tool.git",
+                        "go install example.invalid/tool@latest");
         for (String command : packageManagerRemoteExecutes) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2655,6 +2706,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "gh auth status"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "pip install requests"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "npm install lodash"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "go install ./cmd/tool"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
