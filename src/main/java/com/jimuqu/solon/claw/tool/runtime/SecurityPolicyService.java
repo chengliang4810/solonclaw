@@ -248,6 +248,8 @@ public class SecurityPolicyService {
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
     private static final Pattern IPV4_CIDR_TOKEN_PATTERN =
             Pattern.compile("^(?:\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$");
+    private static final Pattern IPV6_CIDR_TOKEN_PATTERN =
+            Pattern.compile("^\\[[0-9a-fA-F:.%]+\\]/\\d{1,3}$|^[0-9a-fA-F:.%]*:[0-9a-fA-F:.%]*/\\d{1,3}$");
     private static final Pattern BARE_HOST_TOKEN_PATTERN =
             Pattern.compile(
                     "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
@@ -809,7 +811,9 @@ public class SecurityPolicyService {
     }
 
     private boolean isNetworkToolToken(String token) {
-        return "curl".equalsIgnoreCase(token) || "wget".equalsIgnoreCase(token);
+        return "curl".equalsIgnoreCase(token)
+                || "wget".equalsIgnoreCase(token)
+                || "aria2c".equalsIgnoreCase(token);
     }
 
     private String networkCredentialShortOptionValue(String token) {
@@ -852,7 +856,9 @@ public class SecurityPolicyService {
         return "-o".equals(token)
                 || "-O".equals(token)
                 || "--output".equals(token)
-                || "--output-document".equals(token);
+                || "--output-document".equals(token)
+                || "-outfile".equalsIgnoreCase(token)
+                || "-destination".equalsIgnoreCase(token);
     }
 
     private String compactOutputOptionPath(String raw) {
@@ -872,7 +878,19 @@ public class SecurityPolicyService {
         if (token.startsWith("--output-document=")) {
             return token.substring("--output-document=".length());
         }
+        if (startsWithPowerShellOptionValue(token, "-OutFile")) {
+            return token.substring("-OutFile".length() + 1);
+        }
+        if (startsWithPowerShellOptionValue(token, "-Destination")) {
+            return token.substring("-Destination".length() + 1);
+        }
         return "";
+    }
+
+    private boolean startsWithPowerShellOptionValue(String token, String option) {
+        return token.length() > option.length() + 1
+                && token.regionMatches(true, 0, option, 0, option.length())
+                && (token.charAt(option.length()) == ':' || token.charAt(option.length()) == '=');
     }
 
     public UrlVerdict checkCommandUrls(String command) {
@@ -1136,10 +1154,11 @@ public class SecurityPolicyService {
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
+        boolean fetchContext = hasBareHostFetchContext(text);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             String value = matcher.group();
-            if (!isCidrRangeToken(value)) {
+            if (!isCidrRangeToken(value) || fetchContext) {
                 urls.add(value);
             }
         }
@@ -1148,7 +1167,9 @@ public class SecurityPolicyService {
     }
 
     private boolean isCidrRangeToken(String value) {
-        return IPV4_CIDR_TOKEN_PATTERN.matcher(cleanUrlToken(value)).matches();
+        String token = cleanUrlToken(value);
+        return IPV4_CIDR_TOKEN_PATTERN.matcher(token).matches()
+                || IPV6_CIDR_TOKEN_PATTERN.matcher(token).matches();
     }
 
     private void extractProxyHosts(String text, List<String> urls) {
