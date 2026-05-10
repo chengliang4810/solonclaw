@@ -848,7 +848,7 @@ public class DangerousCommandApprovalService {
                                     "download remote file, then execute it",
                                     pattern(
                                             "\\b(?:curl|wget)\\b(?=[^\\n]*(?:https?|ftp)://)(?=[^\\n]*(?:\\s(?:-o|-O|--output|--output-document)(?:=|\\s+)\\S+|>\\s*\\S+))"
-                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:chmod\\s+\\+x\\s+[^\\s;&|]+\\s*(?:&&|;|\\|\\|)\\s*)?(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:source|\\.)\\s+[^\\s;&|]+|(?:chmod\\s+\\+x\\s+[^\\s;&|]+\\s*(?:&&|;|\\|\\|)\\s*)?(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "docker_destructive_prune",
