@@ -6790,6 +6790,9 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict resolveMetadata =
                 securityPolicyService.checkCommandUrls(
                         "curl --resolve safe.example:443:169.254.169.254 https://safe.example/");
+        SecurityPolicyService.UrlVerdict cloudCidr =
+                securityPolicyService.checkCommandUrls(
+                        "gcloud compute firewall-rules create open-ssh --allow tcp:22 --source-ranges 0.0.0.0/0");
         SecurityPolicyService.UrlVerdict python =
                 securityPolicyService.checkCommandUrls(
                         "requests.get('https://blocked.example/api?token=secret123');");
@@ -6801,6 +6804,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(connectToMetadata.getMessage()).contains("元数据");
         assertThat(resolveMetadata.isAllowed()).isFalse();
         assertThat(resolveMetadata.getMessage()).contains("元数据");
+        assertThat(cloudCidr.isAllowed()).isTrue();
         assertThat(
                         com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
                                 metadata.getUrl()))
@@ -7766,7 +7770,7 @@ public class DangerousCommandApprovalServiceTest {
                 "terraform_state_sensitive_read");
         assertGatewayCommandApproval(
                 service,
-                "gcloud compute firewall-rules create open-ssh --allow tcp:22",
+                "gcloud compute firewall-rules create open-ssh --allow tcp:22 --source-ranges 0.0.0.0/0",
                 "cloud_network_exposure_change");
     }
 
