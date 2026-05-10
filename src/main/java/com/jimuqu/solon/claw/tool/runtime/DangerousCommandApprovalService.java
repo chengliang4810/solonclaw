@@ -2389,10 +2389,9 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String action = stringValueStatic(map.get(CARD_ACTION_KEY)).toLowerCase(Locale.ROOT);
+        String action = safeCardToken(map.get(CARD_ACTION_KEY)).toLowerCase(Locale.ROOT);
         String approvalId =
-                SecretRedactor.stripDisplayControls(stringValueStatic(map.get(CARD_APPROVAL_ID_KEY)))
-                        .trim();
+                safeCardToken(map.get(CARD_APPROVAL_ID_KEY));
         if (CARD_ACTION_DENY.equals(action)) {
             return StrUtil.isBlank(approvalId) ? "/deny" : "/deny " + approvalId;
         }
@@ -2400,7 +2399,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String scope = stringValueStatic(map.get(CARD_SCOPE_KEY)).toLowerCase(Locale.ROOT);
+        String scope = safeCardToken(map.get(CARD_SCOPE_KEY)).toLowerCase(Locale.ROOT);
         String selector = StrUtil.isBlank(approvalId) ? "" : approvalId + " ";
         if ("always".equals(scope)) {
             return "/approve " + selector + "always";
@@ -2409,6 +2408,12 @@ public class DangerousCommandApprovalService {
             return "/approve " + selector + "session";
         }
         return StrUtil.isBlank(approvalId) ? "/approve" : "/approve " + approvalId;
+    }
+
+    private static String safeCardToken(Object value) {
+        return SecretRedactor.stripDisplayControls(
+                        TerminalAnsiSanitizer.stripAnsi(stringValueStatic(value)))
+                .trim();
     }
 
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {

@@ -6943,6 +6943,16 @@ public class DangerousCommandApprovalServiceTest {
                 DangerousCommandApprovalService.CARD_ACTION_DENY);
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isEqualTo("/deny approval-123");
+
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                "  " + DangerousCommandApprovalService.CARD_ACTION_APPROVE + "\u001B[0m ");
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, " SESSION\u202E ");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
+                .isEqualTo("/approve approval-123 session");
+
+        payload.put(DangerousCommandApprovalService.CARD_ACTION_KEY, "dangerous_approve_all");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
     }
 
     @Test
