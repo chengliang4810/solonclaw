@@ -2631,6 +2631,10 @@ public class DangerousCommandApprovalServiceTest {
                         "bunx create-vite app",
                         "deno run https://example.invalid/install.ts",
                         "deno run jsr:@scope/tool",
+                        "npm install https://example.invalid/pkg.tgz",
+                        "pnpm add git+https://example.invalid/pkg.git",
+                        "yarn add github:owner/pkg",
+                        "bun add gitlab:owner/pkg",
                         "pip install git+https://example.invalid/tool.git",
                         "pip3 install https://example.invalid/pkg-1.0.0.tar.gz",
                         "cargo install --git https://example.invalid/tool.git",
@@ -2661,6 +2665,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "kubectl get pods"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "pip install requests"))
+                .isNull();
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "npm install lodash"))
                 .isNull();
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "go install ./cmd/tool"))
                 .isNull();
