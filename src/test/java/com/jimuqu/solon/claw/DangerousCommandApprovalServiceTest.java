@@ -4402,6 +4402,10 @@ public class DangerousCommandApprovalServiceTest {
         String startProcess =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Process npm -ArgumentList 'run dev'");
+        String hiddenStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell",
+                        "Start-Process npm -ArgumentList 'run dev' -WindowStyle Hidden");
         String startJob =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Job -ScriptBlock { npm run dev }");
@@ -4430,6 +4434,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(nohup).contains("nohup");
         assertThat(amp).contains("&");
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(hiddenStartProcess).contains("PowerShell").contains("Start-Process");
         assertThat(startJob).contains("PowerShell").contains("Start-Job");
         assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
         assertThat(tmux).contains("脱离当前终端").contains("tmux");
