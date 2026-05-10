@@ -2135,10 +2135,29 @@ public class DangerousCommandApprovalServiceTest {
                     .isEqualTo("kubernetes_credential_config_read");
         }
 
+        List<String> cloudCredentialConfigReads =
+                Arrays.asList(
+                        "aws configure get aws_secret_access_key",
+                        "aws configure get aws_session_token",
+                        "aws configure get credential_process",
+                        "gcloud config get-value auth/credential_file_override",
+                        "az account show --query accessToken");
+        for (String command : cloudCredentialConfigReads) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("cloud_cli_credential_config_read");
+        }
+
         List<String> cliTokenSafeCommands =
                 Arrays.asList(
                         "aws sts get-caller-identity",
                         "aws configure list",
+                        "aws configure get region",
+                        "gcloud config get-value project",
+                        "az account show --query name",
                         "az acr login --name registry",
                         "kubectl get serviceaccount deployer",
                         "kubectl config view --minify",
