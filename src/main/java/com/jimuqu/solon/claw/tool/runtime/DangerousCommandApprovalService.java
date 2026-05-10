@@ -351,6 +351,13 @@ public class DangerousCommandApprovalService {
                                     pattern("\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "encoded_payload_execute",
+                                    "decode encoded payload, then execute it",
+                                    pattern(
+                                            "\\b(?:(?:base64\\s+(?:-[^\\s]*d[^\\s]*|--decode)\\b|openssl\\s+enc\\s+-[A-Za-z0-9-]*d[A-Za-z0-9-]*\\b|certutil(?:\\.exe)?\\s+-decode\\b)[^\\n]*(?:>|-out\\s+|\\s+)[^\\s;&|]+|FromBase64String\\s*\\([^\\n]*\\)[^\\n]*(?:Set-Content|Out-File))"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|pwsh|powershell(?:\\.exe)?|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:chmod\\s+\\+x\\s+[^\\s;&|]+\\s*(?:&&|;|\\|\\|)\\s*)?(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "ssh_config_trust_weaken",
                                     "SSH config trust weakened",
                                     pattern(
@@ -435,6 +442,12 @@ public class DangerousCommandApprovalService {
                                             "(?:\\bprintenv\\s+|\\becho\\s+\\$\\{?|\\becho\\s+%|\\becho\\s+!|\\bprintf\\b[^\\n|;&]*(?:\\$\\{?|!)|\\b(?:Get-Item|Get-Content|Get-ChildItem|gci|dir|ls)\\s+(?:-[A-Za-z]+\\s+)*Env:|\\$\\{env:|\\$env:|%|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)(?:"
                                                     + SENSITIVE_ENV_NAME
                                                     + ")(?:%|\\}|!)?"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "linux_credential_material_dump",
+                                    "Linux credential or process memory material dumped",
+                                    pattern(
+                                            "\\b(?:gcore\\b[^\\n]*\\b\\d+\\b|coredumpctl\\s+(?:dump|debug)\\b|dd\\b[^\\n]*\\bif=[\"']?/proc/(?:self|\\d+)/mem\\b|cat\\s+[^\\n]*/proc/(?:self|\\d+)/mem\\b|unshadow\\s+/etc/passwd\\s+/etc/shadow\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cli_access_token_read",
@@ -809,6 +822,21 @@ public class DangerousCommandApprovalService {
                                     ToolNameConstants.EXECUTE_PYTHON,
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
+                                    "remote_archive_extract_execute",
+                                    "download remote archive, extract it, then execute extracted content",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b(?=[^\\n]*(?:https?|ftp)://)(?=[^\\n]*(?:\\s(?:-o|-O|--output|--output-document)(?:=|\\s+)\\S+|>\\s*\\S+\\.(?:tar|tgz|tbz2|txz|zip|gz|bz2|xz)))"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*\\b(?:tar|bsdtar|gtar|unzip)\\b"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "remote_download_execute",
+                                    "download remote file, then execute it",
+                                    pattern(
+                                            "\\b(?:curl|wget)\\b(?=[^\\n]*(?:https?|ftp)://)(?=[^\\n]*(?:\\s(?:-o|-O|--output|--output-document)(?:=|\\s+)\\S+|>\\s*\\S+))"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:chmod\\s+\\+x\\s+[^\\s;&|]+\\s*(?:&&|;|\\|\\|)\\s*)?(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "docker_destructive_prune",
                                     "Docker destructive prune",
                                     pattern(
@@ -1176,6 +1204,12 @@ public class DangerousCommandApprovalService {
                                     "Windows credential or certificate export",
                                     pattern(
                                             "\\b(?:Export-PfxCertificate|Export-Clixml\\b[^\\n]*(?:credential|secret|token|password)|Get-Credential\\b[^\\n]*\\|[^\\n]*Export-Clixml)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "windows_credential_material_dump",
+                                    "Windows credential material dumped",
+                                    pattern(
+                                            "\\b(?:procdump(?:64)?(?:\\.exe)?\\b[^\\n]*\\blsass(?:\\.exe)?\\b|rundll32(?:\\.exe)?\\s+comsvcs\\.dll,\\s*MiniDump\\b[^\\n]*\\blsass\\b|reg(?:\\.exe)?\\s+save\\s+HKLM\\\\(?:SAM|SECURITY|SYSTEM)\\b|ntdsutil(?:\\.exe)?\\b[^\\n]*(?:ifm|create\\s+full|activate\\s+instance\\s+ntds)|esentutl(?:\\.exe)?\\b[^\\n]*(?:ntds\\.dit|\\\\SAM\\b|\\\\SECURITY\\b|\\\\SYSTEM\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "windows_credential_manager_read",
