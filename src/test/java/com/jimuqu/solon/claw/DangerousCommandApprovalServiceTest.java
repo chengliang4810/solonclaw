@@ -5269,6 +5269,10 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkToolArgs("websearch", args);
         SecurityPolicyService.UrlVerdict command =
                 securityPolicyService.checkCommandUrls("curl 169.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict cidrCommand =
+                securityPolicyService.checkCommandUrls("curl 169.254.169.254/32");
+        SecurityPolicyService.UrlVerdict ipv6CidrCommand =
+                securityPolicyService.checkCommandUrls("curl [fd00:ec2::254]/128");
         SecurityPolicyService.UrlVerdict resolvePrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --resolve safe.example:443:127.0.0.1 https://safe.example/");
@@ -5427,6 +5431,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(toolArgs.getMessage()).contains("阻断");
         assertThat(command.isAllowed()).isFalse();
         assertThat(command.getMessage()).contains("元数据");
+        assertThat(cidrCommand.isAllowed()).isFalse();
+        assertThat(cidrCommand.getMessage()).contains("元数据");
+        assertThat(ipv6CidrCommand.isAllowed()).isFalse();
+        assertThat(ipv6CidrCommand.getMessage()).contains("元数据");
         assertThat(resolvePrivate.isAllowed()).isFalse();
         assertThat(resolvePrivate.getMessage()).contains("内网");
         assertThat(resolveIpv6Private.isAllowed()).isFalse();

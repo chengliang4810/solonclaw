@@ -1138,10 +1138,11 @@ public class SecurityPolicyService {
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
+        boolean fetchContext = hasBareHostFetchContext(text);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             String value = matcher.group();
-            if (!isCidrRangeToken(value)) {
+            if (!isCidrRangeToken(value) || fetchContext) {
                 urls.add(value);
             }
         }
