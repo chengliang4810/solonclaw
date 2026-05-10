@@ -7896,6 +7896,34 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(bitsCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(bitsCredentialTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
+        Map<String, Object> compactOutFileCredentialArgs = new LinkedHashMap<String, Object>();
+        compactOutFileCredentialArgs.put(
+                "code",
+                "Invoke-WebRequest https://example.invalid/config -OutFile:.env");
+        TestTrace compactOutFileCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(compactOutFileCredentialTrace, "execute_shell", compactOutFileCredentialArgs);
+
+        assertThat(compactOutFileCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(compactOutFileCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+
+        Map<String, Object> compactBitsCredentialArgs = new LinkedHashMap<String, Object>();
+        compactBitsCredentialArgs.put(
+                "code",
+                "Start-BitsTransfer -Source https://example.invalid/token -Destination=credentials.json");
+        TestTrace compactBitsCredentialTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(compactBitsCredentialTrace, "execute_shell", compactBitsCredentialArgs);
+
+        assertThat(compactBitsCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(compactBitsCredentialTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("凭据");
+
         Map<String, Object> ariaCredentialArgs = new LinkedHashMap<String, Object>();
         ariaCredentialArgs.put(
                 "code", "aria2c --load-cookies cookies.txt https://example.invalid/private");

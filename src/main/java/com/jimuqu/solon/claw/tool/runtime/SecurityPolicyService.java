@@ -856,7 +856,9 @@ public class SecurityPolicyService {
         return "-o".equals(token)
                 || "-O".equals(token)
                 || "--output".equals(token)
-                || "--output-document".equals(token);
+                || "--output-document".equals(token)
+                || "-outfile".equalsIgnoreCase(token)
+                || "-destination".equalsIgnoreCase(token);
     }
 
     private String compactOutputOptionPath(String raw) {
@@ -876,7 +878,19 @@ public class SecurityPolicyService {
         if (token.startsWith("--output-document=")) {
             return token.substring("--output-document=".length());
         }
+        if (startsWithPowerShellOptionValue(token, "-OutFile")) {
+            return token.substring("-OutFile".length() + 1);
+        }
+        if (startsWithPowerShellOptionValue(token, "-Destination")) {
+            return token.substring("-Destination".length() + 1);
+        }
         return "";
+    }
+
+    private boolean startsWithPowerShellOptionValue(String token, String option) {
+        return token.length() > option.length() + 1
+                && token.regionMatches(true, 0, option, 0, option.length())
+                && (token.charAt(option.length()) == ':' || token.charAt(option.length()) == '=');
     }
 
     public UrlVerdict checkCommandUrls(String command) {
