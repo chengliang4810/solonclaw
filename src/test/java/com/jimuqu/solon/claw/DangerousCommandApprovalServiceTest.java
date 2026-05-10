@@ -907,6 +907,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerCapAddSysAdmin =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --cap-add SYS_ADMIN alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCapAddNetAdmin =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cap-add=NET_ADMIN alpine");
+        DangerousCommandApprovalService.DetectionResult podmanCapAddSysPtrace =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --cap-add SYS_PTRACE alpine");
+        DangerousCommandApprovalService.DetectionResult nerdctlCapAddSysModule =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "nerdctl run --cap-add SYS_MODULE alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCapDropAll =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cap-drop ALL alpine");
         DangerousCommandApprovalService.DetectionResult podmanSeccompUnconfined =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run --security-opt seccomp=unconfined alpine");
@@ -916,6 +928,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerIpcHost =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker run --ipc=host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerCgroupnsHost =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run --cgroupns=host alpine");
+        DangerousCommandApprovalService.DetectionResult podmanUsernsHost =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "podman run --userns host alpine");
+        DangerousCommandApprovalService.DetectionResult dockerWindowsPipeMount =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker run -v //./pipe/docker_engine://./pipe/docker_engine app");
         DangerousCommandApprovalService.DetectionResult podmanPrivileged =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "podman run --privileged alpine");
@@ -1276,6 +1297,16 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerCapAddSysAdmin).isNotNull();
         assertThat(dockerCapAddSysAdmin.getPatternKey())
                 .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCapAddNetAdmin).isNotNull();
+        assertThat(dockerCapAddNetAdmin.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanCapAddSysPtrace).isNotNull();
+        assertThat(podmanCapAddSysPtrace.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(nerdctlCapAddSysModule).isNotNull();
+        assertThat(nerdctlCapAddSysModule.getPatternKey())
+                .isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCapDropAll).isNull();
         assertThat(podmanSeccompUnconfined).isNotNull();
         assertThat(podmanSeccompUnconfined.getPatternKey())
                 .isEqualTo("docker_privileged_or_host_mount");
@@ -1283,6 +1314,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(nerdctlDevice.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(dockerIpcHost).isNotNull();
         assertThat(dockerIpcHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerCgroupnsHost).isNotNull();
+        assertThat(dockerCgroupnsHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(podmanUsernsHost).isNotNull();
+        assertThat(podmanUsernsHost.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
+        assertThat(dockerWindowsPipeMount).isNotNull();
+        assertThat(dockerWindowsPipeMount.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(podmanPrivileged).isNotNull();
         assertThat(podmanPrivileged.getPatternKey()).isEqualTo("docker_privileged_or_host_mount");
         assertThat(nerdctlSocketMount).isNotNull();
