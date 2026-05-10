@@ -3759,6 +3759,14 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell",
                         "netsh interface portproxy add v4tov4 listenport=8080 connectaddress=127.0.0.1 connectport=80");
+        DangerousCommandApprovalService.DetectionResult windowsNetRoute =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "New-NetRoute -DestinationPrefix 169.254.169.254/32 -InterfaceAlias Ethernet -NextHop 10.0.0.1");
+        DangerousCommandApprovalService.DetectionResult windowsNetNat =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "New-NetNat -Name proxy -InternalIPInterfaceAddressPrefix 10.0.0.0/24");
         DangerousCommandApprovalService.DetectionResult ipRouteShow =
                 env.dangerousCommandApprovalService.detect("execute_shell", "ip route show");
         DangerousCommandApprovalService.DetectionResult projectResolvWrite =
@@ -3906,6 +3914,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(windowsPortProxy).isNotNull();
         assertThat(windowsPortProxy.getPatternKey())
                 .isEqualTo("network_route_or_portproxy_change");
+        assertThat(windowsNetRoute).isNotNull();
+        assertThat(windowsNetRoute.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
+        assertThat(windowsNetNat).isNotNull();
+        assertThat(windowsNetNat.getPatternKey()).isEqualTo("network_route_or_portproxy_change");
         assertThat(ipRouteShow).isNull();
         assertThat(projectResolvWrite).isNull();
         assertThat(gitProxyWrite).isNotNull();

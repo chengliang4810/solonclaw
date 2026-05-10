@@ -279,7 +279,7 @@ public class DangerousCommandApprovalService {
                                     "network_route_or_portproxy_change",
                                     "network route or port proxy changed",
                                     pattern(
-                                            "\\b(?:ip\\s+route\\s+(?:add|replace|del|delete)|route\\s+(?:add|delete|del)|netsh\\s+interface\\s+portproxy\\s+(?:add|delete|del|reset))\\b"),
+                                            "\\b(?:ip\\s+route\\s+(?:add|replace|del|delete)|route\\s+(?:add|delete|del)|netsh\\s+interface\\s+portproxy\\s+(?:add|delete|del|reset)|(?:New|Set|Remove)-NetRoute\\b|(?:New|Set|Remove)-NetNat\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "persistent_proxy_configuration_change",
