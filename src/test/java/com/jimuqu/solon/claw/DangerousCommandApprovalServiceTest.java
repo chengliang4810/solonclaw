@@ -2232,6 +2232,8 @@ public class DangerousCommandApprovalServiceTest {
         List<String> secretStoreReads =
                 Arrays.asList(
                         "aws secretsmanager get-secret-value --secret-id prod/db",
+                        "aws ssm get-parameter --name /prod/db/password --with-decryption",
+                        "aws ssm get-parameters --names /prod/db/password --with-decryption",
                         "gcloud secrets versions access latest --secret prod-db",
                         "az keyvault secret show --vault-name prod --name db-password",
                         "aliyun kms GetSecretValue --SecretName prod-db",
@@ -2284,7 +2286,8 @@ public class DangerousCommandApprovalServiceTest {
                         "docker secret --help",
                         "docker compose config --services",
                         "docker compose config --images",
-                        "podman compose config --services");
+                        "podman compose config --services",
+                        "aws ssm get-parameter --name /prod/db/password");
         for (String command : secretStoreSafeReads) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)
