@@ -6793,6 +6793,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict cloudCidr =
                 securityPolicyService.checkCommandUrls(
                         "gcloud compute firewall-rules create open-ssh --allow tcp:22 --source-ranges 0.0.0.0/0");
+        SecurityPolicyService.UrlVerdict cloudIpv6Cidr =
+                securityPolicyService.checkCommandUrls(
+                        "gcloud compute firewall-rules create open-v6 --allow tcp:443 --source-ranges ::/0");
+        SecurityPolicyService.UrlVerdict bracketedIpv6Cidr =
+                securityPolicyService.checkCommandUrls(
+                        "az network nsg rule create --source-address-prefixes [::]/0 --destination-port-ranges 443");
+        SecurityPolicyService.UrlVerdict ipv6Metadata =
+                securityPolicyService.checkCommandUrls(
+                        "curl http://[fd00:ec2::254]/latest/meta-data/");
         SecurityPolicyService.UrlVerdict python =
                 securityPolicyService.checkCommandUrls(
                         "requests.get('https://blocked.example/api?token=secret123');");
@@ -6805,6 +6814,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(resolveMetadata.isAllowed()).isFalse();
         assertThat(resolveMetadata.getMessage()).contains("元数据");
         assertThat(cloudCidr.isAllowed()).isTrue();
+        assertThat(cloudIpv6Cidr.isAllowed()).isTrue();
+        assertThat(bracketedIpv6Cidr.isAllowed()).isTrue();
+        assertThat(ipv6Metadata.isAllowed()).isFalse();
+        assertThat(ipv6Metadata.getMessage()).contains("元数据");
         assertThat(
                         com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
                                 metadata.getUrl()))
