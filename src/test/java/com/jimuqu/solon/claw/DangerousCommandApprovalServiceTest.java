@@ -7748,6 +7748,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldPromptForGatewayInfrastructureCommandApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        assertGatewayCommandApproval(
+                service,
+                "kubectl proxy --address=0.0.0.0 --accept-hosts=.*",
+                "kubectl_network_exposure");
+        assertGatewayCommandApproval(
+                service,
+                "terraform state pull",
+                "terraform_state_sensitive_read");
+        assertGatewayCommandApproval(
+                service,
+                "gcloud compute firewall-rules create open-ssh --allow tcp:22",
+                "cloud_network_exposure_change");
+    }
+
+    @Test
     void shouldCanonicalizeGatewayToolAliasesForSecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
@@ -8971,6 +8994,26 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("BLOCKED (hardline)")
                 .contains("Windows shutdown/reboot");
         assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    private void assertGatewayCommandApproval(
+            DangerousCommandApprovalService service, String command, String patternKey) throws Exception {
+        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
+        toolArgs.put("command", command);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("tool_name", "terminal_run");
+        args.put("tool_args", toolArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", args);
+
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+        assertThat(trace.getFinalAnswer()).contains("需要审批");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("terminal");
+        assertThat(pending.getCommand()).isEqualTo(command);
+        assertThat(pending.getPatternKeys()).containsExactly(patternKey);
     }
 
     private static void assertWriteDenied(SecurityPolicyService securityPolicyService, String path) {
