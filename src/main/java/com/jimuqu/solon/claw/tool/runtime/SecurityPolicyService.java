@@ -246,6 +246,8 @@ public class SecurityPolicyService {
     private static final Pattern URLISH_PATTERN =
             Pattern.compile(
                     "(?iu)((?:https?|wss?|s?ftp|scp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
+    private static final Pattern IPV4_CIDR_TOKEN_PATTERN =
+            Pattern.compile("^(?:\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$");
     private static final Pattern BARE_HOST_TOKEN_PATTERN =
             Pattern.compile(
                     "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
@@ -1136,10 +1138,17 @@ public class SecurityPolicyService {
         extractSchemelessUserInfoUrlish(text, urls);
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
-            urls.add(matcher.group());
+            String value = matcher.group();
+            if (!isCidrRangeToken(value)) {
+                urls.add(value);
+            }
         }
         extractBareSecurityRelevantHosts(text, urls);
         extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    private boolean isCidrRangeToken(String value) {
+        return IPV4_CIDR_TOKEN_PATTERN.matcher(cleanUrlToken(value)).matches();
     }
 
     private void extractProxyHosts(String text, List<String> urls) {
