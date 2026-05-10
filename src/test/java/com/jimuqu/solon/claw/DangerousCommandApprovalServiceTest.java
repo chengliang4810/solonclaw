@@ -7830,6 +7830,51 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockGatewayWebfetchWebsitePolicyBeforeApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
+        webfetchArgs.put("url", "https://docs.blocked.example/page");
+        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
+        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_args", webfetchArgs);
+        TestTrace webfetchTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(webfetchTrace, "call_tool", gatewayWebfetch);
+
+        assertThat(webfetchTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(webfetchTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("blocked.example");
+        assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
+
+        Map<String, Object> httpArgs = new LinkedHashMap<String, Object>();
+        httpArgs.put("url", "https://blocked.example/status");
+        Map<String, Object> gatewayHttp = new LinkedHashMap<String, Object>();
+        gatewayHttp.put("tool_name", "http_get");
+        gatewayHttp.put("tool_args", httpArgs);
+        TestTrace httpTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(httpTrace, "call_tool", gatewayHttp);
+
+        assertThat(httpTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(httpTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("blocked.example");
+        assertThat(service.getPendingApproval(httpTrace.session)).isNull();
+    }
+
+    @Test
     void shouldCanonicalizeGatewayToolAliasesForSecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
