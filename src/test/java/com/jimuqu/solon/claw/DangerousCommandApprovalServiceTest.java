@@ -1085,6 +1085,10 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsSecurityGroupIngress =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws ec2 authorize-security-group-ingress --group-id sg-123 --cidr 0.0.0.0/0 --port 22");
+        DangerousCommandApprovalService.DetectionResult awsSecurityGroupEgress =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "aws ec2 authorize-security-group-egress --group-id sg-123 --cidr 0.0.0.0/0 --port 0");
         DangerousCommandApprovalService.DetectionResult awsStsRead =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws sts get-caller-identity");
@@ -1396,6 +1400,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsSecurityGroupIngress).isNotNull();
         assertThat(awsSecurityGroupIngress.getPatternKey())
+                .isEqualTo("cloud_network_exposure_change");
+        assertThat(awsSecurityGroupEgress).isNotNull();
+        assertThat(awsSecurityGroupEgress.getPatternKey())
                 .isEqualTo("cloud_network_exposure_change");
         assertThat(awsStsRead).isNull();
         assertThat(gcloudDelete).isNotNull();
