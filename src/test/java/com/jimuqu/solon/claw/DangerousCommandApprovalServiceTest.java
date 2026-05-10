@@ -4144,6 +4144,30 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectEncodedPayloadDecodeThenExecution() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "base64 -d payload.b64 > payload.sh && sh payload.sh",
+                        "base64 --decode payload.b64 > payload && chmod +x payload && ./payload",
+                        "openssl enc -base64 -d -in payload.txt -out payload.py; python3 payload.py",
+                        "certutil -decode payload.txt payload.exe && ./payload.exe");
+
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("encoded_payload_execute");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "base64 -d fixture.b64 > fixture.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectProcessSubstitutionRemoteScriptsLikeJimuquApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

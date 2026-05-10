@@ -351,6 +351,13 @@ public class DangerousCommandApprovalService {
                                     pattern("\\b(bash|sh|zsh|ksh)\\s+<\\s*<?\\s*\\(\\s*(curl|wget)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "encoded_payload_execute",
+                                    "decode encoded payload, then execute it",
+                                    pattern(
+                                            "\\b(?:(?:base64\\s+(?:-[^\\s]*d[^\\s]*|--decode)\\b|openssl\\s+enc\\s+-[A-Za-z0-9-]*d[A-Za-z0-9-]*\\b|certutil(?:\\.exe)?\\s+-decode\\b)[^\\n]*(?:>|-out\\s+|\\s+)[^\\s;&|]+|FromBase64String\\s*\\([^\\n]*\\)[^\\n]*(?:Set-Content|Out-File))"
+                                                    + "[^\\n]*(?:&&|;|\\|\\|)[^\\n]*(?:(?:bash|sh|zsh|ksh|fish|pwsh|powershell(?:\\.exe)?|python[23]?|perl|ruby|node)\\s+[^\\s;&|]+|(?:chmod\\s+\\+x\\s+[^\\s;&|]+\\s*(?:&&|;|\\|\\|)\\s*)?(?:\\./|/|[A-Za-z]:[\\\\/])[^\\s;&|]+)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "ssh_config_trust_weaken",
                                     "SSH config trust weakened",
                                     pattern(
