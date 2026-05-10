@@ -811,7 +811,9 @@ public class SecurityPolicyService {
     }
 
     private boolean isNetworkToolToken(String token) {
-        return "curl".equalsIgnoreCase(token) || "wget".equalsIgnoreCase(token);
+        return "curl".equalsIgnoreCase(token)
+                || "wget".equalsIgnoreCase(token)
+                || "aria2c".equalsIgnoreCase(token);
     }
 
     private String networkCredentialShortOptionValue(String token) {
