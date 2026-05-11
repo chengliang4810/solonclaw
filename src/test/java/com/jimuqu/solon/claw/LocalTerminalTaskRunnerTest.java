@@ -49,6 +49,8 @@ public class LocalTerminalTaskRunnerTest {
                 .contains("exit=-")
                 .contains("/queue <提示>")
                 .contains("/steer <提示>")
+                .contains("/busy interrupt")
+                .contains("/busy reject")
                 .contains("/stop")
                 .contains("/busy status");
         assertThat(buffer.toString(StandardCharsets.UTF_8.name())).contains("已提交到后台");

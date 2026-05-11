@@ -19,6 +19,8 @@ public class TerminalTipsTest {
                 .contains("终端提示")
                 .contains("/queue")
                 .contains("/steer")
+                .contains("/busy interrupt")
+                .contains("/busy reject")
                 .contains("/events")
                 .contains("/goal")
                 .contains("/recap")

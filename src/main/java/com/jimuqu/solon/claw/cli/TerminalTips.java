@@ -12,6 +12,8 @@ public final class TerminalTips {
                     Arrays.asList(
                             "/queue <提示> 会排到当前任务之后执行。",
                             "/steer <提示> 会注入正在运行的任务。",
+                            "/busy interrupt 会把新输入切换为中断当前任务后执行。",
+                            "/busy reject 会把新输入切换为忙时直接拒绝。",
                             "/events 可查看最近一次运行的事件明细。",
                             "/goal <目标> --max N 会启动跨轮长目标循环。",
                             "/recap 可显示恢复会话用的紧凑历史摘要。",
