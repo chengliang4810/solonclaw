@@ -3350,7 +3350,10 @@ public class DangerousCommandApprovalServiceTest {
                         "kubectl --kubeconfig kubeconfig get pods",
                         "helm --kubeconfig=cluster.kubeconfig list",
                         "gcloud auth activate-service-account --key-file service.json",
+                        "gcloud auth login --credential-file ~/.config/gcloud/application_default_credentials.json",
+                        "gcloud storage ls --credentials-file=client_secret.json",
                         "az login --cert cert.pem --key key.pem",
+                        "az login --password-file private-prod.pem",
                         "openssl s_client -connect example.com:443 -key client.key",
                         "openssl s_client -connect example.com:443 -cert client.pem -CAfile ca.pem",
                         "ansible all --private-key deploy_key -m ping",
@@ -3393,6 +3396,20 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "curl -info https://example.com"))
                 .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "wget https://example.com/public"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl --netrc-file ~/.netrc https://example.com"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("network_credential_file_send");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "wget --load-cookies cookies.txt https://example.com/private"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("network_credential_file_send");
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ansible-inventory --list"))
