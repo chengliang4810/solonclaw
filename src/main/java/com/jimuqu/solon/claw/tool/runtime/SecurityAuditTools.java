@@ -852,6 +852,10 @@ public class SecurityAuditTools {
         policy.put("writesFile", Boolean.FALSE);
         policy.put("storesAuditInput", Boolean.FALSE);
         policy.put("secretRedactionApplied", Boolean.TRUE);
+        policy.put("toolArgsCommandPolicyInherited", Boolean.TRUE);
+        policy.put("toolArgsUrlPolicyInherited", Boolean.TRUE);
+        policy.put("toolArgsPathPolicyInherited", Boolean.TRUE);
+        policy.put("toolArgsJsonParseErrorsRedacted", Boolean.TRUE);
         policy.put("commandPreviewLimitChars", Integer.valueOf(400));
         policy.put("findingMessageLimitChars", Integer.valueOf(1000));
         policy.put("supportsActions", "command,url,path,tool_args,policy,status");

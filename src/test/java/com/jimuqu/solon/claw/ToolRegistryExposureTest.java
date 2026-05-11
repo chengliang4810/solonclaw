@@ -1179,6 +1179,10 @@ public class ToolRegistryExposureTest {
         assertThat(readOnlyAuditPolicy.get("writesFile").getBoolean()).isFalse();
         assertThat(readOnlyAuditPolicy.get("storesAuditInput").getBoolean()).isFalse();
         assertThat(readOnlyAuditPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("toolArgsCommandPolicyInherited").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("toolArgsUrlPolicyInherited").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("toolArgsPathPolicyInherited").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("toolArgsJsonParseErrorsRedacted").getBoolean()).isTrue();
         assertThat(readOnlyAuditPolicy.get("commandPreviewLimitChars").getInt()).isEqualTo(400);
         assertThat(readOnlyAuditPolicy.get("findingMessageLimitChars").getInt()).isEqualTo(1000);
         assertThat(String.valueOf(readOnlyAuditPolicy))
