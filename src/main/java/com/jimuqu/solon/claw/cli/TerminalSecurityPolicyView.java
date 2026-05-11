@@ -328,6 +328,38 @@ public final class TerminalSecurityPolicyView {
                 .append(value(slash, "denyAllSupported"))
                 .append(" scopes=")
                 .append(value(slash, "scopes"));
+        Map<String, Object> lifecycle = approvalService.approvalLifecyclePolicySummary();
+        buffer.append('\n')
+                .append("- 审批生命周期：approveAll=")
+                .append(value(lifecycle, "approveAllSupported"))
+                .append(" clearAll=")
+                .append(value(lifecycle, "clearAllSupported"))
+                .append(" tirithDowngrade=")
+                .append(value(lifecycle, "tirithAlwaysScopeDowngradedToSession"));
+        Map<String, Object> cron = approvalService.cronApprovalPolicySummary();
+        buffer.append('\n')
+                .append("- Cron 审批：mode=")
+                .append(value(cron, "mode"))
+                .append(" default=")
+                .append(value(cron, "defaultDecision"))
+                .append(" scriptChecked=")
+                .append(value(cron, "scriptContentChecked"));
+        Map<String, Object> subagent = approvalService.subagentApprovalPolicySummary();
+        buffer.append('\n')
+                .append("- 子 Agent 审批：default=")
+                .append(value(subagent, "defaultDecision"))
+                .append(" humanPromptSuppressed=")
+                .append(value(subagent, "humanApprovalPromptSuppressed"))
+                .append(" pendingCreated=")
+                .append(value(subagent, "pendingApprovalCreatedWhenDenied"));
+        Map<String, Object> smart = approvalService.smartApprovalPolicySummary();
+        buffer.append('\n')
+                .append("- 智能审批：active=")
+                .append(value(smart, "active"))
+                .append(" escalateHuman=")
+                .append(value(smart, "escalateFallsBackToHumanApproval"))
+                .append(" tirithFindings=")
+                .append(value(smart, "tirithFindingsIncluded"));
         Map<String, Object> hardline = approvalService.hardlinePolicySummary();
         buffer.append('\n')
                 .append("- 硬阻断：rules=")
