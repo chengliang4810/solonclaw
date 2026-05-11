@@ -838,6 +838,9 @@ public class ToolRegistryExposureTest {
         assertThat(approvalCardPolicy.get("tirithPermanentApprovalHidden").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("descriptionPreviewRedacted").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("semicolonUrlParameterRedacted").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("fragmentUrlParameterRedacted").getBoolean()).isTrue();
         assertThat(String.valueOf(approvalCardPolicy))
                 .contains("FEISHU")
                 .contains("QQBOT")

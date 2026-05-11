@@ -144,6 +144,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("descriptionPreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("toolNameRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawCommandRedactedInExtras")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("semicolonUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("fragmentUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
