@@ -1049,7 +1049,11 @@ public class SecurityPolicyService {
 
     private String normalizePipeText(String rawPath) {
         String value = StrUtil.nullToEmpty(rawPath).trim();
+        value = TerminalAnsiSanitizer.stripAnsi(value);
+        value = SecretRedactor.stripDisplayControls(value);
+        value = Normalizer.normalize(value, Normalizer.Form.NFKC);
         value = HtmlUtil.unescape(value).trim();
+        value = decodePathText(value);
         value = value.replace('\\', '/').toLowerCase(Locale.ROOT);
         while (value.endsWith(",") || value.endsWith(";") || value.endsWith("\"") || value.endsWith("'")) {
             value = value.substring(0, value.length() - 1).trim();

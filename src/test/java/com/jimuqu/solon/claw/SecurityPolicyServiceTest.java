@@ -930,6 +930,25 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyDisguisedLocalManagementPipes() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.FileVerdict bidiPath =
+                policy.checkPath("npipe:////./pipe/docker_\u202Eengine", false);
+        SecurityPolicyService.UrlVerdict encodedCommand =
+                policy.checkCommandUrls("curl npipe:////./pipe/docker%255fengine/containers/json");
+        SecurityPolicyService.UrlVerdict entityCommand =
+                policy.checkCommandUrls("DOCKER_HOST=npipe:////./pipe/docker&#95;engine docker ps");
+
+        assertThat(bidiPath.isAllowed()).isFalse();
+        assertThat(bidiPath.getMessage()).contains("命名管道");
+        assertThat(encodedCommand.isAllowed()).isFalse();
+        assertThat(encodedCommand.getMessage()).contains("命名管道");
+        assertThat(entityCommand.isAllowed()).isFalse();
+        assertThat(entityCommand.getMessage()).contains("命名管道");
+    }
+
+    @Test
     void shouldDenySkillHubInternalCacheWrites() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
