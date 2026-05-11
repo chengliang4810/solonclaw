@@ -1390,7 +1390,7 @@ public class ToolRegistryExposureTest {
                                 "url",
                                 null,
                                 null,
-                                "https://blocked.example/docs?token=secret123",
+                                "https://blocked.example/docs?token=secret123#access%255Ftoken=fragment-secret",
                                 null,
                                 null,
                                 null));
@@ -1403,14 +1403,20 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 null,
-                                "{\"url\":\"https://blocked.example/docs?token=secret123\"}"));
+                                "{\"url\":\"https://blocked.example/docs?api%255Fkey=encoded-secret\"}"));
 
         assertThat(command.get("decision").getString()).isEqualTo("block");
         assertThat(command.toJson()).contains("token=***").doesNotContain("secret123");
         assertThat(url.get("decision").getString()).isEqualTo("block");
-        assertThat(url.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(url.toJson())
+                .contains("token=***")
+                .contains("access%255Ftoken=***")
+                .doesNotContain("secret123")
+                .doesNotContain("fragment-secret");
         assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
-        assertThat(toolArgs.toJson()).contains("token=***").doesNotContain("secret123");
+        assertThat(toolArgs.toJson())
+                .contains("api%255Fkey=***")
+                .doesNotContain("encoded-secret");
     }
 
     @Test

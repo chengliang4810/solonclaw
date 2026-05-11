@@ -204,7 +204,7 @@ public final class SecretRedactor {
                 break;
             }
             buffer.append(value, start, separator + 1);
-            int end = nextParameterEnd(value, separator + 1);
+            int end = nextParameterEnd(value, separator + 1, value.charAt(separator));
             String parameter = value.substring(separator + 1, end);
             buffer.append(redactEncodedSensitiveParameter(parameter));
             start = end;
@@ -222,10 +222,13 @@ public final class SecretRedactor {
         return Math.min(first, second);
     }
 
-    private static int nextParameterEnd(String value, int start) {
+    private static int nextParameterEnd(String value, int start, char separator) {
         int amp = value.indexOf('&', start);
         int semicolon = value.indexOf(';', start);
         int end = minPositive(amp, semicolon);
+        if (separator != '#') {
+            end = minPositive(end, value.indexOf('#', start));
+        }
         return end < 0 ? value.length() : end;
     }
 
