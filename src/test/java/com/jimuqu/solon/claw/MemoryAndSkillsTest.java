@@ -1008,6 +1008,21 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldRedactSecretsFromMemoryToolReadResultOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MemoryTools tools = new MemoryTools(env.memoryService);
+
+        String addResult = tools.memory("add", "memory", "长期偏好 token=ghp_memorytool12345", null);
+        String readResult = tools.memory("read", "memory", null, null);
+
+        assertThat(addResult).contains("\"success\":true").doesNotContain("ghp_memorytool12345");
+        assertThat(readResult)
+                .contains("长期偏好 token=***")
+                .doesNotContain("ghp_memorytool12345");
+        assertThat(env.memoryService.read("memory")).contains("ghp_memorytool12345");
+    }
+
+    @Test
     void shouldBlockUnsafeMemoryToolContentLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MemoryTools tools = new MemoryTools(env.memoryService);

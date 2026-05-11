@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.service.MemoryService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -61,8 +62,8 @@ public class MemoryTools {
             return new ONode()
                     .set("success", true)
                     .set("action", MemoryConstants.ACTION_READ)
-                    .set("target", normalizedTarget)
-                    .set("content", memoryService.read(normalizedTarget))
+                    .set("target", safe(normalizedTarget, 200))
+                    .set("content", safe(memoryService.read(normalizedTarget), 8000))
                     .set("message", "ok")
                     .toJson();
         }
@@ -89,8 +90,8 @@ public class MemoryTools {
         return new ONode()
                 .set("success", isSuccess(result))
                 .set("action", StrUtil.nullToEmpty(action))
-                .set("target", normalizedTarget)
-                .set("message", result)
+                .set("target", safe(normalizedTarget, 200))
+                .set("message", safe(result, 1000))
                 .toJson();
     }
 
@@ -131,9 +132,13 @@ public class MemoryTools {
         return new ONode()
                 .set("success", false)
                 .set("action", StrUtil.nullToEmpty(action))
-                .set("target", target)
-                .set("message", message)
+                .set("target", safe(target, 200))
+                .set("message", safe(message, 1000))
                 .toJson();
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private static boolean isInvisibleInjectionChar(char ch) {
