@@ -115,6 +115,74 @@ public class KanbanToolsTest {
                 .doesNotContain("ghp_1234567890abcdef");
     }
 
+    @Test
+    void shouldRedactSecretsFromKanbanToolSuccessResultsOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service = new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase));
+        KanbanTools tools = new KanbanTools(service);
+
+        String created =
+                tools.kanbanCreate(
+                        "任务 token=ghp_kanbantitle12345",
+                        "worker",
+                        "正文 Authorization: Bearer ghp_kanbanbody12345",
+                        null,
+                        "key-ghp_kanbanidempotency12345",
+                        null,
+                        null,
+                        null);
+
+        assertThat(created)
+                .contains("任务 token=***")
+                .doesNotContain("ghp_kanbantitle12345")
+                .doesNotContain("ghp_kanbanbody12345")
+                .doesNotContain("ghp_kanbanidempotency12345");
+        Map<?, ?> createdPayload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(created).toData();
+        String taskId = String.valueOf(createdPayload.get("task_id"));
+
+        String comment = tools.kanbanComment(taskId, "评论 token=ghp_kanbancomment12345", "worker");
+        String blocked =
+                tools.kanbanBlock(taskId, "等待 Authorization: Bearer ghp_kanbanblock12345");
+        service.status(taskId, "ready", null);
+        service.claim(taskId, claim("worker"));
+        String completed =
+                tools.kanbanComplete(
+                        taskId,
+                        "摘要 token=ghp_kanbansummary12345",
+                        "结果 token=ghp_kanbanresult12345",
+                        "{\"access_token\":\"ghp_kanbanmetadata12345\"}",
+                        null);
+        String show = tools.kanbanShow(taskId);
+
+        assertThat(comment)
+                .contains("评论 token=***")
+                .doesNotContain("ghp_kanbancomment12345");
+        assertThat(blocked)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_kanbanblock12345");
+        assertThat(completed)
+                .contains("摘要 token=***")
+                .contains("\"access_token\":\"***\"")
+                .doesNotContain("ghp_kanbansummary12345")
+                .doesNotContain("ghp_kanbanresult12345")
+                .doesNotContain("ghp_kanbanmetadata12345");
+        assertThat(show)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_kanbantitle12345")
+                .doesNotContain("ghp_kanbanbody12345")
+                .doesNotContain("ghp_kanbancomment12345")
+                .doesNotContain("ghp_kanbanblock12345")
+                .doesNotContain("ghp_kanbansummary12345")
+                .doesNotContain("ghp_kanbanresult12345");
+
+        String persisted = String.valueOf(service.task(taskId));
+        assertThat(persisted)
+                .contains("ghp_kanbantitle12345")
+                .contains("ghp_kanbanbody12345")
+                .contains("ghp_kanbancomment12345")
+                .contains("ghp_kanbanresult12345");
+    }
+
     private String task(KanbanService service, String title, String assignee) throws Exception {
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("title", title);
