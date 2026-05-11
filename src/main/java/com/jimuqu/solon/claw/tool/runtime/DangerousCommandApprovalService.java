@@ -2211,6 +2211,7 @@ public class DangerousCommandApprovalService {
         summary.put("changedServerSummary", Boolean.TRUE);
         summary.put("toolCountSummary", Boolean.TRUE);
         summary.put("oauthUrlSafetyCovered", Boolean.TRUE);
+        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
         summary.put("reloadHistoryNoticeRedacted", Boolean.TRUE);
         summary.put("description", "MCP reload can require slash confirmation, supports now/always overrides, persists the confirmation flag, and records tool-change notices for the next model turn.");
         return summary;

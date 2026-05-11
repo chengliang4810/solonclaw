@@ -509,6 +509,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("changedServerSummary")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("toolCountSummary")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("oauthUrlSafetyCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("reloadHistoryNoticeRedacted")).isEqualTo(Boolean.TRUE);
 
         env.appConfig.getApprovals().setMcpReloadConfirm(false);

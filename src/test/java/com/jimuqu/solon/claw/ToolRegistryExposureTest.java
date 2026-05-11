@@ -640,6 +640,14 @@ public class ToolRegistryExposureTest {
                                 .get("oauthUrlSafetyCovered")
                                 .getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("approvals")
+                                .get("mcpReloadPolicy")
+                                .get("encodedUrlParameterRedacted")
+                                .getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("approvals").get("mcpReloadPolicy")))
                 .contains("/reload-mcp")
                 .contains("approvals.mcpReloadConfirm");
@@ -864,6 +872,7 @@ public class ToolRegistryExposureTest {
         assertThat(mcpReloadPolicy.get("persistentDisableSupported").getBoolean()).isTrue();
         assertThat(mcpReloadPolicy.get("toolChangeNoticeInjected").getBoolean()).isTrue();
         assertThat(mcpReloadPolicy.get("oauthUrlSafetyCovered").getBoolean()).isTrue();
+        assertThat(mcpReloadPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("smartApproval").getBoolean())
                 .isTrue();
         assertThat(
