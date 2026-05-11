@@ -3201,8 +3201,15 @@ public class SecurityPolicyService {
     }
 
     private boolean isSensitiveUrlParameterName(String rawName) {
-        String name = decodeUrlComponent(rawName).trim().toLowerCase(Locale.ROOT);
+        String name = normalizeSensitiveParameterName(rawName);
         return SENSITIVE_URL_PARAMETER_NAMES.contains(name);
+    }
+
+    private String normalizeSensitiveParameterName(String rawName) {
+        String name = decodeUrlComponent(rawName).trim().toLowerCase(Locale.ROOT);
+        name = name.replace('-', '_').replace('.', '_');
+        name = name.replaceAll("\\s+", "_");
+        return name;
     }
 
     private String decodeUrlComponent(String raw) {

@@ -504,6 +504,12 @@ public class SecurityPolicyServiceTest {
                 policy.checkUrl("https://example.com/callback?client&#95;secret=secret123");
         SecurityPolicyService.UrlVerdict mixedCase =
                 policy.checkUrl("https://example.com/callback?Refresh_Token=secret123");
+        SecurityPolicyService.UrlVerdict dashedName =
+                policy.checkUrl("https://example.com/callback?access-token=secret123");
+        SecurityPolicyService.UrlVerdict dottedName =
+                policy.checkUrl("https://example.com/callback?api.key=secret123");
+        SecurityPolicyService.UrlVerdict spacedName =
+                policy.checkUrl("https://example.com/callback?client%20secret=secret123");
         SecurityPolicyService.UrlVerdict safe =
                 policy.checkUrl("https://example.com/callback?page=1%2526category=docs");
 
@@ -517,6 +523,12 @@ public class SecurityPolicyServiceTest {
         assertThat(htmlEntityName.getMessage()).contains("敏感凭据参数");
         assertThat(mixedCase.isAllowed()).isFalse();
         assertThat(mixedCase.getMessage()).contains("敏感凭据参数");
+        assertThat(dashedName.isAllowed()).isFalse();
+        assertThat(dashedName.getMessage()).contains("敏感凭据参数");
+        assertThat(dottedName.isAllowed()).isFalse();
+        assertThat(dottedName.getMessage()).contains("敏感凭据参数");
+        assertThat(spacedName.isAllowed()).isFalse();
+        assertThat(spacedName.getMessage()).contains("敏感凭据参数");
         assertThat(safe.isAllowed()).isTrue();
     }
 
