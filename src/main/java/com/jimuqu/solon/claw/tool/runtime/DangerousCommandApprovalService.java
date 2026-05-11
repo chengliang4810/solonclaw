@@ -3049,10 +3049,10 @@ public class DangerousCommandApprovalService {
                         : StrUtil.blankToDefault(detection.getDescription(), detection.getPatternKey());
         StringBuilder buffer = new StringBuilder();
         buffer.append("BLOCKED by smart approval: ")
-                .append(description)
+                .append(redactApprovalDisplay(description, 1000))
                 .append(". The command was assessed as genuinely dangerous. Do NOT retry.");
         if (decision != null && StrUtil.isNotBlank(decision.getReason())) {
-            buffer.append("\n原因：").append(decision.getReason());
+            buffer.append("\n原因：").append(redactApprovalDisplay(decision.getReason(), 1000));
         }
         return buffer.toString();
     }

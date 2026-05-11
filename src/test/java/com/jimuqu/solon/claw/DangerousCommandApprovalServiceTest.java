@@ -9509,7 +9509,8 @@ public class DangerousCommandApprovalServiceTest {
                     @Override
                     public SmartApprovalDecision judge(
                             String toolName, String command, String description) {
-                        return SmartApprovalDecision.deny("destructive cleanup");
+                        return SmartApprovalDecision.deny(
+                                "destructive cleanup token=smart-deny-secret");
                     }
                 });
         TestTrace trace = new TestTrace();
@@ -9522,7 +9523,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(trace.getFinalAnswer())
                 .contains("BLOCKED by smart approval")
                 .contains("recursive delete")
-                .contains("destructive cleanup");
+                .contains("destructive cleanup token=***")
+                .doesNotContain("smart-deny-secret");
         assertThat(service.getPendingApproval(trace.session)).isNull();
         assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isFalse();
     }
