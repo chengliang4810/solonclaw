@@ -8167,6 +8167,24 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("blocked.example")
                 .doesNotContain("secret123");
         assertThat(service.getPendingApproval(codeSearchTrace.session)).isNull();
+
+        Map<String, Object> exactCodeSearchArgs = new LinkedHashMap<String, Object>();
+        exactCodeSearchArgs.put(
+                "query", "inspect https://docs.blocked.example/source?token=secret456");
+        Map<String, Object> gatewayExactCodeSearch = new LinkedHashMap<String, Object>();
+        gatewayExactCodeSearch.put("tool_name", "codesearch");
+        gatewayExactCodeSearch.put("tool_args", exactCodeSearchArgs);
+        TestTrace exactCodeSearchTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(exactCodeSearchTrace, "call_tool", gatewayExactCodeSearch);
+
+        assertThat(exactCodeSearchTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(exactCodeSearchTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("blocked.example")
+                .doesNotContain("secret456");
+        assertThat(service.getPendingApproval(exactCodeSearchTrace.session)).isNull();
     }
 
     @Test
