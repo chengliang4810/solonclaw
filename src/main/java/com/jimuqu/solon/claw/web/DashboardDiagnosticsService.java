@@ -391,6 +391,9 @@ public class DashboardDiagnosticsService {
         policy.put(
                 "website_blocklist_shared_file_count",
                 Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
+        policy.put("url_policy", safeUrlPolicySummary());
+        policy.put("private_url_policy", safePrivateUrlPolicySummary());
+        policy.put("website_policy", safeWebsitePolicySummary());
         map.put("policy", policy);
 
         Map<String, Object> terminal = new LinkedHashMap<String, Object>();
@@ -454,6 +457,99 @@ public class DashboardDiagnosticsService {
                             1000));
             return fallback;
         }
+    }
+
+    private Map<String, Object> safeUrlPolicySummary() {
+        if (securityPolicyService == null) {
+            return unavailablePolicy("url policy service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.urlPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "allowPrivateUrls");
+            copyPolicyValue(summary, safe, "alwaysBlockedHostCount");
+            copyPolicyValue(summary, safe, "alwaysBlockedIpCount");
+            copyPolicyValue(summary, safe, "trustedPrivateIpHostCount");
+            copyPolicyValue(summary, safe, "sensitiveQueryNameCount");
+            copyPolicyValue(summary, safe, "websiteBlocklistEnabled");
+            copyPolicyValue(summary, safe, "websiteBlocklistDomainCount");
+            copyPolicyValue(summary, safe, "websiteBlocklistSharedFileCount");
+            copyPolicyValue(summary, safe, "websiteBlocklistSharedRuleCount");
+            copyPolicyValue(summary, safe, "websiteBlocklistLoadedSharedFileCount");
+            copyPolicyValue(summary, safe, "websiteBlocklistSkippedSharedFileCount");
+            copyPolicyValue(summary, safe, "userinfoBlocked");
+            copyPolicyValue(summary, safe, "sensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "encodedSensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "repeatedEncodedSensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "semicolonSensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "fragmentSensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "sensitivePathCredentialBlocked");
+            copyPolicyValue(summary, safe, "cloudMetadataBlocked");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safePrivateUrlPolicySummary() {
+        if (securityPolicyService == null) {
+            return unavailablePolicy("url policy service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.privateUrlPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "allowPrivateUrls");
+            copyPolicyValue(summary, safe, "environmentOverrideName");
+            copyPolicyValue(summary, safe, "cloudMetadataAlwaysBlocked");
+            copyPolicyValue(summary, safe, "dnsResolutionRequired");
+            copyPolicyValue(summary, safe, "obfuscatedIpv4Checked");
+            copyPolicyValue(summary, safe, "ipv4MappedIpv6Checked");
+            copyPolicyValue(summary, safe, "loopbackBlocked");
+            copyPolicyValue(summary, safe, "linkLocalBlocked");
+            copyPolicyValue(summary, safe, "siteLocalBlocked");
+            copyPolicyValue(summary, safe, "multicastBlocked");
+            copyPolicyValue(summary, safe, "reservedDocumentationRangesBlocked");
+            copyPolicyValue(summary, safe, "trustedPrivateIpHostCount");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeWebsitePolicySummary() {
+        if (securityPolicyService == null) {
+            return unavailablePolicy("website policy service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.websitePolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "configuredDomainCount");
+            copyPolicyValue(summary, safe, "sharedFileCount");
+            copyPolicyValue(summary, safe, "loadedSharedFileCount");
+            copyPolicyValue(summary, safe, "skippedSharedFileCount");
+            copyPolicyValue(summary, safe, "sharedRuleCount");
+            copyPolicyValue(summary, safe, "hostRuleNormalization");
+            copyPolicyValue(summary, safe, "wildcardSubdomainSupported");
+            copyPolicyValue(summary, safe, "schemeAndPathIgnoredForRules");
+            copyPolicyValue(summary, safe, "wwwPrefixIgnored");
+            copyPolicyValue(summary, safe, "sharedFilePathSafetyChecked");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> unavailablePolicy(Exception e) {
+        return unavailablePolicy(
+                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+    }
+
+    private Map<String, Object> unavailablePolicy(String message) {
+        Map<String, Object> fallback = new LinkedHashMap<String, Object>();
+        fallback.put("available", Boolean.FALSE);
+        fallback.put("summary", SecretRedactor.redact(message, 1000));
+        return fallback;
     }
 
     private static void copyPolicyValue(
