@@ -301,6 +301,27 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockPercentEncodedMetadataHostsBeforeDnsResolution() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.UrlVerdict direct =
+                policy.checkAlwaysBlockedUrl("http://%31%36%39.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "curl http://%31%36%39.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict protocolRelative =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "curl //%31%36%39.254.169.254/latest/meta-data/");
+
+        assertThat(direct.isAllowed()).isFalse();
+        assertThat(direct.getMessage()).contains("元数据");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("元数据");
+        assertThat(protocolRelative.isAllowed()).isFalse();
+        assertThat(protocolRelative.getMessage()).contains("元数据");
+    }
+
+    @Test
     void shouldBlockSchemelessUserInfoUrlsInCommandsAndArguments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");

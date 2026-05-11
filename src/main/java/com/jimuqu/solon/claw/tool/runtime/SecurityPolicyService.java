@@ -1140,7 +1140,9 @@ public class SecurityPolicyService {
         for (String url : urls) {
             String value = cleanUrlToken(url);
             UrlVerdict verdict =
-                    value.contains("://")
+                    value.startsWith("//")
+                            ? checkAlwaysBlockedUrl("http:" + value)
+                            : value.contains("://")
                             ? checkAlwaysBlockedUrl(value)
                             : checkAlwaysBlockedSchemelessUrl(value);
             if (!verdict.allowed) {
@@ -3570,7 +3572,7 @@ public class SecurityPolicyService {
     }
 
     private String normalizeHost(String host) {
-        String value = normalizeUrlText(host).toLowerCase(Locale.ROOT);
+        String value = decodeHostText(host).toLowerCase(Locale.ROOT);
         if (value.startsWith("[") && value.endsWith("]") && value.length() > 2) {
             value = value.substring(1, value.length() - 1);
         }
@@ -3578,6 +3580,24 @@ public class SecurityPolicyService {
             value = value.substring(0, value.length() - 1);
         }
         value = toAsciiHost(value);
+        return value;
+    }
+
+    private String decodeHostText(String host) {
+        String value = normalizeUrlText(host);
+        for (int i = 0; i < 4; i++) {
+            String decoded;
+            try {
+                decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+            } catch (Exception ignored) {
+                return value;
+            }
+            decoded = normalizeUrlText(decoded);
+            if (decoded.equals(value)) {
+                return decoded;
+            }
+            value = decoded;
+        }
         return value;
     }
 
