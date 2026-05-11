@@ -8625,6 +8625,25 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(writeFileTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(writeFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
+        Map<String, Object> nestedPath = new LinkedHashMap<String, Object>();
+        nestedPath.put("fileName", "credentials/oauth.json");
+        Map<String, Object> nestedOutput = new LinkedHashMap<String, Object>();
+        nestedOutput.put("path", ".env.local");
+        Map<String, Object> nestedFileArgs = new LinkedHashMap<String, Object>();
+        nestedFileArgs.put("metadata", Collections.singletonMap("safe", "notes.txt"));
+        nestedFileArgs.put("output", nestedOutput);
+        nestedFileArgs.put("request", nestedPath);
+        Map<String, Object> gatewayNestedFile = new LinkedHashMap<String, Object>();
+        gatewayNestedFile.put("tool_name", "write_file");
+        gatewayNestedFile.put("tool_args", nestedFileArgs);
+        TestTrace nestedFileTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(nestedFileTrace, "call_tool", gatewayNestedFile);
+
+        assertThat(nestedFileTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(nestedFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+        assertThat(service.getPendingApproval(nestedFileTrace.session)).isNull();
+
         Map<String, Object> socketReadArgs = new LinkedHashMap<String, Object>();
         socketReadArgs.put("path", "/var/run/docker.sock");
         Map<String, Object> gatewaySocketRead = new LinkedHashMap<String, Object>();
