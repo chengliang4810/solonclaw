@@ -804,6 +804,18 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_structured_output",
+                                    "parse credential file content to terminal",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:jq|yq)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:Get-Content|gc|Import-Clixml)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData)\\b|\\b(?:ConvertFrom-Json|ConvertFrom-Csv|ConvertFrom-StringData)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(

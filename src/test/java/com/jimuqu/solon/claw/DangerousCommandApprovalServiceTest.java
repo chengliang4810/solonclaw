@@ -3473,6 +3473,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileStructuredOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "jq . credentials.json",
+                        "jq -r .token token.json",
+                        "yq .client_secret client_secret.json",
+                        "Get-Content .anthropic_oauth.json | ConvertFrom-Json",
+                        "gc .npmrc | ConvertFrom-StringData",
+                        "Import-Clixml service-account.json | ConvertFrom-Json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_structured_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "jq . report.json"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-Content report.json | ConvertFrom-Json"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ConvertFrom-Json report.json"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileVisualEncodeCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
