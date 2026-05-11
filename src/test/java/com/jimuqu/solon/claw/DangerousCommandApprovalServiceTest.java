@@ -6340,8 +6340,12 @@ public class DangerousCommandApprovalServiceTest {
 
         Map<String, Object> summary = securityPolicyService.pathPolicySummary();
 
+        assertThat(summary.get("localManagementSocketReadBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("localManagementSocketWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementSocketAccessBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementPipeReadBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("localManagementPipeWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementPipeAccessBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(((Integer) summary.get("localManagementSocketPathCount")).intValue())
                 .isGreaterThan(0);
         assertThat(((Integer) summary.get("localManagementPipePathCount")).intValue())

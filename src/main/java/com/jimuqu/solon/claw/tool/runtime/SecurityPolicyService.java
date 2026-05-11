@@ -661,8 +661,12 @@ public class SecurityPolicyService {
         summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalWriteBlocked", Boolean.TRUE);
+        summary.put("localManagementSocketReadBlocked", Boolean.TRUE);
         summary.put("localManagementSocketWriteBlocked", Boolean.TRUE);
+        summary.put("localManagementSocketAccessBlocked", Boolean.TRUE);
+        summary.put("localManagementPipeReadBlocked", Boolean.TRUE);
         summary.put("localManagementPipeWriteBlocked", Boolean.TRUE);
+        summary.put("localManagementPipeAccessBlocked", Boolean.TRUE);
         summary.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(writeSafeRoot)));
         summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
