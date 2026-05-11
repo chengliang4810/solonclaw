@@ -4501,6 +4501,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "print(open('.env').read())",
                         "sys.stdout.write(open('credentials.json', 'r').read())",
+                        "sys.stderr.write(open('token.json', 'r').read())",
+                        "logging.info(open('.npmrc').read())",
+                        "logger.error(Path('oauth_creds.json').read_text())",
                         "print(Path('service-account.json').read_text())");
         for (String command : pythonCommands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -4515,7 +4518,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "console.log(fs.readFileSync('.env', 'utf8'))",
                         "console.error(fs.readFileSync('credentials.json'))",
-                        "console.info(await fs.promises.readFile('token.json', 'utf8'))");
+                        "console.info(await fs.promises.readFile('token.json', 'utf8'))",
+                        "process.stdout.write(fs.readFileSync('.npmrc', 'utf8'))",
+                        "process.stderr.write(await fs.promises.readFile('oauth_creds.json', 'utf8'))");
         for (String command : jsCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
@@ -4527,7 +4532,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "secret = open('.env').read()\nprint(secret)",
                         "payload = Path('credentials.json').read_text()\nsys.stdout.write(payload)",
-                        "body = Path('service-account.json').read_bytes()\nsys.stderr.write(body)");
+                        "body = Path('service-account.json').read_bytes()\nsys.stderr.write(body)",
+                        "token = open('oauth_creds.json').read()\nlogging.warning(token)",
+                        "secret = Path('.npmrc').read_text()\nlogger.exception(secret)");
         for (String command : pythonVariableCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_python", command);
@@ -4541,7 +4548,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "const secret = fs.readFileSync('.env', 'utf8');\nconsole.log(secret);",
                         "let payload = fs.readFileSync('credentials.json');\nconsole.error(payload);",
-                        "var token = await fs.promises.readFile('token.json', 'utf8');\nconsole.warn(token);");
+                        "var token = await fs.promises.readFile('token.json', 'utf8');\nconsole.warn(token);",
+                        "const npmrc = fs.readFileSync('.npmrc', 'utf8');\nprocess.stdout.write(npmrc);",
+                        "let oauth = await fs.promises.readFile('oauth_creds.json', 'utf8');\nprocess.stderr.write(oauth);");
         for (String command : jsVariableCommands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_js", command);
