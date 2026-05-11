@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.cli.CliShell;
 import com.jimuqu.solon.claw.cli.ConsoleEventSink;
 import com.jimuqu.solon.claw.cli.LocalTerminalHelp;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
+import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import java.util.Arrays;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -25,6 +26,7 @@ public class CliShellTipsTest {
         assertThat(commandList()).contains("/security", "/security audit", "/security policy");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
+        assertThat(shouldHandleInline(shell, "/security audit")).isTrue();
 
         StringWriter buffer = new StringWriter();
         PrintWriter writer = new PrintWriter(buffer);
@@ -37,6 +39,23 @@ public class CliShellTipsTest {
         int skinExitCode = sendOnce(shell, new PrintWriter(skinBuffer), "/skin mono");
         assertThat(skinExitCode).isEqualTo(0);
         assertThat(skinBuffer.toString()).contains("当前皮肤：mono").contains("/skin <名称>");
+    }
+
+    @Test
+    void shouldRenderSecurityPolicyLocally() throws Exception {
+        CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
+
+        StringWriter buffer = new StringWriter();
+        int exitCode = sendOnce(shell, new PrintWriter(buffer), "/security approvals");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString())
+                .contains("审批策略摘要")
+                .contains("object_storage_exposure_change")
+                .contains("终端护栏");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
+                .contains("URL 安全策略摘要")
+                .contains("unsupportedSchemeBlocked");
     }
 
     @Test

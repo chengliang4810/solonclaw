@@ -178,6 +178,7 @@ public class TuiShell {
                 || "/copy".equalsIgnoreCase(value)
                 || "/events".equalsIgnoreCase(value)
                 || "/tasks".equalsIgnoreCase(value)
+                || TerminalSecurityPolicyView.isSecurityCommand(value)
                 || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
                 || value.toLowerCase(java.util.Locale.ROOT).startsWith("/attachments ")
@@ -208,6 +209,11 @@ public class TuiShell {
         }
         if (TerminalTips.isTipsCommand(trimmed)) {
             writer.println(TerminalTips.render());
+            writer.flush();
+            return 0;
+        }
+        if (TerminalSecurityPolicyView.isSecurityCommand(trimmed)) {
+            writer.println(TerminalSecurityPolicyView.render(appConfig, trimmed));
             writer.flush();
             return 0;
         }

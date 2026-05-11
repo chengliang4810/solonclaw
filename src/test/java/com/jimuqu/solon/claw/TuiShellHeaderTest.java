@@ -112,6 +112,26 @@ public class TuiShellHeaderTest {
     }
 
     @Test
+    void shouldRenderSecurityPolicyLocally() throws Exception {
+        TuiShell shell =
+                new TuiShell(
+                        null,
+                        new CliMode(CliMode.Kind.TUI, null, null),
+                        null,
+                        new AppConfig());
+        java.io.StringWriter buffer = new java.io.StringWriter();
+        java.io.PrintWriter writer = new java.io.PrintWriter(buffer);
+
+        int exitCode = send(shell, writer, "/security urls");
+
+        assertThat(exitCode).isEqualTo(0);
+        assertThat(buffer.toString())
+                .contains("URL 安全策略摘要")
+                .contains("允许 scheme")
+                .contains("unsupportedSchemeBlocked");
+    }
+
+    @Test
     void shouldUseSharedTerminalCommandCatalogForCompletion() throws Exception {
         Field field = TuiShell.class.getDeclaredField("COMMANDS");
         field.setAccessible(true);
@@ -217,6 +237,18 @@ public class TuiShellHeaderTest {
                         "footerLine", String.class, LocalTerminalTaskRunner.class);
         method.setAccessible(true);
         return (String) method.invoke(shell, sessionId, runner);
+    }
+
+    private int send(TuiShell shell, PrintWriter writer, String input) throws Exception {
+        Method method =
+                TuiShell.class.getDeclaredMethod(
+                        "send",
+                        LocalTerminalTaskRunner.class,
+                        PrintWriter.class,
+                        String.class,
+                        String.class);
+        method.setAccessible(true);
+        return ((Integer) method.invoke(shell, null, writer, "tui-test", input)).intValue();
     }
 
     private void setField(TuiShell shell, String name, Object value) throws Exception {

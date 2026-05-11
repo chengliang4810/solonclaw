@@ -91,7 +91,13 @@ public class CliRunner {
                     .run();
         }
         return new CliShell(
-                        cliRuntime, mode, attachmentResolver, modelPicker, sessionBrowser, historyViewer)
+                        cliRuntime,
+                        mode,
+                        attachmentResolver,
+                        appConfig,
+                        modelPicker,
+                        sessionBrowser,
+                        historyViewer)
                 .run();
     }
 }

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import java.io.PrintWriter;
@@ -22,6 +23,7 @@ public class CliShell {
     private final CliRuntime cliRuntime;
     private final CliMode mode;
     private final CliAttachmentResolver attachmentResolver;
+    private final AppConfig appConfig;
     private final TerminalModelPicker modelPicker;
     private final TerminalSessionBrowser sessionBrowser;
     private final TerminalHistoryViewer historyViewer;
@@ -42,7 +44,7 @@ public class CliShell {
             CliMode mode,
             CliAttachmentResolver attachmentResolver,
             TerminalModelPicker modelPicker) {
-        this(cliRuntime, mode, attachmentResolver, modelPicker, null);
+        this(cliRuntime, mode, attachmentResolver, null, modelPicker, null, null);
     }
 
     public CliShell(
@@ -51,7 +53,7 @@ public class CliShell {
             CliAttachmentResolver attachmentResolver,
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser) {
-        this(cliRuntime, mode, attachmentResolver, modelPicker, sessionBrowser, null);
+        this(cliRuntime, mode, attachmentResolver, null, modelPicker, sessionBrowser, null);
     }
 
     public CliShell(
@@ -61,9 +63,21 @@ public class CliShell {
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser,
             TerminalHistoryViewer historyViewer) {
+        this(cliRuntime, mode, attachmentResolver, null, modelPicker, sessionBrowser, historyViewer);
+    }
+
+    public CliShell(
+            CliRuntime cliRuntime,
+            CliMode mode,
+            CliAttachmentResolver attachmentResolver,
+            AppConfig appConfig,
+            TerminalModelPicker modelPicker,
+            TerminalSessionBrowser sessionBrowser,
+            TerminalHistoryViewer historyViewer) {
         this.cliRuntime = cliRuntime;
         this.mode = mode;
         this.attachmentResolver = attachmentResolver;
+        this.appConfig = appConfig;
         this.modelPicker = modelPicker;
         this.sessionBrowser = sessionBrowser;
         this.historyViewer = historyViewer;
@@ -154,6 +168,7 @@ public class CliShell {
                 || "/events".equalsIgnoreCase(value)
                 || TerminalTips.isTipsCommand(value)
                 || TerminalSkin.isSkinCommand(value)
+                || TerminalSecurityPolicyView.isSecurityCommand(value)
                 || "/tasks".equalsIgnoreCase(value)
                 || transcript.isTranscriptCommand(value)
                 || value.equalsIgnoreCase("/attachments")
@@ -222,6 +237,11 @@ public class CliShell {
                 skin = TerminalSkin.resolve(next);
             }
             writer.println(skin.renderHelp());
+            writer.flush();
+            return 0;
+        }
+        if (TerminalSecurityPolicyView.isSecurityCommand(trimmed)) {
+            writer.println(TerminalSecurityPolicyView.render(appConfig, trimmed));
             writer.flush();
             return 0;
         }
