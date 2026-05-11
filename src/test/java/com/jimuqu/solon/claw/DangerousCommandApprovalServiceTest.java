@@ -7243,7 +7243,8 @@ public class DangerousCommandApprovalServiceTest {
         pending.setDescription("remote call with Authorization: Bearer ghp_abcdefghijklmnop");
         pending.setCommand(
                 "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz curl "
-                        + "'https://api.example.test/run?access_token=sk-proj-abcdefghijklmnopqrstuvwxyz'");
+                        + "'https://api.example.test/run?access_token=sk-proj-abcdefghijklmnopqrstuvwxyz"
+                        + "&api%255Fkey=encoded-card-secret'");
         pending.setApprovalId("approval-secret");
 
         Map<String, Object> extras =
@@ -7253,6 +7254,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalCommand").toString()).doesNotContain("sk-proj-abc");
         assertThat(extras.get("approvalCommand").toString()).contains("OPENAI_API_KEY=***");
         assertThat(extras.get("approvalCommand").toString()).contains("access_token=***");
+        assertThat(extras.get("approvalCommand").toString()).contains("api%255Fkey=***");
+        assertThat(extras.get("approvalCommand").toString()).doesNotContain("encoded-card-secret");
         assertThat(extras.get("approvalDescription").toString())
                 .doesNotContain("ghp_abcdefghijklmnop");
         assertThat(pending.getCommand()).contains("sk-proj-abcdefghijklmnopqrstuvwxyz");
