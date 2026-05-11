@@ -2179,6 +2179,24 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapRunControlErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult missingRun =
+                request(
+                        "POST",
+                        "/api/runs/missing-token=ghp_rundashboard12345/control",
+                        "{\"command\":\"interrupt\",\"reason\":\"token=ghp_runreason12345\"}",
+                        token);
+        assertThat(missingRun.status).isEqualTo(400);
+        assertThat(missingRun.body)
+                .contains("RUN_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("ghp_rundashboard12345")
+                .doesNotContain("ghp_runreason12345");
+    }
+
+    @Test
     void shouldHideMediaCacheHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");

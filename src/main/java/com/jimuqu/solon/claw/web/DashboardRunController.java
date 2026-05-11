@@ -89,12 +89,18 @@ public class DashboardRunController {
 
     @Mapping(value = "/api/runs/{runId}/control", method = MethodType.POST)
     public Map<String, Object> control(String runId, Context context) throws Exception {
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(
-                dashboardRunService.control(
-                        runId,
-                        body.get("command").getString(),
-                        ONode.deserialize(body.toJson(), LinkedHashMap.class)));
+        return safeRun(
+                context,
+                new RunAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        ONode body = ONode.ofJson(context.body());
+                        return dashboardRunService.control(
+                                runId,
+                                body.get("command").getString(),
+                                ONode.deserialize(body.toJson(), LinkedHashMap.class));
+                    }
+                });
     }
 
     @Mapping(value = "/api/jimuqu/runs/{runId}/control", method = MethodType.POST)
@@ -142,5 +148,21 @@ public class DashboardRunController {
         ONode body = ONode.ofJson(context.body());
         return DashboardResponse.ok(
                 dashboardRunService.controlSubagent(subagentId, body.get("command").getString()));
+    }
+
+    private Map<String, Object> safeRun(Context context, RunAction action) throws Exception {
+        try {
+            return DashboardResponse.ok(action.run());
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUN_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUN_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private interface RunAction {
+        Map<String, Object> run() throws Exception;
     }
 }
