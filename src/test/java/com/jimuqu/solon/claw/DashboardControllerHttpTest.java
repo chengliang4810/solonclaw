@@ -1983,6 +1983,8 @@ public class DashboardControllerHttpTest {
         assertThat(dashboardGuideData.get("editable_fields").toJson())
                 .contains("deliver_chat_id")
                 .contains("wrap_response");
+        assertThat(dashboardGuideData.get("action_syntax").get("add").getString()).contains("--deliver target");
+        assertThat(dashboardGuideData.get("action_syntax").get("pause").getString()).contains("disable");
         assertThat(dashboardGuideData.get("skill_binding").get("remove").toJson()).contains("--remove-skill");
         assertThat(dashboardGuideData.get("skill_binding").get("dependency_flags").toJson())
                 .contains("--context-from job-id")
@@ -2000,6 +2002,8 @@ public class DashboardControllerHttpTest {
         assertThat(apiGuideData.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
         assertThat(apiGuideData.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
         assertThat(apiGuideData.get("delivery").get("wrap_flags").toJson()).contains("--raw");
+        assertThat(apiGuideData.get("delivery").get("modes").toJson()).contains("target1,target2");
+        assertThat(apiGuideData.get("delivery").get("wrap_response_policy").getString()).contains("--no-wrap-response");
 
         HttpResult dashboardPolicy = request("GET", "/api/cron/jobs/policy", null, token);
         assertThat(dashboardPolicy.status).isEqualTo(200);

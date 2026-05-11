@@ -2205,6 +2205,8 @@ public class DefaultCommandService implements CommandService {
         buffer.append('\n').append("调度类型：").append(joinGuideList(guide.get("schedule_types")));
         buffer.append('\n').append("可编辑字段：").append(joinGuideList(guide.get("editable_fields")));
         buffer.append('\n').append("动作：").append(joinGuideMapKeys(guide.get("actions")));
+        buffer.append('\n').append("动作语法：");
+        appendGuideMap(buffer, guide.get("action_syntax"));
         buffer.append('\n').append("别名：");
         appendGuideMap(buffer, guide.get("aliases"));
         buffer.append('\n').append("技能绑定：");

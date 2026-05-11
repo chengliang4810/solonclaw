@@ -967,6 +967,10 @@ public class CommandEnhancementTest {
                 .contains("deliver_chat_id")
                 .contains("status")
                 .contains("paused_reason")
+                .contains("动作语法：")
+                .contains("/cron pause|disable|stop <job-id> [--reason reason]")
+                .contains("/cron run|trigger|retry|rerun <job-id>")
+                .contains("/cron remove|delete|rm <job-id>")
                 .contains("技能绑定：")
                 .contains("--remove-skill name")
                 .contains("--context-from job-id")
@@ -974,6 +978,9 @@ public class CommandEnhancementTest {
                 .contains("投递策略：")
                 .contains("feishu")
                 .contains("platform:chat_id:thread_id")
+                .contains("origin: 回复到创建任务的原始会话")
+                .contains("target1,target2: 同一次运行投递到多个目标")
+                .contains("--raw/--no-wrap/--no-wrap-response")
                 .contains("--no-wrap-response")
                 .contains("运行模式：")
                 .contains("no_agent")
@@ -992,12 +999,16 @@ public class CommandEnhancementTest {
                 .contains("status")
                 .contains("state")
                 .contains("paused_reason");
+        assertThat(data.get("action_syntax").get("edit").getString()).contains("--add-skill name");
+        assertThat(data.get("action_syntax").get("run").getString()).contains("retry");
         assertThat(data.get("aliases").get("pause").toJson()).contains("disable").contains("stop");
         assertThat(data.get("aliases").get("run").toJson()).contains("trigger").contains("retry");
         assertThat(data.get("aliases").get("next").toJson()).contains("upcoming");
         assertThat(data.get("delivery").get("targets").toJson()).contains("feishu").contains("yuanbao");
         assertThat(data.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
         assertThat(data.get("delivery").get("wrap_flags").toJson()).contains("--no-wrap-response");
+        assertThat(data.get("delivery").get("modes").toJson()).contains("target1,target2");
+        assertThat(data.get("delivery").get("wrap_response_policy").getString()).contains("--raw");
         assertThat(data.get("runtime_modes").get("clear_flags").toJson())
                 .contains("--clear-repeat")
                 .contains("--clear-enabled-toolsets");

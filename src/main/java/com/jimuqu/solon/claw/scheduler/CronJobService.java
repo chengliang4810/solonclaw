@@ -512,6 +512,7 @@ public class CronJobService {
                         "state",
                         "paused_reason"));
         result.put("actions", cronGuideActions());
+        result.put("action_syntax", cronGuideActionSyntax());
         result.put("aliases", cronGuideAliases());
         result.put("skill_binding", cronGuideSkillBinding());
         result.put("delivery", cronGuideDelivery());
@@ -705,6 +706,21 @@ public class CronJobService {
         return result;
     }
 
+    private Map<String, Object> cronGuideActionSyntax() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("add", "/cron add \"every 2h\" \"task\" [--skill name] [--deliver target] [--wrap-response|--no-wrap-response]");
+        result.put("edit", "/cron edit <job-id> [--schedule expr] [--prompt text] [--add-skill name] [--remove-skill name]");
+        result.put("pause", "/cron pause|disable|stop <job-id> [--reason reason]");
+        result.put("resume", "/cron resume|enable|start <job-id>");
+        result.put("run", "/cron run|trigger|retry|rerun <job-id>");
+        result.put("remove", "/cron remove|delete|rm <job-id>");
+        result.put("history", "/cron history <job-id> [--limit 20]");
+        result.put("status", "/cron status [--all]");
+        result.put("next", "/cron next|upcoming [--all] [--limit 5]");
+        result.put("inspect", "/cron inspect|show|detail <job-id>");
+        return result;
+    }
+
     private Map<String, Object> cronGuideAliases() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("add", Arrays.asList("create"));
@@ -741,10 +757,19 @@ public class CronJobService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("targets", Arrays.asList("origin", "local", "feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
         result.put("fields", Arrays.asList("deliver", "deliver_chat_id", "deliver_thread_id", "wrap_response"));
+        result.put(
+                "modes",
+                Arrays.asList(
+                        "origin: 回复到创建任务的原始会话",
+                        "local: 仅记录在本地任务历史",
+                        "platform: 投递到指定平台的默认目标",
+                        "platform:chat_id:thread_id: 投递到指定会话和线程",
+                        "target1,target2: 同一次运行投递到多个目标"));
         result.put("default_from_slash", "origin");
         result.put("default_from_dashboard", "local");
         result.put("clear_flags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
         result.put("wrap_flags", Arrays.asList("--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
+        result.put("wrap_response_policy", "--wrap-response 会包装任务输出，--raw/--no-wrap/--no-wrap-response 会投递原始输出。");
         result.put(
                 "target_forms",
                 Arrays.asList(
