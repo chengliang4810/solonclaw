@@ -8454,6 +8454,23 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("命名管道");
         assertThat(service.getPendingApproval(pipeWriteTrace.session)).isNull();
 
+        Map<String, Object> blockDeviceWriteArgs = new LinkedHashMap<String, Object>();
+        blockDeviceWriteArgs.put("path", "/dev/sda");
+        blockDeviceWriteArgs.put("content", "overwrite");
+        Map<String, Object> gatewayBlockDeviceWrite = new LinkedHashMap<String, Object>();
+        gatewayBlockDeviceWrite.put("tool_name", "write_file");
+        gatewayBlockDeviceWrite.put("tool_args", blockDeviceWriteArgs);
+        TestTrace blockDeviceWriteTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(blockDeviceWriteTrace, "call_tool", gatewayBlockDeviceWrite);
+
+        assertThat(blockDeviceWriteTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(blockDeviceWriteTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("裸块设备");
+        assertThat(service.getPendingApproval(blockDeviceWriteTrace.session)).isNull();
+
         Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
         pythonArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
         Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
