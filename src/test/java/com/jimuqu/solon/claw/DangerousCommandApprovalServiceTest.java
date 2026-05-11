@@ -1108,6 +1108,15 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult obsRecursiveRemove =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "obsutil rm -r obs://prod-data/private");
+        DangerousCommandApprovalService.DetectionResult ossPublicAcl =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "ossutil set-acl oss://prod-data public-read");
+        DangerousCommandApprovalService.DetectionResult cosPublicAcl =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "coscli bucket acl --grant-read all-users cos://prod-data");
+        DangerousCommandApprovalService.DetectionResult obsPublicPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "obsutil setpolicy obs://prod-data public-readwrite");
         DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
@@ -1441,6 +1450,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(obsRecursiveRemove).isNotNull();
         assertThat(obsRecursiveRemove.getPatternKey())
                 .isEqualTo("domestic_object_storage_recursive_remove");
+        assertThat(ossPublicAcl).isNotNull();
+        assertThat(ossPublicAcl.getPatternKey()).isEqualTo("object_storage_exposure_change");
+        assertThat(cosPublicAcl).isNotNull();
+        assertThat(cosPublicAcl.getPatternKey()).isEqualTo("object_storage_exposure_change");
+        assertThat(obsPublicPolicy).isNotNull();
+        assertThat(obsPublicPolicy.getPatternKey()).isEqualTo("object_storage_exposure_change");
         assertThat(awsAttachPolicy).isNotNull();
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsSecurityGroupIngress).isNotNull();

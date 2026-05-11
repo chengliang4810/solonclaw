@@ -984,6 +984,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:ossutil|coscli|obsutil)\\s+(?:rm|delete)\\b(?=[^\\n]*(?:\\s-r\\b|\\s--recursive\\b|oss://|cos://|obs://))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "object_storage_exposure_change",
+                                    "object storage ACL or policy made public",
+                                    pattern(
+                                            "\\b(?:ossutil|coscli|obsutil)\\b(?=[^\\n]*(?:acl|policy|permission))(?=[^\\n]*(?:public-read(?:-write)?|public-readwrite|read-write|everyone|all-users|anonymous))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "cloud_iam_permission_change",
                                     "Cloud IAM permission change",
                                     pattern(
