@@ -5,6 +5,7 @@ import cn.hutool.core.util.HashUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -198,10 +199,21 @@ public class TodoTools {
                         .set("completed", completed)
                         .set("cancelled", cancelled);
         return ToolResultEnvelope.ok("Todo list updated")
-                .data("todos", ONode.ofBean(items))
+                .data("todos", ONode.ofBean(redactedItems(items)))
                 .data("summary", summary)
                 .preview(summary.toJson())
                 .toJson();
+    }
+
+    private List<TodoItem> redactedItems(List<TodoItem> items) {
+        List<TodoItem> safe = new ArrayList<TodoItem>();
+        for (TodoItem item : items) {
+            TodoItem copy = copy(item);
+            copy.setId(SecretRedactor.redact(copy.getId(), 200));
+            copy.setContent(SecretRedactor.redact(copy.getContent(), 1000));
+            safe.add(copy);
+        }
+        return safe;
     }
 
     private TodoItem copy(TodoItem item) {

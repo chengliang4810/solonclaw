@@ -30,10 +30,10 @@ public class KanbanTools {
         }
         try {
             Map<String, Object> task = kanbanService.task(tid);
-            return ToolResultEnvelope.ok("Loaded Kanban task: " + tid)
-                    .data("task", task)
-                    .data("worker_context", task.get("worker_context"))
-                    .preview(String.valueOf(task.get("worker_context")))
+            return ToolResultEnvelope.ok("Loaded Kanban task: " + safeText(tid))
+                    .data("task", safeObject(task))
+                    .data("worker_context", safeObject(task.get("worker_context")))
+                    .preview(safeText(task.get("worker_context"), 2000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_show: " + e.getMessage());
@@ -71,10 +71,10 @@ public class KanbanTools {
                             StrUtil.blankToDefault(result, summary),
                             summary,
                             splitList(createdCards));
-            return ToolResultEnvelope.ok("Completed Kanban task: " + tid)
-                    .data("task", detail)
-                    .data("metadata", parseMetadata(metadata))
-                    .preview(String.valueOf(detail.get("worker_context")))
+            return ToolResultEnvelope.ok("Completed Kanban task: " + safeText(tid))
+                    .data("task", safeObject(detail))
+                    .data("metadata", safeObject(parseMetadata(metadata)))
+                    .preview(safeText(detail.get("worker_context"), 2000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_complete: " + e.getMessage());
@@ -99,9 +99,9 @@ public class KanbanTools {
         }
         try {
             Map<String, Object> detail = kanbanService.status(tid, "blocked", reason, reason, null);
-            return ToolResultEnvelope.ok("Blocked Kanban task: " + tid)
-                    .data("task", detail)
-                    .preview(reason)
+            return ToolResultEnvelope.ok("Blocked Kanban task: " + safeText(tid))
+                    .data("task", safeObject(detail))
+                    .preview(safeText(reason, 1000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_block: " + e.getMessage());
@@ -125,9 +125,9 @@ public class KanbanTools {
             Map<String, Object> body = new LinkedHashMap<String, Object>();
             body.put("note", note);
             Map<String, Object> detail = kanbanService.heartbeatWorker(tid, body);
-            return ToolResultEnvelope.ok("Heartbeat recorded: " + tid)
-                    .data("task", detail)
-                    .preview("heartbeat " + tid)
+            return ToolResultEnvelope.ok("Heartbeat recorded: " + safeText(tid))
+                    .data("task", safeObject(detail))
+                    .preview("heartbeat " + safeText(tid))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_heartbeat: " + e.getMessage());
@@ -156,9 +156,13 @@ public class KanbanTools {
         try {
             Map<String, Object> detail =
                     kanbanService.step(tid, stepKey, workflowTemplateId, note, defaultWorkerName());
-            return ToolResultEnvelope.ok("Advanced Kanban step: " + tid + " -> " + detail.get("current_step_key"))
-                    .data("task", detail)
-                    .preview(String.valueOf(detail.get("worker_context")))
+            return ToolResultEnvelope.ok(
+                            "Advanced Kanban step: "
+                                    + safeText(tid)
+                                    + " -> "
+                                    + safeText(detail.get("current_step_key")))
+                    .data("task", safeObject(detail))
+                    .preview(safeText(detail.get("worker_context"), 2000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_step: " + e.getMessage());
@@ -182,9 +186,9 @@ public class KanbanTools {
         try {
             Map<String, Object> detail =
                     kanbanService.comment(taskId, StrUtil.blankToDefault(author, defaultWorkerName()), body);
-            return ToolResultEnvelope.ok("Comment added: " + taskId)
-                    .data("task", detail)
-                    .preview(body)
+            return ToolResultEnvelope.ok("Comment added: " + safeText(taskId))
+                    .data("task", safeObject(detail))
+                    .preview(safeText(body, 1000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_comment: " + e.getMessage());
@@ -229,10 +233,10 @@ public class KanbanTools {
                 request.put("max_runtime_seconds", maxRuntimeSeconds);
             }
             Map<String, Object> detail = kanbanService.createTask(request);
-            return ToolResultEnvelope.ok("Created Kanban task: " + detail.get("id"))
-                    .data("task", detail)
-                    .data("task_id", detail.get("id"))
-                    .preview(detail.get("id") + " " + title)
+            return ToolResultEnvelope.ok("Created Kanban task: " + safeText(detail.get("id")))
+                    .data("task", safeObject(detail))
+                    .data("task_id", safeObject(detail.get("id")))
+                    .preview(safeText(detail.get("id") + " " + title, 1000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_create: " + e.getMessage());
@@ -267,10 +271,10 @@ public class KanbanTools {
                 request.put("created_by", defaultWorkerName());
             }
             Map<String, Object> detail = kanbanService.createTask(request);
-            return ToolResultEnvelope.ok("Created Kanban schema task: " + detail.get("id"))
-                    .data("task", detail)
-                    .data("task_id", detail.get("id"))
-                    .preview(detail.get("id") + " " + detail.get("title"))
+            return ToolResultEnvelope.ok("Created Kanban schema task: " + safeText(detail.get("id")))
+                    .data("task", safeObject(detail))
+                    .data("task_id", safeObject(detail.get("id")))
+                    .preview(safeText(detail.get("id") + " " + detail.get("title"), 1000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_schema_create: " + e.getMessage());
@@ -289,10 +293,10 @@ public class KanbanTools {
         try {
             Map<String, Object> child = kanbanService.link(parentId, childId);
             return ToolResultEnvelope.ok("Linked Kanban tasks")
-                    .data("parent_id", parentId)
-                    .data("child_id", childId)
-                    .data("child", child)
-                    .preview(parentId + " -> " + childId)
+                    .data("parent_id", safeText(parentId))
+                    .data("child_id", safeText(childId))
+                    .data("child", safeObject(child))
+                    .preview(safeText(parentId + " -> " + childId, 1000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_link: " + e.getMessage());
@@ -311,10 +315,10 @@ public class KanbanTools {
         try {
             Map<String, Object> child = kanbanService.unlink(parentId, childId);
             return ToolResultEnvelope.ok("Unlinked Kanban tasks")
-                    .data("parent_id", parentId)
-                    .data("child_id", childId)
-                    .data("child", child)
-                    .preview(parentId + " -/-> " + childId)
+                    .data("parent_id", safeText(parentId))
+                    .data("child_id", safeText(childId))
+                    .data("child", safeObject(child))
+                    .preview(safeText(parentId + " -/-> " + childId, 1000))
                     .toJson();
         } catch (Exception e) {
             return error("kanban_unlink: " + e.getMessage());
@@ -396,6 +400,38 @@ public class KanbanTools {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object safeObject(Object value) {
+        if (value instanceof String) {
+            return safeText(value);
+        }
+        if (value instanceof Map<?, ?>) {
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (entry.getKey() != null) {
+                    safe.put(String.valueOf(entry.getKey()), safeObject(entry.getValue()));
+                }
+            }
+            return safe;
+        }
+        if (value instanceof List<?>) {
+            java.util.ArrayList<Object> safe = new java.util.ArrayList<Object>();
+            for (Object item : (List<Object>) value) {
+                safe.add(safeObject(item));
+            }
+            return safe;
+        }
+        return value;
+    }
+
+    private String safeText(Object value) {
+        return safeText(value, 1000);
+    }
+
+    private String safeText(Object value, int maxLength) {
+        return value == null ? null : SecretRedactor.redact(String.valueOf(value), maxLength);
     }
 
     private String error(String message) {

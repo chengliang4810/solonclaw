@@ -3495,6 +3495,31 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRejectJarInternalFileToolPathsBeforeDelegating() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+        String jarPath = "app.jar!/org/noear/solon/core/USER.md";
+
+        ONode readResult = ONode.ofJson(fileSkill.read(jarPath));
+
+        assertThat(readResult.get("success").getBoolean()).isFalse();
+        assertThat(readResult.get("error").getString())
+                .contains("jar-internal paths are not disk files");
+        assertThatThrownBy(() -> fileSkill.write(jarPath, "content"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("jar-internal paths are not disk files");
+        assertThatThrownBy(() -> fileSkill.delete(jarPath))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("jar-internal paths are not disk files");
+        assertThatThrownBy(() -> fileSkill.list(jarPath))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("jar-internal paths are not disk files");
+    }
+
+    @Test
     void shouldGuardFileToolsAgainstSymlinkEscapesBeforeDelegating() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();

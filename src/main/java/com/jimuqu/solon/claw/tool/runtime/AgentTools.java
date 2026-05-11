@@ -27,7 +27,9 @@ public class AgentTools {
                     String args) {
         try {
             String result = agentProfileService.handleCommand(args, sessionRepository, sourceKey);
-            return ToolResultEnvelope.ok("Agent 管理完成").preview(result).toJson();
+            return ToolResultEnvelope.ok("Agent 管理完成")
+                    .preview(SecretRedactor.redact(result, 2000))
+                    .toJson();
         } catch (Exception e) {
             return ToolResultEnvelope.error(
                             SecretRedactor.redact(
