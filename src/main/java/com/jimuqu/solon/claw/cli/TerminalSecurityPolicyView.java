@@ -47,6 +47,9 @@ public final class TerminalSecurityPolicyView {
         if ("slash-confirm".equals(mode)) {
             return renderSlashConfirmPolicy(approvalService.slashConfirmPolicySummary());
         }
+        if ("lifecycle".equals(mode)) {
+            return renderApprovalLifecyclePolicy(approvalService.approvalLifecyclePolicySummary());
+        }
         if ("hardline".equals(mode)) {
             return renderHardlinePolicy(approvalService.hardlinePolicySummary());
         }
@@ -139,6 +142,9 @@ public final class TerminalSecurityPolicyView {
         }
         if (rest.startsWith("slash-confirm") || rest.startsWith("confirm")) {
             return "slash-confirm";
+        }
+        if (rest.startsWith("lifecycle") || rest.startsWith("approval-lifecycle")) {
+            return "lifecycle";
         }
         if (rest.startsWith("hardline")) {
             return "hardline";
@@ -271,7 +277,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -383,6 +389,53 @@ public final class TerminalSecurityPolicyView {
                 .append(value(slash, "commandPreviewRedacted"))
                 .append(" metadataRedacted=")
                 .append(value(slash, "approvalMetadataRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderApprovalLifecyclePolicy(Map<String, Object> lifecycle) {
+        StringBuilder buffer = new StringBuilder("审批生命周期策略摘要：");
+        buffer.append('\n')
+                .append("- 查询：list=")
+                .append(value(lifecycle, "listSupported"))
+                .append(" statusAlias=")
+                .append(value(lifecycle, "statusAliasSupported"))
+                .append(" safeSelector=")
+                .append(value(lifecycle, "selectorSupported"));
+        buffer.append('\n')
+                .append("- 批量：approveAll=")
+                .append(value(lifecycle, "approveAllSupported"))
+                .append(" rejectAll=")
+                .append(value(lifecycle, "rejectAllSupported"))
+                .append(" bulkSafe=")
+                .append(value(lifecycle, "bulkRejectUsesSafeSelector"));
+        buffer.append('\n')
+                .append("- 清理：clearSession=")
+                .append(value(lifecycle, "clearSessionSupported"))
+                .append(" clearAlways=")
+                .append(value(lifecycle, "clearAlwaysSupported"))
+                .append(" clearAll=")
+                .append(value(lifecycle, "clearAllSupported"));
+        buffer.append('\n')
+                .append("- 范围：scopes=")
+                .append(value(lifecycle, "scopes"))
+                .append(" alwaysGlobal=")
+                .append(value(lifecycle, "alwaysScopeUsesGlobalSettings"))
+                .append(" tirithDowngrade=")
+                .append(value(lifecycle, "tirithAlwaysScopeDowngradedToSession"));
+        buffer.append('\n')
+                .append("- 事件：snapshotUpdated=")
+                .append(value(lifecycle, "sessionSnapshotUpdated"))
+                .append(" requestObserved=")
+                .append(value(lifecycle, "approvalRequestObserved"))
+                .append(" responseObserved=")
+                .append(value(lifecycle, "approvalResponseObserved"));
+        buffer.append('\n')
+                .append("- 脱敏：approver=")
+                .append(value(lifecycle, "approverRedacted"))
+                .append(" approvalKey=")
+                .append(value(lifecycle, "approvalKeyRedacted"))
+                .append(" command=")
+                .append(value(lifecycle, "commandPreviewRedacted"));
         return buffer.toString();
     }
 

@@ -43,6 +43,7 @@ public class CliShellTipsTest {
                         "/security paths",
                         "/security credentials",
                         "/security tool-args",
+                        "/security lifecycle",
                         "/security mcp",
                         "/security schema",
                         "/security attachments",
@@ -96,6 +97,7 @@ public class CliShellTipsTest {
                 .contains("/security tool-results")
                 .contains("/security private-urls")
                 .contains("/security hardline")
+                .contains("/security lifecycle")
                 .contains("/security terminal-guardrails")
                 .contains("/security tirith")
                 .contains("/security cron-approvals")
@@ -146,6 +148,11 @@ public class CliShellTipsTest {
                 .contains("Slash 确认策略摘要")
                 .contains("approveAll")
                 .contains("metadataRedacted");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security lifecycle"))
+                .contains("审批生命周期策略摘要")
+                .contains("approveAll=true")
+                .contains("tirithDowngrade=true")
+                .contains("approvalKey=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security hardline"))
                 .contains("硬阻断命令策略摘要")
                 .contains("metadataUrlBlocked")
