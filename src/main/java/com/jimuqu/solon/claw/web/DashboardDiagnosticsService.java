@@ -1373,8 +1373,21 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "websiteBlocklistSharedRuleCount");
             copyPolicyValue(summary, safe, "websiteBlocklistLoadedSharedFileCount");
             copyPolicyValue(summary, safe, "websiteBlocklistSkippedSharedFileCount");
+            copyPolicyValue(summary, safe, "allowedNetworkSchemes");
+            copyPolicyValue(summary, safe, "unsupportedNetworkSchemeBlocked");
+            copyPolicyValue(summary, safe, "protocolRelativeUrlChecked");
+            copyPolicyValue(summary, safe, "schemelessHostChecked");
+            copyPolicyValue(summary, safe, "percentEncodedHostChecked");
+            copyPolicyValue(summary, safe, "idnHostNormalized");
+            copyPolicyValue(summary, safe, "dnsResolutionRequired");
+            copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
+            copyPolicyValue(summary, safe, "proxyBypassEnvironmentChecked");
+            copyPolicyValue(summary, safe, "packageManagerProxyBypassEnvironmentChecked");
+            copyPolicyValue(summary, safe, "packageManagerPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "userinfoBlocked");
             copyPolicyValue(summary, safe, "sensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "schemelessSensitiveQueryBlocked");
+            copyPolicyValue(summary, safe, "sensitiveQueryNameAliasNormalized");
             copyPolicyValue(summary, safe, "encodedSensitiveQueryBlocked");
             copyPolicyValue(summary, safe, "repeatedEncodedSensitiveQueryBlocked");
             copyPolicyValue(summary, safe, "semicolonSensitiveQueryBlocked");
@@ -1399,6 +1412,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "cloudMetadataAlwaysBlocked");
             copyPolicyValue(summary, safe, "dnsResolutionRequired");
             copyPolicyValue(summary, safe, "obfuscatedIpv4Checked");
+            copyPolicyValue(summary, safe, "percentEncodedHostChecked");
             copyPolicyValue(summary, safe, "ipv4MappedIpv6Checked");
             copyPolicyValue(summary, safe, "loopbackBlocked");
             copyPolicyValue(summary, safe, "linkLocalBlocked");
@@ -1511,6 +1525,10 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "downloadOutputDetachedOptionChecked");
             copyPolicyValue(summary, safe, "proxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "preproxyOptionUrlChecked");
+            copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
+            copyPolicyValue(summary, safe, "proxyBypassEnvironmentChecked");
+            copyPolicyValue(summary, safe, "packageManagerProxyBypassEnvironmentChecked");
+            copyPolicyValue(summary, safe, "packageManagerPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "unsupportedNetworkSchemeChecked");
             return safe;
         } catch (Exception e) {
