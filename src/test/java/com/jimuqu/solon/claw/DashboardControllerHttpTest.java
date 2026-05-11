@@ -2917,6 +2917,44 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldReturnStructuredErrorForInvalidRuntimeConfigJson() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult invalidSet =
+                request(
+                        "PUT",
+                        "/api/runtime-config",
+                        "{\"key\":\"providers.default.apiKey\",\"value\":\"ghp_invalidruntime12345\"",
+                        token);
+        HttpResult invalidReveal =
+                request(
+                        "POST",
+                        "/api/runtime-config/reveal",
+                        "{\"key\":\"providers.default.apiKey\",\"token\":\"ghp_invalidreveal12345\"",
+                        token);
+        HttpResult deleteByBody =
+                request(
+                        "DELETE",
+                        "/api/runtime-config",
+                        "{\"key\":\"providers.default.apiKey\"}",
+                        token);
+
+        assertThat(invalidSet.status).isEqualTo(400);
+        assertThat(invalidSet.body)
+                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidruntime12345")
+                .doesNotContain("providers.default.apiKey");
+        assertThat(invalidReveal.status).isEqualTo(400);
+        assertThat(invalidReveal.body)
+                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidreveal12345")
+                .doesNotContain("providers.default.apiKey");
+        assertThat(deleteByBody.status).isEqualTo(200);
+    }
+
+    @Test
     void shouldWrapDashboardConfigSaveErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
