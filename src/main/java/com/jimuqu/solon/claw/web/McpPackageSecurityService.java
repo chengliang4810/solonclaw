@@ -257,18 +257,20 @@ public class McpPackageSecurityService {
                     ids.append(", ");
                     summaries.append("; ");
                 }
-                String id = StrUtil.nullToEmpty(String.valueOf(vuln.get("id")));
+                String id = SecretRedactor.redact(StrUtil.nullToEmpty(String.valueOf(vuln.get("id"))), 200);
                 ids.append(id);
                 summaries.append(
                         StrUtil.maxLength(
-                                StrUtil.blankToDefault(
-                                        String.valueOf(vuln.get("summary")), id),
+                                SecretRedactor.redact(
+                                        StrUtil.blankToDefault(
+                                                String.valueOf(vuln.get("summary")), id),
+                                        200),
                                 100));
             }
             return new SecurityVerdict(
                     false,
                     "BLOCKED: Package '"
-                            + packageName
+                            + SecretRedactor.redact(packageName, 200)
                             + "' ("
                             + ecosystem
                             + ") has known malware advisories: "

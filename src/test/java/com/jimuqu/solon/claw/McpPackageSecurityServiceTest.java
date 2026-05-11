@@ -34,6 +34,26 @@ public class McpPackageSecurityServiceTest {
     }
 
     @Test
+    void shouldRedactMcpMalwareAdvisoryMessages() throws Exception {
+        FakeOsvHttpClient http =
+                new FakeOsvHttpClient(
+                        "{\"vulns\":[{\"id\":\"MAL-2026-ghp_mcpadvisory12345\",\"summary\":\"token=secret-mcp-summary\"}]}");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("npx", Arrays.asList("-y", "bad-ghp_mcppackage12345"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage())
+                .contains("ghp_***")
+                .contains("token=***")
+                .doesNotContain("ghp_mcpadvisory12345")
+                .doesNotContain("secret-mcp-summary")
+                .doesNotContain("ghp_mcppackage12345");
+    }
+
+    @Test
     void shouldFailOpenWhenOsvRequestFails() throws Exception {
         FakeOsvHttpClient http = new FakeOsvHttpClient(null);
         http.throwOnPost = true;

@@ -168,7 +168,7 @@ public class SolonClawWebTools {
             args.put("url", url);
             check(securityPolicyService, ToolNameConstants.WEBFETCH, args);
             Document document = delegate.webfetch(url, format, timeoutSeconds);
-            checkFinalDocumentUrls(securityPolicyService, document);
+            checkReturnedUrls(securityPolicyService, document);
             return document;
         }
     }
