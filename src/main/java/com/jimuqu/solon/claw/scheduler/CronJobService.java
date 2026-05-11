@@ -460,7 +460,7 @@ public class CronJobService {
         result.put("skill", first(parseList(record.getSkillsJson())));
         result.put("repeat", repeat);
         result.put("script", record.getScript());
-        result.put("workdir", record.getWorkdir());
+        result.put("workdir", workdirReference(record.getWorkdir()));
         result.put("no_agent", Boolean.valueOf(record.isNoAgent()));
         List<String> contextFrom = parseList(record.getContextFromJson());
         result.put("context_from", contextFrom);
@@ -809,6 +809,40 @@ public class CronJobService {
             return "Exception";
         }
         return SecretRedactor.redact(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
+    }
+
+    private String workdirReference(String workdir) {
+        String value = StrUtil.nullToEmpty(workdir).trim();
+        if (StrUtil.isBlank(value)) {
+            return null;
+        }
+        try {
+            File runtimeHome = FileUtil.file(appConfig.getRuntime().getHome()).getCanonicalFile();
+            File file = FileUtil.file(value).getCanonicalFile();
+            String homePath = normalizedPath(runtimeHome);
+            String filePath = normalizedPath(file);
+            if (filePath.equals(homePath)) {
+                return "runtime://";
+            }
+            if (filePath.startsWith(homePath + File.separator)) {
+                return "runtime://" + filePath.substring(homePath.length() + 1).replace('\\', '/');
+            }
+        } catch (Exception ignored) {
+            // Fall through to a filename-only external reference.
+        }
+        String name = FileUtil.file(value).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "workdir";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
+    }
+
+    private String normalizedPath(File file) {
+        String path = file.getAbsolutePath();
+        if (File.separatorChar == '\\') {
+            return path.toLowerCase(java.util.Locale.ROOT);
+        }
+        return path;
     }
 
     private boolean usesForwardSlash(String path) {

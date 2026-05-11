@@ -585,7 +585,7 @@ public class CommandEnhancementTest {
         assertThat(tuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
-                .contains("workdir=" + runtimeHome)
+                .contains("workdir=runtime://")
                 .contains("context_from=[" + jobId + "]")
                 .contains("depends_on=[" + jobId + "]")
                 .contains("enabled_toolsets=[web, terminal]");
@@ -647,7 +647,7 @@ public class CommandEnhancementTest {
         assertThat(retuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
-                .contains("workdir=" + runtimeHome)
+                .contains("workdir=runtime://")
                 .contains("deliver=local")
                 .contains("deliver_chat_id=null")
                 .contains("deliver_thread_id=null");

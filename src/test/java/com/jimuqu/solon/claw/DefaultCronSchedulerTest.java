@@ -1782,7 +1782,7 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> metadataJob = (Map<?, ?>) metadata.get("job");
         String metadataJobId = String.valueOf(metadata.get("job_id"));
         assertThat(metadataJob.get("script")).isEqualTo("metadata.py");
-        assertThat(metadataJob.get("workdir")).isEqualTo(workdir.getAbsolutePath());
+        assertThat(metadataJob.get("workdir")).isEqualTo("runtime://projects/cron-metadata");
         assertThat(metadataJob.get("no_agent")).isEqualTo(Boolean.TRUE);
         assertThat(metadataJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(jobId));
         assertThat(metadataJob.get("depends_on")).isEqualTo(java.util.Collections.singletonList(jobId));
@@ -2361,7 +2361,7 @@ public class DefaultCronSchedulerTest {
         String jobId = String.valueOf(createPayload.get("job_id"));
         Map<?, ?> createdJob = (Map<?, ?>) createPayload.get("job");
         assertThat(createdJob.get("script")).isEqualTo("clear.py");
-        assertThat(createdJob.get("workdir")).isEqualTo(workdir.getAbsolutePath());
+        assertThat(createdJob.get("workdir")).isEqualTo("runtime://projects/cron-clear");
         assertThat(createdJob.get("context_from")).isEqualTo(java.util.Collections.singletonList(upstreamJobId));
         assertThat(createdJob.get("enabled_toolsets")).isEqualTo(java.util.Arrays.asList("terminal", "file"));
         assertThat(createdJob.get("model")).isEqualTo("clear-model");
@@ -4042,7 +4042,7 @@ public class DefaultCronSchedulerTest {
             CronJobRecord canonical = service.create("MEMORY:cron:user", createBody);
             String normalizedRealDir = realDir.getAbsoluteFile().toPath().normalize().toFile().getAbsolutePath();
             assertThat(canonical.getWorkdir()).isEqualTo(normalizedRealDir);
-            assertThat(service.toView(canonical).get("workdir")).isEqualTo(normalizedRealDir);
+            assertThat(service.toView(canonical).get("workdir")).isEqualTo("runtime://projects/workdir-normalized");
 
             Map<String, Object> tildeCreate = new LinkedHashMap<String, Object>();
             tildeCreate.put("name", "tilde-workdir");
