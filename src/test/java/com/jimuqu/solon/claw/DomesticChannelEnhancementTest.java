@@ -736,6 +736,31 @@ public class DomesticChannelEnhancementTest {
                 .contains("token=***");
     }
 
+    @Test
+    void shouldRedactWeComFailureJson() throws Throwable {
+        AppConfig config = new AppConfig();
+        WeComChannelAdapter adapter =
+                new WeComChannelAdapter(
+                        config.getChannels().getWecom(),
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config));
+        Method safeJson = WeComChannelAdapter.class.getDeclaredMethod("safeJson", ONode.class);
+        safeJson.setAccessible(true);
+        ONode failure =
+                new ONode()
+                        .set("ret", 40001)
+                        .set("errmsg", "invalid token=ghp_wecomfail12345")
+                        .set("body", new ONode().set("api_key", "sk-wecom-failure-secret"));
+
+        String message = String.valueOf(invoke(safeJson, adapter, failure));
+
+        assertThat(message)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_wecomfail12345")
+                .doesNotContain("sk-wecom-failure-secret");
+    }
+
     private void assertWeakCredentialRejected(
             com.jimuqu.solon.claw.core.service.ChannelAdapter adapter,
             String expectedErrorCode,

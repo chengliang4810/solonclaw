@@ -127,7 +127,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                             15);
             int ret = auth.get("ret").getInt(0);
             if (ret != 0) {
-                throw new IllegalStateException("WeCom subscribe failed: " + auth.toJson());
+                throw new IllegalStateException(
+                        "WeCom subscribe failed: " + safeJson(auth));
             }
             setConnected(true);
             setSetupState("connected");
@@ -172,7 +173,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                     sendTextMessage(request.getChatId(), request.getText(), request.getThreadId());
             int ret = response.get("ret").getInt(0);
             if (ret != 0) {
-                throw new IllegalStateException("WeCom send failed: " + response.toJson());
+                throw new IllegalStateException("WeCom send failed: " + safeJson(response));
             }
         }
         if (request.getAttachments() != null) {
@@ -449,7 +450,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode response = sendByMode(body, chatId, replyToMessageId, mediaType, 30);
         int errCode = response.get("errcode").getInt(0);
         if (errCode != 0) {
-            throw new IllegalStateException("WeCom media send failed: " + response.toJson());
+            throw new IllegalStateException("WeCom media send failed: " + safeJson(response));
         }
     }
 
@@ -690,7 +691,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         String uploadId = init.get("body").get("upload_id").getString();
         if (StrUtil.isBlank(uploadId)) {
             throw new IllegalStateException(
-                    "WeCom media upload init missing upload_id: " + init.toJson());
+                    "WeCom media upload init missing upload_id: " + safeJson(init));
         }
 
         for (int index = 0; index < totalChunks; index++) {
@@ -716,9 +717,13 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         String mediaId = finish.get("body").get("media_id").getString();
         if (StrUtil.isBlank(mediaId)) {
             throw new IllegalStateException(
-                    "WeCom media upload finish missing media_id: " + finish.toJson());
+                    "WeCom media upload finish missing media_id: " + safeJson(finish));
         }
         return mediaId;
+    }
+
+    private String safeJson(ONode value) {
+        return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
     private byte[] decryptFileBytes(byte[] encryptedData, String aesKeyBase64) throws Exception {
