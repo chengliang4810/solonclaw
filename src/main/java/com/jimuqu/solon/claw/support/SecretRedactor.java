@@ -21,6 +21,8 @@ public final class SecretRedactor {
                     "(?i)(\"(?:api_?key|token|secret|password|access_token|refresh_token|auth_token|bearer|secret_value|raw_secret|secret_input|key_material|private_key|authorization)\")(\\s*:\\s*\")([^\"]+)(\")");
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
+    private static final Pattern ENCODED_URL_USERINFO =
+            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(?:%3a|%3A)([^/?#\\s@]+)@");
     private static final Pattern SENSITIVE_URL_USERINFO =
             Pattern.compile("(?i)\\b(?:https?|wss?|ftp)://[^/?#\\s:@]+:[^/?#\\s@]+@[^\\s]+");
     private static final Pattern DB_CONNSTR =
@@ -160,13 +162,27 @@ public final class SecretRedactor {
     }
 
     private static String redactUrlUserinfo(String value) {
-        Matcher matcher = URL_USERINFO.matcher(value);
-        StringBuffer buffer = new StringBuffer(value.length());
+        String result = redactEncodedUrlUserinfo(value);
+        Matcher matcher = URL_USERINFO.matcher(result);
+        StringBuffer buffer = new StringBuffer(result.length());
         while (matcher.find()) {
             matcher.appendReplacement(
                     buffer,
                     Matcher.quoteReplacement(
                             matcher.group(1) + "://" + matcher.group(2) + ":***@"));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private static String redactEncodedUrlUserinfo(String value) {
+        Matcher matcher = ENCODED_URL_USERINFO.matcher(value);
+        StringBuffer buffer = new StringBuffer(value.length());
+        while (matcher.find()) {
+            matcher.appendReplacement(
+                    buffer,
+                    Matcher.quoteReplacement(
+                            matcher.group(1) + "://" + matcher.group(2) + "%3A***@"));
         }
         matcher.appendTail(buffer);
         return buffer.toString();

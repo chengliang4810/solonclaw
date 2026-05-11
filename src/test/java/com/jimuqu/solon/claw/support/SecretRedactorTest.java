@@ -69,6 +69,14 @@ class SecretRedactorTest {
                 .isEqualTo("wss://user:***@example.com/ws?token=***&ok=value")
                 .doesNotContain("ws-secret")
                 .doesNotContain("opaqueWsToken123");
+
+        String encoded =
+                SecretRedactor.maskUrl(
+                        "https://user%3Aencoded-password@example.com/path?ok=value");
+
+        assertThat(encoded)
+                .isEqualTo("https://user%3A***@example.com/path?ok=value")
+                .doesNotContain("encoded-password");
     }
 
     @Test
