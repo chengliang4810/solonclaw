@@ -450,6 +450,41 @@ try {
 
     Reset-Sandbox
     New-Item -ItemType Directory -Path $releaseDir | Out-Null
+    $releaseNotesPath = Join-Path $releaseDir "release-notes-empty-range.md"
+    Push-Location $sandbox
+    try {
+        & git init --initial-branch=main | Out-Null
+        & git config user.name "Jimuqu Naming Check" | Out-Null
+        & git config user.email "naming-check@example.invalid" | Out-Null
+        Set-Content -Path (Join-Path $sandbox "README.md") -Value "Fallback release note fixture" -Encoding UTF8
+        & git add README.md | Out-Null
+        & git commit -m "fix: fallback release notes / Fallback release notes" | Out-Null
+
+        $emptyRangeReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
+            -OutputPath $releaseNotesPath `
+            -Tag "v2099.01.06-f012345" `
+            -Version "0.0.0-test" `
+            -CommitRange "HEAD..HEAD" `
+            -DisplayRange "HEAD..HEAD" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Release notes generation should fall back to the current commit for an empty range: $($emptyRangeReleaseOutput | Out-String)"
+        }
+        $emptyRangeReleaseText = Get-Content -LiteralPath $releaseNotesPath -Raw -Encoding UTF8
+        if ($emptyRangeReleaseText -notmatch "fix: fallback release notes / Fallback release notes") {
+            throw "Release notes empty-range fallback did not include the current commit subject."
+        }
+        if ($emptyRangeReleaseText -match "No commits were explicitly marked as fix") {
+            throw "Release notes empty-range fallback should not emit only the fix placeholder."
+        }
+        if ($emptyRangeReleaseText -notmatch "Commit range: ``[0-9a-f]{7,}``") {
+            throw "Release notes empty-range fallback did not replace display range with the current short commit."
+        }
+    } finally {
+        Pop-Location
+    }
+
+    Reset-Sandbox
+    New-Item -ItemType Directory -Path $releaseDir | Out-Null
     $releaseNotesPath = Join-Path $releaseDir "release-notes.md"
     Push-Location $sandbox
     try {

@@ -89,6 +89,30 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldFallbackToPreviewOnlyWhenStorageIsUnavailable() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(null, 40, 200000, 300);
+        String large =
+                "first line\nOPENAI_API_KEY=sk-proj-previewonlysecret1234567890\n"
+                        + repeat("tail\n", 80);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", large, "run-preview-only", "call-preview-only");
+
+        assertThat(result.isTruncated()).isTrue();
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.getPreview())
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("sk-proj-previewonlysecret1234567890");
+        assertThat(result.getObservation())
+                .startsWith("<persisted-output>")
+                .contains("Full output could not be saved; use the preview only.")
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("Full output saved to:")
+                .doesNotContain("sk-proj-previewonlysecret1234567890");
+    }
+
+    @Test
     void shouldRedactPersistedPreviewAndStoredOutput() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 40, 200000, 300);
@@ -208,6 +232,24 @@ public class ToolResultStorageServiceTest {
         assertThat(first.getObservation()).isEqualTo(medium);
         assertThat(second.isTruncated()).isTrue();
         assertThat(second.getResultRef()).isNotBlank();
+    }
+
+    @Test
+    void shouldKeepReadFileInlineAfterTurnBudgetExceeded() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1000, 600, 300);
+        String medium = repeat("m", 400);
+        String largeRead = repeat("read\n", 200);
+
+        ToolResultStorageService.StoredResult first =
+                service.observe("webfetch", medium, "run-budget-read", "call-1");
+        ToolResultStorageService.StoredResult second =
+                service.observe("read_file", largeRead, "run-budget-read", "call-read");
+
+        assertThat(first.getObservation()).isEqualTo(medium);
+        assertThat(second.getObservation()).isEqualTo(largeRead);
+        assertThat(second.getResultRef()).isNull();
+        assertThat(second.isTruncated()).isFalse();
     }
 
     @Test

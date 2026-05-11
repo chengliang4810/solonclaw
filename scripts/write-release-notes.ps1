@@ -110,6 +110,14 @@ function Get-CommitSubjects {
     return @($subjects | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
+function Get-HeadCommitSubject {
+    $subjects = & git log -1 --pretty=format:'%s' HEAD 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to read current git commit subject."
+    }
+    return @($subjects | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
 function Select-Items {
     param(
         [string[]] $Items,
@@ -139,7 +147,7 @@ Assert-CleanReleaseText $DisplayRange
 Invoke-ProjectNamingGuard $CommitRange
 $commits = Get-CommitSubjects $CommitRange
 if ($commits.Length -eq 0) {
-    $commits = Get-CommitSubjects "HEAD"
+    $commits = Get-HeadCommitSubject
     $DisplayRange = (& git rev-parse --short HEAD).Trim()
     Assert-CleanReleaseText $DisplayRange
     Invoke-ProjectNamingGuard "HEAD"
