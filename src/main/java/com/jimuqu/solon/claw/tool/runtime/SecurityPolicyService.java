@@ -616,6 +616,8 @@ public class SecurityPolicyService {
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
+        summary.put("schemelessSensitiveQueryBlocked", Boolean.TRUE);
+        summary.put("sensitiveQueryNameAliasNormalized", Boolean.TRUE);
         summary.put("encodedSensitiveQueryBlocked", Boolean.TRUE);
         summary.put("repeatedEncodedSensitiveQueryBlocked", Boolean.TRUE);
         summary.put("semicolonSensitiveQueryBlocked", Boolean.TRUE);

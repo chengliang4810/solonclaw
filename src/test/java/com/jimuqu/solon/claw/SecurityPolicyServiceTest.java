@@ -735,6 +735,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("schemelessSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("sensitiveQueryNameAliasNormalized")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("encodedSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("repeatedEncodedSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("semicolonSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
