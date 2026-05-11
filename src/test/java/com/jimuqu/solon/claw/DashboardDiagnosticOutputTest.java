@@ -379,9 +379,12 @@ public class DashboardDiagnosticOutputTest {
         event.setApprovalId("approval-1\u202E");
         event.setApprovalKey("execute_shell:recursive_delete:hash");
         event.setCommandHash("hash");
-        event.setCommandPreview("printf api_key=sk-history-secret");
-        event.setDescription("history password=history-secret");
-        event.setPatternKeysJson("[\"recursive_delete\u202E\",\"token_ghp_historypattern123\"]");
+        event.setCommandPreview(
+                "printf api_key=sk-history-secret && curl https://example.test/callback?api%255Fkey=history-encoded-secret");
+        event.setDescription(
+                "history password=history-secret https://example.test/callback?api%255Fkey=history-encoded-secret");
+        event.setPatternKeysJson(
+                "[\"recursive_delete\u202E\",\"token_ghp_historypattern123\",\"url_policy?api%255Fkey=history-encoded-secret\"]");
         event.setCreatedAt(1700000000002L);
 
         DashboardDiagnosticsService diagnosticsService =
@@ -406,6 +409,7 @@ public class DashboardDiagnosticOutputTest {
         String json = ONode.serialize(item);
         assertThat(json).doesNotContain("ghp_approversecret123");
         assertThat(json).doesNotContain("sk-history-secret");
+        assertThat(json).doesNotContain("history-encoded-secret");
         assertThat(json).doesNotContain("history-secret");
         assertThat(json).doesNotContain("execute_shell:recursive_delete:hash");
         assertThat(json).doesNotContain("\"command_hash\":\"hash\"");
@@ -416,6 +420,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(json).contains("\"session_id\":\"session-audit\"");
         assertThat(json).contains("\"tool_name\":\"execute_shell\"");
         assertThat(json).contains("token_ghp_***");
+        assertThat(json).contains("api%255Fkey=***");
         assertThat(json).contains("\"command_hash\":\"***\"");
         assertThat(json).contains("token=***").contains("api_key=***").contains("password=***");
     }

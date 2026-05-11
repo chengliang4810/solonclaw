@@ -108,6 +108,19 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactEncodedSensitiveUrlQueryNamesInCommandText() {
+        String result =
+                SecretRedactor.redact(
+                        "printf api_key=sk-history-secret && curl https://example.test/callback?api%255Fkey=history-encoded-secret");
+
+        assertThat(result)
+                .contains("api_key=***")
+                .contains("api%255Fkey=***")
+                .doesNotContain("sk-history-secret")
+                .doesNotContain("history-encoded-secret");
+    }
+
+    @Test
     void shouldRedactSemicolonSeparatedSensitiveUrlParameters() {
         String result =
                 SecretRedactor.maskUrl(

@@ -224,13 +224,28 @@ public final class SecretRedactor {
     }
 
     private static int nextParameterEnd(String value, int start, char separator) {
-        int amp = value.indexOf('&', start);
-        int semicolon = value.indexOf(';', start);
-        int end = minPositive(amp, semicolon);
-        if (separator != '#') {
-            end = minPositive(end, value.indexOf('#', start));
+        for (int i = start; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '&' || ch == ';' || (separator != '#' && ch == '#')) {
+                return i;
+            }
+            if (isUrlParameterTextBoundary(ch)) {
+                return i;
+            }
         }
-        return end < 0 ? value.length() : end;
+        return value.length();
+    }
+
+    private static boolean isUrlParameterTextBoundary(char ch) {
+        return Character.isWhitespace(ch)
+                || ch == '"'
+                || ch == '\''
+                || ch == '`'
+                || ch == '<'
+                || ch == '>'
+                || ch == ')'
+                || ch == ']'
+                || ch == '}';
     }
 
     private static String redactEncodedSensitiveParameter(String parameter) {
