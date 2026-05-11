@@ -1704,25 +1704,12 @@ public class DashboardDiagnosticsService {
         if (approvals.get("auditLogPolicy") instanceof Map) {
             safe.put(
                     "auditLogPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("auditLogPolicy"),
-                            "requestEvents",
-                            "responseEvents",
-                            "observerFailureIsolated",
-                            "approvalKeyRedacted",
-                            "manualRevocationAudited",
-                            "encodedUrlParameterRedacted"));
+                    safeApprovalAuditPolicy((Map<String, Object>) approvals.get("auditLogPolicy")));
         }
         if (approvals.get("mcpReloadPolicy") instanceof Map) {
             safe.put(
                     "mcpReloadPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("mcpReloadPolicy"),
-                            "confirmRequired",
-                            "defaultDecision",
-                            "toolChangeNoticeInjected",
-                            "oauthUrlSafetyCovered",
-                            "unsafeSelectorRejected"));
+                    safeMcpReloadPolicy((Map<String, Object>) approvals.get("mcpReloadPolicy")));
         }
         return safe;
     }

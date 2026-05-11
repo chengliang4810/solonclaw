@@ -360,6 +360,23 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> approvalsScanPolicy =
                 (Map<String, Object>) approvals.get("tirithApprovalPolicy");
         assertThat(approvalsScanPolicy.get("descriptionRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsSlashPolicy =
+                (Map<String, Object>) approvals.get("slashConfirmPolicy");
+        assertThat(approvalsSlashPolicy.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("pendingListUsesSafeSelector")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsSlashPolicy.get("approvalMetadataRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsCardPolicy =
+                (Map<String, Object>) approvals.get("approvalCardPolicy");
+        assertThat(approvalsCardPolicy.get("approvalIdSelectorSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsCardPolicy.get("rawCommandRedactedInExtras")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsAuditPolicy =
+                (Map<String, Object>) approvals.get("auditLogPolicy");
+        assertThat(approvalsAuditPolicy.get("manualRevocationAudited")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsAuditPolicy.get("approvalKeyRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsMcpReloadPolicy =
+                (Map<String, Object>) approvals.get("mcpReloadPolicy");
+        assertThat(approvalsMcpReloadPolicy.get("persistentDisableSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalsMcpReloadPolicy.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
         Map<String, Object> coverageApprovalPolicy =
                 (Map<String, Object>) coverage.get("dangerousCommandApprovalPolicy");
