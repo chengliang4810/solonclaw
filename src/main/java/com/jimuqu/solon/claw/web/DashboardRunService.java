@@ -135,7 +135,7 @@ public class DashboardRunService {
         }
         result.put("ok", false);
         result.put("status", "control_unavailable");
-        result.put("payload", payload);
+        result.put("payload", redactParsed(payload));
         return result;
     }
 

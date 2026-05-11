@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -123,6 +124,29 @@ public class DashboardRunServiceTest {
         assertThat(response).doesNotContain("sk-test-commandsecret");
         assertThat(response).doesNotContain("ghp_commandpayload123");
         assertThat(response).contains("***");
+    }
+
+    @Test
+    void shouldRedactControlPayloadWhenRunControlIsUnavailable() throws Exception {
+        FakeAgentRunRepository repository = new FakeAgentRunRepository();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-control-secret");
+        run.setSessionId("session-control-secret");
+        repository.runs.add(run);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("instruction", "steer token=ghp_controlpayload12345");
+        payload.put("nested", Collections.singletonMap("api_key", "sk-controlpayload-secret"));
+
+        DashboardRunService service = new DashboardRunService(repository);
+        String response =
+                ONode.serialize(service.control("run-control-secret", "steer", payload));
+
+        assertThat(response).contains("control_unavailable");
+        assertThat(response)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_controlpayload12345")
+                .doesNotContain("sk-controlpayload-secret");
     }
 
     private static class FakeAgentRunRepository implements AgentRunRepository {
