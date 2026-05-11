@@ -502,6 +502,26 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"pathKeySamples\"")
                 .doesNotContain("\"configuredPath\"")
                 .doesNotContain("\"resolvedPath\"");
+        ONode readOnlyAuditPolicy =
+                ONode.ofJson(diagnostics.body)
+                        .get("data")
+                        .get("security")
+                        .get("audit_policy")
+                        .get("coverage")
+                        .get("readOnlyAuditPolicy");
+        assertThat(readOnlyAuditPolicy.get("executesCommand").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("opensNetworkConnection").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("readsTargetUrl").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("writesFile").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("storesAuditInput").getBoolean()).isFalse();
+        assertThat(readOnlyAuditPolicy.get("secretRedactionApplied").getBoolean()).isTrue();
+        assertThat(readOnlyAuditPolicy.get("commandPreviewLimitChars").getInt()).isEqualTo(400);
+        assertThat(readOnlyAuditPolicy.get("findingMessageLimitChars").getInt()).isEqualTo(1000);
+        assertThat(readOnlyAuditPolicy.toJson())
+                .contains("security_audit")
+                .contains("tool_args")
+                .contains("policy")
+                .doesNotContain("secret-sudo");
 
         HttpResult commandAudit =
                 request(
