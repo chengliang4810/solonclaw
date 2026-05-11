@@ -3871,6 +3871,22 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_clipboard_export");
         }
 
+        List<String> credentialFileCommands =
+                Arrays.asList(
+                        "cat .env | pbcopy",
+                        "cat ~/.aws/credentials | xclip -selection clipboard",
+                        "type credentials.json | clip",
+                        "Get-Content token.json | Set-Clipboard",
+                        "gc service-account.json | scb",
+                        "Set-Clipboard -Path .env.local",
+                        "Set-Clipboard -LiteralPath ~/.npmrc");
+        for (String command : credentialFileCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("sensitive_file_clipboard_export");
+        }
+
         DangerousCommandApprovalService.DetectionResult fullEnvironmentClipboard =
                 env.dangerousCommandApprovalService.detect("execute_shell", "env | pbcopy");
         assertThat(fullEnvironmentClipboard).isNotNull();
@@ -3882,6 +3898,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "echo $HOME | pbcopy"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat README.md | pbcopy"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Set-Clipboard -Path docs/report.txt"))
                 .isNull();
     }
 

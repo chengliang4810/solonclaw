@@ -416,6 +416,16 @@ public class DangerousCommandApprovalService {
                                                     + "\\})"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sensitive_file_clipboard_export",
+                                    "copy credential file content to clipboard",
+                                    pattern(
+                                            "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_inline_assignment",
                                     "set sensitive environment variable inline with a command",
                                     pattern(
