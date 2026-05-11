@@ -121,6 +121,21 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactEncodedUrlParametersAfterPlainSensitiveParameters() {
+        String result =
+                SecretRedactor.redact(
+                        "access_token=ghp_oautherror12345&callback=http://localhost/cb?api%255Fkey=oauth-encoded-secret&token=secret-oauth-error");
+
+        assertThat(result)
+                .contains("access_token=***")
+                .contains("api%255Fkey=***")
+                .contains("token=***")
+                .doesNotContain("ghp_oautherror12345")
+                .doesNotContain("oauth-encoded-secret")
+                .doesNotContain("secret-oauth-error");
+    }
+
+    @Test
     void shouldRedactEncodedSensitiveUrlQueryNamesInCommandText() {
         String result =
                 SecretRedactor.redact(

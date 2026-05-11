@@ -110,6 +110,7 @@ public final class SecretRedactor {
         result = JWT.matcher(result).replaceAll("***");
         result = SENSITIVE_URL_USERINFO.matcher(result).replaceAll("[REDACTED_PATH]");
         result = redactUrlUserinfo(result);
+        result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
@@ -152,6 +153,7 @@ public final class SecretRedactor {
         String result = stripDisplayControls(value);
         result = redactUrlUserinfo(result);
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
+        result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = redactEncodedSensitiveQuery(result);
         return PREFIX_SECRET.matcher(result).replaceAll("***");
@@ -256,9 +258,19 @@ public final class SecretRedactor {
         String name = parameter.substring(0, equals);
         String decodedName = decodeRepeated(name).toLowerCase(Locale.ROOT);
         if (!decodedName.matches("(?i)(?:" + SENSITIVE_QUERY_NAMES + ")")) {
-            return parameter;
+            return name + "=" + redactEmbeddedEncodedSensitiveQuery(parameter.substring(equals + 1));
         }
         return name + "=***";
+    }
+
+    private static String redactEmbeddedEncodedSensitiveQuery(String value) {
+        if (StrUtil.isBlank(value)) {
+            return value;
+        }
+        if (value.indexOf('?') < 0 && value.indexOf('#') < 0 && value.indexOf(';') < 0) {
+            return value;
+        }
+        return redactEncodedSensitiveQuery(value);
     }
 
     private static String decodeRepeated(String raw) {
