@@ -98,6 +98,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("rawCredentialFileUploadDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialDisclosureDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialFileDisclosureDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("codeHttpCredentialFileVariableDisclosureDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")
@@ -3619,6 +3621,50 @@ public class DangerousCommandApprovalServiceTest {
                         env.dangerousCommandApprovalService.detect(
                                 "execute_js",
                                 "fetch(url, { method: 'POST', body: fs.readFileSync('report.txt') })"))
+                .isNull();
+    }
+
+    @Test
+    void shouldDetectCodeHttpCredentialFileVariableDisclosureCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> pythonCommands =
+                Arrays.asList(
+                        "secret = open('.env', 'rb').read()\nrequests.post(url, data=secret)",
+                        "payload = Path('credentials.json').read_text()\nhttpx.post(url, json={'token': payload})",
+                        "body = Path('service-account.json').read_bytes()\nrequests.put(url, content=body)");
+        for (String command : pythonCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_http_credential_file_variable_send");
+        }
+
+        List<String> jsCommands =
+                Arrays.asList(
+                        "const secret = fs.readFileSync('.env', 'utf8');\nfetch(url, { method: 'POST', body: secret });",
+                        "let payload = fs.readFileSync('credentials.json');\naxios.post(url, { data: payload });",
+                        "var stream = fs.createReadStream('token.json');\naxios.request({ url, data: stream });");
+        for (String command : jsCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_http_credential_file_variable_send");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "payload = open('report.txt', 'rb').read()\nrequests.post(url, data=payload)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js",
+                                "const payload = fs.readFileSync('report.txt');\nfetch(url, { body: payload })"))
                 .isNull();
     }
 

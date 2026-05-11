@@ -1385,6 +1385,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']\\s*,"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_http_credential_file_variable_send",
+                                    "Python sends credential file content variable through HTTP",
+                                    pattern(
+                                            "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))[\\s\\S]{0,1200}\\b(?:requests|httpx)\\.(?:request|post|put|patch)\\s*\\([^\\n]*(?:data|content|json|files)\\s*=\\s*(?:\\1\\b|\\{[^\\n}]*\\1\\b|dict\\s*\\([^\\n)]*\\1\\b)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_http_credential_body_send",
                                     "Python sends credential through HTTP body",
                                     pattern(
@@ -1428,6 +1434,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']\\s*:)|\\bheaders\\s*\\.\\s*(?:set|append)\\s*\\(\\s*[\"']"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "[\"']\\s*,"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_http_credential_file_variable_send",
+                                    "JavaScript sends credential file content variable through HTTP",
+                                    pattern(
+                                            "\\b(?:const|let|var)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)[\\s\\S]{0,1200}(?:\\bfetch\\s*\\([^\\n]*(?:body\\s*:\\s*\\1\\b|JSON\\.stringify\\s*\\(\\s*\\{[^\\n}]*\\1\\b)|\\baxios\\.(?:request|post|put|patch)\\s*\\([^\\n]*(?:data\\s*:\\s*\\1\\b|\\{[^\\n}]*\\1\\b))"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_http_credential_body_send",
@@ -2050,6 +2062,7 @@ public class DangerousCommandApprovalService {
         summary.put("rawCredentialFileUploadDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);
+        summary.put("codeHttpCredentialFileVariableDisclosureDetection", Boolean.TRUE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
