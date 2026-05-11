@@ -683,10 +683,17 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 脱敏：previewRedacted=")
                 .append(value(toolResults, "previewRedacted"))
+                .append(" pinnedPreviewRedacted=")
+                .append(value(toolResults, "pinnedInlinePreviewRedacted"))
                 .append(" persistedRedacted=")
                 .append(value(toolResults, "persistedOutputRedacted"))
                 .append(" rawSaved=")
                 .append(value(toolResults, "fullOutputSavedRaw"));
+        buffer.append('\n')
+                .append("- 例外：pinnedRawInline=")
+                .append(value(toolResults, "pinnedInlineRawObservationAllowed"))
+                .append(" pinnedTools=")
+                .append(value(toolResults, "pinnedInlineTools"));
         return buffer.toString();
     }
 

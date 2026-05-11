@@ -93,6 +93,8 @@ public class ToolResultStorageService {
         summary.put("turnBudgetBytes", Integer.valueOf(turnBudgetBytes));
         summary.put("previewLength", Integer.valueOf(previewLength));
         summary.put("pinnedInlineTools", pinnedInlineTools());
+        summary.put("pinnedInlineRawObservationAllowed", Boolean.TRUE);
+        summary.put("pinnedInlinePreviewRedacted", Boolean.TRUE);
         summary.put("oversizedResultsPersisted", Boolean.TRUE);
         summary.put("turnBudgetOverflowPersisted", Boolean.TRUE);
         summary.put("persistedOutputBlock", Boolean.TRUE);

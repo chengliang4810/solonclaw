@@ -175,7 +175,8 @@ public class CliShellTipsTest {
                 .contains("hostPathHidden");
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-results"))
                 .contains("工具输出安全策略摘要")
-                .contains("oversizedPersisted");
+                .contains("oversizedPersisted")
+                .contains("pinnedRawInline");
         assertThat(TerminalSecurityPolicyView.render(null, "/security patch"))
                 .contains("补丁工具安全策略摘要")
                 .contains("atomicValidation")

@@ -494,6 +494,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"curlNetworkErrorsExplained\":true")
                 .contains("\"tool_result_storage_policy\"")
                 .contains("\"pinnedInlineTools\":[\"file_read\",\"read_file\"]")
+                .contains("\"pinnedInlineRawObservationAllowed\":true")
+                .contains("\"pinnedInlinePreviewRedacted\":true")
                 .contains("\"oversizedResultsPersisted\":true")
                 .contains("\"turnBudgetOverflowPersisted\":true")
                 .contains("\"resultRefReturned\":true")

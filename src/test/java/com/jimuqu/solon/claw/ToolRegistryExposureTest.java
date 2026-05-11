@@ -1292,10 +1292,26 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("coverage")
-                                .get("toolResultStoragePolicy")
-                                .get("fullOutputSavedRaw")
-                                .getBoolean())
+                .get("toolResultStoragePolicy")
+                .get("fullOutputSavedRaw")
+                .getBoolean())
                 .isFalse();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("pinnedInlineRawObservationAllowed")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("pinnedInlinePreviewRedacted")
+                                .getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolResultStoragePolicy")))
                 .contains("read_file")
                 .contains("previewRedacted")

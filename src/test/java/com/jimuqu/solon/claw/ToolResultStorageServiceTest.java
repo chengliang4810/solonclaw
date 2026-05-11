@@ -34,6 +34,8 @@ public class ToolResultStorageServiceTest {
         assertThat(cacheSummary.get("turnBudgetBytes")).isEqualTo(Integer.valueOf(600));
         assertThat(cacheSummary.get("previewLength")).isEqualTo(Integer.valueOf(300));
         assertThat(cacheSummary.get("workspaceRelativeRefsPreferred")).isEqualTo(Boolean.FALSE);
+        assertThat(cacheSummary.get("pinnedInlineRawObservationAllowed")).isEqualTo(Boolean.TRUE);
+        assertThat(cacheSummary.get("pinnedInlinePreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(cacheSummary))
                 .contains("file_read")
                 .contains("read_file")
