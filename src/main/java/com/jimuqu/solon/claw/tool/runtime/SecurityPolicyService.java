@@ -164,6 +164,18 @@ public class SecurityPolicyService {
                     "/private/var/",
                     "/etc/sudoers.d/",
                     "/etc/systemd/");
+    private static final List<String> WRITE_DENIED_WINDOWS_PREFIXES =
+            Arrays.asList(
+                    "c:/windows/",
+                    "%windir%/",
+                    "$env:windir/",
+                    "${windir}/",
+                    "c:/program files/",
+                    "c:/program files (x86)/",
+                    "$env:programfiles/",
+                    "${programfiles}/",
+                    "%programfiles%/",
+                    "%programfiles(x86)%/");
     private static final List<String> BLOCKED_DEVICE_PATHS =
             Arrays.asList(
                     "/dev/zero",
@@ -181,6 +193,10 @@ public class SecurityPolicyService {
     private static final Pattern SHELL_PATH_PATTERN =
             Pattern.compile(
                     "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
+                    Pattern.CASE_INSENSITIVE);
+    private static final Pattern QUOTED_WINDOWS_PATH_PATTERN =
+            Pattern.compile(
+                    "([\"'])([A-Za-z]:[\\\\/][^\"'`|;&<>]+)\\1",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN =
             Pattern.compile(
@@ -764,6 +780,13 @@ public class SecurityPolicyService {
         Matcher matcher = SHELL_PATH_PATTERN.matcher(code);
         while (matcher.find()) {
             FileVerdict verdict = checkPath(matcher.group(1), true);
+            if (!verdict.allowed) {
+                return verdict;
+            }
+        }
+        Matcher quotedWindowsMatcher = QUOTED_WINDOWS_PATH_PATTERN.matcher(code);
+        while (quotedWindowsMatcher.find()) {
+            FileVerdict verdict = checkPath(quotedWindowsMatcher.group(2), true);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -2702,6 +2725,11 @@ public class SecurityPolicyService {
         for (String prefix : WRITE_DENIED_PREFIXES) {
             if (normalized.startsWith(prefix)
                     || path.startsWith(prefix.substring(1))) {
+                return true;
+            }
+        }
+        for (String prefix : WRITE_DENIED_WINDOWS_PREFIXES) {
+            if (normalized.startsWith(prefix) || path.startsWith(stripKnownPrefix(prefix))) {
                 return true;
             }
         }
