@@ -1664,11 +1664,16 @@ public class SecurityPolicyService {
                 continue;
             }
             int setIndex = findNextToken(tokens, configIndex + 1, "set");
-            if (setIndex < 0 || setIndex + 2 >= tokens.size()) {
+            if (setIndex < 0 || setIndex + 1 >= tokens.size()) {
                 continue;
             }
             String key = tokens.get(setIndex + 1);
-            String value = tokens.get(setIndex + 2);
+            String value = setIndex + 2 < tokens.size() ? tokens.get(setIndex + 2) : "";
+            int assignment = key.indexOf('=');
+            if (assignment > 0 && assignment + 1 < key.length()) {
+                value = key.substring(assignment + 1);
+                key = key.substring(0, assignment);
+            }
             if (isPackageManagerNoProxyConfigKey(key)) {
                 addNoProxyHosts(value, urls);
             } else if (isPackageManagerProxyConfigKey(key)) {

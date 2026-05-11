@@ -748,11 +748,19 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict pipProxy =
                 metadataPolicy.checkCommandUrls(
                         "pip config set global.proxy http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict assignedNpmNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "npm config set noproxy=internal.example,registry.npmjs.org");
+        SecurityPolicyService.UrlVerdict assignedPipProxy =
+                metadataPolicy.checkCommandUrls(
+                        "pip config set global.proxy=http://169.254.169.254:8080");
         SecurityPolicyService.UrlVerdict publicProxy =
                 publicPolicy.checkCommandUrls(
                         "npm config set https-proxy http://proxy.example:8080");
 
         assertThat(privatePolicy.extractUrlishValues("npm config set noproxy internal.example"))
+                .contains("http://internal.example");
+        assertThat(privatePolicy.extractUrlishValues("npm config set noproxy=internal.example"))
                 .contains("http://internal.example");
         assertThat(npmNoProxy.isAllowed()).isFalse();
         assertThat(npmNoProxy.getMessage()).contains("内网");
@@ -764,6 +772,10 @@ public class SecurityPolicyServiceTest {
         assertThat(npmProxy.getMessage()).contains("内网");
         assertThat(pipProxy.isAllowed()).isFalse();
         assertThat(pipProxy.getMessage()).contains("元数据");
+        assertThat(assignedNpmNoProxy.isAllowed()).isFalse();
+        assertThat(assignedNpmNoProxy.getMessage()).contains("内网");
+        assertThat(assignedPipProxy.isAllowed()).isFalse();
+        assertThat(assignedPipProxy.getMessage()).contains("元数据");
         assertThat(publicProxy.isAllowed()).isTrue();
     }
 
