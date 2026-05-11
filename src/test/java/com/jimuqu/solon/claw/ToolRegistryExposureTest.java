@@ -1123,6 +1123,10 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("downloadOutputDetachedOptionChecked").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("networkUploadSourcePathChecked").getBoolean())
+                .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("networkUploadCredentialOnlyBlocked").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("preproxyOptionUrlChecked").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("unsupportedNetworkSchemeChecked").getBoolean())
@@ -1131,6 +1135,7 @@ public class ToolRegistryExposureTest {
                 .contains("file_path")
                 .contains("endpoint")
                 .contains("browser_download_url")
+                .contains("networkUploadSourcePathChecked")
                 .contains("apply_patch");
         assertThat(policyStatus.get("policy").get("coverage").get("schemaSanitizer").getBoolean())
                 .isTrue();

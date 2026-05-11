@@ -1535,6 +1535,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("patchTargetExtraction")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputPathOptionChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputDetachedOptionChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);

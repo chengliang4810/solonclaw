@@ -768,6 +768,8 @@ public class SecurityPolicyService {
         summary.put("patchTargetExtraction", Boolean.TRUE);
         summary.put("downloadOutputPathOptionChecked", Boolean.TRUE);
         summary.put("downloadOutputDetachedOptionChecked", Boolean.TRUE);
+        summary.put("networkUploadSourcePathChecked", Boolean.TRUE);
+        summary.put("networkUploadCredentialOnlyBlocked", Boolean.TRUE);
         summary.put("proxyOptionUrlChecked", Boolean.TRUE);
         summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
@@ -781,7 +783,7 @@ public class SecurityPolicyService {
         summary.put("patchIntentSamples", toolArgsPatchIntentSamples());
         summary.put("patchTextKeySamples", toolArgsPatchTextKeySamples());
         summary.put("writeLikeToolSamples", toolArgsWriteLikeToolSamples());
-        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths, checks returned documents, and parses patch/diff targets before tool execution.");
+        summary.put("description", "Tool argument and returned-content safety recursively extracts URL and path-like values, detects write intent, checks download output paths and network upload source paths, checks returned documents, and parses patch/diff targets before tool execution.");
         return summary;
     }
 
