@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 class SecretRedactorTest {
@@ -136,6 +137,24 @@ class SecretRedactorTest {
 
         assertThat(result)
                 .isEqualTo("https://example.com/list?monkey=banana&keystone=door&ok=value");
+    }
+
+    @Test
+    void shouldMaskEncodedSensitiveUrlQueryNamesWithLocaleIndependentCaseFolding() {
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(new Locale("tr", "TR"));
+
+            String result =
+                    SecretRedactor.maskUrl(
+                            "https://example.com/callback?ID%255FTOKEN=id-secret&ok=value");
+
+            assertThat(result)
+                    .isEqualTo("https://example.com/callback?ID%255FTOKEN=***&ok=value")
+                    .doesNotContain("id-secret");
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test

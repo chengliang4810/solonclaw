@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
 import java.net.URLDecoder;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -238,7 +239,7 @@ public final class SecretRedactor {
             return parameter;
         }
         String name = parameter.substring(0, equals);
-        String decodedName = decodeRepeated(name).toLowerCase();
+        String decodedName = decodeRepeated(name).toLowerCase(Locale.ROOT);
         if (!decodedName.matches("(?i)(?:" + SENSITIVE_QUERY_NAMES + ")")) {
             return parameter;
         }
