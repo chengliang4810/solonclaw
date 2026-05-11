@@ -615,6 +615,18 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:npx|uvx|bunx)\\b|\\bnpm\\s+(?:exec|create)\\b|\\bpnpm\\s+(?:dlx|exec|create)\\b|\\byarn\\s+(?:dlx|create)\\b|\\bbun\\s+create\\b|\\bpipx\\s+run\\b|\\bdeno\\s+run\\b(?=[^\\n]*(?:https?://|jsr:|npm:))|\\b(?:npm|pnpm|yarn|bun)\\s+(?:install|add)\\b(?=[^\\n]*(?:git\\+https?://|https?://|github:|gitlab:|bitbucket:))|\\bpip(?:3)?\\s+install\\b(?=[^\\n]*(?:git\\+https?://|https?://\\S*\\.(?:whl|tar\\.gz|zip)\\b))|\\bcargo\\s+install\\b(?=[^\\n]*(?:--git\\s+https?://|--git=https?://))|\\bgo\\s+install\\b(?=[^\\n]*@[A-Za-z0-9_.-]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_archive",
+                                    "archive credential files",
+                                    pattern(
+                                            "\\b(?:tar|bsdtar|gtar)\\b(?=[^\\n]*(?:\\s(?:-c[^\\s]*|--create)\\b|\\sc[A-Za-z]*f?\\b))(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\b(?:zip|7z|7za)\\b(?=[^\\n]*\\.(?:zip|7z|tar|tgz|gz|xz)\\b)(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\bCompress-Archive\\b(?=[^\\n]*(?:-Path\\b|-LiteralPath\\b|\\.zip\\b))(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_http_header_send",
                                     "send credential through HTTP header",
                                     pattern(

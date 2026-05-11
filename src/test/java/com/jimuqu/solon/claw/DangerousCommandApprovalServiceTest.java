@@ -3263,6 +3263,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileArchiveCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "tar czf backup.tgz .env",
+                        "tar -cf secrets.tar credentials.json token.json",
+                        "bsdtar --create -f backup.tar ~/.config/gcloud/application_default_credentials.json",
+                        "zip backup.zip .npmrc",
+                        "7z a secrets.7z client_secret.json",
+                        "Compress-Archive -Path .anthropic_oauth.json -DestinationPath backup.zip");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_archive");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "tar czf docs.tgz docs report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "zip reports.zip report.txt docs/"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Compress-Archive -Path report.txt -DestinationPath reports.zip"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectRemoteCredentialFileTransferCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
