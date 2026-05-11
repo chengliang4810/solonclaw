@@ -939,6 +939,8 @@ public class SecurityPolicyServiceTest {
 
         assertThat(summary.get("traversalBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("controlCharactersBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("rawControlCharactersBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("normalizedControlCharactersBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("devicePathBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawBlockDeviceWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);

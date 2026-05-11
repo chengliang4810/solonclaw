@@ -661,6 +661,8 @@ public class SecurityPolicyService {
                         : StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
         summary.put("traversalBlocked", Boolean.TRUE);
         summary.put("controlCharactersBlocked", Boolean.TRUE);
+        summary.put("rawControlCharactersBlocked", Boolean.TRUE);
+        summary.put("normalizedControlCharactersBlocked", Boolean.TRUE);
         summary.put("devicePathBlocked", Boolean.TRUE);
         summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);

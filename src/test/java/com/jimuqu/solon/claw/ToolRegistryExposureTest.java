@@ -1052,6 +1052,8 @@ public class ToolRegistryExposureTest {
                 policyStatus.get("policy").get("coverage").get("pathPolicyDetails");
         assertThat(pathPolicyDetails.get("traversalBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("controlCharactersBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("rawControlCharactersBlocked").getBoolean()).isTrue();
+        assertThat(pathPolicyDetails.get("normalizedControlCharactersBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("devicePathBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("rawBlockDeviceWriteBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("skillsHubInternalReadBlocked").getBoolean()).isTrue();
