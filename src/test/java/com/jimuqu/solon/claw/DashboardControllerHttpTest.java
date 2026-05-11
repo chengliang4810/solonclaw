@@ -2122,7 +2122,10 @@ public class DashboardControllerHttpTest {
                         null,
                         token);
         assertThat(rejectedDiary.status).isEqualTo(400);
-        assertThat(rejectedDiary.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(rejectedDiary.body)
+                .contains("WORKSPACE_BAD_REQUEST")
+                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain("missing-secret-token.md");
     }
 
     @Test
