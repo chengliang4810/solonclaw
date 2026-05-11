@@ -463,6 +463,18 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_visual_encode",
+                                    "encode credential file into image",
+                                    pattern(
+                                            "(?:\\bqrencode\\b[^\\n|;&]*(?:\\s-r\\s+|\\s--read-from=|\\s--read-from\\s+|<\\s*)\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:qrencode|magick|convert)\\b|\\b(?:magick|convert)\\b[^\\n|;&]*label:@\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_inline_assignment",
                                     "set sensitive environment variable inline with a command",
                                     pattern(

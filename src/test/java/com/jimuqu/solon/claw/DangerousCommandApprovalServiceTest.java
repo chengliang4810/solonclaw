@@ -3263,6 +3263,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileVisualEncodeCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "qrencode -r .env -o secret.png",
+                        "qrencode --read-from=credentials.json -o credentials.png",
+                        "cat token.json | qrencode -o token.png",
+                        "Get-Content .anthropic_oauth.json | qrencode -o oauth.png",
+                        "magick label:@client_secret.json client_secret.png",
+                        "convert label:@service-account.json service-account.png");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_visual_encode");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "qrencode 'hello' -o hello.png"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat report.txt | qrencode -o report.png"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "magick label:@report.txt report.png"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileHashOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
