@@ -405,15 +405,19 @@ public class SecurityPolicyService {
         if (hasUserInfo(uri)) {
             return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
         }
-        if (hasSensitiveUrlParameterName(uri)) {
-            return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
-        }
 
         String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
             return UrlVerdict.block(raw, "URL 缺少主机名");
         }
 
+        UrlVerdict staticHostVerdict = checkStaticHostPolicy(raw, host);
+        if (!staticHostVerdict.allowed) {
+            return staticHostVerdict;
+        }
+        if (hasSensitiveUrlParameterName(uri)) {
+            return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
+        }
         return checkHostAccess(raw, scheme, host, allowPrivateOverride);
     }
 
@@ -442,20 +446,9 @@ public class SecurityPolicyService {
 
     private UrlVerdict checkHostAccess(
             String raw, String scheme, String host, Boolean allowPrivateOverride) {
-        UrlVerdict alwaysBlockedHost = checkAlwaysBlockedHost(raw, host);
-        if (!alwaysBlockedHost.allowed) {
-            return alwaysBlockedHost;
-        }
-
-        WebsiteRule websiteRule = checkWebsitePolicy(raw, host);
-        if (websiteRule != null) {
-            return UrlVerdict.block(
-                    raw,
-                    "Blocked by website policy: '"
-                            + host
-                            + "' matched rule '"
-                            + websiteRule.rule
-                            + "'");
+        UrlVerdict staticHostVerdict = checkStaticHostPolicy(raw, host);
+        if (!staticHostVerdict.allowed) {
+            return staticHostVerdict;
         }
 
         boolean allowPrivate =
@@ -493,6 +486,25 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "DNS 解析失败或 URL 安全检查失败：" + host);
         }
 
+        return UrlVerdict.allow();
+    }
+
+    private UrlVerdict checkStaticHostPolicy(String raw, String host) {
+        UrlVerdict alwaysBlockedHost = checkAlwaysBlockedHost(raw, host);
+        if (!alwaysBlockedHost.allowed) {
+            return alwaysBlockedHost;
+        }
+
+        WebsiteRule websiteRule = checkWebsitePolicy(raw, host);
+        if (websiteRule != null) {
+            return UrlVerdict.block(
+                    raw,
+                    "Blocked by website policy: '"
+                            + host
+                            + "' matched rule '"
+                            + websiteRule.rule
+                            + "'");
+        }
         return UrlVerdict.allow();
     }
 
@@ -3337,7 +3349,8 @@ public class SecurityPolicyService {
     private boolean containsSensitiveParameterNameInCandidate(String value) {
         String[] parameters = value.split("[&;]");
         for (String parameter : parameters) {
-            String name = parameter;
+            String normalizedParameter = StrUtil.nullToEmpty(parameter);
+            String name = normalizedParameter;
             int question = name.indexOf('?');
             if (question >= 0) {
                 name = name.substring(question + 1);
@@ -3347,19 +3360,53 @@ public class SecurityPolicyService {
                 name = name.substring(hash + 1);
             }
             int equals = name.indexOf('=');
+            String rawParameterValue = "";
             if (equals >= 0) {
+                rawParameterValue = name.substring(equals + 1);
                 name = name.substring(0, equals);
             }
-            if (isSensitiveUrlParameterName(name)) {
+            if (isStrongSensitiveUrlParameterName(name)
+                    || (isSensitiveUrlParameterName(name)
+                            && looksLikeSensitiveUrlParameterValue(rawParameterValue))) {
                 return true;
             }
         }
         return false;
     }
 
+    private boolean isStrongSensitiveUrlParameterName(String rawName) {
+        String name = normalizeSensitiveParameterName(rawName);
+        return "access_token".equals(name)
+                || "refresh_token".equals(name)
+                || "id_token".equals(name)
+                || "auth_token".equals(name)
+                || "client_secret".equals(name)
+                || "api_key".equals(name)
+                || "apikey".equals(name)
+                || "password".equals(name)
+                || "private_key".equals(name)
+                || name.startsWith("x_amz_")
+                || name.startsWith("x_goog_")
+                || name.startsWith("x_oss_")
+                || name.startsWith("x_cos_")
+                || name.startsWith("x_obs_")
+                || name.startsWith("x_ms_")
+                || "security_token".equals(name);
+    }
+
     private boolean isSensitiveUrlParameterName(String rawName) {
         String name = normalizeSensitiveParameterName(rawName);
-        return SENSITIVE_URL_PARAMETER_NAMES.contains(name);
+        for (String sensitiveName : SENSITIVE_URL_PARAMETER_NAMES) {
+            if (name.equals(normalizeSensitiveParameterName(sensitiveName))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean looksLikeSensitiveUrlParameterValue(String rawValue) {
+        String value = decodeUrlComponent(rawValue).trim();
+        return value.length() >= 8 || SecretRedactor.containsSecretLikeToken(value);
     }
 
     private String normalizeSensitiveParameterName(String rawName) {

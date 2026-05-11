@@ -292,7 +292,7 @@ public class DangerousCommandApprovalService {
                                     "persistent_proxy_configuration_change",
                                     "persistent proxy configuration changed",
                                     pattern(
-                                            "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.proxy\\s+\\S+|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:proxy|https-proxy|httpsProxy)\\s+\\S+|\\bpip\\s+config\\s+set\\s+global\\.proxy\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bsetx\\s+(?:https?_proxy|all_proxy|HTTPS?_PROXY|ALL_PROXY)\\s+\\S+|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer))"),
+                                            "(?:\\bgit\\s+config\\s+(?:--global\\s+)?(?:http|https)\\.(?:proxy|noProxy|noproxy)\\s+\\S+|\\b(?:npm|pnpm|yarn)\\s+config\\s+set\\s+(?:proxy|https-proxy|httpsProxy|no-proxy|noProxy|noproxy)\\s+\\S+|\\bpip\\s+config\\s+set\\s+global\\.(?:proxy|no-proxy|no_proxy|noproxy)\\s+\\S+|\\bnetsh\\s+winhttp\\s+set\\s+proxy\\b|\\bnetworksetup\\s+-set(?:web|secureweb|socksfirewall)proxy\\b|\\bsetx\\s+(?:https?_proxy|all_proxy|no_proxy|HTTPS?_PROXY|ALL_PROXY|NO_PROXY)\\s+\\S+|\\bSet-ItemProperty\\b[^\\n]*\\\\Internet Settings[^\\n]*(?:ProxyEnable|ProxyServer|ProxyOverride))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sudoers_policy_change",
