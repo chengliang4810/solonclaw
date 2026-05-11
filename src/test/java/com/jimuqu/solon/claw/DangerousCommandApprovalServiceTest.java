@@ -8213,6 +8213,7 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("BLOCKED (hardline)")
                 .contains("元数据")
                 .contains("api%255Fkey=***")
+                .doesNotContain("api%255Fkey=hardline-secret")
                 .doesNotContain("hardline-secret");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
