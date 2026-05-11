@@ -198,6 +198,9 @@ public class DashboardDiagnosticsService {
         String approver = StrUtil.blankToDefault(text(input, "approver"), "dashboard");
         DangerousCommandApprovalService.ApprovalScope scope = parseApprovalScope(text(input, "scope"));
 
+        if (sessionRepository == null || approvalService == null) {
+            return resolveResult(false, "approval_unavailable", "审批服务尚未启用。", null);
+        }
         if (StrUtil.isBlank(sessionId)) {
             return resolveResult(false, "missing_session", "缺少会话 ID。", null);
         }

@@ -434,6 +434,57 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldReturnStructuredResolveApprovalFailureWhenDependenciesUnavailable() throws Exception {
+        AppConfig config = new AppConfig();
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("sessionId", "session-missing-service");
+        body.put("approvalId", "approval-missing-service");
+        body.put("action", "deny");
+
+        DashboardDiagnosticsService missingSessionRepository =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new DangerousCommandApprovalService(
+                                null, config, new SecurityPolicyService(config)),
+                        new SecurityPolicyService(config),
+                        null);
+        Map<String, Object> missingSessionResult =
+                missingSessionRepository.resolveApproval(body);
+        assertThat(missingSessionResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(missingSessionResult.get("code")).isEqualTo("approval_unavailable");
+        assertThat(String.valueOf(missingSessionResult.get("message"))).contains("审批服务");
+
+        DashboardDiagnosticsService missingApprovalService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(Collections.<SessionRecord>emptyList()),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+        Map<String, Object> missingApprovalResult =
+                missingApprovalService.resolveApproval(body);
+        assertThat(missingApprovalResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(missingApprovalResult.get("code")).isEqualTo("approval_unavailable");
+        assertThat(String.valueOf(missingApprovalResult.get("message"))).contains("审批服务");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldRedactPendingApprovalDiagnosticOutput() throws Exception {
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService approvalService =
