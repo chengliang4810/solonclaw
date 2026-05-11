@@ -189,7 +189,7 @@ public class ProcessTools {
                 .data("session_id", managed.getId())
                 .data("pid", managed.getPid())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
-                .data("cwd", SecretRedactor.redact(managed.getCwd()))
+                .data("cwd", managed.displayCwd())
                 .data("status", managed.isExited() ? "exited" : "running")
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
                 .data("output_preview", cleanOutput(managed.outputPreview(1000)))

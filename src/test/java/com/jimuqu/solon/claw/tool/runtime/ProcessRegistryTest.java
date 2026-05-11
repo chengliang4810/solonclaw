@@ -167,6 +167,23 @@ public class ProcessRegistryTest {
     }
 
     @Test
+    void shouldRedactManagedProcessCwdInMapViewWithoutMutatingRawCwd() throws Exception {
+        File workDir = Files.createTempDirectory("process-cwd-token=ghp_processcwdmap12345").toFile();
+        ProcessRegistry registry = new ProcessRegistry();
+        ProcessRegistry.ManagedProcess managed = registry.start("echo cwd-test", workDir);
+        managed.waitFor(5000L);
+
+        Map<String, Object> view = managed.toMap();
+
+        assertThat(managed.getCwd()).contains("ghp_processcwdmap12345");
+        assertThat(String.valueOf(view.get("cwd")))
+                .startsWith("path://")
+                .contains("token=***")
+                .doesNotContain(workDir.getAbsolutePath())
+                .doesNotContain("ghp_processcwdmap12345");
+    }
+
+    @Test
     void shouldRewriteCompoundBackgroundTailLikeJimuqu() {
         assertThat(
                         ProcessRegistry.rewriteCompoundBackground(

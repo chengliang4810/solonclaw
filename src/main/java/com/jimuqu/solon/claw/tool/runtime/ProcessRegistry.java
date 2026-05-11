@@ -924,7 +924,7 @@ public class ProcessRegistry {
             map.put("session_id", id);
             map.put("id", id);
             map.put("command", SecretRedactor.redact(command));
-            map.put("cwd", SecretRedactor.redact(cwd));
+            map.put("cwd", displayCwd());
             map.put("pid", pid);
             map.put("started_at", Long.valueOf(startedAt));
             map.put("started_at_iso", isoLocal(startedAt));
@@ -973,6 +973,17 @@ public class ProcessRegistry {
 
         public String getCwd() {
             return cwd;
+        }
+
+        public String displayCwd() {
+            if (StrUtil.isBlank(cwd)) {
+                return "";
+            }
+            String name = new File(cwd).getName();
+            if (StrUtil.isBlank(name)) {
+                name = "workspace";
+            }
+            return "path://" + SecretRedactor.redact(name, 200);
         }
 
         public Long getPid() {

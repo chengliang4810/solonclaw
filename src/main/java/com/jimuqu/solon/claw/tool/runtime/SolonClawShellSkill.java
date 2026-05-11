@@ -362,7 +362,7 @@ public class SolonClawShellSkill extends ShellSkill {
         ToolResultEnvelope envelope = ToolResultEnvelope.ok("后台进程已启动：" + managed.getId())
                 .data("session_id", managed.getId())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
-                .data("cwd", SecretRedactor.redact(managed.getCwd()))
+                .data("cwd", managed.displayCwd())
                 .data("pid", managed.getPid())
                 .data("status", managed.isExited() ? "exited" : "running")
                 .data("background", Boolean.TRUE)
