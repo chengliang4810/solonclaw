@@ -196,6 +196,56 @@ public class SolonClawExecuteCodeWebRpcTest {
                 .doesNotContain("token=ghp_1234567890abcdef");
     }
 
+    @Test
+    void shouldRedactExecuteCodeRpcToolSuccessResults() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        java.nio.file.Path workspace =
+                new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        java.nio.file.Files.write(
+                workspace.resolve("rpc-ghp_filepath12345.txt"),
+                java.util.Arrays.asList("line token=ghp_rpcfile12345"),
+                java.nio.charset.StandardCharsets.UTF_8);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig,
+                        new SecretWebsearchTool(),
+                        new SecretWebfetchTool());
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from solonclaw_tools import search_files, web_search, web_extract\n"
+                                        + "import json\n"
+                                        + "search = json.dumps(search_files('rpcfile', path='.'), ensure_ascii=False)\n"
+                                        + "web = json.dumps(web_search('secret'), ensure_ascii=False)\n"
+                                        + "url_secret = 'ghp_' + 'rpcurlinput12345'\n"
+                                        + "extract = json.dumps(web_extract(['https://example.com/docs?token=' + url_secret]), ensure_ascii=False)\n"
+                                        + "for raw in ['ghp_' + 'filepath12345', 'ghp_' + 'rpcfile12345', 'ghp_' + 'rpcsearchurl12345', 'ghp_' + 'rpcsearchtitle12345', 'ghp_' + 'rpcsearchdesc12345', url_secret, 'ghp_' + 'rpcextracttitle12345', 'ghp_' + 'rpcextractcontent12345']:\n"
+                                        + "    assert raw not in search + web + extract\n"
+                                        + "print(search)\n"
+                                        + "print(web)\n"
+                                        + "print(extract)\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(3);
+        assertThat(result.get("output").getString())
+                .contains("token=***")
+                .contains("ghp_***")
+                .doesNotContain("ghp_filepath12345")
+                .doesNotContain("ghp_rpcfile12345")
+                .doesNotContain("ghp_rpcsearchurl12345")
+                .doesNotContain("ghp_rpcsearchtitle12345")
+                .doesNotContain("ghp_rpcsearchdesc12345")
+                .doesNotContain("ghp_rpcurlinput12345")
+                .doesNotContain("ghp_rpcextracttitle12345")
+                .doesNotContain("ghp_rpcextractcontent12345");
+    }
+
     private static boolean commandExists(String command) {
         try {
             Process process =
@@ -246,6 +296,43 @@ public class SolonClawExecuteCodeWebRpcTest {
                 throw new IllegalArgumentException("blocked by test: " + url);
             }
             return new Document("Fetched markdown").title("Example Docs").url(url);
+        }
+    }
+
+    private static class SecretWebsearchTool extends SolonClawWebTools.SafeWebsearchTool {
+        SecretWebsearchTool() {
+            super(null, null);
+        }
+
+        @Override
+        public Document websearch(
+                String query,
+                Integer numResults,
+                String livecrawl,
+                String type,
+                Integer contextMaxCharacters) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("url", "https://example.com/solon?token=ghp_rpcsearchurl12345");
+            item.put("title", "Solon ghp_rpcsearchtitle12345");
+            item.put("description", "description token=ghp_rpcsearchdesc12345");
+            Map<String, Object> data = new LinkedHashMap<String, Object>();
+            data.put("web", java.util.Collections.singletonList(item));
+            Map<String, Object> root = new LinkedHashMap<String, Object>();
+            root.put("data", data);
+            return new Document(ONode.serialize(root)).title("Web search: " + query);
+        }
+    }
+
+    private static class SecretWebfetchTool extends SolonClawWebTools.SafeWebfetchTool {
+        SecretWebfetchTool() {
+            super(null, null);
+        }
+
+        @Override
+        public Document webfetch(String url, String format, Integer timeoutSeconds) {
+            return new Document("Fetched ghp_rpcextractcontent12345")
+                    .title("Docs ghp_rpcextracttitle12345")
+                    .url(url);
         }
     }
 

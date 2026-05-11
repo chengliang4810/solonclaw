@@ -688,13 +688,13 @@ public class SecurityAuditTools {
         private Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("success", Boolean.valueOf(success));
-            map.put("action", action);
-            map.put("decision", decision);
+            map.put("action", SecretRedactor.redact(action, 200));
+            map.put("decision", SecretRedactor.redact(decision, 100));
             map.put("blocking", Boolean.valueOf(blocking));
             map.put("approval_required", Boolean.valueOf(approvalRequired));
-            map.put("summary", summary);
+            map.put("summary", SecretRedactor.redact(summary, 1000));
             if (StrUtil.isNotBlank(toolName)) {
-                map.put("toolName", toolName);
+                map.put("toolName", SecretRedactor.redact(toolName, 200));
             }
             if (StrUtil.isNotBlank(commandPreview)) {
                 map.put("commandPreview", commandPreview);

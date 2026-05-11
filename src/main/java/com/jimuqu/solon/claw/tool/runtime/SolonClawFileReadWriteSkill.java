@@ -79,9 +79,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     StrUtil.startWith(result, "写入失败")
                             ? ToolResultEnvelope.error(result)
                             : ToolResultEnvelope.ok(result);
-            return envelope.data("path", fileName).data("_warning", staleWarning).toJson();
+            return envelope.data("path", safeDisplayPath(fileName))
+                    .data("_warning", safeDisplayPath(staleWarning))
+                    .toJson();
         }
-        return result;
+        return SecretRedactor.redact(result, 1000);
     }
 
     public String read(@Param("fileName") String fileName) {
@@ -115,7 +117,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     public String list(@Param(value = "dirName", required = false) String dirName) {
         assertSafe(ToolNameConstants.FILE_LIST, dirName);
         assertContained(dirName);
-        return super.list(dirName);
+        return SecretRedactor.redact(super.list(dirName), 20000);
     }
 
     @Override
@@ -125,7 +127,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         assertContained(fileName);
         String result = super.delete(fileName);
         clearReadDedup(fileName);
-        return result;
+        return SecretRedactor.redact(result, 1000);
     }
 
     private void assertSafe(String toolName, String path) {

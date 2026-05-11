@@ -1420,6 +1420,47 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecurityAuditTopLevelToolOutput() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        String unsupported =
+                tools.audit(
+                        "unknown-ghp_auditaction12345",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        String command =
+                tools.audit(
+                        "command",
+                        "execute_shell-ghp_audittool12345",
+                        "echo token=ghp_auditcommand12345",
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThat(unsupported)
+                .contains("unknown-ghp_***")
+                .doesNotContain("ghp_auditaction12345");
+        assertThat(command)
+                .contains("execute_shell-ghp_***")
+                .contains("token=***")
+                .doesNotContain("ghp_audittool12345")
+                .doesNotContain("ghp_auditcommand12345");
+    }
+
+    @Test
     void shouldNormalizeWrappedAndEscapedUrlsBeforeSecurityAudit() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -2983,6 +3024,26 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactDirectCodeExecutionSkillOutputs() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawCodeExecutionSkills.SafePythonSkill python =
+                new SolonClawCodeExecutionSkills.SafePythonSkill(
+                        env.appConfig.getRuntime().getHome(), "python", policy);
+
+        String output =
+                python.execute(
+                        "print('Authorization: Bearer ghp_directpython12345')\n",
+                        Integer.valueOf(1000));
+
+        assertThat(output)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_directpython12345");
+    }
+
+    @Test
     void shouldExposeJimuquStyleExecuteCodeResultEnvelope() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -3492,6 +3553,41 @@ public class ToolRegistryExposureTest {
         assertThat(result)
                 .contains("token=***")
                 .doesNotContain("ghp_filereaderror12345");
+    }
+
+    @Test
+    void shouldRedactSecretsFromFileWriteListAndDeleteResultsOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        String write =
+                fileSkill.write(
+                        "logs/token-ghp_filewrite12345.txt",
+                        "Authorization: Bearer ghp_filecontent12345");
+        String list = fileSkill.list("logs");
+        assertThat(
+                        new String(
+                                Files.readAllBytes(
+                                        new java.io.File(env.appConfig.getRuntime().getHome())
+                                                .toPath()
+                                                .resolve("logs/token-ghp_filewrite12345.txt")),
+                                StandardCharsets.UTF_8))
+                .contains("ghp_filecontent12345");
+        String delete = fileSkill.delete("logs/token-ghp_filewrite12345.txt");
+
+        assertThat(write)
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filewrite12345")
+                .doesNotContain("ghp_filecontent12345");
+        assertThat(list)
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filewrite12345");
+        assertThat(delete)
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filewrite12345");
     }
 
     @Test

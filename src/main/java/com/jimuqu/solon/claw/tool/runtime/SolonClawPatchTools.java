@@ -116,6 +116,7 @@ public class SolonClawPatchTools {
         } catch (Exception e) {
             result = PatchResult.error(e.getMessage());
         }
+        result.redactOutput();
         return ONode.serialize(result);
     }
 
@@ -767,6 +768,29 @@ public class SolonClawPatchTools {
             } else {
                 _warning = _warning + "\n" + warning;
             }
+        }
+
+        private void redactOutput() {
+            error = redact(error, 1000);
+            diff = redact(diff, 20000);
+            _warning = redact(_warning, 1000);
+            redactList(warnings, 1000);
+            redactList(files_modified, 400);
+            redactList(files_created, 400);
+            redactList(files_deleted, 400);
+        }
+
+        private static void redactList(List<String> values, int maxLength) {
+            if (values == null || values.isEmpty()) {
+                return;
+            }
+            for (int i = 0; i < values.size(); i++) {
+                values.set(i, redact(values.get(i), maxLength));
+            }
+        }
+
+        private static String redact(String value, int maxLength) {
+            return value == null ? null : SecretRedactor.redact(value, maxLength);
         }
     }
 

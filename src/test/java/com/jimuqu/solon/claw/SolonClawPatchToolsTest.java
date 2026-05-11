@@ -303,6 +303,34 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
+    void shouldRedactSecretsFromPatchSuccessResultsOnly() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("src/secret-ghp_patchpath12345.txt");
+        Files.createDirectories(file.getParent());
+        Files.write(file, "old\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+
+        String json =
+                tools.patch(
+                        "replace",
+                        "src/secret-ghp_patchpath12345.txt",
+                        "old",
+                        "Authorization: Bearer ghp_patchdiff12345",
+                        false,
+                        null);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(result))
+                .contains("secret-ghp_***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_patchpath12345")
+                .doesNotContain("ghp_patchdiff12345");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .contains("ghp_patchdiff12345");
+    }
+
+    @Test
     void shouldRejectAddFileWhenTargetExistsWithoutOverwriting() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("existing.txt");
