@@ -656,6 +656,10 @@ public class SecurityPolicyServiceTest {
                 .doesNotContain("1234567890abcdef");
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("encodedSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("repeatedEncodedSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("semicolonSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("fragmentSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitivePathCredentialBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("cloudMetadataBlocked")).isEqualTo(Boolean.TRUE);
     }
