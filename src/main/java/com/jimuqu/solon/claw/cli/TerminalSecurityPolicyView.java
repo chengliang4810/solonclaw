@@ -137,6 +137,9 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 终端护栏：")
                 .append(value(approval, "terminalGuardrails"));
+        buffer.append('\n')
+                .append("- 凭据处理：")
+                .append(value(approval, "credentialHandlingRuleSamples"));
         return buffer.toString();
     }
 

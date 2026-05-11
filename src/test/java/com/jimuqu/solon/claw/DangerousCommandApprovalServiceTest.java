@@ -87,6 +87,12 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("domestic_object_storage_recursive_remove")
                 .contains("remote_credential_file_transfer")
                 .contains("object_storage_exposure_change");
+        assertThat(String.valueOf(summary.get("credentialHandlingRuleSamples")))
+                .contains("sensitive_environment_read")
+                .contains("sensitive_clipboard_export")
+                .contains("sensitive_file_clipboard_export")
+                .contains("network_credential_file_send")
+                .contains("remote_credential_file_transfer");
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")

@@ -1974,6 +1974,14 @@ public class DangerousCommandApprovalService {
                         "domestic_object_storage_recursive_remove",
                         "remote_credential_file_transfer",
                         "object_storage_exposure_change"));
+        summary.put(
+                "credentialHandlingRuleSamples",
+                Arrays.asList(
+                        "sensitive_environment_read",
+                        "sensitive_clipboard_export",
+                        "sensitive_file_clipboard_export",
+                        "network_credential_file_send",
+                        "remote_credential_file_transfer"));
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
