@@ -36,7 +36,13 @@ public class CliShellTipsTest {
                         "/security attachments",
                         "/security terminal-paste",
                         "/security media-cache",
-                        "/security tool-results");
+                        "/security tool-results",
+                        "/security patch",
+                        "/security code-execution",
+                        "/security subprocess-env",
+                        "/security terminal-output",
+                        "/security sudo",
+                        "/security process");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
         assertThat(shouldHandleInline(shell, "/security audit")).isTrue();
@@ -73,7 +79,9 @@ public class CliShellTipsTest {
                 .contains("/security mcp")
                 .contains("/security terminal-paste")
                 .contains("/security media-cache")
-                .contains("/security tool-results");
+                .contains("/security tool-results")
+                .contains("/security code-execution")
+                .contains("/security process");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")
                 .contains("unsupportedSchemeBlocked");
@@ -93,6 +101,10 @@ public class CliShellTipsTest {
                 .contains("unsupportedKeywordsStripped")
                 .contains("附件下载")
                 .contains("redirectChecked")
+                .contains("代码执行")
+                .contains("timeoutKillsProcess")
+                .contains("后台进程")
+                .contains("managedRequired")
                 .contains("工具输出")
                 .contains("persistOversize");
         assertThat(TerminalSecurityPolicyView.render(null, "/security mcp"))
@@ -115,6 +127,30 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-results"))
                 .contains("工具输出安全策略摘要")
                 .contains("oversizedPersisted");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security patch"))
+                .contains("补丁工具安全策略摘要")
+                .contains("atomicValidation")
+                .contains("symlinkEscapeBlocked");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security code-execution"))
+                .contains("代码执行安全策略摘要")
+                .contains("pathPolicy")
+                .contains("timeoutKillsProcess");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security subprocess-env"))
+                .contains("子进程环境安全策略摘要")
+                .contains("defaultDenyUnknown")
+                .contains("_JIMUQU_FORCE_");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-output"))
+                .contains("终端输出安全策略摘要")
+                .contains("maxInlineChars")
+                .contains("sudoHint");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security sudo"))
+                .contains("sudo 改写安全策略摘要")
+                .contains("passwordRedacted")
+                .contains("ptyDisabled");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security process"))
+                .contains("后台进程安全策略摘要")
+                .contains("dangerousChecked")
+                .contains("managedRequired");
     }
 
     @Test

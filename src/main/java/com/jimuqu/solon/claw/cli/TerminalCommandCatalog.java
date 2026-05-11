@@ -22,6 +22,8 @@ public final class TerminalCommandCatalog {
                 "/security paths", "/security credentials", "/security tool-args",
                 "/security mcp", "/security schema", "/security attachments",
                 "/security terminal-paste", "/security media-cache", "/security tool-results",
+                "/security patch", "/security code-execution", "/security subprocess-env",
+                "/security terminal-output", "/security sudo", "/security process",
                 "/cron list", "/cron status", "/cron next", "/cron upcoming", "/cron guide",
                 "/cron tutorial", "/cron capabilities", "/cron policy", "/cron add", "/cron edit", "/cron pause",
                 "/cron disable", "/cron stop", "/cron resume", "/cron enable", "/cron start",

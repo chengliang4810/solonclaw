@@ -30,7 +30,7 @@ public final class LocalTerminalHelp {
                 + "/busy [status|queue|steer|interrupt|reject] - 查看或切换运行中输入策略\n"
                 + "/cron guide|capabilities|policy [--json] - 查看自动化字段、别名、技能绑定、执行和投递策略\n"
                 + "/kanban guide|drawer|pipeline|retry|history|dispatch - 查看或操作看板任务抽屉、流水和派发\n"
-                + "/security audit|policy|approvals|urls|paths|credentials|tool-args|mcp|schema|attachments|terminal-paste|media-cache|tool-results - 查看安全审计、审批、URL、路径、凭据、MCP 和工具策略摘要\n"
+                + "/security audit|policy|approvals|urls|paths|credentials|tool-args|mcp|schema|attachments|terminal-paste|media-cache|tool-results|patch|code-execution|subprocess-env|terminal-output|sudo|process - 查看安全审计、审批、URL、路径、凭据、MCP、执行和工具策略摘要\n"
                 + "/reload-mcp [now|always] - 重载 MCP 工具并刷新下一轮工具 schema\n"
                 + "/approve [确认编号|all] [session|always] - 批准危险命令审批\n"
                 + "/deny [确认编号] - 拒绝危险命令审批\n"
