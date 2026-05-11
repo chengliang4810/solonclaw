@@ -2553,6 +2553,19 @@ public class DashboardControllerHttpTest {
                 .contains("AGENT_BAD_REQUEST")
                 .doesNotContain("agent-session-secret");
 
+        HttpResult invalidJson =
+                request(
+                        "POST",
+                        "/api/agents",
+                        "{\"name\":\"agent-token=ghp_agentparse12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("AGENT_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_agentparse12345")
+                .doesNotContain("agent-token");
+
         HttpResult invalid =
                 request(
                         "POST",

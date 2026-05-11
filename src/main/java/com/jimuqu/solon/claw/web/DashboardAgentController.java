@@ -92,11 +92,26 @@ public class DashboardAgentController {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> body(Context context) throws Exception {
-        String raw = context.body();
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
         if (StrUtil.isBlank(raw)) {
             return new LinkedHashMap<String, Object>();
         }
-        return ONode.deserialize(ONode.ofJson(raw).toJson(), LinkedHashMap.class);
+        try {
+            ONode node = ONode.ofJson(raw);
+            if (node.toData() instanceof Map) {
+                return ONode.deserialize(node.toJson(), LinkedHashMap.class);
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
+        }
     }
 
     private Map<String, Object> safeAgent(Context context, AgentAction action) throws Exception {
