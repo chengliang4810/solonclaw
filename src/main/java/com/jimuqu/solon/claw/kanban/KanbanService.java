@@ -687,7 +687,8 @@ public class KanbanService {
         File logFile = workerLogFile(taskId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("task_id", taskId);
-        result.put("path", logFile.getAbsolutePath());
+        result.put("path", workerLogReference(taskId));
+        result.put("host_path", logFile.getAbsolutePath());
         if (!logFile.exists() || !logFile.isFile()) {
             result.put("exists", Boolean.FALSE);
             result.put("content", null);
@@ -2686,6 +2687,10 @@ public class KanbanService {
 
     private File workerLogFile(String taskId) {
         return FileUtil.file(workerLogDir(), taskId + ".log");
+    }
+
+    private String workerLogReference(String taskId) {
+        return "runtime://logs/kanban/" + SecretRedactor.redact(StrUtil.nullToEmpty(taskId), 200) + ".log";
     }
 
     private File workerLogDir() {

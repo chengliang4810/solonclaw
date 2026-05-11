@@ -905,9 +905,18 @@ public class KanbanServiceTest {
         File logFile = FileUtil.file(env.appConfig.getRuntime().getLogsDir(), "kanban", taskId + ".log");
         FileUtil.mkParentDirs(logFile);
         FileUtil.writeUtf8String("line-one\nline-two\n", logFile);
-        assertThat(String.valueOf(service.log(taskId, 9))).contains("line-two");
+        Map<String, Object> log = service.log(taskId, 9);
+        assertThat(String.valueOf(log)).contains("line-two");
+        assertThat(String.valueOf(log.get("path")))
+                .isEqualTo("runtime://logs/kanban/" + taskId + ".log");
+        assertThat(String.valueOf(log.get("host_path"))).contains(taskId + ".log");
+        assertThat(String.valueOf(log.get("path"))).doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(service.handleCommand("log " + taskId + " 9", "tester")).contains("line-two");
         assertThat(service.handleCommand("log " + taskId + " --tail 9", "tester")).contains("line-two");
+        String noLogTaskId = createTask(service, "暂无日志任务", "alice", "planner");
+        assertThat(service.handleCommand("log " + noLogTaskId, "tester"))
+                .contains("runtime://logs/kanban/" + noLogTaskId + ".log")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
 
         Map<String, Object> gc = new LinkedHashMap<String, Object>();
         gc.put("event_retention_days", 1);
