@@ -814,6 +814,21 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
+    void shouldExposeTerminalExitCodePolicySummary() throws Exception {
+        AppConfig config = new AppConfig();
+
+        Map<String, Object> summary = SolonClawShellSkill.terminalOutputPolicySummary(config);
+
+        assertThat(summary.get("exitCodeSemanticsAvailable")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("exitCodeSemantics")))
+                .contains("grepNoMatchExitOneInformational")
+                .contains("gitDiffExitOneInformational")
+                .contains("curlNetworkErrorsExplained")
+                .contains("grep:1")
+                .contains("curl:6/7/22/28");
+    }
+
+    @Test
     void shouldStartJimuquTerminalBackgroundProcessInRegistry() throws Exception {
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();

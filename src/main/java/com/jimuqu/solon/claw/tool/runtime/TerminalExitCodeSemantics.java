@@ -51,6 +51,24 @@ final class TerminalExitCodeSemantics {
         return commandSemantics.get(exitCode);
     }
 
+    static Map<String, Object> policySummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("knownCommandCount", Integer.valueOf(SEMANTICS.size()));
+        summary.put("grepNoMatchExitOneInformational", Boolean.TRUE);
+        summary.put("diffExitOneInformational", Boolean.TRUE);
+        summary.put("gitDiffExitOneInformational", Boolean.TRUE);
+        summary.put("curlNetworkErrorsExplained", Boolean.TRUE);
+        summary.put("testExitOneInformational", Boolean.TRUE);
+        summary.put("findExitOnePartialResult", Boolean.TRUE);
+        summary.put(
+                "commandSamples",
+                java.util.Arrays.asList("grep", "rg", "diff", "git diff", "curl", "test", "find"));
+        summary.put(
+                "exitCodeSamples",
+                java.util.Arrays.asList("grep:1", "diff:1", "git diff:1", "curl:6/7/22/28"));
+        return summary;
+    }
+
     private static String interpretGit(String segment, Integer exitCode) {
         if (exitCode == null || exitCode.intValue() != 1) {
             return null;

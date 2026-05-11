@@ -1195,11 +1195,31 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "outputTransformersSupported");
             copyPolicyValue(summary, safe, "transformerFailureIsolated");
             copyPolicyValue(summary, safe, "exitCodeSemanticsAvailable");
+            if (summary.get("exitCodeSemantics") instanceof Map) {
+                safe.put(
+                        "exitCodeSemantics",
+                        safeTerminalExitCodeSemantics(
+                                (Map<String, Object>) summary.get("exitCodeSemantics")));
+            }
             copyPolicyValue(summary, safe, "foregroundRetryErrorsInterpreted");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
         }
+    }
+
+    private Map<String, Object> safeTerminalExitCodeSemantics(Map<String, Object> summary) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        copyPolicyValue(summary, safe, "knownCommandCount");
+        copyPolicyValue(summary, safe, "grepNoMatchExitOneInformational");
+        copyPolicyValue(summary, safe, "diffExitOneInformational");
+        copyPolicyValue(summary, safe, "gitDiffExitOneInformational");
+        copyPolicyValue(summary, safe, "curlNetworkErrorsExplained");
+        copyPolicyValue(summary, safe, "testExitOneInformational");
+        copyPolicyValue(summary, safe, "findExitOnePartialResult");
+        copyPolicyValue(summary, safe, "commandSamples");
+        copyPolicyValue(summary, safe, "exitCodeSamples");
+        return safe;
     }
 
     private Map<String, Object> safeToolResultStoragePolicySummary() {
