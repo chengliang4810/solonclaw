@@ -3138,6 +3138,14 @@ public class DangerousCommandApprovalServiceTest {
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl x509 -in public-cert.pem -text"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl -info https://example.com"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "ansible-inventory --list"))
                 .isNull();
         assertThat(
