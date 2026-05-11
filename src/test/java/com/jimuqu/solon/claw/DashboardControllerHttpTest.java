@@ -403,7 +403,14 @@ public class DashboardControllerHttpTest {
                 .contains("\"scopeOptions\":[\"once\",\"session\",\"always\"]")
                 .contains("\"selectorTokenPattern\":\"[A-Za-z0-9_.-]{1,128}\"")
                 .contains("\"unsafeSelectorRejected\":true")
+                .contains("\"approvalCardDeliveryMode\":\"dangerous_command_approval_card\"")
+                .contains("\"approvalCardPlatforms\":[\"FEISHU\",\"QQBOT\"]")
+                .contains("\"permanentApprovalAllowedExceptTirith\":true")
+                .contains("\"tirithPermanentApprovalHidden\":true")
+                .contains("\"rawCommandRedactedInExtras\":true")
+                .contains("\"observerEventsRedacted\":true")
                 .contains("\"encodedUrlParameterRedacted\":true")
+                .contains("\"fragmentUrlParameterRedacted\":true")
                 .contains("\"toolChangeNoticeInjected\":true")
                 .contains("\"oauthUrlSafetyCovered\":true")
                 .contains("\"allow_private_urls\"")
@@ -570,11 +577,23 @@ public class DashboardControllerHttpTest {
                 .contains("\"coverage\"")
                 .contains("\"activeSurfaces\"")
                 .contains("\"dangerousCommandApproval\":true")
+                .contains("\"slashConfirmPolicy\"")
+                .contains("\"approvalCardPolicy\"")
+                .contains("\"approvalLifecyclePolicy\"")
+                .contains("\"approvalAuditPolicy\"")
+                .contains("\"mcpReloadPolicy\"")
                 .contains("\"hardlineCommandBlocks\":true")
                 .contains("\"urlSafety\":true")
                 .contains("\"credentialFilePolicy\":true")
                 .contains("\"mcpUrlSafety\":true")
                 .contains("mcpOauthUrlSafety")
+                .contains("\"approvalCardPlatforms\":[\"FEISHU\",\"QQBOT\"]")
+                .contains("\"permanentApprovalAllowedExceptTirith\":true")
+                .contains("\"tirithPermanentApprovalHidden\":true")
+                .contains("\"rawCommandRedactedInExtras\":true")
+                .contains("\"observerEventsRedacted\":true")
+                .contains("\"fragmentUrlParameterRedacted\":true")
+                .contains("\"reloadHistoryNoticeRedacted\":true")
                 .doesNotContain("\"sudo_password\"")
                 .doesNotContain("\"credential_files\"")
                 .doesNotContain("\"env_passthrough\"")
@@ -1002,7 +1021,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/jimuqu/mcp",
-                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse?token=secret-endpoint-token\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
+                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
                         token);
         assertThat(secretMcp.status).isEqualTo(200);
         HttpResult userInfoMcp =
@@ -1023,12 +1042,11 @@ public class DashboardControllerHttpTest {
                 .contains("OPENAI_API_KEY=***")
                 .contains("--token=***")
                 .contains("Authorization: Bearer ***")
-                .contains("https://example.com/sse?token=***")
+                .contains("https://example.com/sse")
                 .doesNotContain("sk-test-dashboard-secret")
                 .doesNotContain("secret-arg-value")
                 .doesNotContain("secret-endpoint-pass")
                 .doesNotContain("secret-userinfo-token")
-                .doesNotContain("secret-endpoint-token")
                 .doesNotContain("ghp_mcpsecret12345");
 
         HttpResult updateMcpOAuth =

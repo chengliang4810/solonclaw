@@ -1667,30 +1667,12 @@ public class DashboardDiagnosticsService {
         if (approvals.get("slashConfirmPolicy") instanceof Map) {
             safe.put(
                     "slashConfirmPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("slashConfirmPolicy"),
-                            "enabled",
-                            "confirmCommand",
-                            "denyCommand",
-                            "scopeOptions",
-                            "selectorTokenPattern",
-                            "unsafeSelectorRejected",
-                            "approvalKeyRedacted"));
+                    safeSlashConfirmPolicy((Map<String, Object>) approvals.get("slashConfirmPolicy")));
         }
         if (approvals.get("approvalCardPolicy") instanceof Map) {
             safe.put(
                     "approvalCardPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("approvalCardPolicy"),
-                            "deliveryMode",
-                            "approvalIdSelectorSupported",
-                            "unsafeSelectorRejected",
-                            "approveCommandGenerated",
-                            "denyCommandGenerated",
-                            "alwaysScopeCommandGenerated",
-                            "sessionScopeCommandGenerated",
-                            "commandPreviewRedacted",
-                            "descriptionPreviewRedacted"));
+                    safeApprovalCardPolicy((Map<String, Object>) approvals.get("approvalCardPolicy")));
         }
         if (approvals.get("auditLogPolicy") instanceof Map) {
             safe.put(
@@ -1822,8 +1804,171 @@ public class DashboardDiagnosticsService {
         if (coverage.get("toolResultStoragePolicy") instanceof Map) {
             safe.put("toolResultStoragePolicy", safeToolResultStoragePolicySummary());
         }
+        if (coverage.get("approvalLifecyclePolicy") instanceof Map) {
+            safe.put(
+                    "approvalLifecyclePolicy",
+                    safeApprovalLifecyclePolicy((Map<String, Object>) coverage.get("approvalLifecyclePolicy")));
+        }
+        if (coverage.get("slashConfirmPolicy") instanceof Map) {
+            safe.put(
+                    "slashConfirmPolicy",
+                    safeSlashConfirmPolicy((Map<String, Object>) coverage.get("slashConfirmPolicy")));
+        }
+        if (coverage.get("approvalCardPolicy") instanceof Map) {
+            safe.put(
+                    "approvalCardPolicy",
+                    safeApprovalCardPolicy((Map<String, Object>) coverage.get("approvalCardPolicy")));
+        }
+        if (coverage.get("approvalAuditPolicy") instanceof Map) {
+            safe.put(
+                    "approvalAuditPolicy",
+                    safeApprovalAuditPolicy((Map<String, Object>) coverage.get("approvalAuditPolicy")));
+        }
+        if (coverage.get("mcpReloadPolicy") instanceof Map) {
+            safe.put("mcpReloadPolicy", safeMcpReloadPolicy((Map<String, Object>) coverage.get("mcpReloadPolicy")));
+        }
         copyAuditCoverageBooleans(coverage, safe);
         return safe;
+    }
+
+    private Map<String, Object> safeApprovalLifecyclePolicy(Map<String, Object> source) {
+        return filterPolicyMap(
+                source,
+                "pendingListPrunedBeforeRead",
+                "selectorSupported",
+                "selectorTokenPattern",
+                "unsafeSelectorRejected",
+                "listSupported",
+                "statusAliasSupported",
+                "approveAllSupported",
+                "rejectAllSupported",
+                "clearSessionSupported",
+                "clearAlwaysSupported",
+                "clearAllSupported",
+                "scopes",
+                "alwaysScopeUsesGlobalSettings",
+                "tirithAlwaysScopeDowngradedToSession",
+                "currentThreadApprovalTtlMillis",
+                "currentThreadApprovalEnabled",
+                "approveRemovesPendingApproval",
+                "rejectRemovesPendingApproval",
+                "sessionSnapshotUpdated",
+                "approvalRequestObserved",
+                "approvalResponseObserved",
+                "approverRedacted",
+                "approvalKeyRedacted",
+                "commandPreviewRedacted",
+                "encodedUrlParameterRedacted");
+    }
+
+    private Map<String, Object> safeSlashConfirmPolicy(Map<String, Object> source) {
+        return filterPolicyMap(
+                source,
+                "commands",
+                "selectorSupported",
+                "selectorTokenPattern",
+                "unsafeSelectorRejected",
+                "listSupported",
+                "statusAliasSupported",
+                "approveAllSupported",
+                "denyAllSupported",
+                "clearSessionSupported",
+                "clearAlwaysSupported",
+                "clearAllSupported",
+                "scopes",
+                "defaultScope",
+                "managementCommands",
+                "pendingQueueSupported",
+                "pendingListHidesApprovalKey",
+                "pendingListShowsPatternKey",
+                "sessionApprovalListShowsCountOnly",
+                "alwaysApprovalListShowsCountOnly",
+                "approvalCardDeliveryMode",
+                "approvalCardPlatforms",
+                "approvalCardActionKey",
+                "approvalCardApproveAction",
+                "approvalCardDenyAction",
+                "approvalCardScopeKey",
+                "approvalCardApprovalIdKey",
+                "permanentApprovalAllowedExceptTirith",
+                "tirithAlwaysDowngradedToSession",
+                "approverRedacted",
+                "commandPreviewRedacted",
+                "encodedUrlParameterRedacted",
+                "approvalMetadataRedacted",
+                "observerEventsRedacted",
+                "approvalTimeoutSeconds",
+                "gatewayTimeoutSeconds");
+    }
+
+    private Map<String, Object> safeApprovalCardPolicy(Map<String, Object> source) {
+        return filterPolicyMap(
+                source,
+                "deliveryMode",
+                "supportedPlatforms",
+                "unsupportedPlatformsReturnEmptyExtras",
+                "actionKey",
+                "approveAction",
+                "denyAction",
+                "scopeKey",
+                "approvalIdKey",
+                "scopeOptions",
+                "defaultScope",
+                "approvalIdSelectorSupported",
+                "selectorTokenPattern",
+                "unsafeSelectorRejected",
+                "approveCommandGenerated",
+                "denyCommandGenerated",
+                "alwaysScopeCommandGenerated",
+                "sessionScopeCommandGenerated",
+                "tirithPermanentApprovalHidden",
+                "commandPreviewRedacted",
+                "descriptionPreviewRedacted",
+                "toolNameRedacted",
+                "rawCommandRedactedInExtras",
+                "encodedUrlParameterRedacted",
+                "semicolonUrlParameterRedacted",
+                "fragmentUrlParameterRedacted");
+    }
+
+    private Map<String, Object> safeApprovalAuditPolicy(Map<String, Object> source) {
+        return filterPolicyMap(
+                source,
+                "observerCount",
+                "requestEvents",
+                "responseEvents",
+                "eventTypes",
+                "repositoryBackedWhenConfigured",
+                "observerFailureIsolated",
+                "approverRedacted",
+                "commandPreviewRedacted",
+                "descriptionRedacted",
+                "approvalKeyRedacted",
+                "encodedUrlParameterRedacted",
+                "commandHashStored",
+                "patternKeysStored",
+                "timestampsStored",
+                "recentDashboardViewSupported",
+                "manualRevocationAudited");
+    }
+
+    private Map<String, Object> safeMcpReloadPolicy(Map<String, Object> source) {
+        return filterPolicyMap(
+                source,
+                "command",
+                "confirmRequired",
+                "configKey",
+                "slashConfirmBacked",
+                "directRunAlias",
+                "alwaysConfirmAlias",
+                "persistentDisableSupported",
+                "runtimeConfigPersisted",
+                "toolChangeNoticeInjected",
+                "changedServerSummary",
+                "toolCountSummary",
+                "oauthUrlSafetyCovered",
+                "encodedUrlParameterRedacted",
+                "reloadHistoryNoticeRedacted");
     }
 
     private Map<String, Object> safeSecurityAuditAttachmentPolicy(Map<String, Object> attachment) {
