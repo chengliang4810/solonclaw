@@ -178,6 +178,27 @@ public class GatewayControllerHttpTest {
         assertThat(reply.getContent()).doesNotContain("sk-test-gatewayauth12345");
     }
 
+    @Test
+    void shouldWrapGatewayMessageBodyErrors() throws Exception {
+        String bodyText = "{\"text\":\"token=ghp_gatewayparse12345\"";
+        GatewayController controller =
+                new GatewayController(
+                        bean(DefaultGatewayService.class),
+                        new GatewayInjectionAuthService(null) {
+                            @Override
+                            public void verify(Context context, String body) {}
+                        });
+        Context context = ContextEmpty.create();
+        context.bodyNew(bodyText);
+
+        GatewayReply reply = controller.message(context);
+
+        assertThat(reply.isError()).isTrue();
+        assertThat(reply.getContent()).contains("请求体");
+        assertThat(reply.getContent()).doesNotContain("ghp_gatewayparse12345");
+        assertThat(reply.getContent()).doesNotContain("token=");
+    }
+
     private static void bootstrapAdmin() throws Exception {
         GatewayReply claimPrompt = postMessage("http-admin-chat", "http-admin", "hello");
         assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
