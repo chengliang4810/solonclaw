@@ -644,6 +644,7 @@ public class SecurityPolicyService {
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
+        summary.put("systemProxyCommandChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -776,6 +777,7 @@ public class SecurityPolicyService {
         summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
+        summary.put("systemProxyCommandChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -1498,6 +1500,7 @@ public class SecurityPolicyService {
         extractJavaProxyOptionsAssignments(text, urls);
         extractPowerShellProxyEnvironmentAssignments(text, urls);
         extractSetxProxyEnvironmentAssignments(text, urls);
+        extractSystemProxyCommands(text, urls);
         extractGitProxyConfigAssignments(text, urls);
         extractPackageManagerProxyConfigAssignments(text, urls);
         extractProxyHosts(text, urls);
@@ -1674,6 +1677,84 @@ public class SecurityPolicyService {
                 addProxyEnvironmentValue(name, value, urls);
             }
         }
+    }
+
+    private void extractSystemProxyCommands(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if ("netsh".equalsIgnoreCase(token)) {
+                i = extractNetshWinhttpProxy(tokens, i, urls);
+            } else if ("networksetup".equalsIgnoreCase(token)) {
+                i = extractNetworksetupProxy(tokens, i, urls);
+            }
+        }
+    }
+
+    private int extractNetshWinhttpProxy(List<String> tokens, int index, List<String> urls) {
+        if (!matchesToken(tokens, index + 1, "winhttp")
+                || !matchesToken(tokens, index + 2, "set")
+                || !matchesToken(tokens, index + 3, "proxy")) {
+            return index;
+        }
+        for (int i = index + 4; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                return i;
+            }
+            int equals = token.indexOf('=');
+            if (equals > 0) {
+                String key = token.substring(0, equals);
+                String value = token.substring(equals + 1);
+                if ("proxy-server".equalsIgnoreCase(key)) {
+                    addSystemProxyHost(value, urls);
+                } else if ("bypass-list".equalsIgnoreCase(key)) {
+                    addNoProxyHosts(value.replace(';', ','), urls);
+                }
+                continue;
+            }
+            addSystemProxyHost(token, urls);
+            if (i + 1 < tokens.size()) {
+                String maybeBypass = tokens.get(i + 1);
+                if (StrUtil.isNotBlank(maybeBypass) && !isShellCommandSeparator(maybeBypass)) {
+                    addNoProxyHosts(maybeBypass.replace(';', ','), urls);
+                }
+            }
+            return i;
+        }
+        return index;
+    }
+
+    private int extractNetworksetupProxy(List<String> tokens, int index, List<String> urls) {
+        if (index + 4 >= tokens.size()) {
+            return index;
+        }
+        String command = StrUtil.nullToEmpty(tokens.get(index + 1)).trim().toLowerCase(Locale.ROOT);
+        if (!command.startsWith("-set")
+                || !command.endsWith("proxy")
+                || command.contains("proxyautodiscovery")
+                || command.contains("autoproxyurl")
+                || command.contains("proxystate")) {
+            return index;
+        }
+        String host = tokens.get(index + 3);
+        String port = tokens.get(index + 4);
+        addSystemProxyHost(host + ":" + port, urls);
+        return index + 4;
+    }
+
+    private void addSystemProxyHost(String raw, List<String> urls) {
+        String value = cleanUrlToken(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        urls.add(value.contains("://") ? value : "http://" + value);
+    }
+
+    private boolean matchesToken(List<String> tokens, int index, String expected) {
+        return index >= 0
+                && index < tokens.size()
+                && expected.equalsIgnoreCase(StrUtil.nullToEmpty(tokens.get(index)).trim());
     }
 
     private void extractPackageManagerProxyConfigAssignments(String text, List<String> urls) {

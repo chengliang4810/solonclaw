@@ -789,6 +789,50 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckSystemProxyCommands() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict winhttpProxy =
+                privatePolicy.checkCommandUrls("netsh winhttp set proxy 10.0.0.5:8080");
+        SecurityPolicyService.UrlVerdict winhttpNamedProxy =
+                metadataPolicy.checkCommandUrls(
+                        "netsh winhttp set proxy proxy-server=169.254.169.254:8080 bypass-list=example.com");
+        SecurityPolicyService.UrlVerdict winhttpBypass =
+                privatePolicy.checkCommandUrls(
+                        "netsh winhttp set proxy proxy-server=proxy.example:8080 bypass-list=internal.example");
+        SecurityPolicyService.UrlVerdict macosProxy =
+                privatePolicy.checkCommandUrls(
+                        "networksetup -setwebproxy Wi-Fi internal.example 8080");
+        SecurityPolicyService.UrlVerdict macosSocksProxy =
+                metadataPolicy.checkCommandUrls(
+                        "networksetup -setsocksfirewallproxy Wi-Fi metadata.google.internal 1080");
+        SecurityPolicyService.UrlVerdict publicProxy =
+                publicPolicy.checkCommandUrls(
+                        "networksetup -setsecurewebproxy Wi-Fi proxy.example 8443");
+
+        assertThat(privatePolicy.extractUrlishValues("netsh winhttp set proxy 10.0.0.5:8080"))
+                .contains("http://10.0.0.5:8080");
+        assertThat(winhttpProxy.isAllowed()).isFalse();
+        assertThat(winhttpProxy.getMessage()).contains("内网");
+        assertThat(winhttpNamedProxy.isAllowed()).isFalse();
+        assertThat(winhttpNamedProxy.getMessage()).contains("元数据");
+        assertThat(winhttpBypass.isAllowed()).isFalse();
+        assertThat(winhttpBypass.getMessage()).contains("内网");
+        assertThat(macosProxy.isAllowed()).isFalse();
+        assertThat(macosProxy.getMessage()).contains("内网");
+        assertThat(macosSocksProxy.isAllowed()).isFalse();
+        assertThat(macosSocksProxy.getMessage()).contains("元数据");
+        assertThat(publicProxy.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldCheckGitPersistentProxyConfigAssignments() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
@@ -1177,6 +1221,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
@@ -1616,6 +1661,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
