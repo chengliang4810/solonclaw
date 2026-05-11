@@ -1420,6 +1420,47 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecurityAuditTopLevelToolOutput() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        String unsupported =
+                tools.audit(
+                        "unknown-ghp_auditaction12345",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        String command =
+                tools.audit(
+                        "command",
+                        "execute_shell-ghp_audittool12345",
+                        "echo token=ghp_auditcommand12345",
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThat(unsupported)
+                .contains("unknown-ghp_***")
+                .doesNotContain("ghp_auditaction12345");
+        assertThat(command)
+                .contains("execute_shell-ghp_***")
+                .contains("token=***")
+                .doesNotContain("ghp_audittool12345")
+                .doesNotContain("ghp_auditcommand12345");
+    }
+
+    @Test
     void shouldNormalizeWrappedAndEscapedUrlsBeforeSecurityAudit() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
