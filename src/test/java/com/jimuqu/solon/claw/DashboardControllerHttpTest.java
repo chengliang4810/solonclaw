@@ -458,6 +458,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"proxyOptionUrlChecked\":true")
                 .contains("\"preproxyOptionUrlChecked\":true")
                 .contains("\"powershellProxyEnvironmentChecked\":true")
+                .contains("\"setxProxyEnvironmentChecked\":true")
                 .contains("\"proxyBypassEnvironmentChecked\":true")
                 .contains("\"gitPersistentProxyConfigChecked\":true")
                 .contains("\"packageManagerProxyBypassEnvironmentChecked\":true")

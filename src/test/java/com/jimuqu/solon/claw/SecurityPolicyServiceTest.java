@@ -618,6 +618,9 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict setEnvironmentVariable =
                 metadataPolicy.checkCommandUrls(
                         "[Environment]::SetEnvironmentVariable('ALL_PROXY','socks5://metadata.google.internal:1080')");
+        SecurityPolicyService.UrlVerdict setxProxy =
+                privatePolicy.checkCommandUrls(
+                        "setx HTTPS_PROXY http://internal.example:8443");
         SecurityPolicyService.UrlVerdict publicProxy =
                 publicPolicy.checkCommandUrls(
                         "$env:HTTP_PROXY='http://proxy.example:8080'; iwr https://example.com");
@@ -628,6 +631,8 @@ public class SecurityPolicyServiceTest {
         assertThat(envColonProxy.getMessage()).contains("内网");
         assertThat(setEnvironmentVariable.isAllowed()).isFalse();
         assertThat(setEnvironmentVariable.getMessage()).contains("元数据");
+        assertThat(setxProxy.isAllowed()).isFalse();
+        assertThat(setxProxy.getMessage()).contains("内网");
         assertThat(publicProxy.isAllowed()).isTrue();
     }
 
@@ -659,6 +664,8 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict powershellSetNoProxyOnly =
                 metadataPolicy.checkCommandUrls(
                         "[Environment]::SetEnvironmentVariable('NO_PROXY','metadata.google.internal')");
+        SecurityPolicyService.UrlVerdict setxNoProxy =
+                metadataPolicy.checkCommandUrls("setx NO_PROXY metadata.google.internal");
         SecurityPolicyService.UrlVerdict publicBypass =
                 publicPolicy.checkCommandUrls(
                         "NO_PROXY=api.example.com curl https://example.com");
@@ -675,6 +682,8 @@ public class SecurityPolicyServiceTest {
         assertThat(powershellSetEnvironmentVariable.getMessage()).contains("元数据");
         assertThat(powershellSetNoProxyOnly.isAllowed()).isFalse();
         assertThat(powershellSetNoProxyOnly.getMessage()).contains("元数据");
+        assertThat(setxNoProxy.isAllowed()).isFalse();
+        assertThat(setxNoProxy.getMessage()).contains("元数据");
         assertThat(publicBypass.isAllowed()).isTrue();
     }
 
@@ -1167,6 +1176,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("idnHostNormalized")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
@@ -1605,6 +1615,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("proxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))

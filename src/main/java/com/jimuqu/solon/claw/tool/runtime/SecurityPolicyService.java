@@ -643,6 +643,7 @@ public class SecurityPolicyService {
         summary.put("idnHostNormalized", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
+        summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -774,6 +775,7 @@ public class SecurityPolicyService {
         summary.put("proxyOptionUrlChecked", Boolean.TRUE);
         summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
+        summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -1495,6 +1497,7 @@ public class SecurityPolicyService {
         extractLocalBindAddresses(text, urls);
         extractJavaProxyOptionsAssignments(text, urls);
         extractPowerShellProxyEnvironmentAssignments(text, urls);
+        extractSetxProxyEnvironmentAssignments(text, urls);
         extractGitProxyConfigAssignments(text, urls);
         extractPackageManagerProxyConfigAssignments(text, urls);
         extractProxyHosts(text, urls);
@@ -1652,6 +1655,24 @@ public class SecurityPolicyService {
                 value = matcher.group(4);
             }
             addProxyEnvironmentValue(name, stripOptionalQuote(value), urls);
+        }
+    }
+
+    private void extractSetxProxyEnvironmentAssignments(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String command = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (!"setx".equalsIgnoreCase(command)) {
+                continue;
+            }
+            if (i + 2 >= tokens.size()) {
+                continue;
+            }
+            String name = tokens.get(i + 1);
+            String value = tokens.get(i + 2);
+            if (isPersistentProxyEnvironmentName(name)) {
+                addProxyEnvironmentValue(name, value, urls);
+            }
         }
     }
 
@@ -1886,9 +1907,15 @@ public class SecurityPolicyService {
             return false;
         }
         String name = token.substring(0, equals).toLowerCase(Locale.ROOT);
+        return isPersistentProxyEnvironmentName(name);
+    }
+
+    private boolean isPersistentProxyEnvironmentName(String rawName) {
+        String name = StrUtil.nullToEmpty(rawName).trim().toLowerCase(Locale.ROOT);
         return "http_proxy".equals(name)
                 || "https_proxy".equals(name)
                 || "ftp_proxy".equals(name)
+                || "no_proxy".equals(name)
                 || "npm_config_proxy".equals(name)
                 || "npm_config_https_proxy".equals(name)
                 || "npm_config_no_proxy".equals(name)

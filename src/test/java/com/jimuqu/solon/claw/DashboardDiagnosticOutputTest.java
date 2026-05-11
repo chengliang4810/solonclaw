@@ -348,6 +348,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> toolArgsPolicy = (Map<String, Object>) policy.get("tool_args_policy");
         assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsPolicy.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
     }
 
