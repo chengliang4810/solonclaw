@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
+import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
@@ -19,6 +20,8 @@ import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -373,6 +376,7 @@ public class DashboardDiagnosticsService {
         map.put("count", toolRegistry.listToolNames().size());
         map.put("names", toolRegistry.listToolNames());
         map.put("policies", toolPolicies());
+        map.put("attachment_policies", attachmentPolicies());
         return map;
     }
 
@@ -382,6 +386,14 @@ public class DashboardDiagnosticsService {
         policies.put("patch_parser", safePatchParserPolicySummary());
         policies.put("code_execution", safeCodeExecutionPolicySummary());
         policies.put("subprocess_environment", safeSubprocessEnvironmentPolicySummary());
+        return policies;
+    }
+
+    private Map<String, Object> attachmentPolicies() {
+        Map<String, Object> policies = new LinkedHashMap<String, Object>();
+        policies.put("download_io", safeAttachmentDownloadPolicySummary());
+        policies.put("media_cache", safeAttachmentMediaCachePolicySummary());
+        policies.put("terminal_paste", safeAttachmentTerminalPastePolicySummary());
         return policies;
     }
 
@@ -847,6 +859,80 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "gatewaySecretsBlocked");
             copyPolicyValue(summary, safe, "pathFallbackEnabledForPosix");
             copyPolicyValue(summary, safe, "windowsPathFallbackDisabled");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeAttachmentDownloadPolicySummary() {
+        try {
+            Map<String, Object> summary = BoundedAttachmentIO.policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "hutoolDownloadGuarded");
+            copyPolicyValue(summary, safe, "okHttpDownloadGuarded");
+            copyPolicyValue(summary, safe, "initialUrlChecked");
+            copyPolicyValue(summary, safe, "redirectUrlCheckedBeforeFollow");
+            copyPolicyValue(summary, safe, "manualRedirectHandling");
+            copyPolicyValue(summary, safe, "maxRedirects");
+            copyPolicyValue(summary, safe, "redirectLocationRequired");
+            copyPolicyValue(summary, safe, "redirectUrlResolvedAgainstCurrentUrl");
+            copyPolicyValue(summary, safe, "crossHostHeaderForwardingBlocked");
+            copyPolicyValue(summary, safe, "sameOriginHeadersAllowed");
+            copyPolicyValue(summary, safe, "blockedUrlMasked");
+            copyPolicyValue(summary, safe, "contentLengthChecked");
+            copyPolicyValue(summary, safe, "streamReadBounded");
+            copyPolicyValue(summary, safe, "defaultMaxBytes");
+            copyPolicyValue(summary, safe, "jsonMaxBytes");
+            copyPolicyValue(summary, safe, "updateJarMaxBytes");
+            copyPolicyValue(summary, safe, "contentTypeCaptured");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeAttachmentMediaCachePolicySummary() {
+        try {
+            Map<String, Object> summary = new AttachmentCacheService(appConfig).policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "mediaReferencePrefix");
+            copyPolicyValue(summary, safe, "maxCacheBytes");
+            copyPolicyValue(summary, safe, "cacheBytesSizeChecked");
+            copyPolicyValue(summary, safe, "safeOriginalNameSanitized");
+            copyPolicyValue(summary, safe, "safeOriginalNameSecretRedacted");
+            copyPolicyValue(summary, safe, "mimeSniffingEnabled");
+            copyPolicyValue(summary, safe, "kindNormalized");
+            copyPolicyValue(summary, safe, "fromLocalFileRequiresRuntimeCache");
+            copyPolicyValue(summary, safe, "fromMediaCacheRequiresMediaRoot");
+            copyPolicyValue(summary, safe, "mediaReferenceRequiresMediaRoot");
+            copyPolicyValue(summary, safe, "mediaReferenceTraversalBlocked");
+            copyPolicyValue(summary, safe, "generatedAttachmentSingleRuntimeLevelOnly");
+            copyPolicyValue(summary, safe, "generatedAttachmentExtensionAllowlist");
+            copyPolicyValue(summary, safe, "hostPathsNotReturnedInMediaReference");
+            copyPolicyValue(summary, safe, "mediaRoot");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeAttachmentTerminalPastePolicySummary() {
+        try {
+            Map<String, Object> summary = CliAttachmentResolver.policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "pastedLocalPathDetection");
+            copyPolicyValue(summary, safe, "fileUriDetection");
+            copyPolicyValue(summary, safe, "windowsPathDetection");
+            copyPolicyValue(summary, safe, "posixPathDetection");
+            copyPolicyValue(summary, safe, "pathPolicyCheckedBeforeCache");
+            copyPolicyValue(summary, safe, "credentialPathBlocked");
+            copyPolicyValue(summary, safe, "blockedPreviewRedacted");
+            copyPolicyValue(summary, safe, "missingPreviewRedacted");
+            copyPolicyValue(summary, safe, "resolvedDisplayNameRedacted");
+            copyPolicyValue(summary, safe, "rawPathHiddenInPrompt");
+            copyPolicyValue(summary, safe, "maxAttachmentPaths");
+            copyPolicyValue(summary, safe, "maxAttachmentBytes");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
