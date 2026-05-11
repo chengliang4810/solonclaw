@@ -580,7 +580,7 @@ public class DangerousCommandApprovalService {
                                     "private_key_material_export",
                                     "export or unprotect private key material",
                                     pattern(
-                                            "\\b(?:gpg(?:2)?\\s+--export-secret-keys\\b|openssl\\s+(?:rsa|pkey|pkcs12)\\b(?=[^\\n]*(?:\\s-out\\s+\\S+|\\s-export\\b))(?=[^\\n]*(?:\\s-nodes\\b|\\s-nocrypt\\b|\\s-passout\\s+pass:|\\s-in\\s+\\S*(?:id_(?:rsa|ed25519|ecdsa|dsa)|private|key|\\.pem)\\S*))|ssh-keygen\\s+-p\\b(?=[^\\n]*(?:\\s-N\\s+['\"]{0,2}|\\s-P\\s+\\S+)))"),
+                                            "\\b(?:gpg(?:2)?\\s+--export-secret-keys\\b|openssl\\s+(?:rsa|pkey|pkcs12)\\b(?=[^\\n]*(?:\\s-out\\s+\\S+|\\s-export\\b))(?=[^\\n]*(?:\\s-nodes\\b|\\s-nocrypt\\b|\\s-(?:passout|password)\\s+pass:|\\s-in\\s+\\S*(?:id_(?:rsa|ed25519|ecdsa|dsa)|private|key|\\.pem)\\S*))|ssh-keygen\\s+-p\\b(?=[^\\n]*(?:\\s-N\\s+['\"]{0,2}|\\s-P\\s+\\S+)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "package_manager_secret_read",

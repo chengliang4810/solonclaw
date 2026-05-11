@@ -2669,6 +2669,7 @@ public class DangerousCommandApprovalServiceTest {
                         "openssl rsa -in private-prod.pem -out private-unprotected.pem",
                         "openssl pkey -in id_rsa -out id_rsa.unprotected -nocrypt",
                         "openssl pkcs12 -export -inkey private.key -out cert.pfx -nodes",
+                        "openssl pkcs12 -export -inkey private.key -out cert.pfx -password pass:secret",
                         "ssh-keygen -p -P oldpass -N '' -f ~/.ssh/id_rsa");
         for (String command : privateKeyMaterialExports) {
             DangerousCommandApprovalService.DetectionResult result =
