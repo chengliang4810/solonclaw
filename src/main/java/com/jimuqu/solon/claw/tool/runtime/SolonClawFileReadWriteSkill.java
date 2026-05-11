@@ -204,7 +204,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             fileStateTracker.recordRead(target);
             if (readStatus.blocked) {
                 return ToolResultEnvelope.error(readStatus.message)
-                        .data("path", fileName)
+                        .data("path", safeDisplayPath(fileName))
                         .data("already_read", Integer.valueOf(readStatus.count))
                         .toJson();
             }
@@ -334,13 +334,15 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             tracker.dedupHits++;
             if (tracker.dedupHits >= 2) {
                 return ToolResultEnvelope.error(
-                                "BLOCKED: 已连续多次读取同一文件区域且文件未变化。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
-                        .data("path", fileName)
+                                "BLOCKED: 已连续多次读取同一文件区域且文件未变化："
+                                        + safeDisplayPath(fileName)
+                                        + "。请停止重复调用 file_read，使用之前读取到的内容继续任务。")
+                        .data("path", safeDisplayPath(fileName))
                         .data("already_read", Integer.valueOf(tracker.dedupHits + 1))
                         .toJson();
             }
             return ToolResultEnvelope.ok(READ_DEDUP_STATUS_MESSAGE)
-                    .data("path", fileName)
+                    .data("path", safeDisplayPath(fileName))
                     .data("dedup", Boolean.TRUE)
                     .data("content_returned", Boolean.FALSE)
                     .data("offset", Integer.valueOf(key.offset))
@@ -391,7 +393,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                         "BLOCKED: 已连续 "
                                 + consecutiveReadCount
                                 + " 次读取同一文件区域且文件未变化："
-                                + fileName,
+                                + safeDisplayPath(fileName),
                         consecutiveReadCount);
             }
             if (consecutiveReadCount >= 3) {

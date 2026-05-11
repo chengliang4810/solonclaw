@@ -4002,6 +4002,35 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactRepeatedFileReadStatusPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        Path dir = workspace.resolve("token-ghp_filereadstatus12345");
+        Files.createDirectories(dir);
+        Files.write(dir.resolve("repeat.txt"), Arrays.asList("alpha", "bravo"), StandardCharsets.UTF_8);
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+        String path = "token-ghp_filereadstatus12345/repeat.txt";
+
+        fileSkill.read(path, 1, 2);
+        ONode second = ONode.ofJson(fileSkill.read(path, 1, 2));
+        ONode third = ONode.ofJson(fileSkill.read(path, 1, 2));
+
+        assertThat(second.get("path").getString())
+                .contains("repeat.txt")
+                .doesNotContain("ghp_filereadstatus12345");
+        assertThat(third.get("error").getString())
+                .contains("BLOCKED")
+                .contains("repeat.txt")
+                .doesNotContain("ghp_filereadstatus12345");
+        assertThat(third.get("path").getString())
+                .contains("repeat.txt")
+                .doesNotContain("ghp_filereadstatus12345");
+    }
+
+    @Test
     void shouldResetFileReadDedupHitsAfterOtherToolCall() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
