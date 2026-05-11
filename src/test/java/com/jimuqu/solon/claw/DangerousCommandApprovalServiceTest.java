@@ -8919,7 +8919,7 @@ public class DangerousCommandApprovalServiceTest {
         malformedArgs.put("tool_name", "web_extract");
         malformedArgs.put(
                 "tool_args",
-                "{\"url\":\"http://169.254.169.254/latest/meta-data/?token=secret123\"");
+                "{\"url\":\"http://169.254.169.254/latest/meta-data/?api%255Fkey=secret123\"");
         TestTrace malformedTrace = new TestTrace();
 
         service.buildInterceptor().onAction(malformedTrace, "call_tool", malformedArgs);
@@ -8929,6 +8929,7 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("工具网关参数格式无效")
                 .contains("tool_args 不是合法 JSON")
                 .contains("工具：webfetch")
+                .contains("api%255Fkey=***")
                 .doesNotContain("secret123");
         assertThat(service.getPendingApproval(malformedTrace.session)).isNull();
 
