@@ -2624,6 +2624,19 @@ public class DashboardControllerHttpTest {
                 .contains("WORKSPACE_BAD_REQUEST")
                 .doesNotContain(runtimeHome.getAbsolutePath())
                 .doesNotContain("missing-secret-token.md");
+
+        HttpResult invalidJson =
+                request(
+                        "PUT",
+                        "/api/workspace/files/agents",
+                        "{\"content\":\"token=ghp_workspaceparse12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("WORKSPACE_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_workspaceparse12345")
+                .doesNotContain("token=");
     }
 
     @Test
