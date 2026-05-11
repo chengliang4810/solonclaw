@@ -862,6 +862,14 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_pipeline_preview",
+                                    "preview credential file content through pipeline",
+                                    pattern(
+                                            "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:head|tail|less|more|bat|batcat|most|pg|Out-Host|Select-Object|select)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(

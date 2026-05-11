@@ -3432,6 +3432,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFilePipelinePreviewCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "cat .env | head",
+                        "type credentials.json | tail -n 3",
+                        "Get-Content .anthropic_oauth.json | Select-Object -First 1",
+                        "gc .npmrc | Out-Host",
+                        "cat token.json | bat --plain");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_pipeline_preview");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat report.txt | head"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-Content report.txt | Select-Object -First 1"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat .env | pbcopy"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("sensitive_file_clipboard_export");
+    }
+
+    @Test
     void shouldDetectCredentialFileCompareOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
