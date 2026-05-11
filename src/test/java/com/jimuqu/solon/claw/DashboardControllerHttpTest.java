@@ -2078,6 +2078,28 @@ public class DashboardControllerHttpTest {
         assertThat(detail.body).contains("agent://dashboard-path-agent/skills");
         assertThat(detail.body).contains("agent://dashboard-path-agent/cache");
         assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult missing =
+                request(
+                        "GET",
+                        "/api/agents/missing-agent?session_id=token=agent-session-secret",
+                        null,
+                        token);
+        assertThat(missing.status).isEqualTo(400);
+        assertThat(missing.body)
+                .contains("AGENT_BAD_REQUEST")
+                .doesNotContain("agent-session-secret");
+
+        HttpResult invalid =
+                request(
+                        "POST",
+                        "/api/agents",
+                        "{\"name\":\"bad/token-agent-secret\",\"role_prompt\":\"测试错误脱敏\"}",
+                        token);
+        assertThat(invalid.status).isEqualTo(400);
+        assertThat(invalid.body)
+                .contains("AGENT_BAD_REQUEST")
+                .doesNotContain("token-agent-secret");
     }
 
     @Test
