@@ -416,7 +416,11 @@ try {
         & git config user.name "Jimuqu Naming Check" | Out-Null
         & git config user.email "naming-check@example.invalid" | Out-Null
         Set-Content -Path (Join-Path $sandbox "README.md") -Value "Clean release note fixture" -Encoding UTF8
+        for ($i = 1; $i -le 9; $i++) {
+            Set-Content -Path (Join-Path $sandbox ("changed-{0}.txt" -f $i)) -Value ("changed file {0}" -f $i) -Encoding UTF8
+        }
         & git add README.md | Out-Null
+        & git add changed-*.txt | Out-Null
         & git commit -m "fix: clean release notes / Clean release notes" | Out-Null
         Add-Content -Path (Join-Path $sandbox "README.md") -Value "Scoped feature fixture"
         & git add README.md | Out-Null
@@ -444,6 +448,12 @@ try {
         }
         if ($cleanReleaseText -notmatch "fix: clean release notes / Clean release notes[\s\S]*影响文件 / Changed files:[\s\S]*README\.md") {
             throw "Release notes generation did not include changed files for commits without body details."
+        }
+        if ($cleanReleaseText -notmatch "另有 2 个文件未展开。 / 2 more files omitted.") {
+            throw "Release notes generation did not limit long changed-file lists with a bilingual omission note."
+        }
+        if ($cleanReleaseText -match "changed-9\.txt") {
+            throw "Release notes generation should omit files beyond the display limit."
         }
         if ($cleanReleaseText -notmatch "### 功能 / Features[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note") {
             throw "Release notes generation did not classify scoped feat commits as features."

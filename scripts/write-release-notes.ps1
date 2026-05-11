@@ -13,6 +13,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ChangedFileDisplayLimit = 8
 
 function Invoke-ProjectNamingGuard {
     param([string] $Range)
@@ -137,10 +138,16 @@ function Format-ReleaseDetails {
         $formatted += ("  - " + $detail)
     }
     if ($bodyLines.Length -eq 0) {
-        foreach ($file in @($Files)) {
+        $cleanFiles = @($Files | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $shownFiles = @($cleanFiles | Select-Object -First $ChangedFileDisplayLimit)
+        foreach ($file in $shownFiles) {
             if (-not [string]::IsNullOrWhiteSpace($file)) {
                 $formatted += ("  - " + $file)
             }
+        }
+        $remaining = $cleanFiles.Length - $shownFiles.Length
+        if ($remaining -gt 0) {
+            $formatted += ("  - 另有 {0} 个文件未展开。 / {0} more files omitted." -f $remaining)
         }
     }
     return ($formatted -join [Environment]::NewLine)
