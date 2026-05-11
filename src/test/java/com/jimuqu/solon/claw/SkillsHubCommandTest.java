@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.tool.runtime.SkillHubTools;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -71,6 +72,51 @@ public class SkillsHubCommandTest {
         assertThat(hub.lastTapPath).isEqualTo("skills/");
         assertThat(addReply.getContent()).contains("Added tap");
         assertThat(listReply.getContent()).contains("openai/skills");
+    }
+
+    @Test
+    void shouldRedactSecretsFromSkillHubToolSuccessResultsOnly() throws Exception {
+        CapturingSkillHubService hub = new CapturingSkillHubService();
+        hub.includeSecrets = true;
+        SkillHubTools tools = new SkillHubTools(hub);
+
+        String search = tools.search("token ghp_hubquery12345", "github", 5);
+        String inspect = tools.inspect("github/org/repo/skill-ghp_hubidentifier12345");
+        String install =
+                tools.install(
+                        "github/org/repo/skill-ghp_hubidentifier12345",
+                        "secret-ghp_hubcategory12345",
+                        Boolean.TRUE);
+        String taps = tools.tap("list", null, null);
+        String addedTap =
+                tools.tap("add", "org/skills-ghp_hubtapinput12345", "skills-ghp_hubpathinput12345");
+
+        assertThat(search)
+                .contains("description token=***")
+                .contains("github/org/repo/skill-ghp_***")
+                .doesNotContain("ghp_hubsearch12345")
+                .doesNotContain("ghp_hubidentifier12345");
+        assertThat(inspect)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_hubinspect12345");
+        assertThat(install)
+                .contains("\"access_token\":\"***\"")
+                .contains("runtime/skills-ghp_***/demo-skill")
+                .doesNotContain("ghp_hubinstall12345")
+                .doesNotContain("ghp_hubpath12345");
+        assertThat(taps)
+                .contains("skills-ghp_***")
+                .doesNotContain("ghp_hubtap12345");
+        assertThat(addedTap)
+                .contains("Added tap")
+                .contains("ghp_***")
+                .doesNotContain("ghp_hubtapinput12345");
+
+        assertThat(hub.lastSearchQuery).contains("ghp_hubquery12345");
+        assertThat(hub.lastInstallIdentifier).contains("ghp_hubidentifier12345");
+        assertThat(hub.lastInstallCategory).contains("ghp_hubcategory12345");
+        assertThat(hub.lastTapRepo).contains("ghp_hubtapinput12345");
+        assertThat(hub.lastTapPath).contains("ghp_hubpathinput12345");
     }
 
     private DefaultCommandService commandService(
@@ -150,6 +196,7 @@ public class SkillsHubCommandTest {
         private boolean lastInstallForce;
         private String lastTapRepo;
         private String lastTapPath;
+        private boolean includeSecrets;
 
         @Override
         public SkillBrowseResult browse(String sourceFilter, int page, int pageSize) {
@@ -166,6 +213,12 @@ public class SkillsHubCommandTest {
             meta.setSource("github");
             meta.setTrustLevel("trusted");
             meta.setIdentifier("github/openai/skills/demo");
+            if (includeSecrets) {
+                meta.setDescription("description token=ghp_hubsearch12345");
+                meta.setIdentifier("github/org/repo/skill-ghp_hubidentifier12345");
+                meta.getExtra()
+                        .put("authorization", "Bearer ghp_hubsearchextra12345");
+            }
             SkillBrowseResult result = new SkillBrowseResult();
             result.setItems(Collections.singletonList(meta));
             result.setTotal(1);
@@ -176,7 +229,14 @@ public class SkillsHubCommandTest {
 
         @Override
         public SkillMeta inspect(String identifier) {
-            return null;
+            SkillMeta meta = new SkillMeta();
+            meta.setName("demo-skill");
+            meta.setSource("github");
+            meta.setIdentifier(identifier);
+            if (includeSecrets) {
+                meta.setDescription("Authorization: Bearer ghp_hubinspect12345");
+            }
+            return meta;
         }
 
         @Override
@@ -189,22 +249,34 @@ public class SkillsHubCommandTest {
             record.setInstallPath("ops/demo-skill");
             record.setSource("github");
             record.setTrustLevel("trusted");
+            if (includeSecrets) {
+                record.setIdentifier(identifier);
+                record.setInstallPath("runtime/skills-ghp_hubpath12345/demo-skill");
+                record.getMetadata().put("access_token", "ghp_hubinstall12345");
+            }
             return record;
         }
 
         @Override
         public List<HubInstallRecord> listInstalled() {
-            return Collections.emptyList();
+            if (!includeSecrets) {
+                return Collections.emptyList();
+            }
+            HubInstallRecord record = new HubInstallRecord();
+            record.setName("demo-skill");
+            record.setIdentifier("github/org/repo/skill-ghp_hublist12345");
+            record.getMetadata().put("token", "ghp_hublistmeta12345");
+            return Collections.singletonList(record);
         }
 
         @Override
         public List<HubInstallRecord> check(String name) {
-            return Collections.emptyList();
+            return listInstalled();
         }
 
         @Override
         public List<HubInstallRecord> update(String name, boolean force) {
-            return Collections.emptyList();
+            return listInstalled();
         }
 
         @Override
@@ -220,7 +292,7 @@ public class SkillsHubCommandTest {
         @Override
         public List<TapRecord> listTaps() {
             TapRecord tap = new TapRecord();
-            tap.setRepo("openai/skills");
+            tap.setRepo(includeSecrets ? "org/skills-ghp_hubtap12345" : "openai/skills");
             tap.setPath("skills/");
             return Collections.singletonList(tap);
         }
