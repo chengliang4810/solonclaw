@@ -8798,6 +8798,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(service.getPendingApproval(arrayTrace.session)).isNull();
 
         assertMalformedGatewayAliasFailsClosed(service, "http_get", "webfetch");
+        assertMalformedGatewayAliasFailsClosed(service, "websearch", "websearch");
+        assertMalformedGatewayAliasFailsClosed(service, "codesearch", "codesearch");
         assertMalformedGatewayAliasFailsClosed(service, "run_python", "execute_python");
         assertMalformedGatewayAliasFailsClosed(service, "apply_patch", "patch");
     }
