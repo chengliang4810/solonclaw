@@ -137,10 +137,11 @@ class SecretRedactorTest {
     void shouldRedactSemicolonSeparatedSensitiveUrlParameters() {
         String result =
                 SecretRedactor.maskUrl(
-                        "https://example.com/callback;api%255Fkey=secret-value-123;ok=value");
+                        "https://example.com/callback;token=plain-secret;api%255Fkey=secret-value-123;ok=value");
 
         assertThat(result)
-                .isEqualTo("https://example.com/callback;api%255Fkey=***;ok=value")
+                .isEqualTo("https://example.com/callback;token=***;api%255Fkey=***;ok=value")
+                .doesNotContain("plain-secret")
                 .doesNotContain("secret-value-123");
     }
 
@@ -148,10 +149,12 @@ class SecretRedactorTest {
     void shouldRedactFragmentSensitiveUrlParameters() {
         String result =
                 SecretRedactor.maskUrl(
-                        "https://example.com/callback#access%255Ftoken=fragment-secret&ok=value");
+                        "https://example.com/callback#token=plain-fragment-secret&access%255Ftoken=fragment-secret&ok=value");
 
         assertThat(result)
-                .isEqualTo("https://example.com/callback#access%255Ftoken=***&ok=value")
+                .isEqualTo(
+                        "https://example.com/callback#token=***&access%255Ftoken=***&ok=value")
+                .doesNotContain("plain-fragment-secret")
                 .doesNotContain("fragment-secret");
     }
 
