@@ -449,6 +449,20 @@ public class DangerousCommandApprovalService {
                                                     + "[^\\n|;&]*\\|\\s*(?:\\[Convert\\]::ToBase64String|ConvertTo-SecureString\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_hash_output",
+                                    "hash credential file content",
+                                    pattern(
+                                            "(?:\\b(?:sha(?:1|224|256|384|512)?sum|md5sum|b2sum|cksum|shasum)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bopenssl\\s+(?:dgst|sha(?:1|224|256|384|512)|md5)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bcertutil(?:\\.exe)?\\s+-hashfile\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bGet-FileHash\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_inline_assignment",
                                     "set sensitive environment variable inline with a command",
                                     pattern(

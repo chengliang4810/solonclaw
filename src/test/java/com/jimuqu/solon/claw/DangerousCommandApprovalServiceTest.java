@@ -3263,6 +3263,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileHashOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "sha256sum .env",
+                        "md5sum credentials.json",
+                        "shasum -a 256 token.json",
+                        "openssl dgst -sha256 client_secret.json",
+                        "certutil -hashfile service-account.json SHA256",
+                        "Get-FileHash .anthropic_oauth.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_hash_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "sha256sum report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl dgst -sha256 report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-FileHash report.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileEncodedOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
