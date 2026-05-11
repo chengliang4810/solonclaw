@@ -841,6 +841,8 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 语义：sudoHint=")
                 .append(value(output, "sudoFailureHintAppended"))
+                .append(" emptySuccess=")
+                .append(value(output, "emptySuccessMessage"))
                 .append(" exitCode=")
                 .append(value(output, "exitCodeSemanticsAvailable"))
                 .append(" retryErrors=")

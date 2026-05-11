@@ -996,6 +996,7 @@ public class ToolRegistryExposureTest {
         assertThat(terminalOutputPolicy.get("maxInlineChars").getInt()).isEqualTo(50000);
         assertThat(terminalOutputPolicy.get("headTailTruncation").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("truncationNoticeIncluded").getBoolean()).isTrue();
+        assertThat(terminalOutputPolicy.get("emptySuccessMessage").getString()).isEqualTo("执行成功");
         assertThat(terminalOutputPolicy.get("timeoutNoticeAppended").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("sudoFailureHintAppended").getBoolean()).isTrue();
         assertThat(terminalOutputPolicy.get("outputTransformersSupported").getBoolean()).isTrue();

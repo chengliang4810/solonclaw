@@ -1190,6 +1190,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "maxInlineChars");
             copyPolicyValue(summary, safe, "headTailTruncation");
             copyPolicyValue(summary, safe, "truncationNoticeIncluded");
+            copyPolicyValue(summary, safe, "emptySuccessMessage");
             copyPolicyValue(summary, safe, "timeoutNoticeAppended");
             copyPolicyValue(summary, safe, "sudoFailureHintAppended");
             copyPolicyValue(summary, safe, "outputTransformersSupported");

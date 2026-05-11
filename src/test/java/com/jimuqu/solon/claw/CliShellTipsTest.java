@@ -191,7 +191,8 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-output"))
                 .contains("终端输出安全策略摘要")
                 .contains("maxInlineChars")
-                .contains("sudoHint");
+                .contains("sudoHint")
+                .contains("emptySuccess=执行成功");
         assertThat(TerminalSecurityPolicyView.render(null, "/security sudo"))
                 .contains("sudo 改写安全策略摘要")
                 .contains("passwordRedacted")
