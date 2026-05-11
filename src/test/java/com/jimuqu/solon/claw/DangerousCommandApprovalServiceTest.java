@@ -8423,6 +8423,37 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(writeFileTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(writeFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
+        Map<String, Object> socketReadArgs = new LinkedHashMap<String, Object>();
+        socketReadArgs.put("path", "/var/run/docker.sock");
+        Map<String, Object> gatewaySocketRead = new LinkedHashMap<String, Object>();
+        gatewaySocketRead.put("tool_name", "read_file");
+        gatewaySocketRead.put("tool_args", socketReadArgs);
+        TestTrace socketReadTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(socketReadTrace, "call_tool", gatewaySocketRead);
+
+        assertThat(socketReadTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(socketReadTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("管理套接字");
+        assertThat(service.getPendingApproval(socketReadTrace.session)).isNull();
+
+        Map<String, Object> pipeWriteArgs = new LinkedHashMap<String, Object>();
+        pipeWriteArgs.put("path", "npipe:////./pipe/docker_engine");
+        pipeWriteArgs.put("content", "GET /containers/json HTTP/1.1");
+        Map<String, Object> gatewayPipeWrite = new LinkedHashMap<String, Object>();
+        gatewayPipeWrite.put("tool_name", "write_file");
+        gatewayPipeWrite.put("tool_args", pipeWriteArgs);
+        TestTrace pipeWriteTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(pipeWriteTrace, "call_tool", gatewayPipeWrite);
+
+        assertThat(pipeWriteTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(pipeWriteTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("命名管道");
+        assertThat(service.getPendingApproval(pipeWriteTrace.session)).isNull();
+
         Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
         pythonArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
         Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
