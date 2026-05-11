@@ -141,7 +141,7 @@ public class SolonClawPatchTools {
         }
         Path target = resolvePath(filePath);
         if (!Files.exists(target) || Files.isDirectory(target)) {
-            return PatchResult.error("Cannot read file: " + filePath);
+            return PatchResult.error("Cannot read file: " + safePath(filePath));
         }
         String staleWarning = fileStateTracker.checkStaleness(filePath, target);
         String content = read(target);
@@ -321,43 +321,43 @@ public class SolonClawPatchTools {
             }
             if ("update".equals(operation.type)) {
                 if (operation.hunks.isEmpty()) {
-                    errors.add("UPDATE " + operation.filePath + ": no hunks found");
+                    errors.add("UPDATE " + safePath(operation.filePath) + ": no hunks found");
                     continue;
                 }
                 Path target = resolvePath(operation.filePath);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
-                    errors.add(operation.filePath + ": file not found");
+                    errors.add(safePath(operation.filePath) + ": file not found");
                     continue;
                 }
                 String simulated = read(target);
                 ApplyResult applied = applyHunks(simulated, operation.hunks);
                 if (!applied.success) {
-                    errors.add(operation.filePath + ": " + applied.error);
+                    errors.add(safePath(operation.filePath) + ": " + applied.error);
                 }
                 if (StrUtil.isNotBlank(operation.newPath)) {
                     Path destination = resolvePath(operation.newPath);
                     if (Files.exists(destination)) {
-                        errors.add(operation.newPath + ": destination already exists - move would overwrite");
+                        errors.add(safePath(operation.newPath) + ": destination already exists - move would overwrite");
                     }
                 }
             } else if ("delete".equals(operation.type)) {
                 Path target = resolvePath(operation.filePath);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
-                    errors.add(operation.filePath + ": file not found for deletion");
+                    errors.add(safePath(operation.filePath) + ": file not found for deletion");
                 }
             } else if ("move".equals(operation.type)) {
                 Path source = resolvePath(operation.filePath);
                 Path destination = resolvePath(operation.newPath);
                 if (!Files.exists(source) || Files.isDirectory(source)) {
-                    errors.add(operation.filePath + ": source file not found for move");
+                    errors.add(safePath(operation.filePath) + ": source file not found for move");
                 }
                 if (Files.exists(destination)) {
-                    errors.add(operation.newPath + ": destination already exists - move would overwrite");
+                    errors.add(safePath(operation.newPath) + ": destination already exists - move would overwrite");
                 }
             } else if ("add".equals(operation.type)) {
                 Path target = resolvePath(operation.filePath);
                 if (Files.exists(target)) {
-                    errors.add(operation.filePath + ": file already exists - add would overwrite");
+                    errors.add(safePath(operation.filePath) + ": file already exists - add would overwrite");
                 }
             }
         }
@@ -718,6 +718,19 @@ public class SolonClawPatchTools {
 
     private String normalizePath(String path) {
         return StrUtil.nullToEmpty(path).replace('\\', '/');
+    }
+
+    private String safePath(String path) {
+        String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).replace('\\', '/').trim();
+        if (value.length() == 0) {
+            return "[unknown]";
+        }
+        int slash = value.lastIndexOf('/');
+        String name = slash >= 0 ? value.substring(slash + 1) : value;
+        if (StrUtil.isBlank(name)) {
+            name = "[path]";
+        }
+        return SecretRedactor.redact(name, 400);
     }
 
     private String join(List<String> values, String separator) {

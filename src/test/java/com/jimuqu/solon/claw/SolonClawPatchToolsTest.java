@@ -303,6 +303,43 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
+    void shouldRedactSensitivePatchErrorPaths() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+
+        String replaceJson =
+                tools.patch(
+                        "replace",
+                        "private/token-ghp_patchmissing12345/missing.txt",
+                        "old",
+                        "new",
+                        false,
+                        null);
+        Map<?, ?> replaceResult = parse(replaceJson);
+        assertThat(replaceResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(replaceResult.get("error")))
+                .contains("Cannot read file")
+                .contains("missing.txt")
+                .doesNotContain("private/")
+                .doesNotContain("ghp_patchmissing12345");
+
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: private/token-ghp_patchvalidation12345/missing.txt\n"
+                        + "@@ old @@\n"
+                        + "-old\n"
+                        + "+new\n"
+                        + "*** End Patch";
+        Map<?, ?> patchResult = parse(tools.patch("patch", null, null, null, null, patch));
+        assertThat(patchResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(patchResult.get("error")))
+                .contains("Patch validation failed")
+                .contains("missing.txt")
+                .doesNotContain("private/")
+                .doesNotContain("ghp_patchvalidation12345");
+    }
+
+    @Test
     void shouldRedactSecretsFromPatchSuccessResultsOnly() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path file = dir.resolve("src/secret-ghp_patchpath12345.txt");
