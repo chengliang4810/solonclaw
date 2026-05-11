@@ -66,6 +66,10 @@ public class CliShellTipsTest {
                 .contains("remote_credential_file_transfer")
                 .contains("sensitive_file_clipboard_export")
                 .contains("终端护栏");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security audit"))
+                .contains("安全审计摘要")
+                .contains("/security mcp")
+                .contains("/security tool-results");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")
                 .contains("unsupportedSchemeBlocked");

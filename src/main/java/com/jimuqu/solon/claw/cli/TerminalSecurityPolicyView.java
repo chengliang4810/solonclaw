@@ -128,7 +128,8 @@ public final class TerminalSecurityPolicyView {
                 .append(" promptGuard=")
                 .append(value(tirith, "promptInjectionGuardEnabled"));
         buffer.append('\n')
-                .append("可用命令：/security audit、/security policy、/security approvals、/security urls、/security paths、/security credentials、/security tool-args");
+                .append(
+                        "可用命令：/security audit、/security policy、/security approvals、/security urls、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security tool-results");
         return buffer.toString();
     }
 
