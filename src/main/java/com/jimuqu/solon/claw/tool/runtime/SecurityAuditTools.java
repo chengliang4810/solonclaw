@@ -640,7 +640,10 @@ public class SecurityAuditTools {
         if (value instanceof Map) {
             Map<Object, Object> map = (Map<Object, Object>) value;
             for (Map.Entry<Object, Object> entry : map.entrySet()) {
-                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                String key =
+                        entry.getKey() == null
+                                ? ""
+                                : String.valueOf(entry.getKey()).trim().toLowerCase(Locale.ROOT);
                 collectCommandLikeArguments(
                         entry.getValue(), commands, COMMAND_ARGUMENT_KEYS.contains(key));
             }

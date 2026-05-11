@@ -1602,6 +1602,47 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldNormalizeCommandToolArgKeysWhenAuditingToolArgs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode mixedCase =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "run_shell",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"payload\":{\" Command \":\"git reset --hard\"}}"));
+        ONode spaced =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "run_shell",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"payload\":{\" shell_command \":\"terraform destroy -auto-approve\"}}"));
+
+        assertThat(mixedCase.get("decision").getString()).isEqualTo("warn");
+        assertThat(mixedCase.get("approval_required").getBoolean()).isTrue();
+        assertThat(mixedCase.toJson()).contains("git_reset_hard");
+        assertThat(spaced.get("decision").getString()).isEqualTo("warn");
+        assertThat(spaced.get("approval_required").getBoolean()).isTrue();
+        assertThat(spaced.toJson()).contains("terraform_destroy");
+    }
+
+    @Test
     void shouldRedactSecurityAuditArgsJsonParseErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
