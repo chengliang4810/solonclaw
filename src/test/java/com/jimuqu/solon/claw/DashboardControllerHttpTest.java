@@ -219,6 +219,17 @@ public class DashboardControllerHttpTest {
         assertThat(overrideFile).exists();
         assertThat(FileUtil.readUtf8String(overrideFile)).contains("apiKey: secret12345678");
 
+        HttpResult saveToolOutputBudget =
+                request(
+                        "PUT",
+                        "/api/runtime-config",
+                        "{\"key\":\"tool_output.turn_budget_bytes\",\"value\":\"123456\"}",
+                        token);
+        assertThat(saveToolOutputBudget.status).isEqualTo(200);
+        assertThat(FileUtil.readUtf8String(overrideFile))
+                .contains("tool_output:")
+                .contains("turn_budget_bytes: '123456'");
+
         HttpResult revealRuntimeConfig =
                 request(
                         "POST",
