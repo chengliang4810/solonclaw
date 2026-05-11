@@ -8917,6 +8917,34 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockUnsafeCodesearchUrlThroughApprovalGatewaySecurityPolicy()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> searchArgs = new LinkedHashMap<String, Object>();
+        searchArgs.put(
+                "query",
+                "inspect http://169.254.169.254/latest/meta-data/?token=secret123");
+        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
+        gatewayArgs.put("tool_name", "codesearch");
+        gatewayArgs.put("tool_args", searchArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayArgs);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("元数据")
+                .doesNotContain("secret123");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldBlockHostTargetArgumentsThroughApprovalGatewaySecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(false);
