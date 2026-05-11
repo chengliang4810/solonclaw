@@ -883,6 +883,45 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactEncodedSecretsFromAcpPermissionsBridge() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
+
+        String sessionId = extractSessionId(newAcpSession(server, 125));
+        SessionRecord session = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession agentSession =
+                new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "url_policy?api%255Fkey=acp-encoded-secret",
+                "encoded ACP https://example.test/callback?api%255Fkey=acp-encoded-secret",
+                "curl https://example.test/callback?api%255Fkey=acp-encoded-secret");
+
+        String listed =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":126,\"method\":\"permissions/list_open\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\"}}");
+
+        assertThat(listed)
+                .contains("\"id\":126")
+                .contains("\"count\":1")
+                .contains("\"command\":\"curl https://example.test/callback?api%255Fkey=***\"")
+                .contains("\"description\":\"encoded ACP https://example.test/callback?api%255Fkey=***\"")
+                .contains("\"pattern_key\":\"url_policy?api%255Fkey=***\"")
+                .contains("\"patternKey\":\"url_policy?api%255Fkey=***\"")
+                .contains("\"approval_key\":\"execute_shell:***\"")
+                .contains("\"approvalKey\":\"execute_shell:***\"")
+                .doesNotContain("acp-encoded-secret");
+    }
+
+    @Test
     void shouldDenyDangerousApprovalThroughAcpPermissionsBridge() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =
