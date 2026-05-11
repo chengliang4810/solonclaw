@@ -93,6 +93,11 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("sensitive_file_clipboard_export")
                 .contains("network_credential_file_send")
                 .contains("remote_credential_file_transfer");
+        assertThat(String.valueOf(summary.get("secretStoreRuleSamples")))
+                .contains("secret_store_read")
+                .contains("secret_store_write")
+                .contains("secret_store_destroy")
+                .contains("encrypted_secret_file_decrypt");
         assertThat(summary.get("networkCredentialFieldAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveHttpHeaderAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawCredentialFileUploadDetection")).isEqualTo(Boolean.TRUE);

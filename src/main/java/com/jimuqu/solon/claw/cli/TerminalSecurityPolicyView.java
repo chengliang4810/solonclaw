@@ -336,6 +336,9 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 凭据处理：")
                 .append(value(approval, "credentialHandlingRuleSamples"));
+        buffer.append('\n')
+                .append("- Secret 存储：")
+                .append(value(approval, "secretStoreRuleSamples"));
         return buffer.toString();
     }
 

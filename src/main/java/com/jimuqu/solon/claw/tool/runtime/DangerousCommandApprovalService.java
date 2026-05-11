@@ -2443,6 +2443,13 @@ public class DangerousCommandApprovalService {
                         "sensitive_file_clipboard_export",
                         "network_credential_file_send",
                         "remote_credential_file_transfer"));
+        summary.put(
+                "secretStoreRuleSamples",
+                Arrays.asList(
+                        "secret_store_read",
+                        "secret_store_write",
+                        "secret_store_destroy",
+                        "encrypted_secret_file_decrypt"));
         summary.put("networkCredentialFieldAliasDetection", Boolean.TRUE);
         summary.put("sensitiveHttpHeaderAliasDetection", Boolean.TRUE);
         summary.put("rawCredentialFileUploadDetection", Boolean.TRUE);

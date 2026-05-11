@@ -541,6 +541,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "domesticCloudRuleSamples");
             copyPolicyValue(summary, safe, "cloudStorageRuleSamples");
             copyPolicyValue(summary, safe, "credentialHandlingRuleSamples");
+            copyPolicyValue(summary, safe, "secretStoreRuleSamples");
             copyPolicyValue(summary, safe, "hardlineRuleSamples");
             copyPolicyValue(summary, safe, "terminalGuardrailCount");
             copyPolicyValue(summary, safe, "terminalGuardrails");
