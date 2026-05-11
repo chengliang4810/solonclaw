@@ -3263,6 +3263,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileSystemOpenCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "open .env",
+                        "xdg-open credentials.json",
+                        "gio open client_secret.json",
+                        "start token.json",
+                        "Invoke-Item .anthropic_oauth.json",
+                        "ii service-account.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_system_open");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "open report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "xdg-open README.md"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Invoke-Item notes.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileEditorOpenCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

@@ -769,6 +769,13 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_system_open",
+                                    "open credential file with system viewer",
+                                    pattern(
+                                            "(?:\\b(?:open|xdg-open|gio\\s+open|start)\\b|\\b(?:Invoke-Item|ii)\\b)[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(
