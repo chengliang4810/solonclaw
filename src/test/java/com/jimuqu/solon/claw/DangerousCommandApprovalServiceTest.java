@@ -82,6 +82,10 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("domestic_cloud_cli_credential_config_change")
                 .contains("domestic_object_storage_recursive_remove")
                 .contains("object_storage_exposure_change");
+        assertThat(String.valueOf(summary.get("cloudStorageRuleSamples")))
+                .contains("aws_s3_recursive_remove")
+                .contains("domestic_object_storage_recursive_remove")
+                .contains("object_storage_exposure_change");
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")
@@ -1133,6 +1137,10 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult awsPrivateAcl =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws s3api put-bucket-acl --bucket prod-data --acl private");
+        DangerousCommandApprovalService.DetectionResult awsPrivatePolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell",
+                        "aws s3api put-bucket-policy --bucket prod-data --policy '{\"Principal\":{\"AWS\":\"arn:aws:iam::123456789012:role/app\"}}'");
         DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
@@ -1478,6 +1486,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(awsPublicPolicy.getPatternKey()).isEqualTo("object_storage_exposure_change");
         assertThat(objectStoragePlainUpload).isNull();
         assertThat(awsPrivateAcl).isNull();
+        assertThat(awsPrivatePolicy).isNull();
         assertThat(awsAttachPolicy).isNotNull();
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsSecurityGroupIngress).isNotNull();

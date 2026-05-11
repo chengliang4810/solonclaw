@@ -1957,6 +1957,12 @@ public class DangerousCommandApprovalService {
                         "domestic_cloud_cli_credential_config_change",
                         "domestic_object_storage_recursive_remove",
                         "object_storage_exposure_change"));
+        summary.put(
+                "cloudStorageRuleSamples",
+                Arrays.asList(
+                        "aws_s3_recursive_remove",
+                        "domestic_object_storage_recursive_remove",
+                        "object_storage_exposure_change"));
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
