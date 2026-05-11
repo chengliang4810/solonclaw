@@ -272,6 +272,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     }
 
     private Path resolvePath(String name) {
+        String value = StrUtil.nullToEmpty(name);
+        if (value.indexOf('\0') >= 0 || value.contains("!/")) {
+            throw new IllegalArgumentException("jar-internal paths are not disk files");
+        }
         Path path = rootPath.resolve(name).normalize();
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
