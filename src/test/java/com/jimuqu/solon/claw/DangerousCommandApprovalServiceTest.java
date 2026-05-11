@@ -78,6 +78,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(((Integer) summary.get("dangerousRuleCount")).intValue()).isGreaterThan(50);
         assertThat(((Integer) summary.get("hardlineRuleCount")).intValue()).isGreaterThan(10);
         assertThat(String.valueOf(summary.get("dangerousRuleSamples"))).contains("recursive_delete");
+        assertThat(String.valueOf(summary.get("domesticCloudRuleSamples")))
+                .contains("domestic_cloud_cli_credential_config_change")
+                .contains("domestic_object_storage_recursive_remove")
+                .contains("object_storage_exposure_change");
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")
