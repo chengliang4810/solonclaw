@@ -2681,6 +2681,20 @@ public class DashboardControllerHttpTest {
                 .contains("token=***")
                 .doesNotContain("ghp_sessiondashboard12345");
 
+        HttpResult invalidJson =
+                request(
+                        "PUT",
+                        "/api/sessions/session-token=ghp_sessionparseid12345",
+                        "{\"title\":\"token=ghp_sessionparse12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("SESSION_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_sessionparseid12345")
+                .doesNotContain("ghp_sessionparse12345")
+                .doesNotContain("token=");
+
         HttpResult missingCheckpoint =
                 request(
                         "POST",

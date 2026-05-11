@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import java.util.Map;
+import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
@@ -129,14 +130,25 @@ public class DashboardSessionController {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> body(Context context) {
+        String raw;
         try {
-            String raw = context.body();
-            if (raw == null || raw.trim().length() == 0) {
-                return java.util.Collections.emptyMap();
-            }
-            return org.noear.snack4.ONode.deserialize(raw, java.util.LinkedHashMap.class);
+            raw = context.body();
         } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (raw == null || raw.trim().length() == 0) {
             return java.util.Collections.emptyMap();
+        }
+        try {
+            ONode node = ONode.ofJson(raw);
+            if (node.toData() instanceof Map) {
+                return ONode.deserialize(node.toJson(), java.util.LinkedHashMap.class);
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 
