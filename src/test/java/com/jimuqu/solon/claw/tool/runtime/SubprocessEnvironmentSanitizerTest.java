@@ -233,11 +233,16 @@ public class SubprocessEnvironmentSanitizerTest {
         env.put("PATH", "/usr/bin");
         env.put("TENOR_API_KEY", "tenor-secret");
         env.put("OPENAI_API_KEY", "sk-provider");
+        env.put("OpenAi_Api_Key", "sk-mixed-provider");
         env.put("BAD-NAME", "bad");
 
         AutoCloseable scope =
                 SubprocessEnvironmentSanitizer.withSkillEnvironmentPassthrough(
-                        Arrays.asList("TENOR_API_KEY", "OPENAI_API_KEY", "BAD-NAME"));
+                        Arrays.asList(
+                                "TENOR_API_KEY",
+                                "OPENAI_API_KEY",
+                                "OpenAi_Api_Key",
+                                "BAD-NAME"));
         try {
             SubprocessEnvironmentSanitizer.sanitize(env);
         } finally {
@@ -246,7 +251,7 @@ public class SubprocessEnvironmentSanitizerTest {
 
         assertThat(env).containsEntry("PATH", "/usr/bin");
         assertThat(env).containsEntry("TENOR_API_KEY", "tenor-secret");
-        assertThat(env).doesNotContainKeys("OPENAI_API_KEY", "BAD-NAME");
+        assertThat(env).doesNotContainKeys("OPENAI_API_KEY", "OpenAi_Api_Key", "BAD-NAME");
 
         Map<String, String> afterScope = new LinkedHashMap<String, String>();
         afterScope.put("PATH", "/usr/bin");
