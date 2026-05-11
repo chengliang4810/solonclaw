@@ -89,6 +89,30 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldFallbackToPreviewOnlyWhenStorageIsUnavailable() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(null, 40, 200000, 300);
+        String large =
+                "first line\nOPENAI_API_KEY=sk-proj-previewonlysecret1234567890\n"
+                        + repeat("tail\n", 80);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("execute_shell", large, "run-preview-only", "call-preview-only");
+
+        assertThat(result.isTruncated()).isTrue();
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.getPreview())
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("sk-proj-previewonlysecret1234567890");
+        assertThat(result.getObservation())
+                .startsWith("<persisted-output>")
+                .contains("Full output could not be saved; use the preview only.")
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("Full output saved to:")
+                .doesNotContain("sk-proj-previewonlysecret1234567890");
+    }
+
+    @Test
     void shouldRedactPersistedPreviewAndStoredOutput() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 40, 200000, 300);
