@@ -214,6 +214,10 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition("task.busyPolicy", "select", "agent", "运行中输入策略")
                         .options("queue", "steer", "interrupt", "reject"));
+        addField(new FieldDefinition("tool_output.max_bytes", "number", "agent", "工具输出内联字节上限"));
+        addField(new FieldDefinition("tool_output.turn_budget_bytes", "number", "agent", "单轮工具输出累计预算字节"));
+        addField(new FieldDefinition("tool_output.max_lines", "number", "agent", "工具文件读取最大行数"));
+        addField(new FieldDefinition("tool_output.max_line_length", "number", "agent", "工具输出单行最大长度"));
         addField(
                 new FieldDefinition(
                         "agent.heartbeat.intervalMinutes",

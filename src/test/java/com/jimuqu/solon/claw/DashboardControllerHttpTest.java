@@ -119,7 +119,12 @@ public class DashboardControllerHttpTest {
 
         HttpResult authorizedRuntimeConfig = request("GET", "/api/runtime-config", null, token);
         assertThat(authorizedRuntimeConfig.status).isEqualTo(200);
-        assertThat(authorizedRuntimeConfig.body).contains("providers.default.apiKey");
+        assertThat(authorizedRuntimeConfig.body)
+                .contains("providers.default.apiKey")
+                .contains("tool_output.max_bytes")
+                .contains("tool_output.turn_budget_bytes")
+                .contains("tool_output.max_lines")
+                .contains("tool_output.max_line_length");
 
         HttpResult unauthorizedDoctor = request("GET", "/api/gateway/doctor", null, null);
         assertThat(unauthorizedDoctor.status).isEqualTo(401);
@@ -195,6 +200,14 @@ public class DashboardControllerHttpTest {
         File overrideFile = new File(runtimeHome, "config.yml");
         assertThat(overrideFile).exists();
         assertThat(FileUtil.readUtf8String(overrideFile)).contains("dashboard-model");
+
+        HttpResult configSchema = request("GET", "/api/config/schema", null, token);
+        assertThat(configSchema.status).isEqualTo(200);
+        assertThat(configSchema.body)
+                .contains("\"tool_output.max_bytes\"")
+                .contains("\"tool_output.turn_budget_bytes\"")
+                .contains("\"tool_output.max_lines\"")
+                .contains("\"tool_output.max_line_length\"");
 
         HttpResult saveRuntimeConfig =
                 request(
