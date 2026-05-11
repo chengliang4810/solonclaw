@@ -985,6 +985,29 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldApplySharedWebsiteBlocklistBeforeLeakingCredentialQuery() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("jimuqu-website-policy");
+        File shared = runtimeHome.resolve("community-blocklist.txt").toFile();
+        FileUtil.writeUtf8String("*.blocked-shared.example\n", shared);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList("community-blocklist.txt"));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "8.8.8.8");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                policy.checkUrl("https://api.blocked-shared.example/path?token=secret-token");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("website policy");
+        assertThat(verdict.getMessage()).contains("blocked-shared.example");
+        assertThat(verdict.getMessage()).doesNotContain("secret-token");
+    }
+
+    @Test
     void shouldSkipMissingAndUnsafeWebsiteBlocklistSharedFiles() throws Exception {
         Path parent = Files.createTempDirectory("jimuqu-website-policy-parent");
         Path runtimeHome = Files.createDirectory(parent.resolve("runtime"));
