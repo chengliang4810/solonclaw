@@ -7902,6 +7902,7 @@ public class DangerousCommandApprovalServiceTest {
     @Test
     void shouldIgnoreApprovalObserverFailures() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> observed = new java.util.ArrayList<String>();
         env.dangerousCommandApprovalService.addApprovalObserver(
                 new DangerousCommandApprovalService.ApprovalObserver() {
                     @Override
@@ -7916,24 +7917,51 @@ public class DangerousCommandApprovalServiceTest {
                         throw new IllegalStateException("observer failed");
                     }
                 });
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        observed.add(event.getCommand());
+                        observed.add(event.getDescription());
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        observed.add(event.getApprover());
+                        observed.add(event.getPendingApproval().getCommand());
+                    }
+                });
         TestTrace trace = new TestTrace();
 
         env.dangerousCommandApprovalService.storePendingApproval(
                 trace.session,
                 "execute_shell",
                 "recursive_delete",
-                "recursive delete",
-                "rm -rf runtime/cache");
+                "recursive delete with token=ghp_observerfailuredescription123",
+                "rm -rf runtime/cache --token ghp_observerfailurecommand123");
 
         assertThat(
                         env.dangerousCommandApprovalService.approve(
                                 trace.session,
                                 DangerousCommandApprovalService.ApprovalScope.SESSION,
-                                "tester"))
+                                "tester ghp_observerfailureapprover123"))
                 .isTrue();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
         assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "recursive_delete"))
                 .isTrue();
+        assertThat(observed).hasSize(4);
+        for (String value : observed) {
+            assertThat(value)
+                    .doesNotContain("ghp_observerfailuredescription123")
+                    .doesNotContain("ghp_observerfailurecommand123")
+                    .doesNotContain("ghp_observerfailureapprover123");
+        }
+        assertThat(observed.get(0)).contains("***");
+        assertThat(observed.get(1)).contains("token=***");
+        assertThat(observed.get(2)).contains("tester ***");
+        assertThat(observed.get(3)).contains("***");
     }
 
     @Test
