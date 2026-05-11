@@ -94,7 +94,7 @@ public class DangerousCommandApprovalService {
     private static final String POWERSHELL_SENSITIVE_WRITE_TARGET =
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String CREDENTIAL_PERMISSION_TARGET =
-            "(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?)";
+            "(?:(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?))";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -421,7 +421,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
                                                     + CREDENTIAL_PERMISSION_TARGET
-                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)"
+                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy|Set-Clipboard|scb)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)"
                                                     + CREDENTIAL_PERMISSION_TARGET
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -997,7 +997,7 @@ public class DangerousCommandApprovalService {
                                     "object_storage_exposure_change",
                                     "object storage ACL or policy made public",
                                     pattern(
-                                            "\\b(?:ossutil|coscli|obsutil)\\b(?=[^\\n]*(?:acl|policy|permission))(?=[^\\n]*(?:public-read(?:-write)?|public-readwrite|read-write|everyone|all-users|anonymous))|\\baws\\s+s3(?:api)?\\b(?=[^\\n]*(?:acl|policy))(?=[^\\n]*(?:public-read(?:-write)?|everyone|all-users|Principal\\s*['\"]?\\s*:\\s*['\"]?\\*))"),
+                                            "\\b(?:ossutil|coscli|obsutil)\\b(?=[^\\n]*(?:\\b(?:set-?acl|bucket\\s+acl|setpolicy|put-?policy|policy|acl)\\b|--(?:acl|policy|grant-[a-z-]+)\\b))(?=[^\\n]*(?:\\bpublic-read(?:-write)?\\b|\\bpublic-readwrite\\b|\\bread-write\\b|\\beveryone\\b|\\ball-users\\b|\\banonymous\\b))|\\baws\\s+s3(?:api)?\\b(?=[^\\n]*(?:acl|policy))(?=[^\\n]*(?:public-read(?:-write)?|everyone|all-users|Principal\\s*['\"]?\\s*:\\s*['\"]?\\*))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_iam_permission_change",
