@@ -236,7 +236,8 @@ public class LocalSkillService implements SkillCatalogService {
 
         File target = resolveSkillFile(descriptor, filePath);
         if (!target.exists()) {
-            throw new IllegalStateException("Skill file not found: " + target.getAbsolutePath());
+            throw new IllegalStateException(
+                    "Skill file not found: " + safeSkillFilePath(descriptor, target));
         }
 
         SkillView view = new SkillView();
@@ -380,7 +381,7 @@ public class LocalSkillService implements SkillCatalogService {
         File target = resolveSkillFile(view.getDescriptor(), filePath);
         writeTextAtomically(
                 target, view.getContent().replace(oldText, StrUtil.nullToEmpty(newText)));
-        return "Patched skill file: " + target.getAbsolutePath();
+        return "Patched skill file: " + safeSkillFilePath(view.getDescriptor(), target);
     }
 
     /** 删除技能目录。 */
@@ -408,7 +409,7 @@ public class LocalSkillService implements SkillCatalogService {
         validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
         writeTextAtomically(target, StrUtil.nullToEmpty(fileContent));
-        return "Wrote skill file: " + target.getAbsolutePath();
+        return "Wrote skill file: " + safeSkillFilePath(descriptor, target);
     }
 
     /** 删除技能支持文件。 */
@@ -421,10 +422,11 @@ public class LocalSkillService implements SkillCatalogService {
         validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
         if (!target.exists()) {
-            throw new IllegalStateException("Skill file not found: " + target.getAbsolutePath());
+            throw new IllegalStateException(
+                    "Skill file not found: " + safeSkillFilePath(descriptor, target));
         }
         FileUtil.del(target);
-        return "Removed skill file: " + target.getAbsolutePath();
+        return "Removed skill file: " + safeSkillFilePath(descriptor, target);
     }
 
     /** 预测新技能主文件路径。 */
@@ -724,6 +726,26 @@ public class LocalSkillService implements SkillCatalogService {
                     "Skill file path is outside skill directory: " + filePath);
         }
         return target;
+    }
+
+    private String safeSkillFilePath(SkillDescriptor descriptor, File target) {
+        String value = target == null ? "" : target.getName();
+        try {
+            File skillDir = FileUtil.file(descriptor.getSkillDir()).getCanonicalFile();
+            File canonical = target.getCanonicalFile();
+            String root = skillDir.getAbsolutePath() + File.separator;
+            if (canonical.getAbsolutePath().equals(skillDir.getAbsolutePath())) {
+                value = descriptor.canonicalName();
+            } else if (canonical.getAbsolutePath().startsWith(root)) {
+                String relative =
+                        canonical.getAbsolutePath()
+                                .substring(root.length())
+                                .replace(File.separatorChar, '/');
+                value = descriptor.canonicalName() + "/" + relative;
+            }
+        } catch (Exception ignored) {
+        }
+        return SecretRedactor.redact(value, 400);
     }
 
     /** 生成规范名。 */

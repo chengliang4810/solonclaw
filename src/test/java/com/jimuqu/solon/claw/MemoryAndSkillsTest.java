@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
@@ -133,6 +134,58 @@ public class MemoryAndSkillsTest {
         assertThat(env.localSkillService.listSkillNames()).contains("ops/deploy");
         assertThat(view.getContent()).contains("local deploy").doesNotContain("external deploy");
         assertThat(view.getDescriptor().getSource()).isEqualTo("local");
+    }
+
+    @Test
+    void shouldRedactSkillFileMutationPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("path-skill", "ops", skill("path-skill", "paths"));
+        String skillsDir = new File(env.appConfig.getRuntime().getSkillsDir()).getAbsolutePath();
+
+        String wrote =
+                env.localSkillService.writeSkillFile(
+                        "ops/path-skill",
+                        "references/token=ghp_skillfilewrite12345.md",
+                        "before token=ghp_skillfilecontent12345");
+        String patched =
+                env.localSkillService.patchSkill(
+                        "ops/path-skill",
+                        "before",
+                        "after",
+                        "references/token=ghp_skillfilewrite12345.md");
+        String removed =
+                env.localSkillService.removeSkillFile(
+                        "ops/path-skill", "references/token=ghp_skillfilewrite12345.md");
+
+        assertThat(wrote)
+                .contains("ops/path-skill/references/token=***")
+                .doesNotContain(skillsDir)
+                .doesNotContain("ghp_skillfilewrite12345");
+        assertThat(patched)
+                .contains("ops/path-skill/references/token=***")
+                .doesNotContain(skillsDir)
+                .doesNotContain("ghp_skillfilewrite12345");
+        assertThat(removed)
+                .contains("ops/path-skill/references/token=***")
+                .doesNotContain(skillsDir)
+                .doesNotContain("ghp_skillfilewrite12345");
+    }
+
+    @Test
+    void shouldRedactMissingSkillFilePath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("missing-path-skill", null, skill("missing-path-skill", "paths"));
+        String skillsDir = new File(env.appConfig.getRuntime().getSkillsDir()).getAbsolutePath();
+
+        assertThatThrownBy(
+                        () ->
+                                env.localSkillService.removeSkillFile(
+                                        "missing-path-skill",
+                                        "references/token=ghp_skillmissing12345.md"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("missing-path-skill/references/token=***")
+                .hasMessageNotContaining(skillsDir)
+                .hasMessageNotContaining("ghp_skillmissing12345");
     }
 
     @Test
