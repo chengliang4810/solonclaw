@@ -235,6 +235,24 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldKeepReadFileInlineAfterTurnBudgetExceeded() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1000, 600, 300);
+        String medium = repeat("m", 400);
+        String largeRead = repeat("read\n", 200);
+
+        ToolResultStorageService.StoredResult first =
+                service.observe("webfetch", medium, "run-budget-read", "call-1");
+        ToolResultStorageService.StoredResult second =
+                service.observe("read_file", largeRead, "run-budget-read", "call-read");
+
+        assertThat(first.getObservation()).isEqualTo(medium);
+        assertThat(second.getObservation()).isEqualTo(largeRead);
+        assertThat(second.getResultRef()).isNull();
+        assertThat(second.isTruncated()).isFalse();
+    }
+
+    @Test
     void shouldPreferWorkspaceStorageSoFileToolCanReadResultRef() throws Exception {
         File workspace = new File(tempDir, "workspace");
         ToolResultStorageService service =
