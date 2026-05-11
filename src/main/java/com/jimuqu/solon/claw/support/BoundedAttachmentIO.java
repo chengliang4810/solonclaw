@@ -23,6 +23,8 @@ public final class BoundedAttachmentIO {
     public static final long UPDATE_JAR_MAX_BYTES = 200L * 1024L * 1024L;
     public static final long JSON_MAX_BYTES = 1024L * 1024L;
     private static final int MAX_GUARDED_REDIRECTS = 5;
+    private static final int ERROR_PREVIEW_MAX_BYTES = 4096;
+    private static final int ERROR_PREVIEW_MAX_CHARS = 1000;
 
     private BoundedAttachmentIO() {}
 
@@ -52,7 +54,8 @@ public final class BoundedAttachmentIO {
         HttpResponse response = HttpRequest.get(url).timeout(timeoutMillis).executeAsync();
         try {
             if (response.getStatus() >= 400) {
-                throw new IllegalStateException("Download failed, HTTP " + response.getStatus());
+                throw new IllegalStateException(
+                        safeHutoolHttpError(response, response.getStatus()));
             }
             return readHutoolResponse(response, maxBytes);
         } finally {
@@ -89,7 +92,7 @@ public final class BoundedAttachmentIO {
             try {
                 if (response.getStatus() >= 400) {
                     throw new IllegalStateException(
-                            "Download failed, HTTP " + response.getStatus());
+                            safeHutoolHttpError(response, response.getStatus()));
                 }
                 return new HutoolDownloadResult(
                         readHutoolResponse(response, maxBytes), response.header("Content-Type"));
@@ -191,7 +194,7 @@ public final class BoundedAttachmentIO {
                         redirectCount + 1);
             }
             if (status >= 400) {
-                throw new IllegalStateException("Download failed, HTTP " + status);
+                throw new IllegalStateException(safeHutoolHttpError(response, status));
             }
             return new HutoolDownloadResult(
                     readHutoolResponse(response, maxBytes), response.header("Content-Type"));
@@ -297,7 +300,8 @@ public final class BoundedAttachmentIO {
             Response response = client.newCall(request).execute();
             try {
                 if (!response.isSuccessful()) {
-                    throw new IllegalStateException("Download failed, HTTP " + response.code());
+                    throw new IllegalStateException(
+                            safeOkHttpError(response, response.code()));
                 }
                 return new OkHttpDownloadResult(
                         readOkHttpResponse(response, maxBytes), response.header("Content-Type"));
@@ -340,7 +344,7 @@ public final class BoundedAttachmentIO {
                         redirectCount + 1);
             }
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("Download failed, HTTP " + status);
+                throw new IllegalStateException(safeOkHttpError(response, status));
             }
             return new OkHttpDownloadResult(
                     readOkHttpResponse(response, maxBytes), response.header("Content-Type"));
@@ -395,6 +399,53 @@ public final class BoundedAttachmentIO {
                 throw new IllegalStateException("Download exceeds max size: " + length);
             }
         } catch (NumberFormatException ignored) {
+        }
+    }
+
+    private static String safeHutoolHttpError(HttpResponse response, int status) {
+        if (response == null) {
+            return "Download failed, HTTP " + status;
+        }
+        return safeHttpError(status, readErrorPreview(response.bodyStream()));
+    }
+
+    private static String safeOkHttpError(Response response, int status) {
+        if (response == null || response.body() == null) {
+            return "Download failed, HTTP " + status;
+        }
+        return safeHttpError(status, readErrorPreview(response.body().byteStream()));
+    }
+
+    private static String safeHttpError(int status, String preview) {
+        String message = "Download failed, HTTP " + status;
+        if (StrUtil.isBlank(preview)) {
+            return message;
+        }
+        String safe = preview.replace('\r', ' ').replace('\n', ' ').trim();
+        safe = SecretRedactor.redact(safe, ERROR_PREVIEW_MAX_CHARS);
+        if (StrUtil.isBlank(safe)) {
+            return message;
+        }
+        return message + ", response preview: " + safe;
+    }
+
+    private static String readErrorPreview(InputStream stream) {
+        if (stream == null) {
+            return "";
+        }
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int remaining = ERROR_PREVIEW_MAX_BYTES;
+            int read;
+            while (remaining > 0
+                    && (read = stream.read(buffer, 0, Math.min(buffer.length, remaining))) >= 0) {
+                output.write(buffer, 0, read);
+                remaining -= read;
+            }
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return "unavailable: " + e.getClass().getSimpleName();
         }
     }
 

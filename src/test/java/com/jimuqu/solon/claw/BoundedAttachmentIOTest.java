@@ -266,6 +266,73 @@ public class BoundedAttachmentIOTest {
         }
     }
 
+    @Test
+    void shouldRedactHutoolFailureResponsePreview() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/media",
+                    exchange -> {
+                        byte[] body =
+                                "{\"error\":\"token=ghp_downloadfail12345 api_key=sk-download-secret\"}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(500, body.length);
+                        exchange.getResponseBody().write(body);
+                        exchange.close();
+                    });
+            server.start();
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
+
+            assertThatThrownBy(
+                            () ->
+                                    BoundedAttachmentIO.downloadHutool(
+                                            url, 1000, BoundedAttachmentIO.DEFAULT_MAX_BYTES))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageNotContaining("ghp_downloadfail12345")
+                    .hasMessageNotContaining("sk-download-secret");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactOkHttpFailureResponsePreview() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/media",
+                    exchange -> {
+                        byte[] body =
+                                "{\"error\":\"token=ghp_okdownloadfail12345 api_key=sk-okdownload-secret\"}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(500, body.length);
+                        exchange.getResponseBody().write(body);
+                        exchange.close();
+                    });
+            server.start();
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
+
+            assertThatThrownBy(
+                            () ->
+                                    BoundedAttachmentIO.downloadOkHttp(
+                                            new OkHttpClient(),
+                                            url,
+                                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                                            null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageNotContaining("ghp_okdownloadfail12345")
+                    .hasMessageNotContaining("sk-okdownload-secret");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
         private final String ip;
 
