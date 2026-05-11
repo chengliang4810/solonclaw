@@ -3132,7 +3132,9 @@ public class DangerousCommandApprovalServiceTest {
                         "npm --userconfig .npmrc whoami",
                         "rclone --config rclone.conf copy remote:bucket .",
                         "s3cmd --config=.s3cfg ls s3://bucket",
-                        "coscli --config ~/.cos.yaml ls cos://bucket");
+                        "coscli --config ~/.cos.yaml ls cos://bucket",
+                        "ossutil --config-file ~/.ossutilconfig ls oss://bucket",
+                        "obsutil -config ~/.obsutilconfig ls obs://bucket");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -3170,6 +3172,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "s3cmd ls s3://bucket"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "obsutil ls obs://bucket"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
