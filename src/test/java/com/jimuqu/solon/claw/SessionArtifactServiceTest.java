@@ -90,7 +90,8 @@ public class SessionArtifactServiceTest {
                 new SessionArtifactService(new SessionArtifactStorageService(artifactsDir));
         Map<String, Object> saved = service.saveTrajectory(session, null, true);
 
-        File target = new File(String.valueOf(saved.get("path")));
+        assertThat(String.valueOf(saved.get("path"))).isEqualTo("runtime://artifacts/trajectory_samples.jsonl");
+        File target = new File(String.valueOf(saved.get("host_path")));
         assertThat(target.getName()).isEqualTo("trajectory_samples.jsonl");
         assertThat(target).exists();
         String content = new String(Files.readAllBytes(target.toPath()), StandardCharsets.UTF_8);
@@ -124,7 +125,11 @@ public class SessionArtifactServiceTest {
                 dashboard.saveTrajectory(session.getSessionId(), "原始问题", false);
 
         assertThat(slash.getContent()).contains("已保存 trajectory").contains("trajectory_samples.jsonl");
-        assertThat(String.valueOf(dashboardSaved.get("path"))).contains("failed_trajectories.jsonl");
-        assertThat(new File(String.valueOf(dashboardSaved.get("path")))).exists();
+        assertThat(slash.getContent()).doesNotContain(env.appConfig.getRuntime().getHome());
+        assertThat(String.valueOf(dashboardSaved.get("path")))
+                .isEqualTo("runtime://artifacts/failed_trajectories.jsonl");
+        assertThat(new File(String.valueOf(dashboardSaved.get("host_path")))).exists();
+        assertThat(String.valueOf(dashboardSaved.get("path")))
+                .doesNotContain(env.appConfig.getRuntime().getHome());
     }
 }
