@@ -2064,7 +2064,7 @@ public class SecurityPolicyService {
             addPathValue(paths, gitDiffMatcher.group(2));
         }
         Matcher gitRenameMatcher =
-                Pattern.compile("^rename\\s+(?:from|to)\\s+(.+)$", Pattern.MULTILINE)
+                Pattern.compile("^(?:rename|copy)\\s+(?:from|to)\\s+(.+)$", Pattern.MULTILINE)
                         .matcher(text);
         while (gitRenameMatcher.find()) {
             addPathValue(paths, gitRenameMatcher.group(1));
