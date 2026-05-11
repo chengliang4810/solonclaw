@@ -2952,6 +2952,21 @@ public class DefaultCronSchedulerTest {
                 .contains("history");
         assertThat(policy.get("sourceScopedList")).isEqualTo(Boolean.TRUE);
         assertThat(policy.get("freshSessionRuns")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(policy.get("update_fields")))
+                .contains("deliver_chat_id")
+                .contains("wrap_response")
+                .contains("enabled_toolsets")
+                .contains("paused_reason");
+        assertThat(String.valueOf(policy.get("clear_fields")))
+                .contains("deliver_thread_id")
+                .contains("context_from")
+                .contains("base_url");
+        assertThat(String.valueOf(policy.get("status_fields")))
+                .contains("recent_failures")
+                .contains("due");
+        assertThat(String.valueOf(policy.get("history_fields")))
+                .contains("delivery_result")
+                .contains("summary");
         assertThat(delivery.get("originDefaultOnCreate")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("explicitChatTargetSupported")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("threadTargetSupported")).isEqualTo(Boolean.TRUE);

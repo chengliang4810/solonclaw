@@ -578,6 +578,52 @@ public class CronJobService {
         policy.put("freshSessionRuns", Boolean.TRUE);
         policy.put("selfContainedPromptRequired", Boolean.TRUE);
         policy.put("recursiveCronCreationDiscouraged", Boolean.TRUE);
+        policy.put(
+                "update_fields",
+                Arrays.asList(
+                        "name",
+                        "schedule",
+                        "prompt",
+                        "deliver",
+                        "deliver_chat_id",
+                        "deliver_thread_id",
+                        "skill",
+                        "skills",
+                        "repeat",
+                        "wrap_response",
+                        "script",
+                        "workdir",
+                        "no_agent",
+                        "context_from",
+                        "depends_on",
+                        "enabled_toolsets",
+                        "model",
+                        "provider",
+                        "base_url",
+                        "enabled",
+                        "status",
+                        "paused_reason"));
+        policy.put(
+                "clear_fields",
+                Arrays.asList(
+                        "deliver_chat_id",
+                        "deliver_thread_id",
+                        "skills",
+                        "repeat",
+                        "script",
+                        "workdir",
+                        "context_from",
+                        "depends_on",
+                        "enabled_toolsets",
+                        "model",
+                        "provider",
+                        "base_url"));
+        policy.put(
+                "status_fields",
+                Arrays.asList("total", "active", "paused", "completed", "due", "next", "recent_failures"));
+        policy.put(
+                "history_fields",
+                Arrays.asList("run_id", "trigger", "attempt", "status", "output", "error", "delivery_result", "summary"));
 
         Map<String, Object> schedule = new LinkedHashMap<String, Object>();
         schedule.put("cronExpressionSupported", Boolean.TRUE);
