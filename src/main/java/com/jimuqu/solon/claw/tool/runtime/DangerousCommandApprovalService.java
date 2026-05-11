@@ -794,6 +794,16 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_filtered_output",
+                                    "filter credential file content to terminal",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:nl|cut|sort|uniq|findstr(?:\\.exe)?)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|\\b(?:Select-String|sls)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(

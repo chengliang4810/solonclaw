@@ -3437,6 +3437,42 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileFilteredOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "nl .env",
+                        "cut -d= -f2 credentials.json",
+                        "sort token.json",
+                        "uniq client_secret.json",
+                        "findstr token service-account.json",
+                        "Select-String token .anthropic_oauth.json",
+                        "sls token .npmrc");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_filtered_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "nl report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "sort report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Select-String token report.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileVisualEncodeCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
