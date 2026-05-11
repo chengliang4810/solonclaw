@@ -98,7 +98,7 @@ public class DangerousCommandApprovalService {
     private static final String REMOTE_CREDENTIAL_FILE_TARGET =
             "(?:[\"']?(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`:=]+)[/\\\\])*(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|\\.credentials\\.json|\\.anthropic_oauth\\.json|oauth_creds\\.json|client_secrets?\\.json|token\\.json|application_default_credentials\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|firebase-adminsdk[A-Za-z0-9_.-]*\\.json|authorized_keys|kubeconfig|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))[\"']?(?:\\s|$|:))";
     private static final String NETWORK_CREDENTIAL_FILE_TARGET =
-            "(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)";
+            "(?:\\.env|\\.envrc|\\.netrc|\\.git-credentials|\\.pgpass|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials|credential|secret|token|oauth|client_secret|client_secrets|application_default_credentials|service[_-]account|google-credentials|firebase-adminsdk|api-?key|(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx)|id_(?:rsa|ed25519|ecdsa|dsa))";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -657,7 +657,21 @@ public class DangerousCommandApprovalService {
                                     "network_credential_file_send",
                                     "send credential from local netrc or cookie file",
                                     pattern(
-                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies|cookie-jar)(?:=|\\s+)\\S|\\s(?-i:-K)\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|ca-certificate|cacert|capath)(?:=|\\s+)\\S+|\\s(?-i:-E)\\s+\\S+|\\s(?-i:-[bcEK])\\S+|\\s(?-i:-c)\\s+\\S|\\s(?-i:-b)\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s-T\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[\"']?[^\\s'\"|;&]*=[@<]\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*[\"']?)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s(?:[^\\s'\"|;&]+@|@)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*"),
+                                            "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies|cookie-jar)(?:=|\\s+)\\S|\\s(?-i:-K)\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|ca-certificate|cacert|capath)(?:=|\\s+)\\S+|\\s(?-i:-E)\\s+\\S+|\\s(?-i:-[bcEK])\\S+|\\s(?-i:-c)\\s+\\S|\\s(?-i:-b)\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*|\\s-T\\s*\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[\"']?[^\\s'\"|;&]*=[@<]\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)\\S*[@<]\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s(?:[^\\s'\"|;&]+@|@)\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "powershell_network_credential_file_send",
