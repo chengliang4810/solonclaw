@@ -351,7 +351,8 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException(
                     "Skill already exists: " + canonicalName(category, name));
         }
-        writeSkillMainFile(skillDir, content);
+        writeSkillMainFile(
+                skillDir, content, canonicalName(normalizeCategory(category), name) + "/SKILL.md");
         return buildDescriptor(skillDir, normalizeCategory(category));
     }
 
@@ -363,7 +364,10 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Skill not found: " + nameOrPath);
         }
         ensureWritable(descriptor);
-        writeSkillMainFile(FileUtil.file(descriptor.getSkillDir()), content);
+        writeSkillMainFile(
+                FileUtil.file(descriptor.getSkillDir()),
+                content,
+                descriptor.canonicalName() + "/SKILL.md");
         return buildDescriptor(FileUtil.file(descriptor.getSkillDir()), descriptor.getCategory());
     }
 
@@ -380,7 +384,9 @@ public class LocalSkillService implements SkillCatalogService {
         }
         File target = resolveSkillFile(view.getDescriptor(), filePath);
         writeTextAtomically(
-                target, view.getContent().replace(oldText, StrUtil.nullToEmpty(newText)));
+                target,
+                view.getContent().replace(oldText, StrUtil.nullToEmpty(newText)),
+                safeSkillFilePath(view.getDescriptor(), target));
         return "Patched skill file: " + safeSkillFilePath(view.getDescriptor(), target);
     }
 
@@ -408,7 +414,8 @@ public class LocalSkillService implements SkillCatalogService {
         }
         validateSupportFilePath(filePath, true);
         File target = resolveSkillFile(descriptor, filePath);
-        writeTextAtomically(target, StrUtil.nullToEmpty(fileContent));
+        writeTextAtomically(
+                target, StrUtil.nullToEmpty(fileContent), safeSkillFilePath(descriptor, target));
         return "Wrote skill file: " + safeSkillFilePath(descriptor, target);
     }
 
@@ -696,7 +703,7 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 写技能主文件并创建默认目录结构。 */
-    private void writeSkillMainFile(File skillDir, String content) {
+    private void writeSkillMainFile(File skillDir, String content, String displayPath) {
         FileUtil.mkdir(skillDir);
         FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.REFERENCES_DIR));
         FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.TEMPLATES_DIR));
@@ -704,7 +711,8 @@ public class LocalSkillService implements SkillCatalogService {
         FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.ASSETS_DIR));
         writeTextAtomically(
                 FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME),
-                StrUtil.nullToEmpty(content));
+                StrUtil.nullToEmpty(content),
+                displayPath);
     }
 
     /** 解析技能支持文件路径。 */
@@ -1007,7 +1015,7 @@ public class LocalSkillService implements SkillCatalogService {
     }
 
     /** 以原子替换方式写文本，降低并发写和中断写导致的半成品风险。 */
-    private void writeTextAtomically(File target, String content) {
+    private void writeTextAtomically(File target, String content, String displayPath) {
         try {
             FileUtil.mkParentDirs(target);
             File tempFile =
@@ -1029,7 +1037,10 @@ public class LocalSkillService implements SkillCatalogService {
             }
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Failed to write skill file: " + target.getAbsolutePath(), e);
+                    "Failed to write skill file: "
+                            + SecretRedactor.redact(
+                                    StrUtil.blankToDefault(displayPath, target.getName()), 400),
+                    e);
         }
     }
 }

@@ -189,6 +189,33 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldRedactSkillFileWriteFailurePath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill("write-failure-skill", "ops", skill("write-failure-skill", "paths"));
+        File blocker =
+                FileUtil.file(
+                        env.appConfig.getRuntime().getSkillsDir(),
+                        "ops",
+                        "write-failure-skill",
+                        "references",
+                        "token=ghp_skillwritefailure12345");
+        FileUtil.mkParentDirs(blocker);
+        FileUtil.writeUtf8String("not a directory", blocker);
+        String skillsDir = new File(env.appConfig.getRuntime().getSkillsDir()).getAbsolutePath();
+
+        assertThatThrownBy(
+                        () ->
+                                env.localSkillService.writeSkillFile(
+                                        "ops/write-failure-skill",
+                                        "references/token=ghp_skillwritefailure12345/result.md",
+                                        "content"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ops/write-failure-skill/references/token=***")
+                .hasMessageNotContaining(skillsDir)
+                .hasMessageNotContaining("ghp_skillwritefailure12345");
+    }
+
+    @Test
     void shouldKeepConfiguredExternalSkillsReadOnlyByDefault() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File externalDir =
@@ -368,7 +395,7 @@ public class MemoryAndSkillsTest {
                 .contains("Authorization: Bearer ***")
                 .doesNotContain("ghp_skillcontent12345");
         assertThat(written)
-                .contains("[REDACTED_PATH]")
+                .contains("secret-skill/references/notes-token-ghp_***.md")
                 .doesNotContain("ghp_skillpath12345");
         assertThat(viewedFile)
                 .contains("note token=***")
