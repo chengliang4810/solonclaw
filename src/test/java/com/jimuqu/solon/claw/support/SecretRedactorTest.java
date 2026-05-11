@@ -118,6 +118,17 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactFragmentSensitiveUrlParameters() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback#access%255Ftoken=fragment-secret&ok=value");
+
+        assertThat(result)
+                .isEqualTo("https://example.com/callback#access%255Ftoken=***&ok=value")
+                .doesNotContain("fragment-secret");
+    }
+
+    @Test
     void shouldRedactSensitivePathFragments() {
         String result =
                 SecretRedactor.redact(
