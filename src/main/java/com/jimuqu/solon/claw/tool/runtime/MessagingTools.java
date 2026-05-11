@@ -68,12 +68,12 @@ public class MessagingTools {
             return ToolResultEnvelope.ok("Skipped duplicate cron auto-delivery target")
                     .data("skipped", Boolean.TRUE)
                     .data("reason", "cron_auto_delivery_duplicate_target")
-                    .data("target", autoTarget.label())
+                    .data("target", safeResult(autoTarget.label(), 400))
                     .data(
                             "note",
                             "This cron job will already auto-deliver its final response to that same target.")
                     .preview("Skipped duplicate cron send_message")
-                    .metadata("sourceKey", sourceKey)
+                    .metadata("sourceKey", safeResult(sourceKey, 400))
                     .toJson();
         }
         String targetUserId = parts.length > 2 ? parts[2] : null;
@@ -97,10 +97,10 @@ public class MessagingTools {
                 attachments != null && !attachments.isEmpty());
         return ToolResultEnvelope.ok("Message delivered")
                 .data("platform", targetPlatform.name())
-                .data("chatId", targetChatId)
+                .data("chatId", safeResult(targetChatId, 400))
                 .data("attachmentCount", Integer.valueOf(attachments.size()))
-                .preview(text)
-                .metadata("sourceKey", sourceKey)
+                .preview(safeResult(text, 1000))
+                .metadata("sourceKey", safeResult(sourceKey, 400))
                 .toJson();
     }
 
@@ -116,6 +116,10 @@ public class MessagingTools {
 
     private String error(String message) {
         return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
+    }
+
+    private String safeResult(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private List<MessageAttachment> resolveAttachments(

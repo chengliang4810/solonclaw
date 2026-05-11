@@ -45,6 +45,37 @@ public class MessagingToolsAttachmentTest {
     }
 
     @Test
+    void shouldRedactSecretsFromSkippedCronTargetToolResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-ghp_messagingsource12345:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        CronAutoDeliveryContext.set(PlatformType.MEMORY, "chat-ghp_messagingtarget12345", null);
+        String result;
+        try {
+            result =
+                    tools.sendMessage(
+                            "MEMORY",
+                            "chat-ghp_messagingtarget12345",
+                            "重复内容",
+                            Collections.<String>emptyList(),
+                            null);
+        } finally {
+            CronAutoDeliveryContext.clear();
+        }
+
+        assertThat(result)
+                .contains("chat-ghp_***")
+                .doesNotContain("ghp_messagingsource12345")
+                .doesNotContain("ghp_messagingtarget12345");
+        assertThat(env.memoryChannelAdapter.getLastRequest()).isNull();
+    }
+
+    @Test
     void shouldDeliverSendMessageToDifferentCronTarget() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MessagingTools tools =
@@ -151,6 +182,36 @@ public class MessagingToolsAttachmentTest {
         DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
         assertThat(request.getText()).isEqualTo("纯文本");
         assertThat(request.getAttachments()).isEmpty();
+    }
+
+    @Test
+    void shouldRedactSecretsFromSuccessfulMessagingToolResultOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:source-ghp_messagingsource12345:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        String result =
+                tools.sendMessage(
+                        "MEMORY",
+                        "room-ghp_messagingchat12345",
+                        "Authorization: Bearer ghp_messagingtext12345",
+                        Collections.<String>emptyList(),
+                        null);
+
+        assertThat(result)
+                .contains("Authorization: Bearer ***")
+                .contains("room-ghp_***")
+                .contains("source-ghp_***")
+                .doesNotContain("ghp_messagingchat12345")
+                .doesNotContain("ghp_messagingtext12345")
+                .doesNotContain("ghp_messagingsource12345");
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getChatId()).isEqualTo("room-ghp_messagingchat12345");
+        assertThat(request.getText()).isEqualTo("Authorization: Bearer ghp_messagingtext12345");
     }
 
     @Test
