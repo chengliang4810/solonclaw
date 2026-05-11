@@ -6296,6 +6296,10 @@ public class DangerousCommandApprovalServiceTest {
         assertWriteDenied(securityPolicyService, "/run/podman/podman.sock");
         assertWriteDenied(securityPolicyService, "/var/run/cri-dockerd.sock");
         assertWriteDenied(securityPolicyService, "/var/run/crio/crio.sock");
+        assertWriteDenied(securityPolicyService, "//./pipe/docker_engine");
+        assertWriteDenied(securityPolicyService, "\\\\.\\pipe\\docker_engine");
+        assertWriteDenied(securityPolicyService, "npipe:////./pipe/docker_engine");
+        assertWriteDenied(securityPolicyService, "npipe://./pipe/docker_engine");
     }
 
     @Test
