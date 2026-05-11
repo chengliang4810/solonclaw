@@ -3199,7 +3199,8 @@ public class DefaultCommandService implements CommandService {
         }
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        String normalizedArgs = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        String safeArgs = cleanApprovalCommandArgs(args);
+        String normalizedArgs = safeArgs.toLowerCase();
         if ("list".equals(normalizedArgs) || "status".equals(normalizedArgs)) {
             return GatewayReply.ok(formatApprovalList(agentSession));
         }
@@ -3210,7 +3211,7 @@ public class DefaultCommandService implements CommandService {
             return approveAllDangerousCommands(message, agentSession, args);
         }
 
-        ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(args);
+        ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(safeArgs);
         DangerousCommandApprovalService.PendingApproval pending =
                 selectPendingApproval(agentSession, approvalArgs.getSelector());
         if (pending == null) {
@@ -3237,7 +3238,7 @@ public class DefaultCommandService implements CommandService {
 
     private GatewayReply approveAllDangerousCommands(
             GatewayMessage message, SqliteAgentSession agentSession, String args) throws Exception {
-        ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(args);
+        ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(cleanApprovalCommandArgs(args));
         DangerousCommandApprovalService.ApprovalScope scope =
                 approvalArgs.getScope() == null
                         ? DangerousCommandApprovalService.ApprovalScope.ONCE
@@ -3397,7 +3398,8 @@ public class DefaultCommandService implements CommandService {
         }
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        String selector = firstToken(args);
+        String safeArgs = cleanApprovalCommandArgs(args);
+        String selector = firstToken(safeArgs);
         if ("list".equalsIgnoreCase(selector) || "status".equalsIgnoreCase(selector)) {
             return GatewayReply.ok(formatApprovalList(agentSession));
         }
@@ -3633,8 +3635,12 @@ public class DefaultCommandService implements CommandService {
         return "queue：运行中收到的新消息会进入队列，当前 run 结束后自动执行。";
     }
 
+    private String cleanApprovalCommandArgs(String args) {
+        return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(args)).trim();
+    }
+
     private DangerousCommandApprovalService.ApprovalScope parseApprovalScope(String args) {
-        String normalized = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        String normalized = cleanApprovalCommandArgs(args).toLowerCase();
         if ("always".equals(normalized)
                 || "permanent".equals(normalized)
                 || "permanently".equals(normalized)) {
