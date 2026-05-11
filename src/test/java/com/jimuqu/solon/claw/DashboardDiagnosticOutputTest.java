@@ -131,7 +131,8 @@ public class DashboardDiagnosticOutputTest {
         AppConfig config = new AppConfig();
         ToolResultStorageService toolResultStorageService =
                 new ToolResultStorageService(
-                        new File("target/dashboard-security-audit-results").getAbsolutePath(),
+                        new File("target/dashboard-security-audit-results/token=tool-result-secret")
+                                .getAbsolutePath(),
                         512,
                         768,
                         300);
@@ -167,7 +168,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(storagePolicy))
                 .contains("resultRefReturned")
                 .contains("previewRedacted")
-                .doesNotContain("dashboard-security-audit-results");
+                .doesNotContain("dashboard-security-audit-results")
+                .doesNotContain("tool-result-secret");
         assertThat(policy.get("activeSurfaces").toString()).contains("toolResultStorage");
     }
 
