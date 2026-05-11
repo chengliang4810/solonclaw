@@ -74,6 +74,15 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-args"))
                 .contains("工具参数安全策略摘要")
                 .contains("patchTarget");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security policy"))
+                .contains("MCP")
+                .contains("oauthReauth")
+                .contains("Tool schema")
+                .contains("unsupportedKeywordsStripped")
+                .contains("附件下载")
+                .contains("redirectChecked")
+                .contains("工具输出")
+                .contains("persistOversize");
     }
 
     @Test

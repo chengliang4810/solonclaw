@@ -2,9 +2,13 @@ package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.util.Map;
 
 /** Read-only security policy summary for local terminal commands. */
@@ -125,6 +129,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(tirith, "enabled"))
                 .append(" blockedPatternCount=")
                 .append(value(tirith, "blockedPatternCount"));
+        appendExtendedPolicyLines(buffer, config);
         return buffer.toString();
     }
 
@@ -249,6 +254,47 @@ public final class TerminalSecurityPolicyView {
                 .append(value(url, "unsupportedNetworkSchemeBlocked"))
                 .append(" dnsRequired=")
                 .append(value(url, "dnsResolutionRequired"));
+    }
+
+    private static void appendExtendedPolicyLines(StringBuilder buffer, AppConfig config) {
+        Map<String, Object> mcp = McpRuntimeService.policySummary(config);
+        buffer.append('\n')
+                .append("- MCP：enabled=")
+                .append(value(mcp, "enabled"))
+                .append(" oauthReauth=")
+                .append(value(mcp, "oauthFailureStructuredReauth"))
+                .append(" schemaSanitized=")
+                .append(value(mcp, "inputSchemaSanitized"));
+        Map<String, Object> schema = SolonClawToolSchemaSanitizer.policySummary();
+        buffer.append('\n')
+                .append("- Tool schema：enabled=")
+                .append(value(schema, "enabled"))
+                .append(" unsupportedKeywordsStripped=")
+                .append(value(schema, "unsupportedKeywordsStripped"))
+                .append(" jsonLibrary=")
+                .append(value(schema, "jsonLibrary"));
+        Map<String, Object> attachment = BoundedAttachmentIO.policySummary();
+        buffer.append('\n')
+                .append("- 附件下载：redirectChecked=")
+                .append(value(attachment, "redirectUrlCheckedBeforeFollow"))
+                .append(" maxBytes=")
+                .append(value(attachment, "defaultMaxBytes"))
+                .append(" streamBounded=")
+                .append(value(attachment, "streamReadBounded"));
+        ToolResultStorageService storage =
+                new ToolResultStorageService(
+                        config.getRuntime().getCacheDir(),
+                        config.getTask().getToolOutputInlineLimit(),
+                        config.getTask().getToolOutputTurnBudget(),
+                        config.getTrace().getToolPreviewLength());
+        Map<String, Object> toolResults = storage.policySummary();
+        buffer.append('\n')
+                .append("- 工具输出：persistOversize=")
+                .append(value(toolResults, "oversizedResultsPersisted"))
+                .append(" resultRef=")
+                .append(value(toolResults, "resultRefReturned"))
+                .append(" redacted=")
+                .append(value(toolResults, "persistedOutputRedacted"));
     }
 
     private static String value(Map<String, Object> map, String key) {
