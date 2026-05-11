@@ -44,6 +44,23 @@ public class RuntimePathGuardTest {
                 .hasMessageNotContaining("ghp_toolpath12345");
     }
 
+    @Test
+    void shouldRedactInvalidCanonicalPathMessage() throws Exception {
+        File runtimeHome = Files.createTempDirectory("runtime-path-guard-invalid-home").toFile();
+        RuntimePathGuard guard = new RuntimePathGuard(loadConfig(runtimeHome));
+        File invalid =
+                new File(
+                        runtimeHome,
+                        "media/token=ghp_pathguardinvalid12345/\u0000/secret.txt");
+
+        assertThatThrownBy(() -> guard.requireUnderMedia(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid path")
+                .hasMessageContaining("secret.txt")
+                .hasMessageNotContaining(runtimeHome.getAbsolutePath())
+                .hasMessageNotContaining("ghp_pathguardinvalid12345");
+    }
+
     private static AppConfig loadConfig(File runtimeHome) {
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());

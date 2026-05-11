@@ -122,7 +122,7 @@ public class RuntimePathGuard {
         try {
             return file.getCanonicalFile();
         } catch (IOException e) {
-            throw new IllegalArgumentException("Invalid path: " + file, e);
+            throw new IllegalArgumentException("Invalid path: " + safePath(file), e);
         }
     }
 
