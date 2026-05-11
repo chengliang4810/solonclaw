@@ -855,6 +855,7 @@ public class ToolRegistryExposureTest {
         assertThat(approvalAuditPolicy.get("responseEvents").getBoolean()).isTrue();
         assertThat(approvalAuditPolicy.get("observerFailureIsolated").getBoolean()).isTrue();
         assertThat(approvalAuditPolicy.get("approvalKeyRedacted").getBoolean()).isTrue();
+        assertThat(approvalAuditPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
         assertThat(approvalAuditPolicy.get("manualRevocationAudited").getBoolean()).isTrue();
         ONode mcpReloadPolicy =
                 policyStatus.get("policy").get("coverage").get("mcpReloadPolicy");

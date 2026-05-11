@@ -439,6 +439,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("descriptionRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalKeyRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("commandHashStored")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("patternKeysStored")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("timestampsStored")).isEqualTo(Boolean.TRUE);
@@ -482,6 +483,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("approverRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalKeyRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.toString())
                 .contains("_dangerous_command_pending_queue_")
                 .contains("_dangerous_command_session_approvals_")

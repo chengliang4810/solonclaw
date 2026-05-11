@@ -2183,6 +2183,7 @@ public class DangerousCommandApprovalService {
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("descriptionRedacted", Boolean.TRUE);
         summary.put("approvalKeyRedacted", Boolean.TRUE);
+        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
         summary.put("commandHashStored", Boolean.TRUE);
         summary.put("patternKeysStored", Boolean.TRUE);
         summary.put("timestampsStored", Boolean.TRUE);
@@ -2243,6 +2244,7 @@ public class DangerousCommandApprovalService {
         summary.put("approverRedacted", Boolean.TRUE);
         summary.put("approvalKeyRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
         summary.put("description", "Approval lifecycle stores queued approvals in session context, supports once/session/always scopes, downgrades scanner findings to session scope, updates snapshots, and emits redacted request/response events.");
         return summary;
     }
