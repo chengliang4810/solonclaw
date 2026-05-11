@@ -287,6 +287,7 @@ public class CoreConfigOverrideLoadTest {
         FileUtil.writeUtf8String(
                 "tool_output:\n"
                         + "  max_bytes: -1\n"
+                        + "  turn_budget_bytes: -2\n"
                         + "  max_lines: 0\n"
                         + "  max_line_length: not-a-number\n",
                 configFile);
@@ -297,6 +298,7 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
+        assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(200000);
         assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
         assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
     }

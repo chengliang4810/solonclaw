@@ -1269,16 +1269,18 @@ public class AppConfig {
                                 50000));
         config.getTask()
                 .setToolOutputTurnBudget(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.task.toolOutputTurnBudget",
+                        positiveInt(
+                                resolveInt(
                                         readInt(
                                                 props,
                                                 overrides,
-                                                "tool_output.turn_budget_bytes",
-                                                200000))));
+                                                "solonclaw.task.toolOutputTurnBudget",
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "tool_output.turn_budget_bytes",
+                                                        200000))),
+                                200000));
         config.getTask()
                 .setToolOutputMaxLines(
                         positiveInt(
