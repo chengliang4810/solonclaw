@@ -68,7 +68,6 @@ public class SessionArtifactStorageService {
         result.put("completed", Boolean.valueOf(completed));
         result.put("file_name", target.getName());
         result.put("path", "runtime://artifacts/" + target.getName());
-        result.put("host_path", target.getAbsolutePath());
         result.put("bytes_appended", Integer.valueOf(line.getBytes(StandardCharsets.UTF_8).length));
         result.put("timestamp", entry.get("timestamp"));
         result.put("session_id", entry.get("session_id"));
