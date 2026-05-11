@@ -460,6 +460,33 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockEncodedSensitiveCredentialNamesInUrlParameters() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict doubleEncodedName =
+                policy.checkUrl("https://example.com/callback?api%255Fkey=secret123");
+        SecurityPolicyService.UrlVerdict encodedSeparator =
+                policy.checkUrl("https://example.com/callback?page=1%2526client_secret=secret123");
+        SecurityPolicyService.UrlVerdict htmlEntityName =
+                policy.checkUrl("https://example.com/callback?client&#95;secret=secret123");
+        SecurityPolicyService.UrlVerdict mixedCase =
+                policy.checkUrl("https://example.com/callback?Refresh_Token=secret123");
+        SecurityPolicyService.UrlVerdict safe =
+                policy.checkUrl("https://example.com/callback?page=1%2526category=docs");
+
+        assertThat(doubleEncodedName.isAllowed()).isFalse();
+        assertThat(doubleEncodedName.getMessage()).contains("敏感凭据参数");
+        assertThat(encodedSeparator.isAllowed()).isFalse();
+        assertThat(encodedSeparator.getMessage()).contains("敏感凭据参数");
+        assertThat(htmlEntityName.isAllowed()).isFalse();
+        assertThat(htmlEntityName.getMessage()).contains("敏感凭据参数");
+        assertThat(mixedCase.isAllowed()).isFalse();
+        assertThat(mixedCase.getMessage()).contains("敏感凭据参数");
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);

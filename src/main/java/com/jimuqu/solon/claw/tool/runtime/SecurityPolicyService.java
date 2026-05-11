@@ -732,7 +732,7 @@ public class SecurityPolicyService {
         }
         Matcher credentialMatcher = SHELL_CREDENTIAL_TOKEN_PATTERN.matcher(code);
         while (credentialMatcher.find()) {
-            FileVerdict verdict = checkPath(credentialMatcher.group(1), false);
+            FileVerdict verdict = checkPath(cleanCredentialPathToken(credentialMatcher.group(1)), false);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -778,6 +778,7 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(path)) {
                 continue;
             }
+            path = cleanCredentialPathToken(path);
             return FileVerdict.block(path, "凭据用途参数引用的文件被阻断");
         }
         return FileVerdict.allow();
@@ -849,10 +850,23 @@ public class SecurityPolicyService {
             return false;
         }
         char next = token.charAt(option.length());
-        return next != '-'
-                && next != ':'
-                && next != '='
-                && !Character.isLetter(next);
+        return next != '-' && next != ':' && next != '=';
+    }
+
+    private String cleanCredentialPathToken(String raw) {
+        String value = cleanUrlToken(raw);
+        int uploadFile = value.indexOf("=@");
+        if (uploadFile >= 0 && uploadFile + 2 < value.length()) {
+            return value.substring(uploadFile + 2);
+        }
+        int assignment = value.indexOf('=');
+        if (assignment >= 0 && assignment + 1 < value.length()) {
+            String candidate = value.substring(assignment + 1);
+            if (candidate.startsWith("@") && candidate.length() > 1) {
+                return candidate.substring(1);
+            }
+        }
+        return value.startsWith("@") && value.length() > 1 ? value.substring(1) : value;
     }
 
     private boolean isDetachedNetworkCredentialShortOption(String token) {
@@ -3047,6 +3061,17 @@ public class SecurityPolicyService {
         if (value.length() == 0) {
             return false;
         }
+        if (containsSensitiveParameterNameInCandidate(value)) {
+            return true;
+        }
+        String decoded = decodeUrlComponent(value);
+        if (!decoded.equals(value)) {
+            return containsSensitiveParameterNameInCandidate(decoded);
+        }
+        return false;
+    }
+
+    private boolean containsSensitiveParameterNameInCandidate(String value) {
         String[] parameters = value.split("[&;]");
         for (String parameter : parameters) {
             String name = parameter;
@@ -3076,11 +3101,20 @@ public class SecurityPolicyService {
 
     private String decodeUrlComponent(String raw) {
         String value = StrUtil.nullToEmpty(raw);
-        try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
-        } catch (Exception ignored) {
-            return value;
+        for (int i = 0; i < 4; i++) {
+            String decoded;
+            try {
+                decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+            } catch (Exception ignored) {
+                return value;
+            }
+            decoded = normalizeUrlText(decoded);
+            if (decoded.equals(value)) {
+                return decoded;
+            }
+            value = decoded;
         }
+        return value;
     }
 
     private boolean hasSchemelessUserInfo(String raw) {
