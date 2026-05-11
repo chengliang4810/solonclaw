@@ -306,6 +306,18 @@ public class DashboardControllerHttpTest {
                 .contains("\"channels\"")
                 .contains("\"security\"")
                 .contains("\"approvals\"")
+                .contains("\"approval_lifecycle_policy\"")
+                .contains("\"slash_confirm_policy\"")
+                .contains("\"approval_card_policy\"")
+                .contains("\"approval_audit_policy\"")
+                .contains("\"mcp_reload_policy\"")
+                .contains("\"pendingListHidesApprovalKey\":true")
+                .contains("\"approvalRequestObserved\":true")
+                .contains("\"approvalResponseObserved\":true")
+                .contains("\"scopeOptions\":[\"once\",\"session\",\"always\"]")
+                .contains("\"encodedUrlParameterRedacted\":true")
+                .contains("\"toolChangeNoticeInjected\":true")
+                .contains("\"oauthUrlSafetyCovered\":true")
                 .contains("\"allow_private_urls\"")
                 .contains("\"url_policy\"")
                 .contains("\"private_url_policy\"")
@@ -345,7 +357,15 @@ public class DashboardControllerHttpTest {
         assertThat(diagnostics.body)
                 .doesNotContain("\"sudo_password\"")
                 .doesNotContain("\"credential_files\"")
-                .doesNotContain("\"env_passthrough\"");
+                .doesNotContain("\"env_passthrough\"")
+                .doesNotContain("\"approval_key\"");
+        ONode approvalDiagnostics =
+                ONode.ofJson(diagnostics.body).get("data").get("security").get("approvals");
+        assertThat(approvalDiagnostics.toJson())
+                .doesNotContain("\"pendingQueueContextKey\"")
+                .doesNotContain("\"legacyPendingContextKey\"")
+                .doesNotContain("\"onceScopeStoresContextKey\"")
+                .doesNotContain("\"sessionScopeStoresContextKey\"");
 
         HttpResult commandAudit =
                 request(

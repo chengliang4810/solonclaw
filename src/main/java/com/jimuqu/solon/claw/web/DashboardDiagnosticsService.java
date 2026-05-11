@@ -400,6 +400,11 @@ public class DashboardDiagnosticsService {
                         approvalService == null
                                 ? 0
                                 : approvalService.listAlwaysApprovals().size()));
+        approvals.put("approval_lifecycle_policy", safeApprovalLifecyclePolicySummary());
+        approvals.put("slash_confirm_policy", safeSlashConfirmPolicySummary());
+        approvals.put("approval_card_policy", safeApprovalCardPolicySummary());
+        approvals.put("approval_audit_policy", safeApprovalAuditPolicySummary());
+        approvals.put("mcp_reload_policy", safeMcpReloadPolicySummary());
         map.put("approvals", approvals);
 
         Map<String, Object> policy = new LinkedHashMap<String, Object>();
@@ -464,6 +469,175 @@ public class DashboardDiagnosticsService {
         map.put("terminal", terminal);
         map.put("audit_policy", securityAuditPolicy());
         return map;
+    }
+
+    private Map<String, Object> safeApprovalLifecyclePolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.approvalLifecyclePolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "pendingListPrunedBeforeRead");
+            copyPolicyValue(summary, safe, "selectorSupported");
+            copyPolicyValue(summary, safe, "listSupported");
+            copyPolicyValue(summary, safe, "statusAliasSupported");
+            copyPolicyValue(summary, safe, "approveAllSupported");
+            copyPolicyValue(summary, safe, "rejectAllSupported");
+            copyPolicyValue(summary, safe, "clearSessionSupported");
+            copyPolicyValue(summary, safe, "clearAlwaysSupported");
+            copyPolicyValue(summary, safe, "clearAllSupported");
+            copyPolicyValue(summary, safe, "scopes");
+            copyPolicyValue(summary, safe, "alwaysScopeUsesGlobalSettings");
+            copyPolicyValue(summary, safe, "tirithAlwaysScopeDowngradedToSession");
+            copyPolicyValue(summary, safe, "currentThreadApprovalTtlMillis");
+            copyPolicyValue(summary, safe, "currentThreadApprovalEnabled");
+            copyPolicyValue(summary, safe, "approveRemovesPendingApproval");
+            copyPolicyValue(summary, safe, "rejectRemovesPendingApproval");
+            copyPolicyValue(summary, safe, "sessionSnapshotUpdated");
+            copyPolicyValue(summary, safe, "approvalRequestObserved");
+            copyPolicyValue(summary, safe, "approvalResponseObserved");
+            copyPolicyValue(summary, safe, "approverRedacted");
+            copyPolicyValue(summary, safe, "approvalKeyRedacted");
+            copyPolicyValue(summary, safe, "commandPreviewRedacted");
+            copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeSlashConfirmPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.slashConfirmPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "commands");
+            copyPolicyValue(summary, safe, "selectorSupported");
+            copyPolicyValue(summary, safe, "listSupported");
+            copyPolicyValue(summary, safe, "statusAliasSupported");
+            copyPolicyValue(summary, safe, "approveAllSupported");
+            copyPolicyValue(summary, safe, "denyAllSupported");
+            copyPolicyValue(summary, safe, "clearSessionSupported");
+            copyPolicyValue(summary, safe, "clearAlwaysSupported");
+            copyPolicyValue(summary, safe, "clearAllSupported");
+            copyPolicyValue(summary, safe, "scopes");
+            copyPolicyValue(summary, safe, "defaultScope");
+            copyPolicyValue(summary, safe, "managementCommands");
+            copyPolicyValue(summary, safe, "pendingQueueSupported");
+            copyPolicyValue(summary, safe, "pendingListHidesApprovalKey");
+            copyPolicyValue(summary, safe, "pendingListShowsPatternKey");
+            copyPolicyValue(summary, safe, "sessionApprovalListShowsCountOnly");
+            copyPolicyValue(summary, safe, "alwaysApprovalListShowsCountOnly");
+            copyPolicyValue(summary, safe, "approvalCardDeliveryMode");
+            copyPolicyValue(summary, safe, "approvalCardPlatforms");
+            copyPolicyValue(summary, safe, "permanentApprovalAllowedExceptTirith");
+            copyPolicyValue(summary, safe, "tirithAlwaysDowngradedToSession");
+            copyPolicyValue(summary, safe, "approverRedacted");
+            copyPolicyValue(summary, safe, "commandPreviewRedacted");
+            copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
+            copyPolicyValue(summary, safe, "approvalMetadataRedacted");
+            copyPolicyValue(summary, safe, "observerEventsRedacted");
+            copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
+            copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeApprovalCardPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.approvalCardPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "deliveryMode");
+            copyPolicyValue(summary, safe, "supportedPlatforms");
+            copyPolicyValue(summary, safe, "unsupportedPlatformsReturnEmptyExtras");
+            copyPolicyValue(summary, safe, "actionKey");
+            copyPolicyValue(summary, safe, "approveAction");
+            copyPolicyValue(summary, safe, "denyAction");
+            copyPolicyValue(summary, safe, "scopeKey");
+            copyPolicyValue(summary, safe, "approvalIdKey");
+            copyPolicyValue(summary, safe, "scopeOptions");
+            copyPolicyValue(summary, safe, "defaultScope");
+            copyPolicyValue(summary, safe, "approvalIdSelectorSupported");
+            copyPolicyValue(summary, safe, "approveCommandGenerated");
+            copyPolicyValue(summary, safe, "denyCommandGenerated");
+            copyPolicyValue(summary, safe, "alwaysScopeCommandGenerated");
+            copyPolicyValue(summary, safe, "sessionScopeCommandGenerated");
+            copyPolicyValue(summary, safe, "tirithPermanentApprovalHidden");
+            copyPolicyValue(summary, safe, "commandPreviewRedacted");
+            copyPolicyValue(summary, safe, "descriptionPreviewRedacted");
+            copyPolicyValue(summary, safe, "toolNameRedacted");
+            copyPolicyValue(summary, safe, "rawCommandRedactedInExtras");
+            copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
+            copyPolicyValue(summary, safe, "semicolonUrlParameterRedacted");
+            copyPolicyValue(summary, safe, "fragmentUrlParameterRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeApprovalAuditPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.approvalAuditPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "observerCount");
+            copyPolicyValue(summary, safe, "requestEvents");
+            copyPolicyValue(summary, safe, "responseEvents");
+            copyPolicyValue(summary, safe, "eventTypes");
+            copyPolicyValue(summary, safe, "repositoryBackedWhenConfigured");
+            copyPolicyValue(summary, safe, "observerFailureIsolated");
+            copyPolicyValue(summary, safe, "approverRedacted");
+            copyPolicyValue(summary, safe, "commandPreviewRedacted");
+            copyPolicyValue(summary, safe, "descriptionRedacted");
+            copyPolicyValue(summary, safe, "approvalKeyRedacted");
+            copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
+            copyPolicyValue(summary, safe, "commandHashStored");
+            copyPolicyValue(summary, safe, "patternKeysStored");
+            copyPolicyValue(summary, safe, "timestampsStored");
+            copyPolicyValue(summary, safe, "recentDashboardViewSupported");
+            copyPolicyValue(summary, safe, "manualRevocationAudited");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeMcpReloadPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.mcpReloadPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "command");
+            copyPolicyValue(summary, safe, "confirmRequired");
+            copyPolicyValue(summary, safe, "configKey");
+            copyPolicyValue(summary, safe, "slashConfirmBacked");
+            copyPolicyValue(summary, safe, "directRunAlias");
+            copyPolicyValue(summary, safe, "alwaysConfirmAlias");
+            copyPolicyValue(summary, safe, "persistentDisableSupported");
+            copyPolicyValue(summary, safe, "runtimeConfigPersisted");
+            copyPolicyValue(summary, safe, "toolChangeNoticeInjected");
+            copyPolicyValue(summary, safe, "changedServerSummary");
+            copyPolicyValue(summary, safe, "toolCountSummary");
+            copyPolicyValue(summary, safe, "oauthUrlSafetyCovered");
+            copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
+            copyPolicyValue(summary, safe, "reloadHistoryNoticeRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
     }
 
     private Map<String, Object> safeCredentialFilePolicySummary() {
