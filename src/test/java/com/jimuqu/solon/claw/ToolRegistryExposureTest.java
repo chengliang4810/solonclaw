@@ -994,6 +994,10 @@ public class ToolRegistryExposureTest {
         assertThat(urlPolicyDetails.get("websiteBlocklistDomainCount").getInt()).isEqualTo(1);
         assertThat(urlPolicyDetails.get("userinfoBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("sensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("encodedSensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("repeatedEncodedSensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("semicolonSensitiveQueryBlocked").getBoolean()).isTrue();
+        assertThat(urlPolicyDetails.get("fragmentSensitiveQueryBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("sensitivePathCredentialBlocked").getBoolean()).isTrue();
         assertThat(urlPolicyDetails.get("cloudMetadataBlocked").getBoolean()).isTrue();
         assertThat(String.valueOf(urlPolicyDetails))
