@@ -1336,9 +1336,9 @@ public class AcpStdioServerTest {
                                         "call_1",
                                         "terminal",
                                         "command",
-                                        "curl https://example.test?api_key=sk-1234567890abcdef"),
+                                        "curl https://example.test?api_key=sk-1234567890abcdef https://example.test/callback?api%255Fkey=acp-tool-encoded-secret"),
                                 ChatMessage.ofTool(
-                                        "bearer sk-abcdef1234567890",
+                                        "bearer sk-abcdef1234567890 https://example.test/callback?api%255Fkey=acp-tool-encoded-secret",
                                         "terminal",
                                         "call_1"),
                                 ChatMessage.ofAssistant("done"))));
@@ -1361,9 +1361,11 @@ public class AcpStdioServerTest {
                 .contains("\"tool_call_start\"")
                 .contains("\"tool_call_update\"")
                 .contains("api_key=***")
+                .contains("api%255Fkey=***")
                 .contains("bearer ***")
                 .doesNotContain("sk-1234567890abcdef")
-                .doesNotContain("sk-abcdef1234567890");
+                .doesNotContain("sk-abcdef1234567890")
+                .doesNotContain("acp-tool-encoded-secret");
     }
 
     @Test
