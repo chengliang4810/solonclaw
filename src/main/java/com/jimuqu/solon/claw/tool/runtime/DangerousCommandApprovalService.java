@@ -558,13 +558,13 @@ public class DangerousCommandApprovalService {
                                     "macos_keychain_password_read",
                                     "macOS keychain password read",
                                     pattern(
-                                            "\\bsecurity\\s+find-(?:generic|internet)-password\\b(?=[^\\n]*(?:\\s-w\\b|\\s-g\\b|--password\\b))"),
+                                            "\\bsecurity\\s+(?:find-(?:generic|internet)-password\\b(?=[^\\n]*(?:\\s-w\\b|\\s-g\\b|--password\\b))|dump-keychain\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_keychain_password_change",
                                     "macOS keychain password changed",
                                     pattern(
-                                            "\\bsecurity\\s+(?:add|delete)-(?:generic|internet)-password\\b"),
+                                            "\\bsecurity\\s+(?:(?:add|delete)-(?:generic|internet)-password\\b|unlock-keychain\\b(?=[^\\n]*(?:\\s-p\\b|\\s-password\\b|--password\\b))|set-keychain-settings\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "ssh_add_private_key",

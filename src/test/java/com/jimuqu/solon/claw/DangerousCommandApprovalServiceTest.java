@@ -2582,7 +2582,9 @@ public class DangerousCommandApprovalServiceTest {
                 Arrays.asList(
                         "security find-generic-password -a deploy -s api-token -w",
                         "security find-internet-password -s example.com -g",
-                        "security find-generic-password --password -s app");
+                        "security find-generic-password --password -s app",
+                        "security dump-keychain",
+                        "security dump-keychain login.keychain-db");
         for (String command : keychainPasswordReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2597,7 +2599,10 @@ public class DangerousCommandApprovalServiceTest {
                         "security add-generic-password -a deploy -s api-token -w token",
                         "security add-internet-password -s example.com -a deploy -w token",
                         "security delete-generic-password -s api-token",
-                        "security delete-internet-password -s example.com");
+                        "security delete-internet-password -s example.com",
+                        "security unlock-keychain -p password login.keychain-db",
+                        "security unlock-keychain -password password login.keychain-db",
+                        "security set-keychain-settings -lut 3600 login.keychain-db");
         for (String command : keychainPasswordChanges) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2610,6 +2615,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "security find-certificate -a login.keychain-db"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "security lock-keychain login.keychain-db"))
                 .isNull();
 
         List<String> sshAddPrivateKeys =
