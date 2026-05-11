@@ -296,6 +296,19 @@ public class DashboardDiagnosticOutputTest {
                 .isEqualTo(String.valueOf(localItem.get("approval_id")))
                 .doesNotContain("execute_shell:");
         assertThat(localItem.get("command_hash")).isEqualTo("***");
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("action", "policy");
+        Map<String, Object> audit = diagnosticsService.securityAudit(body);
+        Map<String, Object> policy = (Map<String, Object>) audit.get("policy");
+        Map<String, Object> approvals = (Map<String, Object>) policy.get("approvals");
+        Map<String, Object> approvalPolicy = (Map<String, Object>) approvals.get("approvalPolicy");
+        assertThat(approvalPolicy.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("privateUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("credentialUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("websitePolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("unsafeUrlBlockedBeforeApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
     }
 
     @Test

@@ -1625,6 +1625,12 @@ public class DashboardDiagnosticsService {
                             "smartJudgeConfigured",
                             "dangerousRuleCount",
                             "hardlineRuleCount",
+                            "urlPolicyPrechecked",
+                            "privateUrlPolicyPrechecked",
+                            "credentialUrlPolicyPrechecked",
+                            "websitePolicyPrechecked",
+                            "unsafeUrlBlockedBeforeApproval",
+                            "unsafeUrlApprovalBypassAllowed",
                             "approvalTimeoutSeconds",
                             "gatewayTimeoutSeconds",
                             "alwaysApprovalCount"));
