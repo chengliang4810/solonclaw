@@ -2019,6 +2019,38 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldReturnStructuredErrorForInvalidCronJson() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult dashboardCron =
+                request(
+                        "POST",
+                        "/api/cron/jobs",
+                        "{\"name\":\"bad-cron\",\"token\":\"ghp_invalidcron12345\"",
+                        token);
+        HttpResult apiCron =
+                request(
+                        "POST",
+                        "/api/jobs",
+                        "{\"name\":\"bad-api-cron\",\"token\":\"ghp_invalidapicron12345\"",
+                        token);
+
+        assertThat(dashboardCron.status).isEqualTo(400);
+        assertThat(dashboardCron.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"CRON_BAD_REQUEST\"")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidcron12345")
+                .doesNotContain("bad-cron");
+        assertThat(apiCron.status).isEqualTo(400);
+        assertThat(apiCron.body)
+                .contains("\"error\"")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidapicron12345")
+                .doesNotContain("bad-api-cron");
+    }
+
+    @Test
     void shouldExposeApiServerCronJobCompatibilityRoutes() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 

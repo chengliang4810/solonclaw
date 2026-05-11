@@ -93,6 +93,9 @@ public class DashboardCronController {
     public Map<String, Object> create(Context context) throws Exception {
         try {
             return DashboardResponse.ok(cronService.create(body(context)));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -106,6 +109,9 @@ public class DashboardCronController {
     public Map<String, Object> apiCreate(Context context) throws Exception {
         try {
             return apiJobResponse(cronService.apiCreate(body(context)));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return apiError(e.getMessage());
@@ -189,6 +195,9 @@ public class DashboardCronController {
     public Map<String, Object> update(String id, Context context) throws Exception {
         try {
             return DashboardResponse.ok(cronService.update(id, body(context)));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -212,6 +221,9 @@ public class DashboardCronController {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.apiPatch(id, body(context)));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return apiError(e.getMessage());
@@ -243,6 +255,9 @@ public class DashboardCronController {
     private Map<String, Object> dashboardPauseJob(String id, Context context) throws Exception {
         try {
             return DashboardResponse.ok(cronService.pause(id, body(context)));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -271,6 +286,9 @@ public class DashboardCronController {
         try {
             validateApiJobId(id);
             return apiJobResponse(cronService.pause(id, body(context)));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return apiError(e.getMessage());
@@ -485,12 +503,26 @@ public class DashboardCronController {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> body(Context context) throws Exception {
-        String raw = context.body();
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new BodyParseException("请求体读取失败 / Request body read failed");
+        }
         if (raw == null || raw.trim().length() == 0) {
             return new LinkedHashMap<String, Object>();
         }
-        Object data = ONode.ofJson(raw).toData();
-        return data instanceof Map ? (Map<String, Object>) data : new LinkedHashMap<String, Object>();
+        try {
+            Object data = ONode.ofJson(raw).toData();
+            if (data instanceof Map) {
+                return (Map<String, Object>) data;
+            }
+            throw new BodyParseException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (BodyParseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BodyParseException("请求体 JSON 解析失败 / Request body JSON parse failed");
+        }
     }
 
     private Map<String, Object> apiJobsResponse(List<Map<String, Object>> jobs) {
@@ -539,5 +571,11 @@ public class DashboardCronController {
             return defaultValue;
         }
         return Math.min(value, maxValue);
+    }
+
+    private static final class BodyParseException extends IllegalArgumentException {
+        private BodyParseException(String message) {
+            super(message);
+        }
     }
 }
