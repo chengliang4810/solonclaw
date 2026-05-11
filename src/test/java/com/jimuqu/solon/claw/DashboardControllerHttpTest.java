@@ -2523,6 +2523,19 @@ public class DashboardControllerHttpTest {
         assertThat(detail.body).contains("curator://report");
         assertThat(detail.body).contains("skill://sample-skill");
         assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+
+        HttpResult invalidJson =
+                request(
+                        "POST",
+                        "/api/jimuqu/curator/apply",
+                        "{\"skill\":\"sample-skill token=ghp_curatorparse12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("CURATOR_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_curatorparse12345")
+                .doesNotContain("sample-skill token");
     }
 
     @Test
