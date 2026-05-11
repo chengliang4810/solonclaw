@@ -242,6 +242,10 @@ public class SecurityPolicyService {
             Arrays.asList("-i", "-F", "-K");
     private static final List<String> NETWORK_CREDENTIAL_SHORT_OPTIONS =
             Arrays.asList("-b", "-c", "-E", "-K");
+    private static final List<String> NETWORK_UPLOAD_FILE_OPTIONS =
+            Arrays.asList("--upload-file", "--data-binary", "--data-raw", "--data", "-d", "--json", "--post-file", "--body-file");
+    private static final List<String> NETWORK_UPLOAD_FILE_SHORT_OPTIONS =
+            Arrays.asList("-T");
     private static final List<String> LOCAL_MANAGEMENT_SOCKET_PATHS =
             Arrays.asList(
                     "/var/run/docker.sock",
@@ -859,6 +863,20 @@ public class SecurityPolicyService {
             }
             String path = credentialPathOptionValue(token);
             if (StrUtil.isBlank(path) && networkCredentialMode) {
+                path = networkUploadFileOptionValue(token);
+                if (StrUtil.isBlank(path) && isDetachedNetworkUploadFileOption(token) && i + 1 < tokens.size()) {
+                    path = cleanUrlToken(tokens.get(++i));
+                }
+                if (StrUtil.isNotBlank(path)) {
+                    path = cleanCredentialPathToken(path);
+                    FileVerdict verdict = checkPath(path, false);
+                    if (!verdict.allowed) {
+                        return verdict;
+                    }
+                    continue;
+                }
+            }
+            if (StrUtil.isBlank(path) && networkCredentialMode) {
                 path = networkCredentialShortOptionValue(token);
                 if (StrUtil.isNotBlank(path)) {
                     // compact option, for example: curl -bcookies.txt
@@ -927,7 +945,40 @@ public class SecurityPolicyService {
     private boolean isNetworkToolToken(String token) {
         return "curl".equalsIgnoreCase(token)
                 || "wget".equalsIgnoreCase(token)
-                || "aria2c".equalsIgnoreCase(token);
+                || "aria2c".equalsIgnoreCase(token)
+                || "http".equalsIgnoreCase(token)
+                || "https".equalsIgnoreCase(token)
+                || "httpie".equalsIgnoreCase(token)
+                || "xh".equalsIgnoreCase(token);
+    }
+
+    private String networkUploadFileOptionValue(String token) {
+        if (StrUtil.isBlank(token)) {
+            return "";
+        }
+        for (String option : NETWORK_UPLOAD_FILE_OPTIONS) {
+            if (token.startsWith(option + "=")) {
+                return token.substring(option.length() + 1);
+            }
+        }
+        for (String option : NETWORK_UPLOAD_FILE_SHORT_OPTIONS) {
+            if (startsWithCompactShortOptionValue(token, option)) {
+                return token.substring(option.length());
+            }
+        }
+        if (token.startsWith("@") && token.length() > 1) {
+            return token.substring(1);
+        }
+        int upload = token.indexOf('@');
+        if (upload > 0 && upload + 1 < token.length()) {
+            return token.substring(upload + 1);
+        }
+        return "";
+    }
+
+    private boolean isDetachedNetworkUploadFileOption(String token) {
+        return NETWORK_UPLOAD_FILE_OPTIONS.contains(token)
+                || NETWORK_UPLOAD_FILE_SHORT_OPTIONS.contains(token);
     }
 
     private String networkCredentialShortOptionValue(String token) {
