@@ -644,6 +644,7 @@ public class SecurityPolicyService {
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
+        summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("packageManagerPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
@@ -1493,6 +1494,7 @@ public class SecurityPolicyService {
         extractLocalBindAddresses(text, urls);
         extractJavaProxyOptionsAssignments(text, urls);
         extractPowerShellProxyEnvironmentAssignments(text, urls);
+        extractGitProxyConfigAssignments(text, urls);
         extractPackageManagerProxyConfigAssignments(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
@@ -1680,6 +1682,139 @@ public class SecurityPolicyService {
                 addProxyHost(value, urls);
             }
         }
+    }
+
+    private void extractGitProxyConfigAssignments(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String command = StrUtil.nullToEmpty(tokens.get(i)).trim().toLowerCase(Locale.ROOT);
+            if (!"git".equals(command)) {
+                continue;
+            }
+            int configIndex = findToken(tokens, i + 1, "config");
+            if (configIndex < 0) {
+                continue;
+            }
+            int keyIndex = gitConfigKeyIndex(tokens, configIndex + 1);
+            if (keyIndex < 0) {
+                continue;
+            }
+            String key = tokens.get(keyIndex);
+            String value = keyIndex + 1 < tokens.size() ? tokens.get(keyIndex + 1) : "";
+            int assignment = key.indexOf('=');
+            if (assignment > 0 && assignment + 1 < key.length()) {
+                value = key.substring(assignment + 1);
+                key = key.substring(0, assignment);
+            }
+            if (isGitNoProxyConfigKey(key)) {
+                addNoProxyHosts(value, urls);
+            } else if (isGitProxyConfigKey(key)) {
+                addProxyHost(value, urls);
+            }
+        }
+    }
+
+    private int findToken(List<String> tokens, int start, String expected) {
+        for (int i = start; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                return -1;
+            }
+            if (expected.equalsIgnoreCase(token)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int gitConfigKeyIndex(List<String> tokens, int start) {
+        for (int i = start; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (StrUtil.isBlank(token) || isShellCommandSeparator(token)) {
+                return -1;
+            }
+            if (isReadOnlyGitConfigOperation(token)) {
+                return -1;
+            }
+            if (gitConfigOptionConsumesNextValue(token) && i + 1 < tokens.size()) {
+                i++;
+                continue;
+            }
+            if (isSkippableGitConfigWriteOption(token)) {
+                continue;
+            }
+            return token.startsWith("-") ? -1 : i;
+        }
+        return -1;
+    }
+
+    private boolean isShellCommandSeparator(String token) {
+        return ";".equals(token)
+                || "&&".equals(token)
+                || "||".equals(token)
+                || "|".equals(token)
+                || "`".equals(token);
+    }
+
+    private boolean isReadOnlyGitConfigOperation(String token) {
+        String normalized = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+        return "--get".equals(normalized)
+                || "--get-all".equals(normalized)
+                || "--get-regexp".equals(normalized)
+                || "--get-color".equals(normalized)
+                || "--get-colorbool".equals(normalized)
+                || "--list".equals(normalized)
+                || "-l".equals(normalized)
+                || "--name-only".equals(normalized)
+                || "--show-origin".equals(normalized)
+                || "--show-scope".equals(normalized)
+                || "--show-names".equals(normalized)
+                || "--edit".equals(normalized)
+                || "-e".equals(normalized)
+                || "--unset".equals(normalized)
+                || "--unset-all".equals(normalized)
+                || "--remove-section".equals(normalized)
+                || "--rename-section".equals(normalized);
+    }
+
+    private boolean gitConfigOptionConsumesNextValue(String token) {
+        String normalized = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+        if (normalized.contains("=")) {
+            return false;
+        }
+        return "--file".equals(normalized)
+                || "-f".equals(normalized)
+                || "--blob".equals(normalized)
+                || "--type".equals(normalized)
+                || "-t".equals(normalized);
+    }
+
+    private boolean isSkippableGitConfigWriteOption(String token) {
+        String normalized = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+        return "--global".equals(normalized)
+                || "--system".equals(normalized)
+                || "--local".equals(normalized)
+                || "--worktree".equals(normalized)
+                || "--add".equals(normalized)
+                || "--replace-all".equals(normalized)
+                || "--fixed-value".equals(normalized)
+                || "--includes".equals(normalized)
+                || "--no-includes".equals(normalized)
+                || "--null".equals(normalized)
+                || "-z".equals(normalized)
+                || normalized.startsWith("--file=")
+                || normalized.startsWith("--blob=")
+                || normalized.startsWith("--type=");
+    }
+
+    private boolean isGitNoProxyConfigKey(String rawKey) {
+        String key = normalizePackageManagerConfigKey(rawKey);
+        return "noproxy".equals(key);
+    }
+
+    private boolean isGitProxyConfigKey(String rawKey) {
+        String key = normalizePackageManagerConfigKey(rawKey);
+        return "proxy".equals(key);
     }
 
     private int findNextToken(List<String> tokens, int start, String expected) {

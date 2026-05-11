@@ -780,6 +780,58 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckGitPersistentProxyConfigAssignments() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict globalProxy =
+                privatePolicy.checkCommandUrls(
+                        "git config --global http.proxy http://internal.example:8080");
+        SecurityPolicyService.UrlVerdict assignedProxy =
+                metadataPolicy.checkCommandUrls(
+                        "git config --global https.proxy=http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict noProxy =
+                privatePolicy.checkCommandUrls(
+                        "git config --global http.noProxy localhost,internal.example");
+        SecurityPolicyService.UrlVerdict addNoProxy =
+                metadataPolicy.checkCommandUrls(
+                        "git config --global --add http.noProxy metadata.google.internal");
+        SecurityPolicyService.UrlVerdict replaceAllProxy =
+                privatePolicy.checkCommandUrls(
+                        "git config --global --replace-all http.proxy http://10.0.0.5:8080");
+        SecurityPolicyService.UrlVerdict publicProxy =
+                publicPolicy.checkCommandUrls(
+                        "git config --global http.proxy http://proxy.example:8080");
+        SecurityPolicyService.UrlVerdict readOnly =
+                privatePolicy.checkCommandUrls("git config --global --get http.proxy");
+
+        assertThat(privatePolicy.extractUrlishValues(
+                        "git config --global http.noProxy internal.example"))
+                .contains("http://internal.example");
+        assertThat(privatePolicy.extractUrlishValues(
+                        "git config --global http.proxy=http://internal.example:8080"))
+                .contains("http://internal.example:8080");
+        assertThat(globalProxy.isAllowed()).isFalse();
+        assertThat(globalProxy.getMessage()).contains("内网");
+        assertThat(assignedProxy.isAllowed()).isFalse();
+        assertThat(assignedProxy.getMessage()).contains("元数据");
+        assertThat(noProxy.isAllowed()).isFalse();
+        assertThat(noProxy.getMessage()).contains("内网");
+        assertThat(addNoProxy.isAllowed()).isFalse();
+        assertThat(addNoProxy.getMessage()).contains("元数据");
+        assertThat(replaceAllProxy.isAllowed()).isFalse();
+        assertThat(replaceAllProxy.getMessage()).contains("内网");
+        assertThat(publicProxy.isAllowed()).isTrue();
+        assertThat(readOnly.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -1116,6 +1168,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerPersistentProxyConfigChecked"))
