@@ -27,6 +27,9 @@ public class SessionSearchTools {
         try {
             List<SessionSearchEntry> sessions =
                     sessionSearchService.search(sourceKey, query, limit == null ? 3 : limit.intValue());
+            for (SessionSearchEntry session : sessions) {
+                redact(session);
+            }
             return ONode.serialize(sessions);
         } catch (Exception e) {
             return ToolResultEnvelope.error(
@@ -35,5 +38,23 @@ public class SessionSearchTools {
                                     1000))
                     .toJson();
         }
+    }
+
+    private void redact(SessionSearchEntry session) {
+        if (session == null) {
+            return;
+        }
+        session.setSessionId(redact(session.getSessionId(), 200));
+        session.setBranchName(redact(session.getBranchName(), 400));
+        session.setTitle(redact(session.getTitle(), 400));
+        session.setMatchPreview(redact(session.getMatchPreview(), 2000));
+        session.setSummary(redact(session.getSummary(), 4000));
+        session.setRunId(redact(session.getRunId(), 200));
+        session.setToolName(redact(session.getToolName(), 200));
+        session.setChannel(redact(session.getChannel(), 400));
+    }
+
+    private String redact(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 }
