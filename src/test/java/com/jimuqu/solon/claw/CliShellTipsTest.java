@@ -23,7 +23,14 @@ public class CliShellTipsTest {
 
         assertThat(commandList()).containsExactly(TerminalCommandCatalog.SLASH_COMMANDS);
         assertThat(LocalTerminalHelp.text()).contains("/reload-mcp [now|always]");
-        assertThat(commandList()).contains("/security", "/security audit", "/security policy");
+        assertThat(commandList())
+                .contains(
+                        "/security",
+                        "/security audit",
+                        "/security policy",
+                        "/security paths",
+                        "/security credentials",
+                        "/security tool-args");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
         assertThat(shouldHandleInline(shell, "/security audit")).isTrue();
@@ -56,6 +63,15 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")
                 .contains("unsupportedSchemeBlocked");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security paths"))
+                .contains("路径安全策略摘要")
+                .contains("devicePath");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security credentials"))
+                .contains("凭据文件策略摘要")
+                .contains(".env");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security tool-args"))
+                .contains("工具参数安全策略摘要")
+                .contains("patchTarget");
     }
 
     @Test

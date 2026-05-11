@@ -28,6 +28,15 @@ public final class TerminalSecurityPolicyView {
         if ("approvals".equals(mode)) {
             return renderApprovalPolicy(approvalService.approvalPolicySummary());
         }
+        if ("paths".equals(mode)) {
+            return renderPathPolicy(securityPolicyService.pathPolicySummary());
+        }
+        if ("credentials".equals(mode)) {
+            return renderCredentialPolicy(securityPolicyService.credentialPolicySummary());
+        }
+        if ("tool-args".equals(mode)) {
+            return renderToolArgsPolicy(securityPolicyService.toolArgsPolicySummary());
+        }
         if ("policy".equals(mode)) {
             return renderPolicy(securityPolicyService, approvalService, config);
         }
@@ -45,6 +54,15 @@ public final class TerminalSecurityPolicyView {
         }
         if (rest.startsWith("approval")) {
             return "approvals";
+        }
+        if (rest.startsWith("path")) {
+            return "paths";
+        }
+        if (rest.startsWith("credential") || rest.startsWith("secret")) {
+            return "credentials";
+        }
+        if (rest.startsWith("tool-arg") || rest.startsWith("tools")) {
+            return "tool-args";
         }
         if (rest.startsWith("policy")) {
             return "policy";
@@ -82,7 +100,7 @@ public final class TerminalSecurityPolicyView {
                 .append(" promptGuard=")
                 .append(value(tirith, "promptInjectionGuardEnabled"));
         buffer.append('\n')
-                .append("可用命令：/security audit、/security policy、/security approvals、/security urls");
+                .append("可用命令：/security audit、/security policy、/security approvals、/security urls、/security paths、/security credentials、/security tool-args");
         return buffer.toString();
     }
 
@@ -135,6 +153,74 @@ public final class TerminalSecurityPolicyView {
                 .append(value(url, "repeatedEncodedSensitiveQueryBlocked"))
                 .append(" semicolon=")
                 .append(value(url, "semicolonSensitiveQueryBlocked"));
+        return buffer.toString();
+    }
+
+    private static String renderPathPolicy(Map<String, Object> path) {
+        StringBuilder buffer = new StringBuilder("路径安全策略摘要：");
+        buffer.append('\n')
+                .append("- 基础阻断：traversal=")
+                .append(value(path, "traversalBlocked"))
+                .append(" controlChars=")
+                .append(value(path, "controlCharactersBlocked"))
+                .append(" devicePath=")
+                .append(value(path, "devicePathBlocked"));
+        buffer.append('\n')
+                .append("- 写入边界：writeSafeRoot=")
+                .append(value(path, "writeSafeRootConfigured"))
+                .append(" exactDenied=")
+                .append(value(path, "writeDeniedExactPathCount"))
+                .append(" prefixDenied=")
+                .append(value(path, "writeDeniedPrefixCount"));
+        buffer.append('\n')
+                .append("- 本地管理端点：socket=")
+                .append(value(path, "localManagementSocketAccessBlocked"))
+                .append(" pipe=")
+                .append(value(path, "localManagementPipeAccessBlocked"));
+        return buffer.toString();
+    }
+
+    private static String renderCredentialPolicy(Map<String, Object> credential) {
+        StringBuilder buffer = new StringBuilder("凭据文件策略摘要：");
+        buffer.append('\n')
+                .append("- 文件名：count=")
+                .append(value(credential, "fileNameCount"))
+                .append(" samples=")
+                .append(value(credential, "fileNameSamples"));
+        buffer.append('\n')
+                .append("- 目录和后缀：directorySegments=")
+                .append(value(credential, "directorySegmentCount"))
+                .append(" suffixes=")
+                .append(value(credential, "pathSuffixCount"));
+        buffer.append('\n')
+                .append("- 配置项：configuredFiles=")
+                .append(value(credential, "configuredCredentialFileCount"))
+                .append(" envExamplesAllowed=")
+                .append(value(credential, "envExampleFilesAllowed"));
+        return buffer.toString();
+    }
+
+    private static String renderToolArgsPolicy(Map<String, Object> toolArgs) {
+        StringBuilder buffer = new StringBuilder("工具参数安全策略摘要：");
+        buffer.append('\n')
+                .append("- URL 提取：recursive=")
+                .append(value(toolArgs, "recursiveUrlExtraction"))
+                .append(" returnedContent=")
+                .append(value(toolArgs, "returnedContentUrlExtraction"))
+                .append(" unsupportedScheme=")
+                .append(value(toolArgs, "unsupportedNetworkSchemeChecked"));
+        buffer.append('\n')
+                .append("- 路径和写入：recursivePath=")
+                .append(value(toolArgs, "recursivePathExtraction"))
+                .append(" writeIntent=")
+                .append(value(toolArgs, "writeIntentDetection"))
+                .append(" patchTarget=")
+                .append(value(toolArgs, "patchTargetExtraction"));
+        buffer.append('\n')
+                .append("- 样例：urlKeys=")
+                .append(value(toolArgs, "urlKeySamples"))
+                .append(" pathKeys=")
+                .append(value(toolArgs, "pathKeySamples"));
         return buffer.toString();
     }
 
