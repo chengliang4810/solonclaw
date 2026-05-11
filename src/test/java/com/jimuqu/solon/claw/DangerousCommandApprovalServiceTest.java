@@ -8423,6 +8423,114 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(writeFileTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(writeFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
+        Map<String, Object> socketReadArgs = new LinkedHashMap<String, Object>();
+        socketReadArgs.put("path", "/var/run/docker.sock");
+        Map<String, Object> gatewaySocketRead = new LinkedHashMap<String, Object>();
+        gatewaySocketRead.put("tool_name", "read_file");
+        gatewaySocketRead.put("tool_args", socketReadArgs);
+        TestTrace socketReadTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(socketReadTrace, "call_tool", gatewaySocketRead);
+
+        assertThat(socketReadTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(socketReadTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("管理套接字");
+        assertThat(service.getPendingApproval(socketReadTrace.session)).isNull();
+
+        Map<String, Object> pipeWriteArgs = new LinkedHashMap<String, Object>();
+        pipeWriteArgs.put("path", "npipe:////./pipe/docker_engine");
+        pipeWriteArgs.put("content", "GET /containers/json HTTP/1.1");
+        Map<String, Object> gatewayPipeWrite = new LinkedHashMap<String, Object>();
+        gatewayPipeWrite.put("tool_name", "write_file");
+        gatewayPipeWrite.put("tool_args", pipeWriteArgs);
+        TestTrace pipeWriteTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(pipeWriteTrace, "call_tool", gatewayPipeWrite);
+
+        assertThat(pipeWriteTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(pipeWriteTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("命名管道");
+        assertThat(service.getPendingApproval(pipeWriteTrace.session)).isNull();
+
+        Map<String, Object> blockDeviceWriteArgs = new LinkedHashMap<String, Object>();
+        blockDeviceWriteArgs.put("path", "/dev/sda");
+        blockDeviceWriteArgs.put("content", "overwrite");
+        Map<String, Object> gatewayBlockDeviceWrite = new LinkedHashMap<String, Object>();
+        gatewayBlockDeviceWrite.put("tool_name", "write_file");
+        gatewayBlockDeviceWrite.put("tool_args", blockDeviceWriteArgs);
+        TestTrace blockDeviceWriteTrace = new TestTrace();
+
+        service.buildInterceptor()
+                .onAction(blockDeviceWriteTrace, "call_tool", gatewayBlockDeviceWrite);
+
+        assertThat(blockDeviceWriteTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(blockDeviceWriteTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("裸块设备");
+        assertThat(service.getPendingApproval(blockDeviceWriteTrace.session)).isNull();
+
+        Map<String, Object> deviceReadArgs = new LinkedHashMap<String, Object>();
+        deviceReadArgs.put("path", "/dev/zero");
+        Map<String, Object> gatewayDeviceRead = new LinkedHashMap<String, Object>();
+        gatewayDeviceRead.put("tool_name", "read_file");
+        gatewayDeviceRead.put("tool_args", deviceReadArgs);
+        TestTrace deviceReadTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(deviceReadTrace, "call_tool", gatewayDeviceRead);
+
+        assertThat(deviceReadTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(deviceReadTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("设备文件");
+        assertThat(service.getPendingApproval(deviceReadTrace.session)).isNull();
+
+        Map<String, Object> hubReadArgs = new LinkedHashMap<String, Object>();
+        hubReadArgs.put("path", "skills/.hub/index-cache/catalog.json");
+        Map<String, Object> gatewayHubRead = new LinkedHashMap<String, Object>();
+        gatewayHubRead.put("tool_name", "read_file");
+        gatewayHubRead.put("tool_args", hubReadArgs);
+        TestTrace hubReadTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(hubReadTrace, "call_tool", gatewayHubRead);
+
+        assertThat(hubReadTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(hubReadTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("Skills Hub");
+        assertThat(service.getPendingApproval(hubReadTrace.session)).isNull();
+
+        Map<String, Object> traversalArgs = new LinkedHashMap<String, Object>();
+        traversalArgs.put("path", "../runtime/config.yml");
+        Map<String, Object> gatewayTraversal = new LinkedHashMap<String, Object>();
+        gatewayTraversal.put("tool_name", "read_file");
+        gatewayTraversal.put("tool_args", traversalArgs);
+        TestTrace traversalTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(traversalTrace, "call_tool", gatewayTraversal);
+
+        assertThat(traversalTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(traversalTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("路径遍历");
+        assertThat(service.getPendingApproval(traversalTrace.session)).isNull();
+
+        Map<String, Object> controlPathArgs = new LinkedHashMap<String, Object>();
+        controlPathArgs.put("path", "logs/\u001B]0;hidden\u0007report.txt");
+        Map<String, Object> gatewayControlPath = new LinkedHashMap<String, Object>();
+        gatewayControlPath.put("tool_name", "write_file");
+        gatewayControlPath.put("tool_args", controlPathArgs);
+        TestTrace controlPathTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(controlPathTrace, "call_tool", gatewayControlPath);
+
+        assertThat(controlPathTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(controlPathTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("非法字符");
+        assertThat(service.getPendingApproval(controlPathTrace.session)).isNull();
+
         Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
         pythonArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
         Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
@@ -8452,6 +8560,32 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(codeTrace.getFinalAnswer()).contains("需要审批").contains("Python recursive delete");
         assertThat(codePending).isNotNull();
         assertThat(codePending.getToolName()).isEqualTo("execute_code");
+    }
+
+    @Test
+    void shouldBlockGatewayWritesOutsideConfiguredSafeRootBeforeApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> writeArgs = new LinkedHashMap<String, Object>();
+        writeArgs.put("path", "D:/workspace/other/file.txt");
+        writeArgs.put("content", "outside");
+        Map<String, Object> gatewayWrite = new LinkedHashMap<String, Object>();
+        gatewayWrite.put("tool_name", "write_file");
+        gatewayWrite.put("tool_args", writeArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayWrite);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("安全写入根");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
     @Test
