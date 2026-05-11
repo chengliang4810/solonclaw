@@ -706,6 +706,32 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockSignedObjectStorageUrlsAndNestedSignedUrls() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict objectStorage =
+                policy.checkUrl(
+                        "https://bucket.example.com/file?OSSAccessKeyId=ak&Signature=sig&Expires=9999999999");
+        SecurityPolicyService.UrlVerdict nested =
+                policy.checkUrl(
+                        "https://example.com/download?next=https%253A%252F%252Fcdn.example%252Ffile%253Fx-amz-signature%253Dsecret");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandUrls(
+                        "curl \"https://bucket.example.com/file?AWSAccessKeyId=ak&Signature=sig&Expires=9999999999\"");
+        SecurityPolicyService.UrlVerdict safe =
+                policy.checkUrl("https://example.com/search?signature=public-docs&page=1");
+
+        assertThat(objectStorage.isAllowed()).isFalse();
+        assertThat(objectStorage.getMessage()).contains("敏感凭据参数");
+        assertThat(nested.isAllowed()).isFalse();
+        assertThat(nested.getMessage()).contains("敏感凭据参数");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("敏感凭据参数");
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInSchemelessUrls() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");

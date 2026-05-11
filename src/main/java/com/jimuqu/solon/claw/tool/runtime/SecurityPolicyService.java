@@ -3336,11 +3336,17 @@ public class SecurityPolicyService {
         if (value.length() == 0) {
             return false;
         }
+        if (containsSignedUrlParameterSet(value)) {
+            return true;
+        }
         if (containsSensitiveParameterNameInCandidate(value)) {
             return true;
         }
         String decoded = decodeUrlComponent(value);
         if (!decoded.equals(value)) {
+            if (containsSignedUrlParameterSet(decoded)) {
+                return true;
+            }
             return containsSensitiveParameterNameInCandidate(decoded);
         }
         return false;
@@ -3365,13 +3371,78 @@ public class SecurityPolicyService {
                 rawParameterValue = name.substring(equals + 1);
                 name = name.substring(0, equals);
             }
+            if (containsNestedSensitiveParameterName(rawParameterValue)) {
+                return true;
+            }
             if (isStrongSensitiveUrlParameterName(name)
                     || (isSensitiveUrlParameterName(name)
+                            && !isGenericSignatureParameterName(name)
                             && looksLikeSensitiveUrlParameterValue(rawParameterValue))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean containsNestedSensitiveParameterName(String rawValue) {
+        String value = decodeUrlComponent(rawValue);
+        if (value.equals(StrUtil.nullToEmpty(rawValue))) {
+            return false;
+        }
+        if (value.indexOf('?') < 0 && value.indexOf('&') < 0 && value.indexOf(';') < 0) {
+            return false;
+        }
+        return containsSensitiveParameterName(value);
+    }
+
+    private boolean containsSignedUrlParameterSet(String rawParameters) {
+        String[] parameters = StrUtil.nullToEmpty(rawParameters).split("[&;]");
+        boolean signature = false;
+        boolean accessKey = false;
+        boolean credential = false;
+        boolean expires = false;
+        for (String parameter : parameters) {
+            String name = parameterName(parameter);
+            if (name.length() == 0) {
+                continue;
+            }
+            if ("signature".equals(name)) {
+                signature = true;
+            }
+            if ("awsaccesskeyid".equals(name)
+                    || "ossaccesskeyid".equals(name)
+                    || "accesskeyid".equals(name)
+                    || "access_key_id".equals(name)) {
+                accessKey = true;
+            }
+            if ("credential".equals(name)
+                    || name.endsWith("_credential")
+                    || "security_token".equals(name)
+                    || name.endsWith("_security_token")) {
+                credential = true;
+            }
+            if ("expires".equals(name) || "expiration".equals(name) || name.endsWith("_expires")) {
+                expires = true;
+            }
+        }
+        return signature && (accessKey || credential || expires);
+    }
+
+    private String parameterName(String rawParameter) {
+        String name = StrUtil.nullToEmpty(rawParameter);
+        int question = name.indexOf('?');
+        if (question >= 0) {
+            name = name.substring(question + 1);
+        }
+        int hash = name.indexOf('#');
+        if (hash >= 0) {
+            name = name.substring(hash + 1);
+        }
+        int equals = name.indexOf('=');
+        if (equals >= 0) {
+            name = name.substring(0, equals);
+        }
+        return normalizeSensitiveParameterName(name);
     }
 
     private boolean isStrongSensitiveUrlParameterName(String rawName) {
@@ -3392,6 +3463,10 @@ public class SecurityPolicyService {
                 || name.startsWith("x_obs_")
                 || name.startsWith("x_ms_")
                 || "security_token".equals(name);
+    }
+
+    private boolean isGenericSignatureParameterName(String rawName) {
+        return "signature".equals(normalizeSensitiveParameterName(rawName));
     }
 
     private boolean isSensitiveUrlParameterName(String rawName) {
