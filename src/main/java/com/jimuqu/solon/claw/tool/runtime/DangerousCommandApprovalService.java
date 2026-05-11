@@ -658,13 +658,29 @@ public class DangerousCommandApprovalService {
                                     "credential_file_archive",
                                     "archive credential files",
                                     pattern(
-                                            "\\b(?:tar|bsdtar|gtar)\\b(?=[^\\n]*(?:\\s(?:-c[^\\s]*|--create)\\b|\\sc[A-Za-z]*f?\\b))(?=[^\\n]*"
+                                            "\\b(?:tar|bsdtar|gtar)\\s+(?:-[A-Za-z]*c[A-Za-z]*|c[A-Za-z]*f?|--create)\\b(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
-                                                    + ")|\\b(?:zip|7z|7za)\\b(?=[^\\n]*\\.(?:zip|7z|tar|tgz|gz|xz)\\b)(?=[^\\n]*"
+                                                    + ")|\\bzip\\b(?=[^\\n]*\\.(?:zip|7z|tar|tgz|gz|xz)\\b)(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\b(?:7z|7za)\\s+a\\b(?=[^\\n]*\\.(?:zip|7z|tar|tgz|gz|xz)\\b)(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")|\\bCompress-Archive\\b(?=[^\\n]*(?:-Path\\b|-LiteralPath\\b|\\.zip\\b))(?=[^\\n]*"
                                                     + NETWORK_CREDENTIAL_FILE_TARGET
                                                     + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "credential_file_archive_member_output",
+                                    "read credential file member from archive",
+                                    pattern(
+                                            "(?:\\b(?:tar|bsdtar|gtar)\\s+(?:-[A-Za-z]*[tx][A-Za-z]*|[tTxX][A-Za-z]*f?|--list|--extract)\\b(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\bunzip\\b(?=[^\\n]*(?:\\s-p\\b|\\s-l\\b|\\s-c\\b))(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\bzipinfo\\b(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\b(?:7z|7za)\\s+(?:l|e|x)\\b(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "credential_file_copy_to_shared_location",

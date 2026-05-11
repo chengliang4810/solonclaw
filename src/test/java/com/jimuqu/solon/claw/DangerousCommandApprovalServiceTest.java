@@ -3536,6 +3536,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileArchiveMemberOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "tar -tf backup.tgz .env",
+                        "tar xf backup.tgz credentials.json",
+                        "bsdtar --list -f backup.tar client_secret.json",
+                        "unzip -p backup.zip token.json",
+                        "zipinfo backup.zip .anthropic_oauth.json",
+                        "7z l backup.7z service-account.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_archive_member_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "tar -tf backup.tgz report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "unzip -l backup.zip report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "7z l backup.7z report.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileArchiveCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
