@@ -5200,6 +5200,30 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockUnsupportedNetworkSchemesInToolArgs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "ftp://example.com/private.txt",
+                        "sftp://example.com/private.txt",
+                        "scp://example.com/private.txt");
+
+        for (String url : blocked) {
+            Map<String, Object> args = new LinkedHashMap<String, Object>();
+            args.put("url", url);
+            SecurityPolicyService.UrlVerdict verdict =
+                    securityPolicyService.checkToolArgs("webfetch", args);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
+            assertThat(verdict.getMessage()).contains("仅允许 http/https/ws/wss");
+        }
+
+        Map<String, Object> summary = securityPolicyService.toolArgsPolicySummary();
+        assertThat(summary.get("unsupportedNetworkSchemeChecked")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
     void shouldBlockSecretLikeTokensInUrlsBeforeNetworkAccess() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
