@@ -442,6 +442,8 @@ public class SecurityPolicyServiceTest {
                 policy.checkUrl("https://example.com/oauth/access_token/secret123");
         SecurityPolicyService.UrlVerdict command =
                 policy.checkCommandUrls("curl https://example.com/oauth/refresh_token/secret123");
+        SecurityPolicyService.UrlVerdict encodedCommand =
+                policy.checkCommandUrls("curl https://example.com/callback?api%25255Fkey=secret123");
         SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("remote_fetch", args);
         SecurityPolicyService.UrlVerdict safe =
                 policy.checkUrl("https://example.com/docs/access_token");
@@ -454,6 +456,8 @@ public class SecurityPolicyServiceTest {
         assertThat(directSegment.getMessage()).contains("敏感凭据参数");
         assertThat(command.isAllowed()).isFalse();
         assertThat(command.getMessage()).contains("敏感凭据参数");
+        assertThat(encodedCommand.isAllowed()).isFalse();
+        assertThat(encodedCommand.getMessage()).contains("敏感凭据参数");
         assertThat(toolArg.isAllowed()).isFalse();
         assertThat(toolArg.getMessage()).contains("敏感凭据参数");
         assertThat(safe.isAllowed()).isTrue();
