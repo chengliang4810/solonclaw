@@ -95,12 +95,15 @@ function Normalize-ReleaseItem {
 
     Assert-CleanReleaseText $Item.Subject
     Assert-CleanReleaseText $Item.Body
+    foreach ($file in @($Item.Files)) {
+        Assert-CleanReleaseText $file
+    }
     $subject = $Item.Subject
     if ($subject -notmatch "\s/\s") {
         $subject = ("提交：{0} / Commit: {0}" -f $subject)
     }
 
-    $details = Format-ReleaseDetails $Item.Body
+    $details = Format-ReleaseDetails $Item.Body $Item.Files
     if ([string]::IsNullOrWhiteSpace($details)) {
         return $subject
     }
@@ -108,24 +111,37 @@ function Normalize-ReleaseItem {
 }
 
 function Format-ReleaseDetails {
-    param([string] $Body)
+    param(
+        [string] $Body,
+        [string[]] $Files
+    )
 
-    if ([string]::IsNullOrWhiteSpace($Body)) {
+    $bodyLines = @()
+    if (-not [string]::IsNullOrWhiteSpace($Body)) {
+        $bodyLines = @($Body -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+    if ($bodyLines.Length -eq 0 -and @($Files).Length -eq 0) {
         return ""
     }
 
-    $lines = @($Body -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    if ($lines.Length -eq 0) {
-        return ""
+    if ($bodyLines.Length -gt 0) {
+        $formatted = @("  详情 / Details:")
+    } else {
+        $formatted = @("  影响文件 / Changed files:")
     }
-
-    $formatted = @("  详情 / Details:")
-    foreach ($line in $lines) {
+    foreach ($line in $bodyLines) {
         $detail = $line
         if ($detail -match "^[-*]\s+") {
             $detail = ($detail -replace "^[-*]\s+", "")
         }
         $formatted += ("  - " + $detail)
+    }
+    if ($bodyLines.Length -eq 0) {
+        foreach ($file in @($Files)) {
+            if (-not [string]::IsNullOrWhiteSpace($file)) {
+                $formatted += ("  - " + $file)
+            }
+        }
     }
     return ($formatted -join [Environment]::NewLine)
 }
@@ -133,13 +149,28 @@ function Format-ReleaseDetails {
 function New-CommitEntry {
     param(
         [string] $Subject,
-        [string] $Body
+        [string] $Body,
+        [string[]] $Files
     )
 
     return [PSCustomObject]@{
         Subject = $Subject
         Body = $Body
+        Files = @($Files)
     }
+}
+
+function Get-CommitFiles {
+    param([string] $Commit)
+
+    if ([string]::IsNullOrWhiteSpace($Commit)) {
+        return @()
+    }
+    $files = & git diff-tree --no-commit-id --name-only -r --root $Commit 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return @()
+    }
+    return @($files | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
 function Get-CommitEntries {
@@ -147,7 +178,7 @@ function Get-CommitEntries {
 
     $separator = [string] [char] 31
     $recordSeparator = [string] [char] 30
-    $rawLines = & git log --pretty=format:"%s%x1f%b%x1e" $Range 2>$null
+    $rawLines = & git log --pretty=format:"%H%x1f%s%x1f%b%x1e" $Range 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw ("Failed to read git commits for range: {0}" -f $Range)
     }
@@ -157,17 +188,21 @@ function Get-CommitEntries {
         if ([string]::IsNullOrWhiteSpace($record)) {
             continue
         }
-        $parts = $record -split [Regex]::Escape($separator), 2
+        $parts = $record -split [Regex]::Escape($separator), 3
+        $commit = ""
         $subject = ""
         $body = ""
         if ($parts.Length -gt 0) {
-            $subject = ($parts[0] -as [string]).Trim()
+            $commit = ($parts[0] -as [string]).Trim()
         }
         if ($parts.Length -gt 1) {
-            $body = ($parts[1] -as [string]).Trim()
+            $subject = ($parts[1] -as [string]).Trim()
+        }
+        if ($parts.Length -gt 2) {
+            $body = ($parts[2] -as [string]).Trim()
         }
         if (-not [string]::IsNullOrWhiteSpace($subject)) {
-            $entries += (New-CommitEntry -Subject $subject -Body $body)
+            $entries += (New-CommitEntry -Subject $subject -Body $body -Files (Get-CommitFiles $commit))
         }
     }
     return $entries
@@ -233,6 +268,9 @@ Empty commit range; the current commit was used to generate these release notes.
 foreach ($commit in $commits) {
     Assert-CleanReleaseText $commit.Subject
     Assert-CleanReleaseText $commit.Body
+    foreach ($file in @($commit.Files)) {
+        Assert-CleanReleaseText $file
+    }
 }
 
 $featurePattern = '(^|\b)(feat|feature)(\(.+\))?:|功能|新增|支持|对齐|补齐|完善|实现|add|implement|support|align|complete|improve'

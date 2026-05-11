@@ -442,6 +442,9 @@ try {
         if ($cleanReleaseText -notmatch "fix: clean release notes / Clean release notes") {
             throw "Release notes generation did not include the clean commit subject."
         }
+        if ($cleanReleaseText -notmatch "fix: clean release notes / Clean release notes[\s\S]*影响文件 / Changed files:[\s\S]*README\.md") {
+            throw "Release notes generation did not include changed files for commits without body details."
+        }
         if ($cleanReleaseText -notmatch "### 功能 / Features[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note") {
             throw "Release notes generation did not classify scoped feat commits as features."
         }
