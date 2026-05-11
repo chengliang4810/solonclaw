@@ -5224,6 +5224,25 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockUnsupportedNetworkSchemesInShellCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        List<String> blocked =
+                Arrays.asList(
+                        "curl ftp://example.com/private.txt",
+                        "curl sftp://example.com/private.txt",
+                        "scp scp://example.com/private.txt ./private.txt");
+
+        for (String command : blocked) {
+            SecurityPolicyService.UrlVerdict verdict =
+                    securityPolicyService.checkCommandUrls(command);
+            assertThat(verdict.isAllowed()).as("expected %s to be blocked", command).isFalse();
+            assertThat(verdict.getMessage()).contains("仅允许 http/https/ws/wss");
+        }
+    }
+
+    @Test
     void shouldBlockSecretLikeTokensInUrlsBeforeNetworkAccess() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
