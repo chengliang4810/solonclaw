@@ -146,11 +146,17 @@ Assert-CleanReleaseText $CommitRange
 Assert-CleanReleaseText $DisplayRange
 Invoke-ProjectNamingGuard $CommitRange
 $commits = Get-CommitSubjects $CommitRange
+$rangeFallbackNote = ""
 if ($commits.Length -eq 0) {
     $commits = Get-HeadCommitSubject
     $DisplayRange = (& git rev-parse --short HEAD).Trim()
     Assert-CleanReleaseText $DisplayRange
     Invoke-ProjectNamingGuard "HEAD"
+    $rangeFallbackNote = @"
+空提交范围，已使用当前提交生成发布说明。
+Empty commit range; the current commit was used to generate these release notes.
+
+"@
 }
 foreach ($commit in $commits) {
     Assert-CleanReleaseText $commit
@@ -178,6 +184,7 @@ These release notes are grouped by commit type and keep bilingual summaries; fea
 提交范围：``$DisplayRange``
 Commit range: ``$DisplayRange``
 
+$rangeFallbackNote
 ### 功能 / Features
 
 $(Write-Items $features "本次发布没有单独标记为 feat 的提交。 / No commits were explicitly marked as feat in this release.")

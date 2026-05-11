@@ -479,6 +479,12 @@ try {
         if ($emptyRangeReleaseText -notmatch "Commit range: ``[0-9a-f]{7,}``") {
             throw "Release notes empty-range fallback did not replace display range with the current short commit."
         }
+        if ($emptyRangeReleaseText -notmatch "空提交范围，已使用当前提交生成发布说明。") {
+            throw "Release notes empty-range fallback did not include the Chinese fallback note."
+        }
+        if ($emptyRangeReleaseText -notmatch "Empty commit range; the current commit was used to generate these release notes.") {
+            throw "Release notes empty-range fallback did not include the English fallback note."
+        }
     } finally {
         Pop-Location
     }
