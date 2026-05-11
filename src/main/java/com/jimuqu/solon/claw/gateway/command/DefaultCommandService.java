@@ -3338,35 +3338,7 @@ public class DefaultCommandService implements CommandService {
 
     private DangerousCommandApprovalService.PendingApproval selectPendingApproval(
             SqliteAgentSession agentSession, String selector) {
-        java.util.List<DangerousCommandApprovalService.PendingApproval> pendingApprovals =
-                dangerousCommandApprovalService.listPendingApprovals(agentSession);
-        if (pendingApprovals.isEmpty()) {
-            return null;
-        }
-        if (StrUtil.isBlank(selector)) {
-            return pendingApprovals.get(0);
-        }
-        String value = SecretRedactor.stripDisplayControls(selector).trim();
-        if (value.startsWith("#")) {
-            value = value.substring(1);
-        }
-        try {
-            int index = Integer.parseInt(value);
-            if (index >= 1 && index <= pendingApprovals.size()) {
-                return pendingApprovals.get(index - 1);
-            }
-        } catch (Exception ignored) {
-            // continue with id/key matching
-        }
-        for (DangerousCommandApprovalService.PendingApproval item : pendingApprovals) {
-            if (value.equals(item.getApprovalId())
-                    || value.equals(item.approvalKey())
-                    || (item.getApprovalId() != null && item.getApprovalId().startsWith(value))
-                    || (item.approvalKey() != null && item.approvalKey().startsWith(value))) {
-                return item;
-            }
-        }
-        return null;
+        return dangerousCommandApprovalService.selectPendingApproval(agentSession, selector);
     }
 
     private ApprovalCommandArgs parseApprovalCommandArgs(String args) {

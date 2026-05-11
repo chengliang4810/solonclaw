@@ -2125,6 +2125,10 @@ public class DangerousCommandApprovalService {
         return pending;
     }
 
+    public PendingApproval selectPendingApproval(AgentSession session, String selector) {
+        return findPendingApproval(session, selector);
+    }
+
     public PendingApproval getPendingApproval(
             com.jimuqu.solon.claw.core.model.SessionRecord sessionRecord) {
         List<PendingApproval> pendingApprovals = listPendingApprovals(sessionRecord);

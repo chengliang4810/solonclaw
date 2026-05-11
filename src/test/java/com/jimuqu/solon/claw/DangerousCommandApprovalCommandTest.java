@@ -6,6 +6,9 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DangerousCommandApprovalCommandTest {
@@ -284,6 +287,112 @@ public class DangerousCommandApprovalCommandTest {
                 .doesNotContain("\u202E")
                 .doesNotContain("ghp_commandsecret123");
         assertThat(approved.getContent()).isEqualTo("echo:resume");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldApproveUnsafeApprovalIdThroughSafeKeySelector() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-key-selector", "user-key-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-key-selector", "user-key-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-key-selector:user-key-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-key-selector:user-key-selector"),
+                        env.sessionRepository);
+        DangerousCommandApprovalService.PendingApproval pending =
+                env.dangerousCommandApprovalService.getPendingApproval(restoredAgentSession);
+        String safeSelector = DangerousCommandApprovalService.approvalSelector(pending);
+
+        assertThat(safeSelector).startsWith("key_");
+        GatewayReply approved =
+                env.send(
+                        "room-key-selector",
+                        "user-key-selector",
+                        "/approve " + safeSelector + " session");
+        SessionRecord updated =
+                env.sessionRepository.getBoundSession("MEMORY:room-key-selector:user-key-selector");
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectShortKeySelectorPrefix() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-short-selector", "user-short-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-short-selector", "user-short-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-short-selector:user-short-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-short-selector:user-short-selector"),
+                        env.sessionRepository);
+        String safeSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                restoredAgentSession));
+
+        GatewayReply rejected =
+                env.send(
+                        "room-short-selector",
+                        "user-short-selector",
+                        "/approve " + safeSelector.substring(0, 7) + " session");
+
+        assertThat(rejected.isError()).isTrue();
+        assertThat(rejected.getContent()).contains("待审批的危险命令");
+        assertThat(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                new SqliteAgentSession(
+                                        env.sessionRepository.getBoundSession(
+                                                "MEMORY:room-short-selector:user-short-selector"),
+                                        env.sessionRepository)))
+                .isNotNull();
     }
 
     @Test
