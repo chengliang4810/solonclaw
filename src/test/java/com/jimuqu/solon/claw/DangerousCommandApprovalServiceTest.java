@@ -1008,6 +1008,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult dockerBuildSecretEnv =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker build --secret id=token,env=API_TOKEN .");
+        DangerousCommandApprovalService.DetectionResult dockerBuildSecretEnvAlias =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "docker buildx build --secret id=aws,env=AWS_SECRET_ACCESS_KEY .");
         DangerousCommandApprovalService.DetectionResult dockerBuildSshKey =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "docker buildx build --ssh default=~/.ssh/id_ed25519 .");
@@ -1406,6 +1409,9 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerBuildSecretSrc.getPatternKey()).isEqualTo("container_secret_exposure");
         assertThat(dockerBuildSecretEnv).isNotNull();
         assertThat(dockerBuildSecretEnv.getPatternKey()).isEqualTo("container_secret_exposure");
+        assertThat(dockerBuildSecretEnvAlias).isNotNull();
+        assertThat(dockerBuildSecretEnvAlias.getPatternKey())
+                .isEqualTo("container_secret_exposure");
         assertThat(dockerBuildSshKey).isNotNull();
         assertThat(dockerBuildSshKey.getPatternKey()).isEqualTo("container_secret_exposure");
         assertThat(dockerPlainBuild).isNull();
