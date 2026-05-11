@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -76,6 +77,9 @@ public final class TerminalSecurityPolicyView {
         }
         if ("credentials".equals(mode)) {
             return renderCredentialPolicy(securityPolicyService.credentialPolicySummary());
+        }
+        if ("skill-credentials".equals(mode)) {
+            return renderSkillCredentialPolicy(new SkillCredentialFileService(config).policySummary());
         }
         if ("tool-args".equals(mode)) {
             return renderToolArgsPolicy(securityPolicyService.toolArgsPolicySummary());
@@ -169,6 +173,9 @@ public final class TerminalSecurityPolicyView {
         }
         if (rest.startsWith("path")) {
             return "paths";
+        }
+        if (rest.startsWith("skill-credential") || rest.startsWith("skill-secret")) {
+            return "skill-credentials";
         }
         if (rest.startsWith("credential") || rest.startsWith("secret")) {
             return "credentials";
@@ -277,7 +284,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -312,6 +319,14 @@ public final class TerminalSecurityPolicyView {
                 .append(value(credential, "pathSuffixCount"))
                 .append(" configured=")
                 .append(value(credential, "configuredCredentialFileCount"));
+        Map<String, Object> skillCredential = new SkillCredentialFileService(config).policySummary();
+        buffer.append('\n')
+                .append("- 技能凭据：configured=")
+                .append(value(skillCredential, "configCredentialFileCount"))
+                .append(" mounted=")
+                .append(value(skillCredential, "configuredMountCount"))
+                .append(" traversalRejected=")
+                .append(value(skillCredential, "pathTraversalRejected"));
         Map<String, Object> tirith = new TirithSecurityService(config).policySummary();
         buffer.append('\n')
                 .append("- Tirith：enabled=")
@@ -775,6 +790,47 @@ public final class TerminalSecurityPolicyView {
                 .append(value(credential, "configuredCredentialFileCount"))
                 .append(" envExamplesAllowed=")
                 .append(value(credential, "envExampleFilesAllowed"));
+        return buffer.toString();
+    }
+
+    private static String renderSkillCredentialPolicy(Map<String, Object> skillCredential) {
+        StringBuilder buffer = new StringBuilder("技能凭据文件安全策略摘要：");
+        buffer.append('\n')
+                .append("- 配置：configCount=")
+                .append(value(skillCredential, "configCredentialFileCount"))
+                .append(" mounted=")
+                .append(value(skillCredential, "configuredMountCount"))
+                .append(" missing=")
+                .append(value(skillCredential, "configuredMissingCount"))
+                .append(" rejected=")
+                .append(value(skillCredential, "configuredRejectedCount"));
+        buffer.append('\n')
+                .append("- 沙箱：credentialMounts=")
+                .append(value(skillCredential, "sandboxCredentialMountCount"))
+                .append(" skillsDirs=")
+                .append(value(skillCredential, "skillsDirectoryMountCount"))
+                .append(" cacheDirs=")
+                .append(value(skillCredential, "cacheDirectoryMountCount"))
+                .append(" base=")
+                .append(value(skillCredential, "defaultContainerBase"));
+        buffer.append('\n')
+                .append("- 路径：relativeOnly=")
+                .append(value(skillCredential, "runtimeRelativeOnly"))
+                .append(" absoluteRejected=")
+                .append(value(skillCredential, "absolutePathRejected"))
+                .append(" traversalRejected=")
+                .append(value(skillCredential, "pathTraversalRejected"))
+                .append(" escapeRejected=")
+                .append(value(skillCredential, "runtimeHomeEscapeRejected"));
+        buffer.append('\n')
+                .append("- 脱敏：hostPathsHidden=")
+                .append(value(skillCredential, "hostPathsOmittedFromMetadata"))
+                .append(" rejectedRedacted=")
+                .append(value(skillCredential, "rejectedPathsRedacted"))
+                .append(" frontmatter=")
+                .append(value(skillCredential, "skillFrontmatterKey"))
+                .append(" configKey=")
+                .append(value(skillCredential, "configKey"));
         return buffer.toString();
     }
 

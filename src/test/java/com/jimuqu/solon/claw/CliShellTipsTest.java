@@ -42,6 +42,7 @@ public class CliShellTipsTest {
                         "/security website",
                         "/security paths",
                         "/security credentials",
+                        "/security skill-credentials",
                         "/security tool-args",
                         "/security lifecycle",
                         "/security mcp",
@@ -103,6 +104,7 @@ public class CliShellTipsTest {
                 .contains("/security cron-approvals")
                 .contains("/security subagent-approvals")
                 .contains("/security smart-approval")
+                .contains("/security skill-credentials")
                 .contains("/security code-execution")
                 .contains("/security process");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
@@ -123,6 +125,11 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security credentials"))
                 .contains("凭据文件策略摘要")
                 .contains(".env");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security skill-credentials"))
+                .contains("技能凭据文件安全策略摘要")
+                .contains("relativeOnly=true")
+                .contains("traversalRejected=true")
+                .contains("required_credential_files");
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-args"))
                 .contains("工具参数安全策略摘要")
                 .contains("patchTarget");
@@ -134,6 +141,8 @@ public class CliShellTipsTest {
                 .contains("私有 URL")
                 .contains("网站策略")
                 .contains("Slash 确认")
+                .contains("技能凭据")
+                .contains("traversalRejected=true")
                 .contains("审批生命周期")
                 .contains("tirithDowngrade=true")
                 .contains("Cron 审批")
