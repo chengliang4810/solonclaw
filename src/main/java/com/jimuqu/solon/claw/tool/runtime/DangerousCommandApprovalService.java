@@ -896,6 +896,16 @@ public class DangerousCommandApprovalService {
                                                     + "(?:ssh|scp|sftp)\\b[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\brsync\\b[^\\n]*(?:\\s-e\\s*[\"']?ssh\\b|\\s--rsh(?:=|\\s+)[\"']?ssh\\b)[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\bgit\\b[^\\n]*\\s-c\\s+core\\.sshCommand\\s*=\\s*[\"']?ssh\\b[^\\n]*(?:\\s(?-i:-[iF])\\s*\\S+|\\s-o\\s*(?:IdentityFile|CertificateFile|UserKnownHostsFile|GlobalKnownHostsFile|HostKey|HostCertificate|HostKeyAlias)=\\S+)|\\b(?:curl|wget)\\b[^\\n]*\\s(?:(?-i:-[bcEK])\\s*\\S+|--(?:netrc-file|cookie|cookie-jar|load-cookies|config)(?:=|\\s+)\\S+)|\\b(?:kubectl|helm)\\b[^\\n]*\\s--kubeconfig(?:=|\\s+)\\S+|\\bgcloud\\b[^\\n]*\\s--(?:key-file|credential-file|credentials-file)(?:=|\\s+)\\S+|\\baz\\b[^\\n]*\\s--(?:cert|key|password-file)(?:=|\\s+)\\S+|\\bopenssl\\b[^\\n]*\\s-(?:key|cert|CAfile|CApath)\\s+\\S+|\\b(?:ansible|ansible-playbook)\\b[^\\n]*\\s--(?:private-key|key-file)(?:=|\\s+)\\S+|\\b(?:npm|pnpm|yarn)\\b[^\\n]*\\s--(?:userconfig|globalconfig)(?:=|\\s+)\\S+|\\b(?:rclone|s3cmd|coscli)\\b[^\\n]*\\s--config(?:=|\\s+)\\S+|\\bossutil\\b[^\\n]*\\s--config-file(?:=|\\s+)\\S+|\\bobsutil\\b[^\\n]*\\s-config(?:=|\\s+)\\S+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_config_option",
+                                    "credential file passed as generic configuration option",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?!curl\\b|wget\\b|ssh\\b|scp\\b|sftp\\b|rsync\\b|git\\b|kubectl\\b|helm\\b|gcloud\\b|az\\b|openssl\\b|ansible\\b|ansible-playbook\\b|npm\\b|pnpm\\b|yarn\\b|rclone\\b|s3cmd\\b|coscli\\b|ossutil\\b|obsutil\\b|docker\\b|podman\\b|nerdctl\\b|buildah\\b)\\S+\\b[^\\n|;&]*\\s--(?:config|config-file|config-path|env-file|dotenv|credentials-file|credential-file|key-file|secrets-file|secret-file)(?:=|\\s+)\\S*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|(?:^|[;&|\\n`])\\s*(?!openssl\\b|docker\\b|podman\\b|nerdctl\\b|buildah\\b)\\S+\\b[^\\n|;&]*\\s(?:-c|-f)(?:\\s+|=)\\S*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "tls_certificate_check_disabled",
                                     "TLS certificate verification disabled",
                                     pattern(

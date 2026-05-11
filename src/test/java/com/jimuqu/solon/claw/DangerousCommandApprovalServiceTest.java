@@ -3996,6 +3996,44 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectGenericCredentialConfigOptionCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "mytool --config .env run",
+                        "agentctl --config-file=credentials.json run",
+                        "deployctl --config-path client_secret.json apply",
+                        "runner --env-file .env.production start",
+                        "worker --credentials-file service-account.json sync",
+                        "syncer --credential-file ~/.config/gcloud/application_default_credentials.json",
+                        "app --key-file private-prod.pem connect",
+                        "backup --secrets-file token.json",
+                        "localtool -f .npmrc run",
+                        "localtool -c .netrc run");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_config_option");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "mytool --config report.json run"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "localtool -f report.txt run"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "curl --config .curlrc https://example.com"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("network_credential_file_send");
+    }
+
+    @Test
     void shouldDetectTlsCertificateVerificationBypassCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
