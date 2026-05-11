@@ -2958,6 +2958,19 @@ public class DashboardControllerHttpTest {
     void shouldWrapDashboardConfigSaveErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
+        HttpResult invalidSaveJson =
+                request(
+                        "PUT",
+                        "/api/config",
+                        "{\"config\":{\"terminal\":{\"credentialFiles\":[\"ghp_invalidconfig12345\"]}}",
+                        token);
+        assertThat(invalidSaveJson.status).isEqualTo(400);
+        assertThat(invalidSaveJson.body)
+                .contains("CONFIG_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidconfig12345")
+                .doesNotContain("credentialFiles");
+
         HttpResult unsupportedSave =
                 request(
                         "PUT",
@@ -2969,6 +2982,19 @@ public class DashboardControllerHttpTest {
                 .contains("CONFIG_BAD_REQUEST")
                 .contains("runtime-relative paths")
                 .doesNotContain("ghp_configsave12345");
+
+        HttpResult invalidRawJson =
+                request(
+                        "PUT",
+                        "/api/config/raw",
+                        "{\"yaml_text\":\"apiKey: ghp_invalidrawconfig12345\"",
+                        token);
+        assertThat(invalidRawJson.status).isEqualTo(400);
+        assertThat(invalidRawJson.body)
+                .contains("CONFIG_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidrawconfig12345")
+                .doesNotContain("apiKey");
 
         HttpResult unsupportedRaw =
                 request(
