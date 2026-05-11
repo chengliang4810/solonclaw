@@ -104,7 +104,8 @@ public class TuiShellHeaderTest {
                 .contains("/tips")
                 .contains("/goal")
                 .contains("/recap")
-                .contains("/reload-mcp");
+                .contains("/reload-mcp")
+                .contains("/acp");
     }
 
     @Test

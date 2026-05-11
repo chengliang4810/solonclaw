@@ -331,8 +331,8 @@ public class TuiShell {
         writer.println(skin.bold("Jimuqu Agent TUI"));
         writer.println(skin.dim(statusLine(sessionId)));
         writer.println(
-                skin.dim(
-                        "tips: /help 命令  /tips 提示  /tasks 任务  /queue 排队  /steer 引导  /sessions 会话  /goal 目标  /recap 摘要  /reload-mcp MCP  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
+                        skin.dim(
+                                "tips: /help 命令  /tips 提示  /tasks 任务  /queue 排队  /steer 引导  /sessions 会话  /goal 目标  /recap 摘要  /reload-mcp MCP  /acp 状态  /events 事件  /skin 皮肤  /copy 复制  /exit 退出"));
         writer.println(skin.dim("tip: " + TerminalTips.current(sessionId)));
         writer.println(skin.dim(TerminalShortcuts.helpLine()));
         writer.println(skin.dim(skin.border()));
