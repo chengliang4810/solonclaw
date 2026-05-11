@@ -2936,6 +2936,10 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> skillBinding = (Map<?, ?>) policy.get("skill_binding");
         Map<?, ?> execution = (Map<?, ?>) policy.get("execution");
 
+        assertThat(String.valueOf(payload.get("update_fields"))).contains("wrap_response");
+        assertThat(String.valueOf(payload.get("clear_fields"))).contains("deliver_thread_id");
+        assertThat(String.valueOf(payload.get("status_fields"))).contains("recent_failures");
+        assertThat(String.valueOf(payload.get("history_fields"))).contains("delivery_result");
         assertThat(String.valueOf(policy.get("actions")))
                 .contains("add")
                 .contains("edit")
