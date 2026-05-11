@@ -2358,7 +2358,7 @@ public class DangerousCommandApprovalService {
     }
 
     public boolean revokeAlwaysApproval(String approvalPattern) throws Exception {
-        String normalized = StrUtil.nullToEmpty(approvalPattern).trim();
+        String normalized = cleanApprovalValue(approvalPattern);
         if (StrUtil.isBlank(normalized)) {
             return false;
         }

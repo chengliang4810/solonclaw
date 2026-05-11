@@ -7508,6 +7508,22 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldStripDisplayControlsWhenRevokingAlwaysApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.globalSettingRepository.set(
+                com.jimuqu.solon.claw.support.constants.AgentSettingConstants
+                        .DANGEROUS_COMMAND_ALWAYS_PATTERNS,
+                ONode.serialize(Collections.singletonList("execute_shell:recursive_delete")));
+
+        assertThat(
+                        env.dangerousCommandApprovalService.revokeAlwaysApproval(
+                                "execute_shell:recursive\u202E_delete"))
+                .isTrue();
+
+        assertThat(env.dangerousCommandApprovalService.listAlwaysApprovals()).isEmpty();
+    }
+
+    @Test
     void shouldNotifyApprovalObserversForRequestAndResponseLikeJimuquHooks() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
