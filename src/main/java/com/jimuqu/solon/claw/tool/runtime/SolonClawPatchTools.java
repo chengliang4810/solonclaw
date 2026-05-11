@@ -172,6 +172,10 @@ public class SolonClawPatchTools {
         if (StrUtil.isBlank(patchText)) {
             return PatchResult.error("patch content required");
         }
+        if (!hasPatchEnvelope(patchText)) {
+            return PatchResult.error(
+                    "patch rejected: missing *** Begin Patch or *** End Patch boundary");
+        }
         List<PatchOperation> operations = parseV4a(patchText);
         if (operations.isEmpty()) {
             return PatchResult.error("patch rejected: empty patch");
@@ -195,6 +199,21 @@ public class SolonClawPatchTools {
         }
         result.diff = diff.toString();
         return result;
+    }
+
+    private boolean hasPatchEnvelope(String patchText) {
+        String normalized = patchText.replace("\r\n", "\n").replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+        boolean begin = false;
+        for (String rawLine : lines) {
+            String line = rawLine.trim();
+            if ("*** Begin Patch".equals(line) || "***Begin Patch".equals(line)) {
+                begin = true;
+            } else if (begin && ("*** End Patch".equals(line) || "***End Patch".equals(line))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<PatchOperation> parseV4a(String patchText) {

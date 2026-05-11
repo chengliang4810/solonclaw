@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -94,15 +95,17 @@ public class DashboardCuratorService {
                 while (resultSet.next()) {
                     Map<String, Object> item = new LinkedHashMap<String, Object>();
                     item.put("improvement_id", resultSet.getString("improvement_id"));
-                    item.put("session_id", resultSet.getString("session_id"));
-                    item.put("run_id", resultSet.getString("run_id"));
-                    item.put("skill_name", resultSet.getString("skill_name"));
-                    item.put("action", resultSet.getString("action"));
-                    item.put("summary", resultSet.getString("summary"));
+                    item.put("session_id", safe(resultSet.getString("session_id"), 200));
+                    item.put("run_id", safe(resultSet.getString("run_id"), 200));
+                    item.put("skill_name", safe(resultSet.getString("skill_name"), 400));
+                    item.put("action", safe(resultSet.getString("action"), 200));
+                    item.put("summary", safe(resultSet.getString("summary"), 2000));
                     item.put(
                             "changed_files",
-                            parseJson(resultSet.getString("changed_files_json")));
-                    item.put("evidence", parseJson(resultSet.getString("evidence_json")));
+                            sanitizeObject(parseJson(resultSet.getString("changed_files_json"))));
+                    item.put(
+                            "evidence",
+                            sanitizeObject(parseJson(resultSet.getString("evidence_json"))));
                     item.put("needs_review", resultSet.getInt("needs_review") != 0);
                     item.put("created_at", resultSet.getLong("created_at"));
                     improvements.add(item);
@@ -148,8 +151,8 @@ public class DashboardCuratorService {
     private Map<String, Object> map(ResultSet resultSet, boolean includeJson) throws Exception {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("report_id", resultSet.getString("report_id"));
-        map.put("status", resultSet.getString("status"));
-        map.put("summary", resultSet.getString("summary"));
+        map.put("status", safe(resultSet.getString("status"), 200));
+        map.put("summary", safe(resultSet.getString("summary"), 2000));
         map.put("report_path", curatorReference(resultSet.getString("report_path")));
         map.put("started_at", resultSet.getLong("started_at"));
         map.put("finished_at", resultSet.getLong("finished_at"));
@@ -214,6 +217,9 @@ public class DashboardCuratorService {
             }
             return result;
         }
+        if (value instanceof String) {
+            return safe((String) value, 4000);
+        }
         return value;
     }
 
@@ -222,7 +228,11 @@ public class DashboardCuratorService {
     }
 
     private String skillReference(String name) {
-        return "skill://" + StrUtil.blankToDefault(name, "unknown");
+        return "skill://" + safe(StrUtil.blankToDefault(name, "unknown"), 400);
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     private long asLong(Object value) {

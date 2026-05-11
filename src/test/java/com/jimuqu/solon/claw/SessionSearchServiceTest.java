@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SessionSearchTools;
+import com.jimuqu.solon.claw.web.DashboardSearchController;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -24,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.core.handle.Context;
+import org.noear.solon.core.handle.ContextEmpty;
 
 public class SessionSearchServiceTest {
     @Test
@@ -323,6 +326,28 @@ public class SessionSearchServiceTest {
                 .doesNotContain("ghp_1234567890abcdef");
     }
 
+    @Test
+    void shouldRedactSecretsFromSessionSearchToolResults() throws Exception {
+        SessionSearchTools tools =
+                new SessionSearchTools(new SecretBearingSessionSearchService(), "MEMORY:search-room:user");
+
+        String response = tools.sessionSearch("token", Integer.valueOf(1));
+
+        assertRedactedSearchResponse(response);
+    }
+
+    @Test
+    void shouldRedactSecretsFromDashboardSearchResults() throws Exception {
+        DashboardSearchController controller =
+                new DashboardSearchController(new SecretBearingSessionSearchService());
+        Context context = ContextEmpty.create();
+        context.paramMap().put("q", "token");
+
+        String response = ONode.serialize(controller.search(context));
+
+        assertRedactedSearchResponse(response);
+    }
+
     private AssistantMessage assistantWithToolCall(String name, String arguments) {
         Map<String, Object> function = new LinkedHashMap<String, Object>();
         function.put("name", name);
@@ -334,6 +359,19 @@ public class SessionSearchServiceTest {
         List<Map> rawCalls = new ArrayList<Map>();
         rawCalls.add(raw);
         return new AssistantMessage("", false, rawCalls);
+    }
+
+    private static void assertRedactedSearchResponse(String response) {
+        assertThat(response)
+                .contains("Bearer ***")
+                .doesNotContain("ghp_sessionid12345")
+                .doesNotContain("ghp_branchsecret12345")
+                .doesNotContain("sk-test-titlesecret")
+                .doesNotContain("ghp_previewsecret12345")
+                .doesNotContain("ghp_summarysecret12345")
+                .doesNotContain("ghp_runidsecret12345")
+                .doesNotContain("ghp_toolnamesecret12345")
+                .doesNotContain("ghp_channelsecret12345");
     }
 
     private String readToolResultMetadata(TestEnvironment env, String runId) throws Exception {
@@ -376,6 +414,22 @@ public class SessionSearchServiceTest {
         public List<SessionSearchEntry> search(String sourceKey, String query, int limit)
                 throws Exception {
             throw new IllegalArgumentException("search failed: " + query);
+        }
+    }
+
+    private static class SecretBearingSessionSearchService implements SessionSearchService {
+        @Override
+        public List<SessionSearchEntry> search(String sourceKey, String query, int limit) {
+            SessionSearchEntry entry = new SessionSearchEntry();
+            entry.setSessionId("session-ghp_sessionid12345");
+            entry.setBranchName("branch-ghp_branchsecret12345");
+            entry.setTitle("title api_key=sk-test-titlesecret");
+            entry.setMatchPreview("preview Authorization: Bearer ghp_previewsecret12345");
+            entry.setSummary("summary token=ghp_summarysecret12345");
+            entry.setRunId("run-ghp_runidsecret12345");
+            entry.setToolName("tool-ghp_toolnamesecret12345");
+            entry.setChannel("channel-ghp_channelsecret12345");
+            return java.util.Collections.singletonList(entry);
         }
     }
 }
