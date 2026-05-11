@@ -2263,6 +2263,41 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapProviderMutationErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult invalidDefault =
+                request(
+                        "PUT",
+                        "/api/model/default",
+                        "{\"providerKey\":\"missing-provider?token=default-token-secret\",\"model\":\"gpt-5-mini\"}",
+                        token);
+        assertThat(invalidDefault.status).isEqualTo(400);
+        assertThat(invalidDefault.body)
+                .contains("PROVIDER_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("default-token-secret");
+
+        HttpResult invalidFallback =
+                request(
+                        "PUT",
+                        "/api/model/fallbacks",
+                        "{\"fallbackProviders\":[{\"provider\":\"missing-fallback?token=fallback-token-secret\",\"model\":\"gpt-5-mini\"}]}",
+                        token);
+        assertThat(invalidFallback.status).isEqualTo(400);
+        assertThat(invalidFallback.body)
+                .contains("PROVIDER_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("fallback-token-secret");
+
+        HttpResult deleteDefault = request("DELETE", "/api/providers/default", null, token);
+        assertThat(deleteDefault.status).isEqualTo(400);
+        assertThat(deleteDefault.body)
+                .contains("PROVIDER_BAD_REQUEST")
+                .contains("当前默认 provider 不能删除");
+    }
+
+    @Test
     void shouldRejectBadGatewayInjectionWithoutBurningNonce() throws Exception {
         String body =
                 "{\"platform\":\"MEMORY\",\"chatId\":\"signed-chat\",\"userId\":\"signed-user\",\"text\":\"/status\"}";

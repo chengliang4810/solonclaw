@@ -73,25 +73,40 @@ public class DashboardProviderController {
     }
 
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.DELETE)
-    public Map<String, Object> delete(String providerKey) {
-        return providerService.deleteProvider(providerKey);
+    public Map<String, Object> delete(String providerKey, Context context) {
+        try {
+            return providerService.deleteProvider(providerKey);
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/model/default", method = MethodType.PUT)
     public Map<String, Object> updateDefault(Context context) throws Exception {
-        Map<String, Object> body =
-                ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class);
-        return providerService.updateDefaultModel(
-                body.get("providerKey") == null ? "" : String.valueOf(body.get("providerKey")),
-                body.get("model") == null ? "" : String.valueOf(body.get("model")));
+        try {
+            Map<String, Object> body =
+                    ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class);
+            return providerService.updateDefaultModel(
+                    body.get("providerKey") == null ? "" : String.valueOf(body.get("providerKey")),
+                    body.get("model") == null ? "" : String.valueOf(body.get("model")));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/model/fallbacks", method = MethodType.PUT)
     public Map<String, Object> updateFallbacks(Context context) throws Exception {
-        Map<String, Object> body =
-                ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class);
-        Object items = body.get("fallbackProviders");
-        return providerService.updateFallbackProviders(
-                items instanceof List ? (List<Map<String, Object>>) items : null);
+        try {
+            Map<String, Object> body =
+                    ONode.deserialize(ONode.ofJson(context.body()).toJson(), LinkedHashMap.class);
+            Object items = body.get("fallbackProviders");
+            return providerService.updateFallbackProviders(
+                    items instanceof List ? (List<Map<String, Object>>) items : null);
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+        }
     }
 }
