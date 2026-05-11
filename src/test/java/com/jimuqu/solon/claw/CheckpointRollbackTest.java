@@ -74,6 +74,34 @@ public class CheckpointRollbackTest {
     }
 
     @Test
+    void shouldRedactCheckpointPreviewPaths() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-a:user-a";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+
+        File file =
+                FileUtil.file(
+                        env.appConfig.getRuntime().getCacheDir(),
+                        "token=ghp_checkpointpreviewsecret.txt");
+        FileUtil.writeUtf8String("v1", file);
+        String checkpointId =
+                env.checkpointService
+                        .createCheckpoint(sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .getCheckpointId();
+
+        Map<String, Object> preview = env.checkpointService.preview(checkpointId);
+        String previewText = String.valueOf(preview);
+
+        assertThat(previewText)
+                .contains("file://token=***")
+                .contains("checkpoint://" + checkpointId + "/snapshots/file-0.bak")
+                .doesNotContain(env.appConfig.getRuntime().getHome())
+                .doesNotContain(env.appConfig.getRuntime().getCacheDir())
+                .doesNotContain(file.getAbsolutePath())
+                .doesNotContain("ghp_checkpointpreviewsecret");
+    }
+
+    @Test
     void shouldRedactUnsafeCheckpointRollbackPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();

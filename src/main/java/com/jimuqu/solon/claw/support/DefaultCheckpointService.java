@@ -235,9 +235,9 @@ public class DefaultCheckpointService implements CheckpointService {
         for (int i = 0; i < filesNode.size(); i++) {
             ONode item = filesNode.get(i);
             Map<String, Object> file = new LinkedHashMap<String, Object>();
-            file.put("path", item.get("path").getString());
+            file.put("path", fileReference(item.get("path").getString()));
             file.put("exists", item.get("exists").getBoolean());
-            file.put("snapshot", item.get("snapshot").getString());
+            file.put("snapshot", snapshotReference(record, item.get("snapshot").getString()));
             file.put("size_bytes", item.get("sizeBytes").getLong());
             files.add(file);
         }
@@ -247,7 +247,7 @@ public class DefaultCheckpointService implements CheckpointService {
             for (int i = 0; i < skippedNode.size(); i++) {
                 ONode item = skippedNode.get(i);
                 Map<String, Object> skippedFile = new LinkedHashMap<String, Object>();
-                skippedFile.put("path", item.get("path").getString());
+                skippedFile.put("path", fileReference(item.get("path").getString()));
                 skippedFile.put("reason", item.get("reason").getString());
                 skippedFile.put("exists", item.get("exists").getBoolean());
                 skippedFile.put("size_bytes", item.get("sizeBytes").getLong());
@@ -264,6 +264,20 @@ public class DefaultCheckpointService implements CheckpointService {
         result.put("files", files);
         result.put("skipped", skipped);
         return result;
+    }
+
+    private String fileReference(String path) {
+        return "file://" + safePath(path);
+    }
+
+    private String snapshotReference(CheckpointRecord record, String path) {
+        if (path == null || path.trim().length() == 0) {
+            return "";
+        }
+        return "checkpoint://"
+                + SecretRedactor.redact(record.getCheckpointId(), 200)
+                + "/snapshots/"
+                + safePath(path);
     }
 
     @Override
