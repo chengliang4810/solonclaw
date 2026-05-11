@@ -41,6 +41,18 @@ public final class TerminalSecurityPolicyView {
         if ("tool-args".equals(mode)) {
             return renderToolArgsPolicy(securityPolicyService.toolArgsPolicySummary());
         }
+        if ("mcp".equals(mode)) {
+            return renderMcpPolicy(McpRuntimeService.policySummary(config));
+        }
+        if ("schema".equals(mode)) {
+            return renderSchemaPolicy(SolonClawToolSchemaSanitizer.policySummary());
+        }
+        if ("attachments".equals(mode)) {
+            return renderAttachmentPolicy(BoundedAttachmentIO.policySummary());
+        }
+        if ("tool-results".equals(mode)) {
+            return renderToolResultPolicy(toolResultStorageSummary(config));
+        }
         if ("policy".equals(mode)) {
             return renderPolicy(securityPolicyService, approvalService, config);
         }
@@ -67,6 +79,18 @@ public final class TerminalSecurityPolicyView {
         }
         if (rest.startsWith("tool-arg") || rest.startsWith("tools")) {
             return "tool-args";
+        }
+        if (rest.startsWith("mcp")) {
+            return "mcp";
+        }
+        if (rest.startsWith("schema")) {
+            return "schema";
+        }
+        if (rest.startsWith("attachment") || rest.startsWith("media")) {
+            return "attachments";
+        }
+        if (rest.startsWith("tool-result") || rest.startsWith("result")) {
+            return "tool-results";
         }
         if (rest.startsWith("policy")) {
             return "policy";
@@ -232,6 +256,87 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    private static String renderMcpPolicy(Map<String, Object> mcp) {
+        StringBuilder buffer = new StringBuilder("MCP 安全策略摘要：");
+        buffer.append('\n')
+                .append("- 传输：enabled=")
+                .append(value(mcp, "enabled"))
+                .append(" supported=")
+                .append(value(mcp, "supportedTransports"))
+                .append(" boundedExecutor=")
+                .append(value(mcp, "toolCallExecutorBounded"));
+        buffer.append('\n')
+                .append("- 远端安全：endpointUrl=")
+                .append(value(mcp, "remoteEndpointUrlSafety"))
+                .append(" toolArgsUrl=")
+                .append(value(mcp, "remoteToolArgumentUrlSafety"))
+                .append(" toolArgsPath=")
+                .append(value(mcp, "remoteToolArgumentPathSafety"));
+        buffer.append('\n')
+                .append("- OAuth：structuredReauth=")
+                .append(value(mcp, "oauthFailureStructuredReauth"))
+                .append(" secretsRedacted=")
+                .append(value(mcp, "oauthSecretsRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderSchemaPolicy(Map<String, Object> schema) {
+        StringBuilder buffer = new StringBuilder("工具 schema 安全策略摘要：");
+        buffer.append('\n')
+                .append("- 清洗：enabled=")
+                .append(value(schema, "enabled"))
+                .append(" inputSchema=")
+                .append(value(schema, "inputSchemaSanitized"))
+                .append(" topLevelObject=")
+                .append(value(schema, "topLevelObjectRequired"));
+        buffer.append('\n')
+                .append("- 兼容性：nullableUnionCollapsed=")
+                .append(value(schema, "nullableUnionCollapsed"))
+                .append(" patternAndFormatStripped=")
+                .append(value(schema, "patternAndFormatStripped"))
+                .append(" jsonLibrary=")
+                .append(value(schema, "jsonLibrary"));
+        return buffer.toString();
+    }
+
+    private static String renderAttachmentPolicy(Map<String, Object> attachment) {
+        StringBuilder buffer = new StringBuilder("附件下载安全策略摘要：");
+        buffer.append('\n')
+                .append("- 下载边界：initialUrl=")
+                .append(value(attachment, "initialUrlChecked"))
+                .append(" redirectUrl=")
+                .append(value(attachment, "redirectUrlCheckedBeforeFollow"))
+                .append(" maxRedirects=")
+                .append(value(attachment, "maxRedirects"));
+        buffer.append('\n')
+                .append("- 内容边界：contentLength=")
+                .append(value(attachment, "contentLengthChecked"))
+                .append(" streamBounded=")
+                .append(value(attachment, "streamReadBounded"))
+                .append(" defaultMaxBytes=")
+                .append(value(attachment, "defaultMaxBytes"));
+        return buffer.toString();
+    }
+
+    private static String renderToolResultPolicy(Map<String, Object> toolResults) {
+        StringBuilder buffer = new StringBuilder("工具输出安全策略摘要：");
+        buffer.append('\n')
+                .append("- 存储：oversizedPersisted=")
+                .append(value(toolResults, "oversizedResultsPersisted"))
+                .append(" turnBudgetPersisted=")
+                .append(value(toolResults, "turnBudgetOverflowPersisted"))
+                .append(" resultRef=")
+                .append(value(toolResults, "resultRefReturned"));
+        buffer.append('\n')
+                .append("- 脱敏：previewRedacted=")
+                .append(value(toolResults, "previewRedacted"))
+                .append(" persistedRedacted=")
+                .append(value(toolResults, "persistedOutputRedacted"))
+                .append(" rawSaved=")
+                .append(value(toolResults, "fullOutputSavedRaw"));
+        return buffer.toString();
+    }
+
     private static void appendApprovalLine(StringBuilder buffer, Map<String, Object> approval) {
         buffer.append('\n')
                 .append("- 审批：mode=")
@@ -281,13 +386,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(attachment, "defaultMaxBytes"))
                 .append(" streamBounded=")
                 .append(value(attachment, "streamReadBounded"));
-        ToolResultStorageService storage =
-                new ToolResultStorageService(
-                        config.getRuntime().getCacheDir(),
-                        config.getTask().getToolOutputInlineLimit(),
-                        config.getTask().getToolOutputTurnBudget(),
-                        config.getTrace().getToolPreviewLength());
-        Map<String, Object> toolResults = storage.policySummary();
+        Map<String, Object> toolResults = toolResultStorageSummary(config);
         buffer.append('\n')
                 .append("- 工具输出：persistOversize=")
                 .append(value(toolResults, "oversizedResultsPersisted"))
@@ -295,6 +394,16 @@ public final class TerminalSecurityPolicyView {
                 .append(value(toolResults, "resultRefReturned"))
                 .append(" redacted=")
                 .append(value(toolResults, "persistedOutputRedacted"));
+    }
+
+    private static Map<String, Object> toolResultStorageSummary(AppConfig config) {
+        ToolResultStorageService storage =
+                new ToolResultStorageService(
+                        config.getRuntime().getCacheDir(),
+                        config.getTask().getToolOutputInlineLimit(),
+                        config.getTask().getToolOutputTurnBudget(),
+                        config.getTrace().getToolPreviewLength());
+        return storage.policySummary();
     }
 
     private static String value(Map<String, Object> map, String key) {

@@ -30,7 +30,11 @@ public class CliShellTipsTest {
                         "/security policy",
                         "/security paths",
                         "/security credentials",
-                        "/security tool-args");
+                        "/security tool-args",
+                        "/security mcp",
+                        "/security schema",
+                        "/security attachments",
+                        "/security tool-results");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
         assertThat(shouldHandleInline(shell, "/security audit")).isTrue();
@@ -83,6 +87,18 @@ public class CliShellTipsTest {
                 .contains("redirectChecked")
                 .contains("工具输出")
                 .contains("persistOversize");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security mcp"))
+                .contains("MCP 安全策略摘要")
+                .contains("structuredReauth");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security schema"))
+                .contains("工具 schema 安全策略摘要")
+                .contains("nullableUnionCollapsed");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security attachments"))
+                .contains("附件下载安全策略摘要")
+                .contains("redirectUrl");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security tool-results"))
+                .contains("工具输出安全策略摘要")
+                .contains("oversizedPersisted");
     }
 
     @Test

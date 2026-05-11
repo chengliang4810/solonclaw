@@ -20,6 +20,7 @@ public final class TerminalCommandCatalog {
                 "/deny list", "/deny status", "/deny all", "/always", "/cancel",
                 "/security audit", "/security policy", "/security approvals", "/security urls",
                 "/security paths", "/security credentials", "/security tool-args",
+                "/security mcp", "/security schema", "/security attachments", "/security tool-results",
                 "/cron list", "/cron status", "/cron next", "/cron upcoming", "/cron guide",
                 "/cron tutorial", "/cron capabilities", "/cron policy", "/cron add", "/cron edit", "/cron pause",
                 "/cron disable", "/cron stop", "/cron resume", "/cron enable", "/cron start",
