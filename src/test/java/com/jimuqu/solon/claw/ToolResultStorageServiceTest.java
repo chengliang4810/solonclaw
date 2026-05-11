@@ -62,6 +62,31 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldRedactSmallNonPinnedToolResultObservation() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 1024, 300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe(
+                        "webfetch",
+                        "small api_key=sk-small-inline-secret token=ghp_smallinline12345",
+                        "run-inline",
+                        "call-inline");
+
+        assertThat(result.getObservation())
+                .contains("api_key=***")
+                .contains("token=***")
+                .doesNotContain("sk-small-inline-secret")
+                .doesNotContain("ghp_smallinline12345");
+        assertThat(result.getPreview())
+                .contains("api_key=***")
+                .doesNotContain("sk-small-inline-secret")
+                .doesNotContain("ghp_smallinline12345");
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
     void shouldPersistLargeToolResultAndReturnJimuquBlock() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 256, 200000, 300);
@@ -219,6 +244,21 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldKeepPinnedReadFileInlineRawForExplicitFileReads() {
+        ToolResultStorageService service =
+                new ToolResultStorageService(tempDir.getAbsolutePath(), 20, 200000, 300);
+        String large = "read token=ghp_readinline12345\n" + repeat("read\n", 200);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe("read_file", large, "run-read-inline", "call-read-inline");
+
+        assertThat(result.getObservation()).contains("ghp_readinline12345");
+        assertThat(result.getPreview()).contains("token=***").doesNotContain("ghp_readinline12345");
+        assertThat(result.getResultRef()).isNull();
+        assertThat(result.isTruncated()).isFalse();
+    }
+
+    @Test
     void shouldPersistLaterMediumResultWhenTurnBudgetIsExceeded() {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 1000, 600, 300);
@@ -272,6 +312,34 @@ public class ToolResultStorageServiceTest {
         assertThat(new File(workspace, ref).getCanonicalPath())
                 .startsWith(new File(workspace, ".jimuqu/tool-results").getCanonicalPath());
         assertThat(result.getObservation()).contains("Full output saved to: " + ref);
+    }
+
+    @Test
+    void shouldRedactRunAndCallIdsBeforeBuildingResultRef() {
+        File workspace = new File(tempDir, "workspace");
+        ToolResultStorageService service =
+                new ToolResultStorageService(
+                        new File(tempDir, "runtime-cache").getAbsolutePath(),
+                        workspace.getAbsolutePath(),
+                        20,
+                        200000,
+                        300);
+
+        ToolResultStorageService.StoredResult result =
+                service.observe(
+                        "execute_shell",
+                        repeat("w", 400),
+                        "run-token-ghp_resultref12345",
+                        "call-api_key=sk-resultref-secret");
+
+        assertThat(result.getResultRef())
+                .contains("ghp_")
+                .contains("api_key_")
+                .doesNotContain("ghp_resultref12345")
+                .doesNotContain("sk-resultref-secret");
+        assertThat(result.getObservation())
+                .doesNotContain("ghp_resultref12345")
+                .doesNotContain("sk-resultref-secret");
     }
 
     private String repeat(String value, int count) {

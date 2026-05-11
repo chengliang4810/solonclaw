@@ -60,7 +60,7 @@ public class ToolResultStorageService {
         String raw = StrUtil.nullToEmpty(result);
         byte[] bytes = raw.getBytes(StandardCharsets.UTF_8);
         StoredResult stored = new StoredResult();
-        stored.setObservation(raw);
+        stored.setObservation(safeObservation(toolName, raw));
         stored.setPreview(safePreview(raw));
         stored.setSizeBytes(bytes.length);
         stored.setTruncated(false);
@@ -361,6 +361,7 @@ public class ToolResultStorageService {
 
     private String safeSegment(String value, String fallback) {
         String raw = StrUtil.blankToDefault(value, fallback);
+        raw = SecretRedactor.redact(raw, 200);
         String normalized = raw.replaceAll("[^A-Za-z0-9._-]", "_");
         normalized = normalized.replace("..", "_");
         if (StrUtil.isBlank(normalized)) {
@@ -384,6 +385,13 @@ public class ToolResultStorageService {
 
     private String safePreview(String content) {
         return SecretRedactor.redact(preview(content, previewLength), previewLength);
+    }
+
+    private String safeObservation(String toolName, String content) {
+        if (isPinnedInline(toolName)) {
+            return StrUtil.nullToEmpty(content);
+        }
+        return SecretRedactor.redact(StrUtil.nullToEmpty(content));
     }
 
     private String safePersistedOutput(String content) {
