@@ -242,6 +242,10 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.isRefreshed()).isTrue();
+        assertThat(result.getConfigFile()).isEqualTo("runtime://config.yml");
+        assertThat(result.getConfigFile())
+                .doesNotContain(env.appConfig.getRuntime().getHome())
+                .doesNotContain(env.appConfig.getRuntime().getConfigFile());
         assertThat(env.appConfig.getReact().getMaxSteps()).isEqualTo(50);
     }
 
@@ -258,7 +262,26 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).contains("solonclaw.react.maxSteps");
+        assertThat(result.getConfigFile()).isEqualTo("runtime://config.yml");
+        assertThat(result.getConfigFile())
+                .doesNotContain(env.appConfig.getRuntime().getHome())
+                .doesNotContain(env.appConfig.getRuntime().getConfigFile());
         assertThat(env.appConfig.getReact().getMaxSteps()).isEqualTo(previousMaxSteps);
+    }
+
+    @Test
+    void shouldRedactSkippedRuntimeConfigRefreshPath() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        GatewayRuntimeRefreshService.RefreshResult result =
+                env.gatewayRuntimeRefreshService.refreshIfNeeded();
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.isRefreshed()).isFalse();
+        assertThat(result.getConfigFile()).isEqualTo("runtime://config.yml");
+        assertThat(result.getConfigFile())
+                .doesNotContain(env.appConfig.getRuntime().getHome())
+                .doesNotContain(env.appConfig.getRuntime().getConfigFile());
     }
 
     @Test

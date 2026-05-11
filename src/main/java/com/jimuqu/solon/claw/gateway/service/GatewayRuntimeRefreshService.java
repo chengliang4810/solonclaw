@@ -35,7 +35,7 @@ public class GatewayRuntimeRefreshService {
     public RefreshResult refreshIfNeeded() {
         long configMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         if (configMtime == lastConfigMtime) {
-            return RefreshResult.skipped(runtimeConfigFile().getAbsolutePath(), "配置文件未变化。");
+            return RefreshResult.skipped(runtimeConfigReference(runtimeConfigFile()), "配置文件未变化。");
         }
         return refreshNow();
     }
@@ -53,7 +53,7 @@ public class GatewayRuntimeRefreshService {
         ValidationResult validation = validateRuntimeConfig(configFile);
         if (!validation.isSuccess()) {
             log.warn("Skip runtime refresh because config validation failed: {}", validation.message);
-            return RefreshResult.failure(configFile.getAbsolutePath(), validation.message);
+            return RefreshResult.failure(runtimeConfigReference(configFile), validation.message);
         }
 
         AppConfig latest;
@@ -74,18 +74,18 @@ public class GatewayRuntimeRefreshService {
                     e.getClass().getSimpleName(),
                     safeError(e));
             return RefreshResult.failure(
-                    configFile.getAbsolutePath(),
+                    runtimeConfigReference(configFile),
                     safeError(e));
         }
         appConfig.applyFrom(latest);
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         if (!reconnectChannels) {
             return RefreshResult.success(
-                    configFile.getAbsolutePath(), false, "运行时配置已刷新。");
+                    runtimeConfigReference(configFile), false, "运行时配置已刷新。");
         }
         channelConnectionManager.refreshAll();
         return RefreshResult.success(
-                configFile.getAbsolutePath(), true, "运行时配置已刷新，渠道连接已重连。");
+                runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
     }
 
     private long fileMtime(String path) {
@@ -104,6 +104,10 @@ public class GatewayRuntimeRefreshService {
         return new File(
                 StrUtil.blankToDefault(appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME),
                 RuntimePathConstants.CONFIG_FILE_NAME);
+    }
+
+    private String runtimeConfigReference(File configFile) {
+        return "runtime://" + RuntimePathConstants.CONFIG_FILE_NAME;
     }
 
     private ValidationResult validateRuntimeConfig(File configFile) {
