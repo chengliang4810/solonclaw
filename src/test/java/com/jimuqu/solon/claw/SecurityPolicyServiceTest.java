@@ -381,6 +381,56 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldExtractRedirectTargetsFromReturnedContent() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "127.0.0.1");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        Map<String, Object> response = new LinkedHashMap<String, Object>();
+        response.put(
+                "content",
+                "HTTP/1.1 302 Found\n"
+                        + "Location: http://localhost:8080/admin\n"
+                        + "<meta http-equiv=\"refresh\" content=\"0; url=http://169.254.169.254/latest/meta-data/\">");
+
+        SecurityPolicyService.UrlVerdict privateVerdict =
+                privatePolicy.checkToolArgs("webfetch_result", response);
+        SecurityPolicyService.UrlVerdict metadataVerdict =
+                metadataPolicy.checkToolArgs("webfetch_result", response);
+
+        assertThat(privatePolicy.extractUrlishValues(response))
+                .contains(
+                        "http://localhost:8080/admin",
+                        "http://169.254.169.254/latest/meta-data/");
+        assertThat(privateVerdict.isAllowed()).isFalse();
+        assertThat(privateVerdict.getMessage()).contains("内网");
+        assertThat(metadataVerdict.isAllowed()).isFalse();
+        assertThat(metadataVerdict.getMessage()).contains("元数据");
+    }
+
+    @Test
+    void shouldExtractSchemelessRedirectTargetsFromReturnedContent() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        Map<String, Object> response = new LinkedHashMap<String, Object>();
+        response.put(
+                "content",
+                "{\"redirect_uri\":\"internal.example/callback\",\"finalUrl\":\"public.example/ok\"}");
+
+        SecurityPolicyService.UrlVerdict verdict =
+                policy.checkToolArgs("webfetch_result", response);
+
+        assertThat(policy.extractUrlishValues(response))
+                .contains("internal.example/callback", "public.example/ok");
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldBlockSchemelessUserInfoUrlsInCommandsAndArguments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");

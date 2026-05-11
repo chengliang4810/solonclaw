@@ -553,7 +553,7 @@ public class SecurityPolicyService {
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
         List<String> urls = extractUrls(toolName, args);
         for (String url : urls) {
-            UrlVerdict verdict = checkUrl(url);
+            UrlVerdict verdict = checkUrl(normalizeToolUrlForCheck(toolName, url));
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1243,6 +1243,25 @@ public class SecurityPolicyService {
 
     private List<String> extractUrls(String toolName, java.util.Map<String, Object> args) {
         return extractUrlishValues(args);
+    }
+
+    private String normalizeToolUrlForCheck(String toolName, String rawUrl) {
+        String value = cleanUrlToken(rawUrl);
+        if (!isReturnedContentTool(toolName)
+                || value.length() == 0
+                || value.contains("://")
+                || value.startsWith("//")) {
+            return value;
+        }
+        return "http://" + value;
+    }
+
+    private boolean isReturnedContentTool(String toolName) {
+        String normalized = StrUtil.nullToEmpty(toolName).toLowerCase(Locale.ROOT);
+        return normalized.endsWith("_result")
+                || normalized.endsWith("_response")
+                || normalized.endsWith("_output")
+                || normalized.contains("returned");
     }
 
     @SuppressWarnings("unchecked")
