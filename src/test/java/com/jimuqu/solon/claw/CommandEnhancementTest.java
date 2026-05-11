@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
@@ -308,6 +309,52 @@ public class CommandEnhancementTest {
         assertThat(pending).isNotNull();
         assertThat(pending.getPayloadJson()).contains("prefer simpler fix");
         assertThat(slowLlmGateway.interrupted).isFalse();
+
+        env.send("admin-chat", "admin-user", "/stop");
+        running.get(3, TimeUnit.SECONDS);
+        executorService.shutdownNow();
+    }
+
+    @Test
+    void shouldRedactDashboardControlPayloadButKeepRawSteerForRuntime() throws Exception {
+        SteerAwareSlowLlmGateway slowLlmGateway = new SteerAwareSlowLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(slowLlmGateway);
+        bootstrapAdmin(env);
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<GatewayReply> running =
+                executorService.submit(() -> env.send("admin-chat", "admin-user", "执行一个长任务"));
+
+        assertThat(slowLlmGateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        GatewayReply steer =
+                env.send(
+                        "admin-chat",
+                        "admin-user",
+                        "/steer rotate token=ghp_dashcontrol12345 api_key=sk-dash-control-secret");
+
+        String runId = String.valueOf(steer.getRuntimeMetadata().get("run_id"));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("instruction", "rotate token=ghp_dashcontrol12345");
+        payload.put("nested", Collections.singletonMap("api_key", "sk-dash-control-secret"));
+
+        DashboardRunService dashboard =
+                new DashboardRunService(env.agentRunRepository, env.agentRunControlService);
+        dashboard.control(runId, "steer", payload);
+
+        RunControlCommand pending =
+                env.agentRunRepository.findLatestPendingCommand(runId, "steer");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getPayloadJson())
+                .contains("ghp_dashcontrol12345")
+                .contains("sk-dash-control-secret");
+
+        String detail = ONode.serialize(dashboard.detail(runId));
+
+        assertThat(detail)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_dashcontrol12345")
+                .doesNotContain("sk-dash-control-secret");
 
         env.send("admin-chat", "admin-user", "/stop");
         running.get(3, TimeUnit.SECONDS);
