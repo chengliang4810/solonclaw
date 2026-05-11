@@ -98,9 +98,9 @@ public class DangerousCommandApprovalService {
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
-            "(?:authorization|proxy[_.-]?authorization|cookie|x[_.-]?api[_.-]?key|api[_.-]?key|apikey|x[_.-]?auth[_.-]?token|x[_.-]?access[_.-]?token)";
+            "(?:authorization|proxy[_.-]?authorization|cookie|(?:x[_.-]?)?api[_.-]?(?:key|token)|apikey|(?:x[_.-]?)?access[_.-]?(?:key|token)|x[_.-]?auth[_.-]?token|(?:x[_.-]?)?secret[_.-]?key)";
     private static final String SENSITIVE_REQUEST_FIELD_NAME =
-            "(?:access[_.\\s-]?token|refresh[_.\\s-]?token|id[_.\\s-]?token|auth[_.\\s-]?token|api[_.\\s-]?key|token|secret|client[_.\\s-]?secret|password|passwd|credential|authorization)";
+            "(?:access[_.\\s-]?(?:key|token)|refresh[_.\\s-]?token|id[_.\\s-]?token|auth[_.\\s-]?token|api[_.\\s-]?(?:key|token)|token|secret|secret[_.\\s-]?key|client[_.\\s-]?secret|password|passwd|credential|authorization)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
@@ -468,7 +468,7 @@ public class DangerousCommandApprovalService {
                                                     + SHELL_COMMAND_START
                                                     + "(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "\\s*:\\s*['\"]?[^\\n'\"|;&]*(?:\\$\\{?|\\$env:|%|!)"
+                                                    + "\\s*:(?!=)\\s*['\"]?[^\\n'\"|;&]*(?:\\$\\{?|\\$env:|%|!)"
                                                     + SENSITIVE_ENV_NAME
                                                     + "(?:\\}|%|!)?|"
                                                     + SHELL_COMMAND_START
@@ -620,7 +620,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*:)|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "\\s*:|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\b\\s*(?::|=|\\s+)\\s*@\\{[^\\n}]*[\"']?\\s*"
+                                                    + "\\s*:(?!=)|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\b\\s*(?::|=|\\s+)\\s*@\\{[^\\n}]*[\"']?\\s*"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "\\s*[\"']?\\s*=)"),
                                     ToolNameConstants.EXECUTE_SHELL),
@@ -1984,6 +1984,7 @@ public class DangerousCommandApprovalService {
                         "network_credential_file_send",
                         "remote_credential_file_transfer"));
         summary.put("networkCredentialFieldAliasDetection", Boolean.TRUE);
+        summary.put("sensitiveHttpHeaderAliasDetection", Boolean.TRUE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
