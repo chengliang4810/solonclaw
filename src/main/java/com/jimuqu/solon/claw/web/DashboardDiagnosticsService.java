@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
+import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
@@ -406,6 +407,9 @@ public class DashboardDiagnosticsService {
                 "write_safe_root_configured",
                 Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
         terminal.put(
+                "credential_file_policy",
+                safeCredentialFilePolicySummary());
+        terminal.put(
                 "max_foreground_timeout_seconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
         terminal.put(
@@ -417,6 +421,46 @@ public class DashboardDiagnosticsService {
         map.put("terminal", terminal);
         map.put("audit_policy", securityAuditPolicy());
         return map;
+    }
+
+    private Map<String, Object> safeCredentialFilePolicySummary() {
+        try {
+            Map<String, Object> summary =
+                    new SkillCredentialFileService(appConfig).policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "configCredentialFileCount");
+            copyPolicyValue(summary, safe, "configuredMountCount");
+            copyPolicyValue(summary, safe, "configuredMissingCount");
+            copyPolicyValue(summary, safe, "configuredRejectedCount");
+            copyPolicyValue(summary, safe, "sandboxCredentialMountCount");
+            copyPolicyValue(summary, safe, "runtimeRelativeOnly");
+            copyPolicyValue(summary, safe, "absolutePathRejected");
+            copyPolicyValue(summary, safe, "pathTraversalRejected");
+            copyPolicyValue(summary, safe, "controlCharacterRejected");
+            copyPolicyValue(summary, safe, "runtimeHomeEscapeRejected");
+            copyPolicyValue(summary, safe, "missingFilesNotMounted");
+            copyPolicyValue(summary, safe, "hostPathsOmittedFromMetadata");
+            copyPolicyValue(summary, safe, "rejectedPathsRedacted");
+            copyPolicyValue(summary, safe, "skillFrontmatterKey");
+            copyPolicyValue(summary, safe, "configKey");
+            return safe;
+        } catch (Exception e) {
+            Map<String, Object> fallback = new LinkedHashMap<String, Object>();
+            fallback.put("available", Boolean.FALSE);
+            fallback.put(
+                    "summary",
+                    SecretRedactor.redact(
+                            StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
+                            1000));
+            return fallback;
+        }
+    }
+
+    private static void copyPolicyValue(
+            Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source.containsKey(key)) {
+            target.put(key, source.get(key));
+        }
     }
 
     @SuppressWarnings("unchecked")
