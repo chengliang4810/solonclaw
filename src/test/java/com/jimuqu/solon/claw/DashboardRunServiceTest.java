@@ -72,6 +72,7 @@ public class DashboardRunServiceTest {
         tool.setRunId("run-secret");
         tool.setArgsPreview("OPENAI_API_KEY=sk-test-toolargsecret");
         tool.setResultPreview("Authorization: Bearer ghp_toolresult123");
+        tool.setResultRef("/tmp/output-token=secret-ref-ghp_toolrefsecret123.txt");
         tool.setError("password=tool-password");
         repository.tools.add(tool);
 
@@ -111,6 +112,8 @@ public class DashboardRunServiceTest {
         assertThat(response).doesNotContain("event-token");
         assertThat(response).doesNotContain("sk-test-toolargsecret");
         assertThat(response).doesNotContain("ghp_toolresult123");
+        assertThat(response).doesNotContain("secret-ref");
+        assertThat(response).doesNotContain("ghp_toolrefsecret123");
         assertThat(response).doesNotContain("tool-password");
         assertThat(response).doesNotContain("ghp_subagentgoal123");
         assertThat(response).doesNotContain("sk-test-subagenttail");
