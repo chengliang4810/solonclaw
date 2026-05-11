@@ -866,6 +866,40 @@ public class DashboardControllerHttpTest {
                     request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
             pendingState =
                     ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+            tokenEndpoint.failNextTokenResponse();
+            HttpResult tokenEndpointError =
+                    request(
+                            "GET",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                                    + "?code=auth-code-error&state="
+                                    + URLEncoder.encode(pendingState, "UTF-8"),
+                            null,
+                            null);
+            assertThat(tokenEndpointError.status).isEqualTo(400);
+            assertThat(tokenEndpointError.body)
+                    .contains("MCP_BAD_REQUEST")
+                    .contains("api%255Fkey=***")
+                    .contains("token=***")
+                    .contains("refresh_token=***")
+                    .contains("client_secret=***")
+                    .doesNotContain("ghp_tokenerror12345")
+                    .doesNotContain("token-error-encoded")
+                    .doesNotContain("token-error-secret")
+                    .doesNotContain("token-error-client")
+                    .doesNotContain("token-error-fragment");
+
+            beginOAuth =
+                    request(
+                            "POST",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                                    + tokenEndpoint.url()
+                                    + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
+                            token);
+            pendingStatus =
+                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+            pendingState =
+                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
             HttpResult completeOAuth =
                     request(
                             "GET",
@@ -2915,6 +2949,7 @@ public class DashboardControllerHttpTest {
         private volatile Map<String, String> lastForm = new LinkedHashMap<String, String>();
         private volatile Map<String, String> redirectForm = new LinkedHashMap<String, String>();
         private final List<Map<String, String>> forms = new CopyOnWriteArrayList<Map<String, String>>();
+        private volatile boolean failNextTokenResponse;
         private volatile int refreshCount;
         private volatile String issuedRefreshToken;
 
@@ -2944,6 +2979,10 @@ public class DashboardControllerHttpTest {
             server.stop(0);
         }
 
+        private void failNextTokenResponse() {
+            failNextTokenResponse = true;
+        }
+
         private void handleRedirect(HttpExchange exchange) throws java.io.IOException {
             byte[] body = readBytes(exchange);
             redirectForm = parseForm(new String(body, StandardCharsets.UTF_8));
@@ -2959,6 +2998,21 @@ public class DashboardControllerHttpTest {
             byte[] body = readBytes(exchange);
             lastForm = parseForm(new String(body, StandardCharsets.UTF_8));
             forms.add(new LinkedHashMap<String, String>(lastForm));
+            if (failNextTokenResponse) {
+                failNextTokenResponse = false;
+                String responseJson =
+                        "{\"error\":\"client_secret=token-error-client access_token=ghp_tokenerror12345&callback=http://localhost/cb?api%255Fkey=token-error-encoded&token=token-error-secret https://example.test/callback#refresh_token=token-error-fragment\"}";
+                byte[] response = responseJson.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+                exchange.sendResponseHeaders(400, response.length);
+                OutputStream outputStream = exchange.getResponseBody();
+                try {
+                    outputStream.write(response);
+                } finally {
+                    outputStream.close();
+                }
+                return;
+            }
             String grantType = lastForm.get("grant_type");
             String responseJson;
             if ("refresh_token".equals(grantType)) {
