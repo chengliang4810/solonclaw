@@ -1395,6 +1395,12 @@ public class DangerousCommandApprovalService {
                                                     + "\\s*=)"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_http_credential_file_send",
+                                    "Python sends credential file through HTTP",
+                                    pattern(
+                                            "\\b(?:requests|httpx)\\.(?:request|post|put|patch)\\s*\\([^\\n]*(?:files|data|content)\\s*=\\s*(?:\\{[^\\n}]*open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\()"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "js_child_process",
                                     "Node child_process execution",
                                     pattern(
@@ -1434,6 +1440,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']?\\s*:)|\\baxios\\.(?:post|put|patch)\\s*\\([^,\\n]+,\\s*\\{[^\\n}]*[\"']?"
                                                     + SENSITIVE_REQUEST_FIELD_NAME
                                                     + "[\"']?\\s*:"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_http_credential_file_send",
+                                    "JavaScript sends credential file through HTTP",
+                                    pattern(
+                                            "\\b(?:fetch|axios\\.(?:request|post|put|patch))\\s*\\([^\\n]*(?:body|data)\\s*:\\s*(?:fs\\.readFileSync\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|fs\\.createReadStream\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'])|\\bform(?:Data)?\\.append\\s*\\([^\\n]*fs\\.createReadStream\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_fs_remove",
@@ -2037,6 +2049,7 @@ public class DangerousCommandApprovalService {
         summary.put("sensitiveHttpHeaderAliasDetection", Boolean.TRUE);
         summary.put("rawCredentialFileUploadDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);
+        summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
