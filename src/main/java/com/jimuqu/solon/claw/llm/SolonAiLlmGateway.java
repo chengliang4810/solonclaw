@@ -1370,12 +1370,12 @@ public class SolonAiLlmGateway implements LlmGateway {
     private PdfSkill buildPdfSkill() {
         File pdfWorkDir = new File(appConfig.getRuntime().getCacheDir(), "pdf");
         if (!pdfWorkDir.exists() && !pdfWorkDir.mkdirs()) {
-            log.warn("Failed to create pdf work directory: {}", pdfWorkDir.getAbsolutePath());
+            log.warn("Failed to create pdf work directory: {}", safePathRef(pdfWorkDir));
         }
 
         final File fontFile = resolvePdfFontFile();
         if (fontFile != null) {
-            log.info("PDF skill font detected: {}", fontFile.getAbsolutePath());
+            log.info("PDF skill font detected: {}", safePathRef(fontFile));
             return new PdfSkill(
                     pdfWorkDir.getAbsolutePath(),
                     new Supplier<InputStream>() {
@@ -1386,7 +1386,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                             } catch (Exception e) {
                                 log.warn(
                                         "Failed to open PDF font file: path={}, error={}",
-                                        SecretRedactor.redact(fontFile.getAbsolutePath(), 400),
+                                        safePathRef(fontFile),
                                         safeError(e));
                                 return null;
                             }
@@ -1405,7 +1405,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             if (file.isFile()) {
                 return file;
             }
-            log.warn("Configured PDF font path not found: {}", file.getAbsolutePath());
+            log.warn("Configured PDF font path not found: {}", safePathRef(file));
         }
 
         List<String> candidates =
@@ -1505,6 +1505,17 @@ public class SolonAiLlmGateway implements LlmGateway {
         String message = error.getMessage();
         String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
         return SecretRedactor.redact(value, 1000);
+    }
+
+    private String safePathRef(File file) {
+        if (file == null) {
+            return "path://unknown";
+        }
+        String name = file.getName();
+        if (StrUtil.isBlank(name)) {
+            name = "path";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /** 将 ReAct 生命周期事件桥接到网关反馈 sink。 */
