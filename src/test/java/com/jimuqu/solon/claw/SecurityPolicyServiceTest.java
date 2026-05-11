@@ -1212,6 +1212,10 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("downloadOutputDetachedOptionChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("unsupportedNetworkSchemeChecked")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("urlKeySamples"))).contains("url", "endpoint", "*_url");
         assertThat(String.valueOf(summary.get("returnedUrlKeySamples"))).contains("browser_download_url", "href");

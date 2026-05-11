@@ -742,6 +742,9 @@ public class SecurityPolicyService {
         summary.put("downloadOutputDetachedOptionChecked", Boolean.TRUE);
         summary.put("proxyOptionUrlChecked", Boolean.TRUE);
         summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
+        summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
+        summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
+        summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("unsupportedNetworkSchemeChecked", Boolean.TRUE);
         summary.put("urlKeySamples", toolArgsUrlKeySamples());
         summary.put("pathKeySamples", toolArgsPathKeySamples());
