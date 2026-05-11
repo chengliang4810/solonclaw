@@ -3400,6 +3400,43 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileCompareOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "diff .env .env.sample",
+                        "cmp credentials.json old-credentials.json",
+                        "comm token.json token.old",
+                        "git diff -- .env",
+                        "git show HEAD:.npmrc",
+                        "fc.exe client_secret.json client_secret.old",
+                        "comp service-account.json service-account.old",
+                        "Compare-Object (Get-Content .anthropic_oauth.json) (Get-Content old.json)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_compare_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "diff report.txt report.old"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git diff -- README.md"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Compare-Object report.txt report.old"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileVisualEncodeCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

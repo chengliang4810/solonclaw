@@ -780,6 +780,20 @@ public class DangerousCommandApprovalService {
                                                     + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_compare_output",
+                                    "compare credential file content",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:diff|cmp|comm)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|(?:^|[;&|\\n`])\\s*git\\s+(?:diff|show)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|(?:^|[;&|\\n`])\\s*(?:fc(?:\\.exe)?|comp(?:\\.exe)?)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bCompare-Object\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(
