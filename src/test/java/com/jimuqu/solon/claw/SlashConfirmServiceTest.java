@@ -91,6 +91,22 @@ public class SlashConfirmServiceTest {
     }
 
     @Test
+    void shouldStripDisplayControlsFromCommandAndPromptAtRegistration() {
+        SlashConfirmService service = new SlashConfirmService(new MemorySettings());
+
+        SlashConfirmService.PendingConfirm pending =
+                service.register(
+                        "session-a",
+                        "reload\u202E-mcp",
+                        "reload Authorization\u202E: Bearer token");
+
+        assertThat(pending.getCommand()).isEqualTo("reload-mcp");
+        assertThat(pending.getPrompt()).isEqualTo("reload Authorization: Bearer token");
+        assertThat(service.resolve("session-a", pending.getConfirmId()).getCommand())
+                .isEqualTo("reload-mcp");
+    }
+
+    @Test
     void shouldNotResolveConfirmIdMismatchAndKeepPendingEntry() {
         SlashConfirmService service = new SlashConfirmService(new MemorySettings());
         SlashConfirmService.PendingConfirm registered =

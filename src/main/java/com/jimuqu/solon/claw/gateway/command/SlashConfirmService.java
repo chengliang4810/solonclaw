@@ -38,8 +38,8 @@ public class SlashConfirmService {
         PendingConfirm confirm = new PendingConfirm();
         confirm.setConfirmId(com.jimuqu.solon.claw.support.IdSupport.newId());
         confirm.setSourceKey(cleanDisplay(sourceKey));
-        confirm.setCommand(StrUtil.nullToEmpty(command));
-        confirm.setPrompt(StrUtil.nullToEmpty(prompt));
+        confirm.setCommand(cleanDisplay(command));
+        confirm.setPrompt(cleanDisplay(prompt));
         confirm.setAllowAlways(allowAlways);
         confirm.setCreatedAt(System.currentTimeMillis());
         pendingBySource.put(confirm.getSourceKey(), confirm);
