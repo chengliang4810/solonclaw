@@ -1312,6 +1312,14 @@ public class ToolRegistryExposureTest {
                                 .get("pinnedInlinePreviewRedacted")
                                 .getBoolean())
                 .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("coverage")
+                                .get("toolResultStoragePolicy")
+                                .get("storageFailureFallsBackToPreviewOnly")
+                                .getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("coverage").get("toolResultStoragePolicy")))
                 .contains("read_file")
                 .contains("previewRedacted")

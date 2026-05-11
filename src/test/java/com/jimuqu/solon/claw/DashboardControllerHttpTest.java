@@ -503,6 +503,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"persistedOutputRedacted\":true")
                 .contains("\"fullOutputSavedRaw\":false")
                 .contains("\"storageBase\":\"tool-results\"")
+                .contains("\"storageFailureFallsBackToPreviewOnly\":true")
                 .contains("\"sudo_rewrite_policy\"")
                 .contains("\"rewritesRealSudoInvocations\":true")
                 .contains("\"stdinPasswordInjection\":true")

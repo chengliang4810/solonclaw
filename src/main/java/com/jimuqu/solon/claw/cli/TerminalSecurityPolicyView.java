@@ -694,6 +694,11 @@ public final class TerminalSecurityPolicyView {
                 .append(value(toolResults, "pinnedInlineRawObservationAllowed"))
                 .append(" pinnedTools=")
                 .append(value(toolResults, "pinnedInlineTools"));
+        buffer.append('\n')
+                .append("- 降级：previewOnlyFallback=")
+                .append(value(toolResults, "storageFailureFallsBackToPreviewOnly"))
+                .append(" describeBlock=")
+                .append(value(toolResults, "describePersistedObservation"));
         return buffer.toString();
     }
 

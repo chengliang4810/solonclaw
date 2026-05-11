@@ -176,7 +176,8 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-results"))
                 .contains("工具输出安全策略摘要")
                 .contains("oversizedPersisted")
-                .contains("pinnedRawInline");
+                .contains("pinnedRawInline")
+                .contains("previewOnlyFallback");
         assertThat(TerminalSecurityPolicyView.render(null, "/security patch"))
                 .contains("补丁工具安全策略摘要")
                 .contains("atomicValidation")
