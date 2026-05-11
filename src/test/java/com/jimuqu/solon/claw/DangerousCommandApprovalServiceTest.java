@@ -8563,6 +8563,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockGatewayWritesOutsideConfiguredSafeRootBeforeApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> writeArgs = new LinkedHashMap<String, Object>();
+        writeArgs.put("path", "D:/workspace/other/file.txt");
+        writeArgs.put("content", "outside");
+        Map<String, Object> gatewayWrite = new LinkedHashMap<String, Object>();
+        gatewayWrite.put("tool_name", "write_file");
+        gatewayWrite.put("tool_args", writeArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayWrite);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("安全写入根");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldInspectNestedGatewayCommandArguments() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
