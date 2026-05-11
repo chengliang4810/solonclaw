@@ -557,7 +557,24 @@ public class DashboardControllerHttpTest {
                 .contains("mcpOauthUrlSafety")
                 .doesNotContain("\"sudo_password\"")
                 .doesNotContain("\"credential_files\"")
-                .doesNotContain("\"env_passthrough\"");
+                .doesNotContain("\"env_passthrough\"")
+                .doesNotContain("\"unsupportedKeywordsStripped\"")
+                .doesNotContain("\"topLevelForbiddenCombinatorsStripped\"")
+                .doesNotContain("\"patternAndFormatKeywords\"")
+                .doesNotContain("\"forcePrefix\"")
+                .doesNotContain("\"configuredCredentialFileSamples\"")
+                .doesNotContain("\"urlKeySamples\"")
+                .doesNotContain("\"pathKeySamples\"");
+        ONode policyAuditReadOnlyAudit =
+                ONode.ofJson(policyAudit.body)
+                        .get("data")
+                        .get("policy")
+                        .get("coverage")
+                        .get("readOnlyAuditPolicy");
+        assertThat(policyAuditReadOnlyAudit.get("executesCommand").getBoolean()).isFalse();
+        assertThat(policyAuditReadOnlyAudit.get("opensNetworkConnection").getBoolean()).isFalse();
+        assertThat(policyAuditReadOnlyAudit.get("storesAuditInput").getBoolean()).isFalse();
+        assertThat(policyAuditReadOnlyAudit.get("secretRedactionApplied").getBoolean()).isTrue();
 
         HttpResult urlAudit =
                 request(

@@ -146,7 +146,7 @@ public class DashboardDiagnosticsService {
                         text(input, "argsJson"));
         Object data = ONode.ofJson(result).toData();
         if (data instanceof Map) {
-            return (Map<String, Object>) data;
+            return safeSecurityAuditResult((Map<String, Object>) data);
         }
         Map<String, Object> fallback = new LinkedHashMap<String, Object>();
         fallback.put("success", Boolean.FALSE);
@@ -1534,6 +1534,353 @@ public class DashboardDiagnosticsService {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeSecurityAuditResult(Map<String, Object> result) {
+        if (result == null) {
+            return result;
+        }
+        Object action = result.get("action");
+        if (!("policy".equals(action) || "status".equals(action))) {
+            return result;
+        }
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        copyPolicyValue(result, safe, "success");
+        copyPolicyValue(result, safe, "action");
+        copyPolicyValue(result, safe, "decision");
+        copyPolicyValue(result, safe, "summary");
+        copyPolicyValue(result, safe, "timestamp");
+        Object policy = result.get("policy");
+        if (policy instanceof Map) {
+            safe.put("policy", safeSecurityAuditPolicy((Map<String, Object>) policy));
+        }
+        return safe;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeSecurityAuditPolicy(Map<String, Object> policy) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        Object approvals = policy.get("approvals");
+        if (approvals instanceof Map) {
+            safe.put("approvals", safeSecurityAuditApprovals((Map<String, Object>) approvals));
+        }
+        Object security = policy.get("security");
+        if (security instanceof Map) {
+            safe.put("security", safeSecurityAuditSecurity((Map<String, Object>) security));
+        }
+        Object terminal = policy.get("terminal");
+        if (terminal instanceof Map) {
+            safe.put("terminal", safeSecurityAuditTerminal((Map<String, Object>) terminal));
+        }
+        Object coverage = policy.get("coverage");
+        if (coverage instanceof Map) {
+            safe.put("coverage", safeSecurityAuditCoverage((Map<String, Object>) coverage));
+        }
+        copyPolicyValue(policy, safe, "activeSurfaces");
+        return safe;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeSecurityAuditApprovals(Map<String, Object> approvals) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        copyPolicyValue(approvals, safe, "mode");
+        copyPolicyValue(approvals, safe, "smartMode");
+        copyPolicyValue(approvals, safe, "smartJudgeConfigured");
+        copyPolicyValue(approvals, safe, "smartApprovalActive");
+        copyPolicyValue(approvals, safe, "smartCoversTirith");
+        copyPolicyValue(approvals, safe, "cronMode");
+        copyPolicyValue(approvals, safe, "cronAutoApprove");
+        copyPolicyValue(approvals, safe, "subagentAutoApprove");
+        copyPolicyValue(approvals, safe, "subagentApprovalDefault");
+        copyPolicyValue(approvals, safe, "timeoutSeconds");
+        copyPolicyValue(approvals, safe, "gatewayTimeoutSeconds");
+        copyPolicyValue(approvals, safe, "mcpReloadConfirm");
+        copyPolicyValue(approvals, safe, "mcpReloadConfirmationDefault");
+        copyPolicyValue(approvals, safe, "alwaysApprovalCount");
+        if (approvals.get("approvalPolicy") instanceof Map) {
+            safe.put(
+                    "approvalPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("approvalPolicy"),
+                            "mode",
+                            "cronMode",
+                            "subagentAutoApprove",
+                            "smartJudgeConfigured",
+                            "dangerousRuleCount",
+                            "hardlineRuleCount",
+                            "approvalTimeoutSeconds",
+                            "gatewayTimeoutSeconds",
+                            "alwaysApprovalCount"));
+        }
+        if (approvals.get("cronApprovalPolicy") instanceof Map) {
+            safe.put(
+                    "cronApprovalPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("cronApprovalPolicy"),
+                            "mode",
+                            "autoApprove",
+                            "defaultDecision",
+                            "dangerousCommandPrecheck",
+                            "hardlineAlwaysBlocked"));
+        }
+        if (approvals.get("subagentApprovalPolicy") instanceof Map) {
+            safe.put(
+                    "subagentApprovalPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("subagentApprovalPolicy"),
+                            "autoApprove",
+                            "defaultDecision",
+                            "sessionScoped",
+                            "dangerousCommandPrecheck",
+                            "hardlineAlwaysBlocked"));
+        }
+        if (approvals.get("smartApprovalPolicy") instanceof Map) {
+            safe.put(
+                    "smartApprovalPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("smartApprovalPolicy"),
+                            "enabled",
+                            "judgeConfigured",
+                            "approvalBypassAllowed",
+                            "humanApprovalPromptSuppressed",
+                            "judgeFailureFallsBackToHumanApproval",
+                            "commandPreviewRedacted"));
+        }
+        if (approvals.get("tirithApprovalPolicy") instanceof Map) {
+            safe.put(
+                    "tirithApprovalPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("tirithApprovalPolicy"),
+                            "enabled",
+                            "smartJudgeConfigured",
+                            "warnRequiresApproval",
+                            "blockRequiresApproval",
+                            "alwaysScopeDowngradedToSession",
+                            "commandPreviewRedacted"));
+        }
+        if (approvals.get("slashConfirmPolicy") instanceof Map) {
+            safe.put(
+                    "slashConfirmPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("slashConfirmPolicy"),
+                            "enabled",
+                            "confirmCommand",
+                            "denyCommand",
+                            "scopeOptions",
+                            "selectorTokenPattern",
+                            "unsafeSelectorRejected",
+                            "approvalKeyRedacted"));
+        }
+        if (approvals.get("approvalCardPolicy") instanceof Map) {
+            safe.put(
+                    "approvalCardPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("approvalCardPolicy"),
+                            "deliveryMode",
+                            "approvalIdSelectorSupported",
+                            "unsafeSelectorRejected",
+                            "approveCommandGenerated",
+                            "denyCommandGenerated",
+                            "alwaysScopeCommandGenerated",
+                            "sessionScopeCommandGenerated",
+                            "commandPreviewRedacted",
+                            "descriptionPreviewRedacted"));
+        }
+        if (approvals.get("auditLogPolicy") instanceof Map) {
+            safe.put(
+                    "auditLogPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("auditLogPolicy"),
+                            "requestEvents",
+                            "responseEvents",
+                            "observerFailureIsolated",
+                            "approvalKeyRedacted",
+                            "manualRevocationAudited",
+                            "encodedUrlParameterRedacted"));
+        }
+        if (approvals.get("mcpReloadPolicy") instanceof Map) {
+            safe.put(
+                    "mcpReloadPolicy",
+                    filterPolicyMap(
+                            (Map<String, Object>) approvals.get("mcpReloadPolicy"),
+                            "confirmRequired",
+                            "defaultDecision",
+                            "toolChangeNoticeInjected",
+                            "oauthUrlSafetyCovered",
+                            "unsafeSelectorRejected"));
+        }
+        return safe;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeSecurityAuditSecurity(Map<String, Object> security) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        copyPolicyValue(security, safe, "allowPrivateUrls");
+        if (security.get("urlPolicy") instanceof Map) {
+            safe.put("urlPolicy", safeUrlPolicySummary());
+        }
+        copyPolicyValue(security, safe, "tirithEnabled");
+        copyPolicyValue(security, safe, "tirithConfigured");
+        copyPolicyValue(security, safe, "tirithTimeoutSeconds");
+        copyPolicyValue(security, safe, "tirithFailOpen");
+        copyPolicyValue(security, safe, "tirithAvailable");
+        if (security.get("tirithPolicy") instanceof Map) {
+            safe.put("tirithPolicy", safeTirithPolicySummary());
+        }
+        copyPolicyValue(security, safe, "websiteBlocklistEnabled");
+        copyPolicyValue(security, safe, "websiteBlocklistDomainCount");
+        copyPolicyValue(security, safe, "websiteBlocklistSharedFileCount");
+        return safe;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeSecurityAuditTerminal(Map<String, Object> terminal) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        copyPolicyValue(terminal, safe, "credentialFileCount");
+        if (terminal.get("credentialPolicy") instanceof Map) {
+            safe.put("credentialPolicy", safeCredentialPolicySummary());
+        }
+        if (terminal.get("pathPolicy") instanceof Map) {
+            safe.put("pathPolicy", safePathPolicySummary());
+        }
+        if (terminal.get("credentialMountPolicy") instanceof Map) {
+            safe.put("credentialMountPolicy", safeCredentialFilePolicySummary());
+        }
+        copyPolicyValue(terminal, safe, "envPassthroughCount");
+        copyPolicyValue(terminal, safe, "sudoPasswordConfigured");
+        if (terminal.get("sudoRewritePolicy") instanceof Map) {
+            safe.put("sudoRewritePolicy", safeSudoRewritePolicySummary());
+        }
+        if (terminal.get("terminalOutputPolicy") instanceof Map) {
+            safe.put("terminalOutputPolicy", safeTerminalOutputPolicySummary());
+        }
+        copyPolicyValue(terminal, safe, "writeSafeRootConfigured");
+        if (terminal.get("terminalGuardrailPolicy") instanceof Map) {
+            safe.put("terminalGuardrailPolicy", safeTerminalGuardrailPolicySummary());
+        }
+        if (terminal.get("backgroundProcessPolicy") instanceof Map) {
+            safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary());
+        }
+        copyPolicyValue(terminal, safe, "maxForegroundTimeoutSeconds");
+        copyPolicyValue(terminal, safe, "foregroundMaxRetries");
+        copyPolicyValue(terminal, safe, "foregroundRetryBaseDelaySeconds");
+        return safe;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeSecurityAuditCoverage(Map<String, Object> coverage) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        if (coverage.get("urlPolicyDetails") instanceof Map) {
+            safe.put("urlPolicyDetails", safeUrlPolicySummary());
+        }
+        if (coverage.get("privateUrlPolicyDetails") instanceof Map) {
+            safe.put("privateUrlPolicyDetails", safePrivateUrlPolicySummary());
+        }
+        if (coverage.get("websitePolicyDetails") instanceof Map) {
+            safe.put("websitePolicyDetails", safeWebsitePolicySummary());
+        }
+        if (coverage.get("pathPolicyDetails") instanceof Map) {
+            safe.put("pathPolicyDetails", safePathPolicySummary());
+        }
+        if (coverage.get("credentialPolicyDetails") instanceof Map) {
+            safe.put("credentialPolicyDetails", safeCredentialPolicySummary());
+        }
+        if (coverage.get("toolArgsPolicy") instanceof Map) {
+            safe.put("toolArgsPolicy", safeToolArgsPolicySummary());
+        }
+        if (coverage.get("schemaSanitizerPolicy") instanceof Map) {
+            safe.put("schemaSanitizerPolicy", safeSchemaSanitizerPolicySummary());
+        }
+        if (coverage.get("patchParserPolicy") instanceof Map) {
+            safe.put("patchParserPolicy", safePatchParserPolicySummary());
+        }
+        copyPolicyValue(coverage, safe, "readOnlyAuditPolicy");
+        if (coverage.get("subprocessEnvironmentPolicy") instanceof Map) {
+            safe.put("subprocessEnvironmentPolicy", safeSubprocessEnvironmentPolicySummary());
+        }
+        if (coverage.get("codeExecutionPolicy") instanceof Map) {
+            safe.put("codeExecutionPolicy", safeCodeExecutionPolicySummary());
+        }
+        if (coverage.get("mcpRuntimePolicy") instanceof Map) {
+            safe.put("mcpRuntimePolicy", safeMcpRuntimePolicySummary());
+        }
+        if (coverage.get("mcpOAuthPolicy") instanceof Map) {
+            safe.put("mcpOAuthPolicy", safeMcpOAuthPolicySummary());
+        }
+        if (coverage.get("attachmentPolicy") instanceof Map) {
+            safe.put(
+                    "attachmentPolicy",
+                    safeSecurityAuditAttachmentPolicy(
+                            (Map<String, Object>) coverage.get("attachmentPolicy")));
+        }
+        if (coverage.get("toolResultStoragePolicy") instanceof Map) {
+            safe.put("toolResultStoragePolicy", safeToolResultStoragePolicySummary());
+        }
+        copyAuditCoverageBooleans(coverage, safe);
+        return safe;
+    }
+
+    private Map<String, Object> safeSecurityAuditAttachmentPolicy(Map<String, Object> attachment) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        if (attachment.get("downloadIo") instanceof Map) {
+            safe.put("downloadIo", safeAttachmentDownloadPolicySummary());
+        }
+        if (attachment.get("mediaCache") instanceof Map) {
+            safe.put("mediaCache", safeAttachmentMediaCachePolicySummary());
+        }
+        if (attachment.get("terminalPaste") instanceof Map) {
+            safe.put("terminalPaste", safeAttachmentTerminalPastePolicySummary());
+        }
+        return safe;
+    }
+
+    private void copyAuditCoverageBooleans(Map<String, Object> source, Map<String, Object> target) {
+        copyPolicyValue(source, target, "dangerousCommandApproval");
+        copyPolicyValue(source, target, "slashApprovalConfirm");
+        copyPolicyValue(source, target, "smartApproval");
+        copyPolicyValue(source, target, "tirithSmartApproval");
+        copyPolicyValue(source, target, "cronApprovalPolicy");
+        copyPolicyValue(source, target, "subagentApprovalPolicy");
+        copyPolicyValue(source, target, "approvalAuditLog");
+        copyPolicyValue(source, target, "hardlineCommandBlocks");
+        copyPolicyValue(source, target, "terminalGuardrails");
+        copyPolicyValue(source, target, "sudoRewrite");
+        copyPolicyValue(source, target, "backgroundProcessGuard");
+        copyPolicyValue(source, target, "urlSafety");
+        copyPolicyValue(source, target, "privateUrlPolicy");
+        copyPolicyValue(source, target, "websitePolicy");
+        copyPolicyValue(source, target, "credentialFilePolicy");
+        copyPolicyValue(source, target, "credentialMountPolicy");
+        copyPolicyValue(source, target, "pathSecurity");
+        copyPolicyValue(source, target, "toolArgsSecurity");
+        copyPolicyValue(source, target, "toolReturnedContentUrlSafety");
+        copyPolicyValue(source, target, "schemaSanitizer");
+        copyPolicyValue(source, target, "patchParser");
+        copyPolicyValue(source, target, "subprocessEnvironmentSanitizer");
+        copyPolicyValue(source, target, "toolResultStorage");
+        copyPolicyValue(source, target, "codeExecutionGuardrails");
+        copyPolicyValue(source, target, "codeExecutionPolicyAuditable");
+        copyPolicyValue(source, target, "mcpUrlSafety");
+        copyPolicyValue(source, target, "mcpReloadConfirmation");
+        copyPolicyValue(source, target, "mcpToolChangeNotice");
+        copyPolicyValue(source, target, "mcpRuntimePolicyAuditable");
+        copyPolicyValue(source, target, "attachmentUrlSafety");
+        copyPolicyValue(source, target, "attachmentCachePathSafety");
+        copyPolicyValue(source, target, "attachmentDisplayNameRedaction");
+        copyPolicyValue(source, target, "terminalAttachmentPathSafety");
+        copyPolicyValue(source, target, "terminalAttachmentPreviewRedaction");
+        copyPolicyValue(source, target, "terminalAttachmentResolvedNameRedaction");
+        copyPolicyValue(source, target, "tirithSecurity");
+        copyPolicyValue(source, target, "readOnlyAuditTool");
+    }
+
+    private Map<String, Object> filterPolicyMap(Map<String, Object> source, String... keys) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        for (String key : keys) {
+            copyPolicyValue(source, safe, key);
+        }
+        return safe;
     }
 
     @SuppressWarnings("unchecked")
