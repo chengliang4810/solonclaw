@@ -119,13 +119,17 @@ public class DashboardSessionService {
         result.put("session_id", sessionId);
         result.put(
                 "model",
-                StrUtil.blankToDefault(
-                        record.getLastResolvedModel(),
-                        StrUtil.blankToDefault(record.getModelOverride(), null)));
-        result.put("provider", StrUtil.blankToDefault(record.getLastResolvedProvider(), null));
+                safe(
+                        StrUtil.blankToDefault(
+                                record.getLastResolvedModel(),
+                                StrUtil.blankToDefault(record.getModelOverride(), null)),
+                        400));
+        result.put(
+                "provider",
+                safe(StrUtil.blankToDefault(record.getLastResolvedProvider(), null), 400));
         result.put(
                 "active_agent_name",
-                StrUtil.blankToDefault(record.getActiveAgentName(), "default"));
+                safe(StrUtil.blankToDefault(record.getActiveAgentName(), "default"), 400));
         result.put("input_tokens", record.getCumulativeInputTokens());
         result.put("output_tokens", record.getCumulativeOutputTokens());
         result.put("reasoning_tokens", record.getCumulativeReasoningTokens());
@@ -145,7 +149,7 @@ public class DashboardSessionService {
         result.put("last_compression_input_tokens", record.getLastCompressionInputTokens());
         result.put("compression_failure_count", record.getCompressionFailureCount());
         result.put("parent_session_id", record.getParentSessionId());
-        result.put("branch_name", record.getBranchName());
+        result.put("branch_name", safe(record.getBranchName(), 400));
         result.put("goal_state", goalState(record));
         result.put("messages", messages);
         return result;
@@ -201,13 +205,15 @@ public class DashboardSessionService {
         for (SessionRecord record : sessionRepository.search(query.trim(), 50)) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("session_id", record.getSessionId());
-            item.put("snippet", buildSnippet(record, query));
+            item.put("snippet", safe(buildSnippet(record, query), 2000));
             item.put("role", null);
             item.put("source", parseSource(record.getSourceKey()));
             item.put(
                     "model",
-                    StrUtil.blankToDefault(
-                            record.getLastResolvedModel(), record.getModelOverride()));
+                    safe(
+                            StrUtil.blankToDefault(
+                                    record.getLastResolvedModel(), record.getModelOverride()),
+                            400));
             item.put("session_started", record.getCreatedAt());
             results.add(item);
         }
@@ -249,7 +255,7 @@ public class DashboardSessionService {
         for (SessionRecord record : lineage) {
             Map<String, Object> node = toSessionInfo(record);
             node.put("parent_session_id", record.getParentSessionId());
-            node.put("branch_name", record.getBranchName());
+            node.put("branch_name", safe(record.getBranchName(), 400));
             nodes.add(node);
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -410,14 +416,18 @@ public class DashboardSessionService {
         result.put("source", parseSource(record.getSourceKey()));
         result.put(
                 "model",
-                StrUtil.blankToDefault(
-                        record.getLastResolvedModel(),
-                        StrUtil.blankToDefault(record.getModelOverride(), null)));
-        result.put("provider", StrUtil.blankToDefault(record.getLastResolvedProvider(), null));
+                safe(
+                        StrUtil.blankToDefault(
+                                record.getLastResolvedModel(),
+                                StrUtil.blankToDefault(record.getModelOverride(), null)),
+                        400));
+        result.put(
+                "provider",
+                safe(StrUtil.blankToDefault(record.getLastResolvedProvider(), null), 400));
         result.put(
                 "active_agent_name",
-                StrUtil.blankToDefault(record.getActiveAgentName(), "default"));
-        result.put("title", record.getTitle());
+                safe(StrUtil.blankToDefault(record.getActiveAgentName(), "default"), 400));
+        result.put("title", safe(record.getTitle(), 400));
         result.put("started_at", record.getCreatedAt());
         result.put("ended_at", null);
         result.put("last_active", record.getUpdatedAt());
@@ -435,7 +445,7 @@ public class DashboardSessionService {
         result.put("last_total_tokens", record.getLastTotalTokens());
         result.put("last_usage_at", record.getLastUsageAt());
         result.put("parent_session_id", record.getParentSessionId());
-        result.put("branch_name", record.getBranchName());
+        result.put("branch_name", safe(record.getBranchName(), 400));
         result.put("goal_state", goalState(record));
         result.put(
                 "compressed_summary", SecretRedactor.redact(record.getCompressedSummary(), 8000));
@@ -444,10 +454,12 @@ public class DashboardSessionService {
         result.put("compression_failure_count", record.getCompressionFailureCount());
         result.put(
                 "preview",
-                trim(
-                        StrUtil.blankToDefault(
-                                MessageSupport.getLastUserMessage(record.getNdjson()),
-                                record.getCompressedSummary()),
+                safe(
+                        trim(
+                                StrUtil.blankToDefault(
+                                        MessageSupport.getLastUserMessage(record.getNdjson()),
+                                        record.getCompressedSummary()),
+                                160),
                         160));
         return result;
     }
@@ -473,7 +485,7 @@ public class DashboardSessionService {
     private Map<String, Object> toCheckpoint(CheckpointRecord checkpoint) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("checkpoint_id", checkpoint.getCheckpointId());
-        item.put("source_key", checkpoint.getSourceKey());
+        item.put("source_key", safe(checkpoint.getSourceKey(), 400));
         item.put("session_id", checkpoint.getSessionId());
         item.put("created_at", checkpoint.getCreatedAt());
         item.put("restored_at", checkpoint.getRestoredAt());
@@ -519,5 +531,9 @@ public class DashboardSessionService {
             return normalized;
         }
         return normalized.substring(0, limit) + "...";
+    }
+
+    private String safe(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 }

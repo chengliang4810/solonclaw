@@ -71,6 +71,66 @@ public class DashboardSessionServiceTest {
     }
 
     @Test
+    void shouldRedactSecretsFromDashboardSessionMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord root = env.sessionRepository.bindNewSession("MEMORY:dash-secret-root:user");
+        root.setTitle("token=ghp_rootdashboardsecret12345");
+        root.setBranchName("main-token=ghp_rootbranchsecret12345");
+        root.setLastResolvedProvider("provider-token=ghp_rootprovidersecret12345");
+        root.setLastResolvedModel("model-token=ghp_rootmodelsecret12345");
+        root.setActiveAgentName("agent-token=ghp_rootagentsecret12345");
+        root.setCompressedSummary("summary token=ghp_rootsummarysecret12345");
+        root.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser(
+                                        "Authorization: Bearer ghp_rootpreviewsecret12345"))));
+        env.sessionRepository.save(root);
+
+        SessionRecord child =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:dash-secret-child:user",
+                        root.getSessionId(),
+                        "branch-token=ghp_childbranchsecret12345");
+        child.setTitle("child token=ghp_childtitlesecret12345");
+        env.sessionRepository.save(child);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> list = service.getSessions(10, 0);
+        String listText = String.valueOf(list);
+        assertThat(listText)
+                .contains("token=***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_rootdashboardsecret12345")
+                .doesNotContain("ghp_rootbranchsecret12345")
+                .doesNotContain("ghp_rootprovidersecret12345")
+                .doesNotContain("ghp_rootmodelsecret12345")
+                .doesNotContain("ghp_rootagentsecret12345")
+                .doesNotContain("ghp_rootsummarysecret12345")
+                .doesNotContain("ghp_rootpreviewsecret12345");
+
+        Map<String, Object> detail = service.getSessionMessages(root.getSessionId());
+        String detailText = String.valueOf(detail);
+        assertThat(detailText)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_rootbranchsecret12345")
+                .doesNotContain("ghp_rootpreviewsecret12345");
+
+        Map<String, Object> tree = service.sessionTree(child.getSessionId());
+        String treeText = String.valueOf(tree);
+        assertThat(treeText)
+                .contains("branch-token=***")
+                .doesNotContain("ghp_childbranchsecret12345")
+                .doesNotContain("ghp_childtitlesecret12345");
+
+        Map<String, Object> search = service.searchSessions("Authorization");
+        String searchText = String.valueOf(search);
+        assertThat(searchText)
+                .contains(">>>Authorization<<<: Bearer ***")
+                .doesNotContain("ghp_rootpreviewsecret12345");
+    }
+
+    @Test
     void shouldResolveLatestDescendantThroughNewestChildPath() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord root = env.sessionRepository.bindNewSession("MEMORY:lineage-root:user");
