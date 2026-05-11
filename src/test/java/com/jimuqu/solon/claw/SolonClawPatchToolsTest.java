@@ -238,6 +238,50 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
+    void shouldBlockCredentialMoveTargetsBeforeWriting() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path source = dir.resolve("source.txt");
+        Path template = dir.resolve("template.txt");
+        Files.write(source, "alpha\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(template, "token\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools =
+                new SolonClawPatchTools(dir.toString(), new SecurityPolicyService(new AppConfig()));
+
+        String moveFilePatch =
+                "*** Begin Patch\n"
+                        + "*** Move File: template.txt -> .env.local\n"
+                        + "*** End Patch";
+        String updateMovePatch =
+                "*** Begin Patch\n"
+                        + "*** Update File: source.txt\n"
+                        + "*** Move to: .env.production\n"
+                        + "@@ alpha @@\n"
+                        + "-alpha\n"
+                        + "+beta\n"
+                        + "*** End Patch";
+
+        Map<?, ?> moveFileResult = parse(tools.patch("patch", null, null, null, null, moveFilePatch));
+        Map<?, ?> updateMoveResult =
+                parse(tools.patch("patch", null, null, null, null, updateMovePatch));
+
+        assertThat(moveFileResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(moveFileResult.get("error")))
+                .contains("BLOCKED")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env.local");
+        assertThat(updateMoveResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(updateMoveResult.get("error")))
+                .contains("BLOCKED")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".env.production");
+        assertThat(new String(Files.readAllBytes(source), StandardCharsets.UTF_8))
+                .isEqualTo("alpha\n");
+        assertThat(Files.exists(dir.resolve("template.txt"))).isTrue();
+        assertThat(Files.exists(dir.resolve(".env.local"))).isFalse();
+        assertThat(Files.exists(dir.resolve(".env.production"))).isFalse();
+    }
+
+    @Test
     void shouldRedactSecretsFromPatchErrors() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
