@@ -1003,7 +1003,7 @@ public class SolonClawCodeExecutionSkills {
                 @Param(name = "timeout", required = false, defaultValue = "120000", description = "可选超时时间，单位为毫秒")
                         Integer timeout) {
             assertSafe(ToolNameConstants.EXECUTE_PYTHON, code, securityPolicyService);
-            return super.execute(code, timeout);
+            return SecretRedactor.redact(super.execute(code, timeout), 20000);
         }
     }
 
@@ -1022,7 +1022,7 @@ public class SolonClawCodeExecutionSkills {
                 @Param(name = "timeout", required = false, defaultValue = "120000", description = "可选超时时间，单位为毫秒")
                         Integer timeout) {
             assertSafe(ToolNameConstants.EXECUTE_JS, code, securityPolicyService);
-            return super.execute(code, timeout);
+            return SecretRedactor.redact(super.execute(code, timeout), 20000);
         }
     }
 

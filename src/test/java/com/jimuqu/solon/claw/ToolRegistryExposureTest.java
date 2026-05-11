@@ -3024,6 +3024,26 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactDirectCodeExecutionSkillOutputs() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SolonClawCodeExecutionSkills.SafePythonSkill python =
+                new SolonClawCodeExecutionSkills.SafePythonSkill(
+                        env.appConfig.getRuntime().getHome(), "python", policy);
+
+        String output =
+                python.execute(
+                        "print('Authorization: Bearer ghp_directpython12345')\n",
+                        Integer.valueOf(1000));
+
+        assertThat(output)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_directpython12345");
+    }
+
+    @Test
     void shouldExposeJimuquStyleExecuteCodeResultEnvelope() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
