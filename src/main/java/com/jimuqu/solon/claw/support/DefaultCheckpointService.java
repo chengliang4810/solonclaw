@@ -142,7 +142,8 @@ public class DefaultCheckpointService implements CheckpointService {
         if (isUnder(target, project) || isUnder(target, runtime)) {
             return target;
         }
-        throw new IllegalArgumentException("Checkpoint target is outside allowed roots: " + path);
+        throw new IllegalArgumentException(
+                "Checkpoint target is outside allowed roots: " + safePath(path));
     }
 
     private File requireSafeSnapshot(CheckpointRecord record, String path) throws Exception {
@@ -150,9 +151,22 @@ public class DefaultCheckpointService implements CheckpointService {
         File checkpointDir = FileUtil.file(record.getCheckpointDir()).getCanonicalFile();
         if (!isUnder(snapshot, checkpointDir)) {
             throw new IllegalArgumentException(
-                    "Checkpoint snapshot is outside checkpoint directory: " + path);
+                    "Checkpoint snapshot is outside checkpoint directory: " + safePath(path));
         }
         return snapshot;
+    }
+
+    private String safePath(String path) {
+        String value = path == null ? "" : SecretRedactor.stripDisplayControls(path).trim();
+        if (value.length() == 0) {
+            return "[unknown]";
+        }
+        File file = FileUtil.file(value);
+        String name = file.getName();
+        if (name == null || name.trim().length() == 0) {
+            name = value;
+        }
+        return SecretRedactor.redact(name, 400);
     }
 
     private boolean isUnder(File file, File root) {
