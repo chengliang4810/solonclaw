@@ -993,7 +993,9 @@ public class DashboardMcpService {
             }
             Map<String, Object> tokenResponse = parseMap(responseBody);
             if (StrUtil.isBlank(string(tokenResponse.get("access_token")))) {
-                throw new IllegalStateException("MCP OAuth token response missing access_token");
+                throw new IllegalStateException(
+                        "MCP OAuth token response missing access_token: "
+                                + safeTokenError(responseBody));
             }
             return tokenResponse;
         } finally {
@@ -1027,7 +1029,9 @@ public class DashboardMcpService {
             }
             Map<String, Object> tokenResponse = parseMap(responseBody);
             if (StrUtil.isBlank(string(tokenResponse.get("access_token")))) {
-                throw new IllegalStateException("MCP OAuth refresh response missing access_token");
+                throw new IllegalStateException(
+                        "MCP OAuth refresh response missing access_token: "
+                                + safeTokenError(responseBody));
             }
             return tokenResponse;
         } finally {

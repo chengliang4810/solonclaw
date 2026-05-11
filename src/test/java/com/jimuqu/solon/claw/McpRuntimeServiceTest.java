@@ -13,7 +13,12 @@ import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.sun.net.httpserver.HttpServer;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -666,6 +671,96 @@ public class McpRuntimeServiceTest {
         result.put("resources", resources);
         result.put("prompts", prompts);
         return result;
+    }
+
+    private HttpServer secretTokenServer(String body) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/token",
+                exchange -> {
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    exchange.getResponseBody().write(bytes);
+                    exchange.close();
+                });
+        server.start();
+        return server;
+    }
+
+    private Object invoke(Method method, Object target, Object... args) throws Throwable {
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
+    }
+
+    @Test
+    void shouldRedactMcpOauthMissingAccessTokenResponses() throws Throwable {
+        HttpServer server =
+                secretTokenServer(
+                        "{\"refresh_token\":\"ghp_mcpoauthrefresh12345\",\"client_secret\":\"sk-mcp-oauth-secret\"}");
+        try {
+            TestEnvironment env = TestEnvironment.withFakeLlm();
+            DashboardMcpService service = new DashboardMcpService(env.appConfig, env.sqliteDatabase);
+            Method exchangeCode =
+                    DashboardMcpService.class.getDeclaredMethod(
+                            "exchangeOAuthCode",
+                            String.class,
+                            String.class,
+                            String.class,
+                            String.class,
+                            String.class,
+                            Map.class);
+            Method exchangeRefresh =
+                    DashboardMcpService.class.getDeclaredMethod(
+                            "exchangeRefreshToken",
+                            String.class,
+                            String.class,
+                            String.class,
+                            Map.class);
+            exchangeCode.setAccessible(true);
+            exchangeRefresh.setAccessible(true);
+            String endpoint = "http://127.0.0.1:" + server.getAddress().getPort() + "/token";
+            Map<String, Object> oauth = new LinkedHashMap<String, Object>();
+            oauth.put("client_secret", "sk-local-client-secret");
+
+            assertThatThrownBy(
+                            () ->
+                                    invoke(
+                                            exchangeCode,
+                                            service,
+                                            endpoint,
+                                            "client-1",
+                                            "http://localhost/callback",
+                                            "code-1",
+                                            "verifier-1",
+                                            oauth))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("missing access_token")
+                    .hasMessageContaining("\"has_refresh_token\":true")
+                    .hasMessageContaining("\"has_client_secret\":true")
+                    .hasMessageNotContaining("ghp_mcpoauthrefresh12345")
+                    .hasMessageNotContaining("sk-mcp-oauth-secret");
+
+            assertThatThrownBy(
+                            () ->
+                                    invoke(
+                                            exchangeRefresh,
+                                            service,
+                                            endpoint,
+                                            "client-1",
+                                            "refresh-1",
+                                            oauth))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("missing access_token")
+                    .hasMessageContaining("\"has_refresh_token\":true")
+                    .hasMessageContaining("\"has_client_secret\":true")
+                    .hasMessageNotContaining("ghp_mcpoauthrefresh12345")
+                    .hasMessageNotContaining("sk-mcp-oauth-secret");
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test
