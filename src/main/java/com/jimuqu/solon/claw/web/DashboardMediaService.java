@@ -219,7 +219,11 @@ public class DashboardMediaService {
         try {
             return attachmentCacheService.mediaReference(file);
         } catch (Exception e) {
-            return SecretRedactor.redact(file == null ? "" : file.getPath(), 400);
+            String name = file == null ? "" : file.getName();
+            if (StrUtil.isBlank(name)) {
+                name = "unknown";
+            }
+            return "media://unavailable/" + SecretRedactor.redact(name, 200);
         }
     }
 
