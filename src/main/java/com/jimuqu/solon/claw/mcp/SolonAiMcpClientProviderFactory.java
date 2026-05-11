@@ -43,11 +43,20 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
                 builder.headers(headers);
             }
             String accessToken = config.getAccessToken();
-            if (StrUtil.isNotBlank(accessToken) && !headers.containsKey("Authorization")) {
+            if (StrUtil.isNotBlank(accessToken) && !hasHeader(headers, "Authorization")) {
                 builder.header("Authorization", "Bearer " + accessToken);
             }
         }
         return builder.build();
+    }
+
+    private boolean hasHeader(Map<String, String> headers, String name) {
+        for (String key : headers.keySet()) {
+            if (key != null && key.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String toChannel(String transport) {

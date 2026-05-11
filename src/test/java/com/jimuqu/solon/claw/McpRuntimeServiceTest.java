@@ -865,6 +865,57 @@ public class McpRuntimeServiceTest {
         }
     }
 
+    @Test
+    void shouldTreatMcpAuthorizationHeaderCaseInsensitively() throws Exception {
+        McpRuntimeService.McpServerConfig remote = new McpRuntimeService.McpServerConfig();
+        remote.setServerId("remote-docs");
+        remote.setTransport("sse");
+        remote.setEndpoint("https://example.com/mcp");
+        remote.setAccessToken("oauth-token-for-header-test");
+        Map<String, String> headers = new LinkedHashMap<String, String>();
+        headers.put("authorization", "Bearer configured-token-for-header-test");
+        remote.setHeaders(headers);
+
+        McpClientProvider provider = null;
+        try {
+            provider = new SolonAiMcpClientProviderFactory(null).create(remote);
+
+            assertThat(clientProps(provider).getHeaders())
+                    .containsEntry("authorization", "Bearer configured-token-for-header-test")
+                    .doesNotContainKey("Authorization");
+        } finally {
+            if (provider != null) {
+                provider.close();
+            }
+        }
+    }
+
+    @Test
+    void shouldNotDuplicateMcpBearerHeaderWhenConfiguredHeaderUsesDifferentCase()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Map<String, Object> configuredHeaders = new LinkedHashMap<String, Object>();
+        configuredHeaders.put("authorization", "Bearer configured-token-for-header-test");
+        Map<String, Object> auth = new LinkedHashMap<String, Object>();
+        auth.put("headers", configuredHeaders);
+        auth.put("bearer_token", "runtime-token-for-header-test");
+        saveMcpServer(env.appConfig, env.sqliteDatabase, auth);
+
+        CapturingMcpFactory factory = new CapturingMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+        try {
+            mcpRuntimeService.resolveEnabledToolProviders();
+
+            assertThat(factory.config).isNotNull();
+            assertThat(factory.config.getHeaders())
+                    .containsEntry("authorization", "Bearer configured-token-for-header-test")
+                    .doesNotContainKey("Authorization");
+        } finally {
+            mcpRuntimeService.shutdown();
+        }
+    }
+
     private String readToolsJson(SqliteDatabase database) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -983,6 +1034,16 @@ public class McpRuntimeServiceTest {
         @Override
         public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
             createCount++;
+            return new FakeMcpClientProvider();
+        }
+    }
+
+    private static class CapturingMcpFactory implements McpClientProviderFactory {
+        private McpRuntimeService.McpServerConfig config;
+
+        @Override
+        public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
+            this.config = config;
             return new FakeMcpClientProvider();
         }
     }

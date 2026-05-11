@@ -507,10 +507,19 @@ public class McpRuntimeService implements Closeable {
             }
         }
         String bearer = firstText(auth, "bearer_token", "bearerToken", "access_token", "token");
-        if (StrUtil.isNotBlank(bearer) && !result.containsKey("Authorization")) {
+        if (StrUtil.isNotBlank(bearer) && !hasHeader(result, "Authorization")) {
             result.put("Authorization", "Bearer " + bearer);
         }
         return result;
+    }
+
+    private boolean hasHeader(Map<String, String> headers, String name) {
+        for (String key : headers.keySet()) {
+            if (key != null && key.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Map<String, String> resolveEnv(Map<String, Object> auth) {
