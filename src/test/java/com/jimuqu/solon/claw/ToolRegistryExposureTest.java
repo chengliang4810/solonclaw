@@ -1454,6 +1454,41 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldApplyTerminalGuardrailsWhenAuditingToolArgs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "terminal",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"command\":\"python -m http.server 8000\"}"));
+
+        assertThat(result.get("action").getString()).isEqualTo("tool_args");
+        assertThat(result.get("decision").getString()).isEqualTo("block");
+        assertThat(result.get("blocking").getBoolean()).isTrue();
+        assertThat(result.get("approval_required").getBoolean()).isFalse();
+        assertThat(result.get("commandPreview").getString())
+                .contains("python -m http.server 8000");
+        assertThat(result.toJson())
+                .contains("terminal_guardrail")
+                .contains("use_managed_background_process")
+                .doesNotContain("secret-sudo");
+    }
+
+    @Test
     void shouldRedactSecurityAuditArgsJsonParseErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);

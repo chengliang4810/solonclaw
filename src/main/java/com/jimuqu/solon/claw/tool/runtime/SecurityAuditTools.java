@@ -353,7 +353,7 @@ public class SecurityAuditTools {
 
     private AuditResult auditCommand(String toolName, String command) {
         String effectiveTool =
-                StrUtil.blankToDefault(toolName, ToolNameConstants.EXECUTE_SHELL).trim();
+                canonicalCommandAuditTool(toolName);
         AuditResult result = new AuditResult("command");
         result.toolName = effectiveTool;
         result.commandPreview = SecretRedactor.redact(StrUtil.nullToEmpty(command).trim(), 400);
@@ -552,6 +552,10 @@ public class SecurityAuditTools {
                 return result;
             }
         }
+        String command = commandLikeArgument(args);
+        if (StrUtil.isNotBlank(command)) {
+            applyCommandPolicies(result, effectiveTool, command);
+        }
         if (securityPolicyService != null) {
             SecurityPolicyService.FileVerdict fileVerdict =
                     securityPolicyService.checkFileToolArgs(effectiveTool, args);
@@ -588,6 +592,70 @@ public class SecurityAuditTools {
         }
         result.finish();
         return result;
+    }
+
+    private void applyCommandPolicies(AuditResult result, String effectiveTool, String command) {
+        AuditResult commandResult = auditCommand(effectiveTool, command);
+        result.commandPreview = commandResult.commandPreview;
+        result.tirithAction = commandResult.tirithAction;
+        for (Map<String, Object> finding : commandResult.findings) {
+            result.findings.add(finding);
+        }
+        if (commandResult.blocking) {
+            result.blocking = true;
+        }
+        if (commandResult.approvalRequired) {
+            result.approvalRequired = true;
+        }
+        result.escalate(commandResult.decision);
+    }
+
+    private String commandLikeArgument(Map<String, Object> args) {
+        String value = stringArg(args, "command");
+        if (StrUtil.isNotBlank(value)) {
+            return value;
+        }
+        value = stringArg(args, "cmd");
+        if (StrUtil.isNotBlank(value)) {
+            return value;
+        }
+        value = stringArg(args, "code");
+        if (StrUtil.isNotBlank(value)) {
+            return value;
+        }
+        return stringArg(args, "script");
+    }
+
+    private String stringArg(Map<String, Object> args, String key) {
+        if (args == null || !args.containsKey(key)) {
+            return "";
+        }
+        Object value = args.get(key);
+        return value == null ? "" : StrUtil.nullToEmpty(String.valueOf(value)).trim();
+    }
+
+    private String canonicalCommandAuditTool(String toolName) {
+        String normalized =
+                StrUtil.blankToDefault(toolName, ToolNameConstants.EXECUTE_SHELL).trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (ToolNameConstants.TERMINAL.equals(lower)
+                || "shell".equals(lower)
+                || "bash".equals(lower)
+                || "exec".equals(lower)
+                || "execute-shell".equals(lower)
+                || "exec_shell".equals(lower)
+                || "execute_shell_command".equals(lower)
+                || "exec_command".equals(lower)
+                || "run_shell".equals(lower)
+                || "run_command".equals(lower)
+                || "exec_cmd".equals(lower)
+                || "run_terminal".equals(lower)
+                || "terminal_run".equals(lower)
+                || "terminal_exec".equals(lower)
+                || "terminal_execute".equals(lower)) {
+            return ToolNameConstants.EXECUTE_SHELL;
+        }
+        return normalized;
     }
 
     private void addTirith(AuditResult result, TirithSecurityService.ScanResult scan) {
