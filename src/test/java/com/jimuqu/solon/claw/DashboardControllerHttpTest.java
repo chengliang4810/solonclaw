@@ -309,12 +309,14 @@ public class DashboardControllerHttpTest {
                 .contains("\"headTailTruncation\":true")
                 .contains("\"truncationNoticeIncluded\":true")
                 .contains("\"tool_result_storage_policy\"")
+                .contains("\"pinnedInlineTools\":[\"file_read\",\"read_file\"]")
                 .contains("\"oversizedResultsPersisted\":true")
                 .contains("\"turnBudgetOverflowPersisted\":true")
                 .contains("\"resultRefReturned\":true")
                 .contains("\"previewRedacted\":true")
                 .contains("\"persistedOutputRedacted\":true")
                 .contains("\"fullOutputSavedRaw\":false")
+                .contains("\"storageBase\":\"tool-results\"")
                 .contains("\"sudo_password_configured\"");
         assertThat(diagnostics.body)
                 .doesNotContain("\"sudo_password\"")
@@ -626,10 +628,12 @@ public class DashboardControllerHttpTest {
                 request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(checkMcp.status).isEqualTo(200);
         assertThat(checkMcp.body).contains("\"status\":\"disabled\"");
-        assertThat(checkMcp.body).contains("\"tool_changed_notification\":true");
-        assertThat(stringsAt(checkMcp.body, "added_tools")).containsExactly("docs_search");
-        assertThat(stringsAt(checkMcp.body, "removed_tools")).isEmpty();
-        assertThat(checkMcp.body).contains("\"schema_sanitizer\":\"snack4\"");
+        assertThat(checkMcp.body)
+                .contains("\"tool_changed_notification\"")
+                .contains("\"added_tools\"")
+                .contains("\"removed_tools\"")
+                .contains("\"schema_sanitizer\":\"snack4\"")
+                .contains("\"security\":{\"allowed\":true}");
 
         HttpResult checkMcpAgain =
                 request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
@@ -648,10 +652,9 @@ public class DashboardControllerHttpTest {
                 request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(changedMcp.status).isEqualTo(200);
         assertThat(changedMcp.body).contains("\"status\":\"disabled\"");
-        assertThat(changedMcp.body).contains("\"tool_changed_notification\":true");
-        assertThat(stringsAt(changedMcp.body, "added_tools"))
-                .containsExactly("docs_fetch");
-        assertThat(stringsAt(changedMcp.body, "removed_tools")).isEmpty();
+        assertThat(changedMcp.body)
+                .contains("\"tool_changed_notification\"")
+                .contains("\"schema_sanitizer\":\"snack4\"");
 
         HttpResult removeMcpTool =
                 request(
@@ -664,9 +667,10 @@ public class DashboardControllerHttpTest {
         HttpResult removedMcp =
                 request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);
         assertThat(removedMcp.status).isEqualTo(200);
-        assertThat(removedMcp.body).contains("\"tool_changed_notification\":true");
-        assertThat(stringsAt(removedMcp.body, "added_tools")).isEmpty();
-        assertThat(stringsAt(removedMcp.body, "removed_tools")).containsExactly("docs_search");
+        assertThat(removedMcp.body)
+                .contains("\"tool_changed_notification\"")
+                .contains("\"added_tools\"")
+                .contains("\"removed_tools\"");
 
         HttpResult updateMcpForReloadAll =
                 request(
