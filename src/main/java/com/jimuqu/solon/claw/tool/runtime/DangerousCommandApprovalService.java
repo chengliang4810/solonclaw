@@ -2133,6 +2133,8 @@ public class DangerousCommandApprovalService {
         summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
         summary.put("approverRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
+        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
+        summary.put("approvalMetadataRedacted", Boolean.TRUE);
         summary.put("observerEventsRedacted", Boolean.TRUE);
         summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
         summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));

@@ -411,6 +411,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("tirithAlwaysDowngradedToSession")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approverRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("approvalMetadataRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("observerEventsRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalTimeoutSeconds")).isEqualTo(Integer.valueOf(42));
         assertThat(summary.get("gatewayTimeoutSeconds")).isEqualTo(Integer.valueOf(43));

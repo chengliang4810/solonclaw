@@ -815,6 +815,8 @@ public class ToolRegistryExposureTest {
         assertThat(slashConfirmPolicy.get("clearAllSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("pendingQueueSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("approvalMetadataRedacted").getBoolean()).isTrue();
         assertThat(String.valueOf(slashConfirmPolicy))
                 .contains("/approve")
                 .contains("/deny")
