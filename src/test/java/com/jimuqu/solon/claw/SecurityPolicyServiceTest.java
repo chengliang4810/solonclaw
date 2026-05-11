@@ -762,6 +762,21 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyRawControlCharactersInPaths() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("path", "logs/\u001B]0;hidden\u0007report.txt");
+
+        SecurityPolicyService.FileVerdict newline = policy.checkPath("logs/report\n.json", false);
+        SecurityPolicyService.FileVerdict escape = policy.checkFileToolArgs("write_file", args);
+
+        assertThat(newline.isAllowed()).isFalse();
+        assertThat(newline.getMessage()).contains("非法字符");
+        assertThat(escape.isAllowed()).isFalse();
+        assertThat(escape.getMessage()).contains("非法字符");
+    }
+
+    @Test
     void shouldDenyEncodedTraversalPaths() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         Map<String, Object> args = new LinkedHashMap<String, Object>();
