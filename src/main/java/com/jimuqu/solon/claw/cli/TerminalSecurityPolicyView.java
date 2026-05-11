@@ -586,6 +586,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(toolArgs, "recursiveUrlExtraction"))
                 .append(" returnedContent=")
                 .append(value(toolArgs, "returnedContentUrlExtraction"))
+                .append(" returnedSchemeless=")
+                .append(value(toolArgs, "returnedSchemelessUrlChecked"))
                 .append(" unsupportedScheme=")
                 .append(value(toolArgs, "unsupportedNetworkSchemeChecked"));
         buffer.append('\n')

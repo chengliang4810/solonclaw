@@ -750,6 +750,7 @@ public class SecurityPolicyService {
         Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
         summary.put("recursiveUrlExtraction", Boolean.TRUE);
         summary.put("returnedContentUrlExtraction", Boolean.TRUE);
+        summary.put("returnedSchemelessUrlChecked", Boolean.TRUE);
         summary.put("returnedDocumentContentChecked", Boolean.TRUE);
         summary.put("returnedUrlKeySamples", Arrays.asList("href", "link", "browser_download_url", "source_url", "finalUrl"));
         summary.put("recursivePathExtraction", Boolean.TRUE);

@@ -1466,6 +1466,7 @@ public class DashboardDiagnosticsService {
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
             copyPolicyValue(summary, safe, "recursiveUrlExtraction");
             copyPolicyValue(summary, safe, "returnedContentUrlExtraction");
+            copyPolicyValue(summary, safe, "returnedSchemelessUrlChecked");
             copyPolicyValue(summary, safe, "returnedDocumentContentChecked");
             copyPolicyValue(summary, safe, "recursivePathExtraction");
             copyPolicyValue(summary, safe, "encodedUrlParameterPolicyInherited");
