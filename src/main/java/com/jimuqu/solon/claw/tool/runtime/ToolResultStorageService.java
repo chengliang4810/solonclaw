@@ -140,7 +140,7 @@ public class ToolResultStorageService {
                 stored.setPreview(node.get("preview").getString());
             }
             if (node.hasKey("result_ref")) {
-                stored.setResultRef(node.get("result_ref").getString());
+                stored.setResultRef(safeResultRef(node.get("result_ref").getString()));
             }
             if (node.hasKey("size")) {
                 Long size = node.get("size").getLong(0L);
@@ -203,7 +203,7 @@ public class ToolResultStorageService {
 
     private static void describePersistedOutputBlock(String content, StoredResult stored) {
         stored.setTruncated(true);
-        stored.setResultRef(lineValue(content, "Full output saved to:"));
+        stored.setResultRef(safeResultRef(lineValue(content, "Full output saved to:")));
         Long size = firstNumberBetween(content, "too large (", " bytes");
         if (size != null) {
             stored.setSizeBytes(size.longValue());
@@ -223,6 +223,13 @@ public class ToolResultStorageService {
             }
         }
         return null;
+    }
+
+    private static String safeResultRef(String value) {
+        if (StrUtil.isBlank(value)) {
+            return value;
+        }
+        return SecretRedactor.redact(value, 1000);
     }
 
     private static Long firstNumberBetween(String content, String left, String right) {
