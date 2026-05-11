@@ -2862,6 +2862,47 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardCodesearchReturnedDocumentContentUrlsInsideContainers() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        policy,
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
+                                result.put(
+                                        "documents",
+                                        Arrays.asList(
+                                                new Document(
+                                                        "{\"download\":\"https://blocked.example/code.zip?token=secret123\"}")
+                                                        .title("code")));
+                                return result;
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
     void shouldGuardCodesearchReturnedStringUrlsInsideContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
