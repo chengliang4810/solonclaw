@@ -89,8 +89,8 @@ public class DashboardRunService {
 
     public Map<String, Object> controlSubagent(String subagentId, String command) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("subagent_id", subagentId);
-        map.put("command", command);
+        map.put("subagent_id", redact(subagentId, 1000));
+        map.put("command", redact(command, 1000));
         if (delegationService == null) {
             map.put("ok", false);
             map.put("status", "delegation_unavailable");

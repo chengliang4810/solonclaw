@@ -2197,6 +2197,23 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRedactSubagentControlEcho() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult control =
+                request(
+                        "POST",
+                        "/api/jimuqu/runs/subagents/sub-token=ghp_subagent12345/control",
+                        "{\"command\":\"pause token=ghp_subcommand12345\"}",
+                        token);
+        assertThat(control.status).isEqualTo(200);
+        assertThat(control.body)
+                .contains("token=***")
+                .doesNotContain("ghp_subagent12345")
+                .doesNotContain("ghp_subcommand12345");
+    }
+
+    @Test
     void shouldWrapDashboardChatErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
