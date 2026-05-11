@@ -774,7 +774,7 @@ public class SecurityPolicyService {
             }
         }
         for (String option : COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES) {
-            if (token.startsWith(option) && token.length() > option.length()) {
+            if (startsWithCompactShortOptionValue(token, option)) {
                 return token.substring(option.length());
             }
         }
@@ -821,11 +821,22 @@ public class SecurityPolicyService {
             return "";
         }
         for (String option : NETWORK_CREDENTIAL_SHORT_OPTIONS) {
-            if (token.startsWith(option) && token.length() > option.length()) {
+            if (startsWithCompactShortOptionValue(token, option)) {
                 return token.substring(option.length());
             }
         }
         return "";
+    }
+
+    private boolean startsWithCompactShortOptionValue(String token, String option) {
+        if (!token.startsWith(option) || token.length() <= option.length() + 1) {
+            return false;
+        }
+        char next = token.charAt(option.length());
+        return next != '-'
+                && next != ':'
+                && next != '='
+                && !Character.isLetter(next);
     }
 
     private boolean isDetachedNetworkCredentialShortOption(String token) {
