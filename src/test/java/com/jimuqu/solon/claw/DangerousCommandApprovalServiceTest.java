@@ -7752,6 +7752,49 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactApprovalResponseObserverMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> observed = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {}
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        observed.add(event.getChoice());
+                        observed.add(event.getApprover());
+                        observed.add(event.getPendingApproval().getCommand());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "url_policy?api%255Fkey=response-secret",
+                "encoded response metadata",
+                "curl https://example.test/callback?api%255Fkey=response-secret");
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "dashboard-user ghp_responseapprover123"))
+                .isTrue();
+
+        assertThat(observed).hasSize(3);
+        assertThat(observed.get(0)).isEqualTo("once");
+        assertThat(observed.get(1))
+                .contains("dashboard-user ***")
+                .doesNotContain("ghp_responseapprover123");
+        assertThat(observed.get(2))
+                .contains("api%255Fkey=***")
+                .doesNotContain("response-secret");
+    }
+
+    @Test
     void shouldRedactApproverInApprovalSessionDecisionComment() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TestTrace trace = new TestTrace();
