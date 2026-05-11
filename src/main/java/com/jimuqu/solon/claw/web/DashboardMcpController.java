@@ -45,9 +45,7 @@ public class DashboardMcpController {
         return safeMcp(context, new McpAction() {
             @Override
             public Map<String, Object> run() throws Exception {
-                return mcpService.save(
-                        ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+                return mcpService.save(body(context));
             }
         });
     }
@@ -121,8 +119,7 @@ public class DashboardMcpController {
             public Map<String, Object> run() throws Exception {
                 return mcpService.beginOAuth(
                         serverId,
-                        ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+                        body(context));
             }
         });
     }
@@ -146,10 +143,7 @@ public class DashboardMcpController {
         return safeMcp(context, new McpAction() {
             @Override
             public Map<String, Object> run() throws Exception {
-                return mcpService.completeOAuth(
-                        serverId,
-                        ONode.deserialize(
-                                ONode.ofJson(context.body()).toJson(), LinkedHashMap.class));
+                return mcpService.completeOAuth(serverId, body(context));
             }
         });
     }
@@ -207,6 +201,30 @@ public class DashboardMcpController {
                 context.status(400);
             }
             return DashboardResponse.error("MCP_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private LinkedHashMap<String, Object> body(Context context) {
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (raw == null || raw.trim().length() == 0) {
+            return new LinkedHashMap<String, Object>();
+        }
+        try {
+            Object data = ONode.ofJson(raw).toData();
+            if (data instanceof Map) {
+                return new LinkedHashMap<String, Object>((Map<String, Object>) data);
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 

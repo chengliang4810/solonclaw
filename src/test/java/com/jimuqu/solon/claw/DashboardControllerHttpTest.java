@@ -853,6 +853,20 @@ public class DashboardControllerHttpTest {
                 .contains("\"commands\":[")
                 .contains("\"name\":\"acp\"");
 
+        HttpResult invalidMcp =
+                request(
+                        "POST",
+                        "/api/jimuqu/mcp",
+                        "{\"serverId\":\"bad-mcp\",\"token\":\"ghp_invalidmcp12345\"",
+                        token);
+        assertThat(invalidMcp.status).isEqualTo(400);
+        assertThat(invalidMcp.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"MCP_BAD_REQUEST\"")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidmcp12345")
+                .doesNotContain("bad-mcp");
+
         HttpResult createMcp =
                 request(
                         "POST",
