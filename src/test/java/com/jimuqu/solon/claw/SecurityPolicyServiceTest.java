@@ -85,6 +85,21 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldKeepSignedMetadataUrlsAlwaysBlockedWhenPrivateUrlsAreAllowed() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        SecurityPolicyService.UrlVerdict verdict =
+                policy.checkUrl(
+                        "http://169.254.169.254/latest/meta-data/iam/security-credentials/?x-amz-signature=secret-signature");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("元数据");
+        assertThat(verdict.getMessage()).doesNotContain("secret-signature");
+    }
+
+    @Test
     void shouldAllowPrivateUrlsFromJimuquEnvironmentOverride() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
