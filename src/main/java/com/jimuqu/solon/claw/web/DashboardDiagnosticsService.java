@@ -1687,6 +1687,7 @@ public class DashboardDiagnosticsService {
                             "smartJudgeConfigured",
                             "dangerousRuleCount",
                             "hardlineRuleCount",
+                            "secretStoreRuleSamples",
                             "urlPolicyPrechecked",
                             "privateUrlPolicyPrechecked",
                             "credentialUrlPolicyPrechecked",

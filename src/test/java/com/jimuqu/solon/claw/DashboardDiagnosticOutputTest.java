@@ -345,7 +345,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalPolicy.get("websitePolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("unsafeUrlBlockedBeforeApproval")).isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
-        Map<String, Object> toolArgsPolicy = (Map<String, Object>) policy.get("tool_args_policy");
+        assertThat(String.valueOf(approvalPolicy.get("secretStoreRuleSamples")))
+                .contains("secret_store_read")
+                .contains("secret_store_destroy");
+        Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        Map<String, Object> toolArgsPolicy = (Map<String, Object>) coverage.get("toolArgsPolicy");
         assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("systemDnsCommandChecked")).isEqualTo(Boolean.TRUE);
