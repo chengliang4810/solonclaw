@@ -494,21 +494,21 @@ public class SolonClawCodeExecutionSkills {
                                     Boolean.FALSE));
                 }
                 if ("search_files".equals(toolName)) {
-                    return ONode.serialize(searchFiles(args));
+                    return rpcJson(searchFiles(args));
                 }
                 if ("web_search".equals(toolName)) {
-                    return ONode.serialize(webSearch(args));
+                    return rpcJson(webSearch(args));
                 }
                 if ("web_extract".equals(toolName)) {
-                    return ONode.serialize(webExtract(args));
+                    return rpcJson(webExtract(args));
                 }
-                return ONode.serialize(
+                return rpcJson(
                         errorMap(
                                 "Tool '"
                                         + toolName
                                         + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, web_extract, web_search, write_file"));
             } catch (Exception e) {
-                return ONode.serialize(errorMap(safeErrorText(e)));
+                return rpcJson(errorMap(safeErrorText(e)));
             }
         }
 
@@ -519,10 +519,10 @@ public class SolonClawCodeExecutionSkills {
                 if (parsed instanceof Map) {
                     Map<String, Object> map = castMap(parsed);
                     ensureStatusField(map);
-                    return ONode.serialize(map);
+                    return rpcJson(map);
                 }
                 if (parsed instanceof List) {
-                    return ONode.serialize(parsed);
+                    return rpcJson(parsed);
                 }
             } catch (Exception ignored) {
             }
@@ -531,7 +531,37 @@ public class SolonClawCodeExecutionSkills {
             wrapped.put("result", value);
             wrapped.put("status", "success");
             wrapped.put("success", Boolean.TRUE);
-            return ONode.serialize(wrapped);
+            return rpcJson(wrapped);
+        }
+
+        @SuppressWarnings("unchecked")
+        private String rpcJson(Object value) {
+            return ONode.serialize(sanitizeRpcValue(value));
+        }
+
+        @SuppressWarnings("unchecked")
+        private Object sanitizeRpcValue(Object value) {
+            if (value instanceof String) {
+                return SecretRedactor.redact((String) value, 4000);
+            }
+            if (value instanceof Map) {
+                Map<String, Object> sanitized = new LinkedHashMap<String, Object>();
+                for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                    Object key = entry.getKey();
+                    sanitized.put(
+                            key == null ? "" : SecretRedactor.redact(String.valueOf(key), 400),
+                            sanitizeRpcValue(entry.getValue()));
+                }
+                return sanitized;
+            }
+            if (value instanceof List) {
+                List<Object> sanitized = new ArrayList<Object>();
+                for (Object item : (List<Object>) value) {
+                    sanitized.add(sanitizeRpcValue(item));
+                }
+                return sanitized;
+            }
+            return value;
         }
 
         private Map<String, Object> searchFiles(Map<String, Object> args) throws Exception {
