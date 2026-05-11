@@ -217,7 +217,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             String raw = response.body() == null ? "" : response.body().string();
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("Yuanbao HTTP " + response.code() + ": " + raw);
+                throw new IllegalStateException(
+                        "Yuanbao HTTP "
+                                + response.code()
+                                + ": "
+                                + SecretRedactor.redact(raw, 1000));
             }
             return StrUtil.isBlank(raw) ? new ONode() : ONode.ofJson(raw);
         } finally {

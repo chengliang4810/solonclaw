@@ -21,9 +21,12 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.lark.oapi.core.request.EventReq;
+import com.sun.net.httpserver.HttpServer;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -650,6 +653,67 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRedactYuanbaoHttpErrorBody() throws Throwable {
+        HttpServer server = secretErrorServer("{\"error\":\"token=ghp_yuanbaohttp12345\"}");
+        try {
+            AppConfig config = new AppConfig();
+            config.getSecurity().setAllowPrivateUrls(true);
+            config.getChannels().getYuanbao().setAppId("yb_real");
+            config.getChannels().getYuanbao().setAppSecret("real_secret");
+            config.getChannels().getYuanbao().setApiDomain(localUrl(server));
+            YuanbaoChannelAdapter adapter =
+                    new YuanbaoChannelAdapter(
+                            config.getChannels().getYuanbao(), new SecurityPolicyService(config));
+            Method postJson =
+                    YuanbaoChannelAdapter.class.getDeclaredMethod(
+                            "postJson", String.class, String.class);
+            postJson.setAccessible(true);
+
+            assertThatThrownBy(() -> invoke(postJson, adapter, "/openapi/bot/messages", "{}"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Yuanbao HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageNotContaining("ghp_yuanbaohttp12345");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactQqbotHttpErrorBody() throws Throwable {
+        HttpServer server = secretErrorServer("{\"message\":\"api_key=sk-qqbot-http-secret\"}");
+        try {
+            AppConfig config = new AppConfig();
+            config.getSecurity().setAllowPrivateUrls(true);
+            config.getChannels().getQqbot().setAppId("qq_real");
+            config.getChannels().getQqbot().setClientSecret("real_secret");
+            config.getChannels().getQqbot().setApiDomain(localUrl(server));
+            QQBotChannelAdapter adapter =
+                    new QQBotChannelAdapter(
+                            config.getChannels().getQqbot(),
+                            new AttachmentCacheService(config),
+                            new SecurityPolicyService(config));
+            setField(adapter, "accessToken", "cached-token");
+            setField(
+                    adapter,
+                    "accessTokenExpireAt",
+                    Long.valueOf(System.currentTimeMillis() + 120000L));
+            Method postJson =
+                    QQBotChannelAdapter.class.getDeclaredMethod(
+                            "postJson", String.class, String.class);
+            postJson.setAccessible(true);
+
+            assertThatThrownBy(() -> invoke(postJson, adapter, "/v2/users/u/messages", "{}"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("QQBot HTTP 500")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageNotContaining("sk-qqbot-http-secret");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldBlockUnsafeWeComConfiguredWebsocketBeforeNetworkAccess() {
         AppConfig config = new AppConfig();
         config.getChannels().getWecom().setEnabled(true);
@@ -699,6 +763,24 @@ public class DomesticChannelEnhancementTest {
         java.lang.reflect.Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private HttpServer secretErrorServer(String body) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/",
+                exchange -> {
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(500, bytes.length);
+                    exchange.getResponseBody().write(bytes);
+                    exchange.close();
+                });
+        server.start();
+        return server;
+    }
+
+    private String localUrl(HttpServer server) {
+        return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
     private static class TestQQBotAdapter extends QQBotChannelAdapter {

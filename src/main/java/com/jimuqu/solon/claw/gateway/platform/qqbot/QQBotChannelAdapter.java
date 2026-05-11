@@ -448,7 +448,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             String raw = safeBody(response);
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("QQBot HTTP " + response.code() + ": " + raw);
+                throw new IllegalStateException(
+                        "QQBot HTTP " + response.code() + ": " + safeHttpErrorBody(raw));
             }
             return StrUtil.isBlank(raw) ? new ONode() : ONode.ofJson(raw);
         } finally {
@@ -469,7 +470,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             String raw = safeBody(response);
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("QQBot HTTP " + response.code() + ": " + raw);
+                throw new IllegalStateException(
+                        "QQBot HTTP " + response.code() + ": " + safeHttpErrorBody(raw));
             }
             return StrUtil.isBlank(raw) ? new ONode() : ONode.ofJson(raw);
         } finally {
@@ -479,6 +481,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private String safeBody(Response response) throws Exception {
         return response.body() == null ? "" : response.body().string();
+    }
+
+    private String safeHttpErrorBody(String raw) {
+        return SecretRedactor.redact(raw, 1000);
     }
 
     private void assertSafeUrl(String url, String purpose) {
