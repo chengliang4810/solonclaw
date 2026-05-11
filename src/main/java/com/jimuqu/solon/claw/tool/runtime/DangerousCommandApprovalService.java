@@ -838,6 +838,22 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_history_write",
+                                    "write credential file content into shell history",
+                                    pattern(
+                                            "(?:\\bhistory\\s+-s\\b[^\\n|;&]*(?:\\$\\([^\\n)]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n)]*\\)|`[^`\\n]*(?:cat|type|Get-Content|gc)\\b[^`\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^`\\n]*`|"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")|\\bAdd-History\\b[^\\n|;&]*(?:\\(\\s*(?:Get-Content|gc)\\b[^\\n)]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n)]*\\)|"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(

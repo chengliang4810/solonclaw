@@ -4034,6 +4034,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileHistoryWriteCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "history -s \"$(cat .env)\"",
+                        "history -s `cat credentials.json`",
+                        "history -s token.json",
+                        "Add-History (Get-Content .anthropic_oauth.json)",
+                        "Add-History .npmrc");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_history_write");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "history -s 'npm test'"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "history | tail"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Add-History report.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectTlsCertificateVerificationBypassCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
