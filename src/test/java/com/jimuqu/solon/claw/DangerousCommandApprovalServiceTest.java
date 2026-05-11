@@ -6292,6 +6292,26 @@ public class DangerousCommandApprovalServiceTest {
         assertWriteDenied(securityPolicyService, "/private/var/root-owned");
         assertWriteDenied(securityPolicyService, "/var/run/docker.sock");
         assertWriteDenied(securityPolicyService, "/run/docker.sock");
+        assertWriteDenied(securityPolicyService, "/run/containerd/containerd.sock");
+        assertWriteDenied(securityPolicyService, "/run/podman/podman.sock");
+        assertWriteDenied(securityPolicyService, "/var/run/cri-dockerd.sock");
+        assertWriteDenied(securityPolicyService, "/var/run/crio/crio.sock");
+        assertWriteDenied(securityPolicyService, "//./pipe/docker_engine");
+        assertWriteDenied(securityPolicyService, "\\\\.\\pipe\\docker_engine");
+        assertWriteDenied(securityPolicyService, "npipe:////./pipe/docker_engine");
+        assertWriteDenied(securityPolicyService, "npipe://./pipe/docker_engine");
+    }
+
+    @Test
+    void shouldBlockLocalManagementEndpointReadsForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        assertReadDenied(securityPolicyService, "/var/run/docker.sock", "管理套接字");
+        assertReadDenied(securityPolicyService, "/run/containerd/containerd.sock", "管理套接字");
+        assertReadDenied(securityPolicyService, "//./pipe/docker_engine", "命名管道");
+        assertReadDenied(securityPolicyService, "\\\\.\\pipe\\docker_engine", "命名管道");
+        assertReadDenied(securityPolicyService, "npipe:////./pipe/docker_engine", "命名管道");
     }
 
     @Test
@@ -6311,6 +6331,30 @@ public class DangerousCommandApprovalServiceTest {
                 securityPolicyService.checkFileToolArgs("file_write", args);
 
         assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldExposeLocalManagementEndpointPathPolicySummary() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        Map<String, Object> summary = securityPolicyService.pathPolicySummary();
+
+        assertThat(summary.get("localManagementSocketReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementSocketWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementSocketAccessBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementPipeReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementPipeWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementPipeAccessBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(((Integer) summary.get("localManagementSocketPathCount")).intValue())
+                .isGreaterThan(0);
+        assertThat(((Integer) summary.get("localManagementPipePathCount")).intValue())
+                .isGreaterThan(0);
+        assertThat(String.valueOf(summary.get("localManagementSocketPathSamples")))
+                .contains("docker.sock");
+        assertThat(String.valueOf(summary.get("localManagementPipePathSamples")))
+                .contains("docker_engine");
+        assertThat(String.valueOf(summary.get("description"))).contains("local management endpoints");
     }
 
     @Test
@@ -9368,6 +9412,17 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs("file_write", args);
         assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getPath()).isEqualTo(path);
+    }
+
+    private static void assertReadDenied(
+            SecurityPolicyService securityPolicyService, String path, String message) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", path);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_read", args);
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains(message);
         assertThat(verdict.getPath()).isEqualTo(path);
     }
 

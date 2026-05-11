@@ -661,18 +661,28 @@ public class SecurityPolicyService {
         summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalWriteBlocked", Boolean.TRUE);
+        summary.put("localManagementSocketReadBlocked", Boolean.TRUE);
+        summary.put("localManagementSocketWriteBlocked", Boolean.TRUE);
+        summary.put("localManagementSocketAccessBlocked", Boolean.TRUE);
+        summary.put("localManagementPipeReadBlocked", Boolean.TRUE);
+        summary.put("localManagementPipeWriteBlocked", Boolean.TRUE);
+        summary.put("localManagementPipeAccessBlocked", Boolean.TRUE);
         summary.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(writeSafeRoot)));
         summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
         summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
         summary.put("writeDeniedHomeFileCount", Integer.valueOf(WRITE_DENIED_HOME_FILE_NAMES.size()));
         summary.put("blockedDevicePathCount", Integer.valueOf(BLOCKED_DEVICE_PATHS.size()));
+        summary.put("localManagementSocketPathCount", Integer.valueOf(LOCAL_MANAGEMENT_SOCKET_PATHS.size()));
+        summary.put("localManagementPipePathCount", Integer.valueOf(LOCAL_MANAGEMENT_PIPE_PATHS.size()));
         summary.put("writeDeniedExactPathSamples", sample(WRITE_DENIED_EXACT_PATHS, 6));
         summary.put("writeDeniedPrefixSamples", sample(WRITE_DENIED_PREFIXES, 6));
         summary.put("writeDeniedHomeFileSamples", sample(WRITE_DENIED_HOME_FILE_NAMES, 6));
         summary.put("blockedDevicePathSamples", sample(BLOCKED_DEVICE_PATHS, 6));
+        summary.put("localManagementSocketPathSamples", sample(LOCAL_MANAGEMENT_SOCKET_PATHS, 4));
+        summary.put("localManagementPipePathSamples", sample(LOCAL_MANAGEMENT_PIPE_PATHS, 4));
         summary.put("workdirSafePattern", WORKDIR_SAFE_PATTERN.pattern());
-        summary.put("description", "Path safety blocks traversal, control characters, device files, sensitive system writes, internal skill hub access, and writes outside the configured safe root.");
+        summary.put("description", "Path safety blocks traversal, control characters, device files, sensitive system writes, local management endpoints, internal skill hub access, and writes outside the configured safe root.");
         return summary;
     }
 
@@ -1070,6 +1080,20 @@ public class SecurityPolicyService {
         }
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
+        }
+        if (isLocalManagementSocket(path)) {
+            return FileVerdict.block(
+                    path,
+                    writeLike
+                            ? "写入本地容器/运行时管理套接字被阻断"
+                            : "访问本地容器/运行时管理套接字被阻断");
+        }
+        if (isLocalManagementPipe(path)) {
+            return FileVerdict.block(
+                    path,
+                    writeLike
+                            ? "写入本地容器/运行时管理命名管道被阻断"
+                            : "访问本地容器/运行时管理命名管道被阻断");
         }
         if (writeLike && isOutsideSafeWriteRoot(path)) {
             return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
