@@ -28,6 +28,15 @@ public class CliShellTipsTest {
                         "/security",
                         "/security audit",
                         "/security policy",
+                        "/security approvals",
+                        "/security slash-confirm",
+                        "/security hardline",
+                        "/security terminal-guardrails",
+                        "/security tirith",
+                        "/security tirith-approval",
+                        "/security urls",
+                        "/security private-urls",
+                        "/security website",
                         "/security paths",
                         "/security credentials",
                         "/security tool-args",
@@ -80,11 +89,23 @@ public class CliShellTipsTest {
                 .contains("/security terminal-paste")
                 .contains("/security media-cache")
                 .contains("/security tool-results")
+                .contains("/security private-urls")
+                .contains("/security hardline")
+                .contains("/security terminal-guardrails")
+                .contains("/security tirith")
                 .contains("/security code-execution")
                 .contains("/security process");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")
                 .contains("unsupportedSchemeBlocked");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security private-urls"))
+                .contains("私有 URL 安全策略摘要")
+                .contains("metadataAlwaysBlocked")
+                .contains("loopback");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security website"))
+                .contains("网站策略摘要")
+                .contains("wildcard")
+                .contains("pathSafe");
         assertThat(TerminalSecurityPolicyView.render(null, "/security paths"))
                 .contains("路径安全策略摘要")
                 .contains("devicePath");
@@ -99,6 +120,11 @@ public class CliShellTipsTest {
                 .contains("oauthReauth")
                 .contains("Tool schema")
                 .contains("unsupportedKeywordsStripped")
+                .contains("私有 URL")
+                .contains("网站策略")
+                .contains("Slash 确认")
+                .contains("硬阻断")
+                .contains("终端护栏")
                 .contains("附件下载")
                 .contains("redirectChecked")
                 .contains("代码执行")
@@ -107,6 +133,26 @@ public class CliShellTipsTest {
                 .contains("managedRequired")
                 .contains("工具输出")
                 .contains("persistOversize");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security slash-confirm"))
+                .contains("Slash 确认策略摘要")
+                .contains("approveAll")
+                .contains("metadataRedacted");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security hardline"))
+                .contains("硬阻断命令策略摘要")
+                .contains("metadataUrlBlocked")
+                .contains("yolo=false");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-guardrails"))
+                .contains("终端护栏策略摘要")
+                .contains("managedRequired")
+                .contains("credentialPath");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security tirith"))
+                .contains("Tirith 安全策略摘要")
+                .contains("jsonMode")
+                .contains("failOpenMode");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security tirith-approval"))
+                .contains("Tirith 审批策略摘要")
+                .contains("permanentAllowed=false")
+                .contains("alwaysDowngraded=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security mcp"))
                 .contains("MCP 安全策略摘要")
                 .contains("structuredReauth");

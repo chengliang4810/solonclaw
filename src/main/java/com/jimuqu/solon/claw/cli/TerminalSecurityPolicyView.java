@@ -35,8 +35,29 @@ public final class TerminalSecurityPolicyView {
         if ("urls".equals(mode)) {
             return renderUrlPolicy(securityPolicyService.urlPolicySummary());
         }
+        if ("private-urls".equals(mode)) {
+            return renderPrivateUrlPolicy(securityPolicyService.privateUrlPolicySummary());
+        }
+        if ("website".equals(mode)) {
+            return renderWebsitePolicy(securityPolicyService.websitePolicySummary());
+        }
         if ("approvals".equals(mode)) {
             return renderApprovalPolicy(approvalService.approvalPolicySummary());
+        }
+        if ("slash-confirm".equals(mode)) {
+            return renderSlashConfirmPolicy(approvalService.slashConfirmPolicySummary());
+        }
+        if ("hardline".equals(mode)) {
+            return renderHardlinePolicy(approvalService.hardlinePolicySummary());
+        }
+        if ("terminal-guardrails".equals(mode)) {
+            return renderTerminalGuardrailPolicy(approvalService.terminalGuardrailPolicySummary());
+        }
+        if ("tirith".equals(mode)) {
+            return renderTirithPolicy(new TirithSecurityService(config).policySummary());
+        }
+        if ("tirith-approval".equals(mode)) {
+            return renderTirithApprovalPolicy(approvalService.tirithApprovalPolicySummary());
         }
         if ("paths".equals(mode)) {
             return renderPathPolicy(securityPolicyService.pathPolicySummary());
@@ -98,8 +119,29 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("url")) {
             return "urls";
         }
+        if (rest.startsWith("private-url") || rest.startsWith("ssrf")) {
+            return "private-urls";
+        }
+        if (rest.startsWith("website") || rest.startsWith("site")) {
+            return "website";
+        }
         if (rest.startsWith("approval")) {
             return "approvals";
+        }
+        if (rest.startsWith("slash-confirm") || rest.startsWith("confirm")) {
+            return "slash-confirm";
+        }
+        if (rest.startsWith("hardline")) {
+            return "hardline";
+        }
+        if (rest.startsWith("terminal-guard")) {
+            return "terminal-guardrails";
+        }
+        if (rest.startsWith("tirith-approval")) {
+            return "tirith-approval";
+        }
+        if (rest.startsWith("tirith")) {
+            return "tirith";
         }
         if (rest.startsWith("path")) {
             return "paths";
@@ -159,6 +201,22 @@ public final class TerminalSecurityPolicyView {
         StringBuilder buffer = new StringBuilder("安全审计摘要：");
         appendApprovalLine(buffer, approvalService.approvalPolicySummary());
         appendUrlLine(buffer, securityPolicyService.urlPolicySummary());
+        Map<String, Object> privateUrl = securityPolicyService.privateUrlPolicySummary();
+        buffer.append('\n')
+                .append("- 私有 URL：allow=")
+                .append(value(privateUrl, "allowPrivateUrls"))
+                .append(" metadataBlocked=")
+                .append(value(privateUrl, "cloudMetadataAlwaysBlocked"))
+                .append(" loopbackBlocked=")
+                .append(value(privateUrl, "loopbackBlocked"));
+        Map<String, Object> website = securityPolicyService.websitePolicySummary();
+        buffer.append('\n')
+                .append("- 网站策略：enabled=")
+                .append(value(website, "enabled"))
+                .append(" domains=")
+                .append(value(website, "configuredDomainCount"))
+                .append(" sharedRules=")
+                .append(value(website, "sharedRuleCount"));
         Map<String, Object> path = securityPolicyService.pathPolicySummary();
         buffer.append('\n')
                 .append("- 路径策略：traversal=")
@@ -181,9 +239,21 @@ public final class TerminalSecurityPolicyView {
                 .append(value(tirith, "enabled"))
                 .append(" promptGuard=")
                 .append(value(tirith, "promptInjectionGuardEnabled"));
+        Map<String, Object> hardline = approvalService.hardlinePolicySummary();
+        buffer.append('\n')
+                .append("- 硬阻断：rules=")
+                .append(value(hardline, "ruleCount"))
+                .append(" bypass=")
+                .append(value(hardline, "approvalBypassAllowed"));
+        Map<String, Object> guardrail = approvalService.terminalGuardrailPolicySummary();
+        buffer.append('\n')
+                .append("- 终端护栏：longLived=")
+                .append(value(guardrail, "longLivedForegroundBlocked"))
+                .append(" managedRequired=")
+                .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security urls、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -194,6 +264,22 @@ public final class TerminalSecurityPolicyView {
         StringBuilder buffer = new StringBuilder("安全策略摘要：");
         appendApprovalLine(buffer, approvalService.approvalPolicySummary());
         appendUrlLine(buffer, securityPolicyService.urlPolicySummary());
+        Map<String, Object> privateUrl = securityPolicyService.privateUrlPolicySummary();
+        buffer.append('\n')
+                .append("- 私有 URL：allow=")
+                .append(value(privateUrl, "allowPrivateUrls"))
+                .append(" dnsRequired=")
+                .append(value(privateUrl, "dnsResolutionRequired"))
+                .append(" metadataBlocked=")
+                .append(value(privateUrl, "cloudMetadataAlwaysBlocked"));
+        Map<String, Object> website = securityPolicyService.websitePolicySummary();
+        buffer.append('\n')
+                .append("- 网站策略：enabled=")
+                .append(value(website, "enabled"))
+                .append(" wildcard=")
+                .append(value(website, "wildcardSubdomainSupported"))
+                .append(" pathSafe=")
+                .append(value(website, "sharedFilePathSafetyChecked"));
         Map<String, Object> credential = securityPolicyService.credentialPolicySummary();
         buffer.append('\n')
                 .append("- 凭据文件：names=")
@@ -206,8 +292,34 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- Tirith：enabled=")
                 .append(value(tirith, "enabled"))
-                .append(" blockedPatternCount=")
-                .append(value(tirith, "blockedPatternCount"));
+                .append(" available=")
+                .append(value(tirith, "available"))
+                .append(" failOpen=")
+                .append(value(tirith, "failOpen"));
+        Map<String, Object> slash = approvalService.slashConfirmPolicySummary();
+        buffer.append('\n')
+                .append("- Slash 确认：approveAll=")
+                .append(value(slash, "approveAllSupported"))
+                .append(" denyAll=")
+                .append(value(slash, "denyAllSupported"))
+                .append(" scopes=")
+                .append(value(slash, "scopes"));
+        Map<String, Object> hardline = approvalService.hardlinePolicySummary();
+        buffer.append('\n')
+                .append("- 硬阻断：rules=")
+                .append(value(hardline, "ruleCount"))
+                .append(" bypass=")
+                .append(value(hardline, "approvalBypassAllowed"))
+                .append(" decision=")
+                .append(value(hardline, "blockingDecision"));
+        Map<String, Object> guardrail = approvalService.terminalGuardrailPolicySummary();
+        buffer.append('\n')
+                .append("- 终端护栏：backgroundBlocked=")
+                .append(value(guardrail, "inlineAmpersandBlocked"))
+                .append(" longLived=")
+                .append(value(guardrail, "longLivedForegroundBlocked"))
+                .append(" managedRequired=")
+                .append(value(guardrail, "managedBackgroundProcessRequired"));
         appendExtendedPolicyLines(buffer, config);
         return buffer.toString();
     }
@@ -227,6 +339,132 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    private static String renderSlashConfirmPolicy(Map<String, Object> slash) {
+        StringBuilder buffer = new StringBuilder("Slash 确认策略摘要：");
+        buffer.append('\n')
+                .append("- 命令：commands=")
+                .append(value(slash, "commands"))
+                .append(" scopes=")
+                .append(value(slash, "scopes"))
+                .append(" default=")
+                .append(value(slash, "defaultScope"));
+        buffer.append('\n')
+                .append("- 批量：approveAll=")
+                .append(value(slash, "approveAllSupported"))
+                .append(" denyAll=")
+                .append(value(slash, "denyAllSupported"))
+                .append(" pendingQueue=")
+                .append(value(slash, "pendingQueueSupported"));
+        buffer.append('\n')
+                .append("- 脱敏：approvalKeyHidden=")
+                .append(value(slash, "pendingListHidesApprovalKey"))
+                .append(" commandRedacted=")
+                .append(value(slash, "commandPreviewRedacted"))
+                .append(" metadataRedacted=")
+                .append(value(slash, "approvalMetadataRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderHardlinePolicy(Map<String, Object> hardline) {
+        StringBuilder buffer = new StringBuilder("硬阻断命令策略摘要：");
+        buffer.append('\n')
+                .append("- 规则：count=")
+                .append(value(hardline, "ruleCount"))
+                .append(" categories=")
+                .append(value(hardline, "blockedCategories"));
+        buffer.append('\n')
+                .append("- 覆盖：tools=")
+                .append(value(hardline, "coveredTools"))
+                .append(" metadataUrlBlocked=")
+                .append(value(hardline, "metadataUrlBlocked"));
+        buffer.append('\n')
+                .append("- 绕过：approval=")
+                .append(value(hardline, "approvalBypassAllowed"))
+                .append(" slash=")
+                .append(value(hardline, "slashApproveBypassAllowed"))
+                .append(" yolo=")
+                .append(value(hardline, "yoloBypassAllowed"));
+        return buffer.toString();
+    }
+
+    private static String renderTerminalGuardrailPolicy(Map<String, Object> guardrail) {
+        StringBuilder buffer = new StringBuilder("终端护栏策略摘要：");
+        buffer.append('\n')
+                .append("- 后台：wrappers=")
+                .append(value(guardrail, "backgroundShellWrappersBlocked"))
+                .append(" inlineAmpersand=")
+                .append(value(guardrail, "inlineAmpersandBlocked"))
+                .append(" trailingAmpersand=")
+                .append(value(guardrail, "trailingAmpersandBlocked"));
+        buffer.append('\n')
+                .append("- 长任务：longLivedBlocked=")
+                .append(value(guardrail, "longLivedForegroundBlocked"))
+                .append(" patterns=")
+                .append(value(guardrail, "longLivedForegroundPatternCount"))
+                .append(" managedRequired=")
+                .append(value(guardrail, "managedBackgroundProcessRequired"));
+        buffer.append('\n')
+                .append("- 预检：commandPath=")
+                .append(value(guardrail, "commandPathPrechecked"))
+                .append(" credentialPath=")
+                .append(value(guardrail, "credentialPathPrechecked"))
+                .append(" proxyUrl=")
+                .append(value(guardrail, "proxyUrlPrechecked"));
+        return buffer.toString();
+    }
+
+    private static String renderTirithPolicy(Map<String, Object> tirith) {
+        StringBuilder buffer = new StringBuilder("Tirith 安全策略摘要：");
+        buffer.append('\n')
+                .append("- 状态：enabled=")
+                .append(value(tirith, "enabled"))
+                .append(" configured=")
+                .append(value(tirith, "configured"))
+                .append(" available=")
+                .append(value(tirith, "available"));
+        buffer.append('\n')
+                .append("- 执行：jsonMode=")
+                .append(value(tirith, "jsonOutputMode"))
+                .append(" envSanitized=")
+                .append(value(tirith, "subprocessEnvironmentSanitized"))
+                .append(" timeoutKillsProcess=")
+                .append(value(tirith, "timeoutKillsProcess"));
+        buffer.append('\n')
+                .append("- 决策：actions=")
+                .append(value(tirith, "actions"))
+                .append(" failOpenMode=")
+                .append(value(tirith, "failOpenMode"))
+                .append(" redaction=")
+                .append(value(tirith, "secretRedaction"));
+        return buffer.toString();
+    }
+
+    private static String renderTirithApprovalPolicy(Map<String, Object> tirith) {
+        StringBuilder buffer = new StringBuilder("Tirith 审批策略摘要：");
+        buffer.append('\n')
+                .append("- 扫描：configured=")
+                .append(value(tirith, "scannerConfigured"))
+                .append(" inApprovalMode=")
+                .append(value(tirith, "scanRunsInApprovalMode"))
+                .append(" prefix=")
+                .append(value(tirith, "patternKeyPrefix"));
+        buffer.append('\n')
+                .append("- 合并：findingsAsKeys=")
+                .append(value(tirith, "findingsBecomePatternKeys"))
+                .append(" localRules=")
+                .append(value(tirith, "combinedWithLocalDangerRules"))
+                .append(" smartSessionOnly=")
+                .append(value(tirith, "smartApprovalCanApproveSessionOnly"));
+        buffer.append('\n')
+                .append("- 范围：permanentAllowed=")
+                .append(value(tirith, "permanentApprovalAllowed"))
+                .append(" alwaysDowngraded=")
+                .append(value(tirith, "alwaysScopeDowngradedToSession"))
+                .append(" descriptionRedacted=")
+                .append(value(tirith, "descriptionRedacted"));
+        return buffer.toString();
+    }
+
     private static String renderUrlPolicy(Map<String, Object> url) {
         StringBuilder buffer = new StringBuilder("URL 安全策略摘要：");
         appendUrlLine(buffer, url);
@@ -240,6 +478,58 @@ public final class TerminalSecurityPolicyView {
                 .append(value(url, "repeatedEncodedSensitiveQueryBlocked"))
                 .append(" semicolon=")
                 .append(value(url, "semicolonSensitiveQueryBlocked"));
+        return buffer.toString();
+    }
+
+    private static String renderPrivateUrlPolicy(Map<String, Object> url) {
+        StringBuilder buffer = new StringBuilder("私有 URL 安全策略摘要：");
+        buffer.append('\n')
+                .append("- 开关：allowPrivate=")
+                .append(value(url, "allowPrivateUrls"))
+                .append(" env=")
+                .append(value(url, "environmentOverrideName"))
+                .append(" metadataAlwaysBlocked=")
+                .append(value(url, "cloudMetadataAlwaysBlocked"));
+        buffer.append('\n')
+                .append("- 解析：dnsRequired=")
+                .append(value(url, "dnsResolutionRequired"))
+                .append(" obfuscatedIpv4=")
+                .append(value(url, "obfuscatedIpv4Checked"))
+                .append(" mappedIpv6=")
+                .append(value(url, "ipv4MappedIpv6Checked"));
+        buffer.append('\n')
+                .append("- 阻断：loopback=")
+                .append(value(url, "loopbackBlocked"))
+                .append(" linkLocal=")
+                .append(value(url, "linkLocalBlocked"))
+                .append(" siteLocal=")
+                .append(value(url, "siteLocalBlocked"));
+        return buffer.toString();
+    }
+
+    private static String renderWebsitePolicy(Map<String, Object> website) {
+        StringBuilder buffer = new StringBuilder("网站策略摘要：");
+        buffer.append('\n')
+                .append("- 配置：enabled=")
+                .append(value(website, "enabled"))
+                .append(" domains=")
+                .append(value(website, "configuredDomainCount"))
+                .append(" sharedFiles=")
+                .append(value(website, "sharedFileCount"));
+        buffer.append('\n')
+                .append("- 共享规则：loadedFiles=")
+                .append(value(website, "loadedSharedFileCount"))
+                .append(" skippedFiles=")
+                .append(value(website, "skippedSharedFileCount"))
+                .append(" rules=")
+                .append(value(website, "sharedRuleCount"));
+        buffer.append('\n')
+                .append("- 匹配：normalized=")
+                .append(value(website, "hostRuleNormalization"))
+                .append(" wildcard=")
+                .append(value(website, "wildcardSubdomainSupported"))
+                .append(" pathSafe=")
+                .append(value(website, "sharedFilePathSafetyChecked"));
         return buffer.toString();
     }
 
