@@ -275,6 +275,8 @@ public class SolonClawShellSkillTest {
     void shouldStripEightBitAnsiFromTerminalOutputLikeJimuqu() throws Exception {
         assertThat(TerminalAnsiSanitizer.stripAnsi("\u009B31mred\u009B0m"))
                 .isEqualTo("red");
+        assertThat(TerminalAnsiSanitizer.stripAnsi("\u009D52;c;clipboard\u009Cvisible"))
+                .isEqualTo("visible");
     }
 
     @Test
