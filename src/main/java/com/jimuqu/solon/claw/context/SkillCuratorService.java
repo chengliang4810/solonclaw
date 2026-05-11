@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -133,7 +134,7 @@ public class SkillCuratorService {
         item.put("loadCount", Long.valueOf(loadCount));
         item.put("callCount", Long.valueOf(callCount));
         item.put("suggestions", suggestions);
-        item.put("path", descriptor.getSkillDir());
+        item.put("path", skillReference(name));
         return item;
     }
 
@@ -199,9 +200,13 @@ public class SkillCuratorService {
         report.put("startedAt", Long.valueOf(now));
         report.put("finishedAt", Long.valueOf(System.currentTimeMillis()));
         report.put("items", items);
-        report.put("stateFile", stateFile().getAbsolutePath());
+        report.put("stateFile", "curator://state");
         writeReport(report, now);
         return report;
+    }
+
+    private String skillReference(String name) {
+        return "skill://" + SecretRedactor.redact(StrUtil.blankToDefault(name, "unknown"), 400);
     }
 
     private void writeReport(Map<String, Object> report, long now) {
