@@ -380,6 +380,9 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(schemelessHost)) {
                 return UrlVerdict.allow();
             }
+            if (hasSensitiveSchemelessUrlParameterName(raw)) {
+                return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
+            }
             return checkSchemelessHostAccess(raw, schemelessHost, allowPrivateOverride);
         }
 
@@ -3104,6 +3107,14 @@ public class SecurityPolicyService {
                 || containsSensitiveParameterName(uri.getRawPath())
                 || containsSensitiveParameterName(uri.getRawQuery())
                 || containsSensitiveParameterName(uri.getRawFragment());
+    }
+
+    private boolean hasSensitiveSchemelessUrlParameterName(String raw) {
+        URI uri = parseUri("http://" + raw);
+        if (uri == null) {
+            return containsSensitiveParameterName(raw);
+        }
+        return hasSensitiveUrlParameterName(uri);
     }
 
     private boolean containsSensitivePathCredentialName(String rawPath) {

@@ -521,6 +521,38 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockSensitiveCredentialNamesInSchemelessUrls() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("url", "example.com/callback?api_key=secret123");
+
+        SecurityPolicyService.UrlVerdict directQuery =
+                policy.checkUrl("example.com/callback?access_token=secret123");
+        SecurityPolicyService.UrlVerdict directFragment =
+                policy.checkUrl("example.com/callback#refresh_token=secret123");
+        SecurityPolicyService.UrlVerdict directPath =
+                policy.checkUrl("example.com/oauth/client_secret/secret123");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandUrls("curl example.com/callback?api%255Fkey=secret123");
+        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("webfetch", args);
+        SecurityPolicyService.UrlVerdict safe =
+                policy.checkUrl("example.com/docs/access_token");
+
+        assertThat(directQuery.isAllowed()).isFalse();
+        assertThat(directQuery.getMessage()).contains("敏感凭据参数");
+        assertThat(directFragment.isAllowed()).isFalse();
+        assertThat(directFragment.getMessage()).contains("敏感凭据参数");
+        assertThat(directPath.isAllowed()).isFalse();
+        assertThat(directPath.getMessage()).contains("敏感凭据参数");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("敏感凭据参数");
+        assertThat(toolArg.isAllowed()).isFalse();
+        assertThat(toolArg.getMessage()).contains("敏感凭据参数");
+        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
