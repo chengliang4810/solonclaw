@@ -5488,6 +5488,17 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.UrlVerdict abstractDockerSocket =
                 securityPolicyService.checkCommandUrls(
                         "curl --abstract-unix-socket=/run/podman/podman.sock http://localhost/libpod/info");
+        SecurityPolicyService.UrlVerdict dockerPipeEnv =
+                securityPolicyService.checkCommandUrls(
+                        "DOCKER_HOST=npipe:////./pipe/docker_engine docker ps");
+        SecurityPolicyService.UrlVerdict dockerPipeUrl =
+                securityPolicyService.checkCommandUrls(
+                        "curl npipe:////./pipe/docker_engine/containers/json");
+        SecurityPolicyService.UrlVerdict dockerPipePath =
+                securityPolicyService.checkCommandUrls(
+                        "curl //./pipe/docker_engine/containers/json");
+        SecurityPolicyService.UrlVerdict ordinaryPipe =
+                securityPolicyService.checkCommandUrls("curl //./pipe/not-docker/status");
         SecurityPolicyService.UrlVerdict ordinaryUnixSocket =
                 securityPolicyService.checkCommandUrls(
                         "curl --unix-socket runtime/app.sock http://localhost/status");
@@ -5600,6 +5611,14 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(dockerSocket.getMessage()).contains("管理套接字");
         assertThat(abstractDockerSocket.isAllowed()).isFalse();
         assertThat(abstractDockerSocket.getMessage()).contains("管理套接字");
+        assertThat(dockerPipeEnv.isAllowed()).isFalse();
+        assertThat(dockerPipeEnv.getMessage()).contains("命名管道");
+        assertThat(dockerPipeUrl.isAllowed()).isFalse();
+        assertThat(dockerPipeUrl.getMessage()).contains("命名管道");
+        assertThat(dockerPipePath.isAllowed()).isFalse();
+        assertThat(dockerPipePath.getMessage()).contains("命名管道");
+        assertThat(ordinaryPipe.isAllowed()).isFalse();
+        assertThat(ordinaryPipe.getMessage()).doesNotContain("命名管道");
         assertThat(ordinaryUnixSocket.isAllowed()).isFalse();
         assertThat(ordinaryUnixSocket.getMessage()).contains("内网");
     }
