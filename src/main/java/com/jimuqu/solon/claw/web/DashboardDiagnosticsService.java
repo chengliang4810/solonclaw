@@ -1337,6 +1337,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "credentialPathPrechecked");
             copyPolicyValue(summary, safe, "downloadOutputPathPrechecked");
             copyPolicyValue(summary, safe, "downloadOutputDetachedOptionPrechecked");
+            copyPolicyValue(summary, safe, "networkUploadSourcePathPrechecked");
             copyPolicyValue(summary, safe, "proxyUrlPrechecked");
             copyPolicyValue(summary, safe, "preproxyUrlPrechecked");
             copyPolicyValue(summary, safe, "managedBackgroundProcessRequired");

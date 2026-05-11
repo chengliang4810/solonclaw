@@ -972,6 +972,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("downloadOutputDetachedOptionPrechecked").getBoolean())
                 .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("networkUploadSourcePathPrechecked").getBoolean())
+                .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("preproxyUrlPrechecked").getBoolean())
                 .isTrue();
         assertThat(String.valueOf(coverageTerminalGuardrailPolicy))

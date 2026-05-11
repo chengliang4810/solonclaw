@@ -394,6 +394,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("credentialPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputDetachedOptionPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("networkUploadSourcePathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("managedBackgroundProcessRequired")).isEqualTo(Boolean.TRUE);

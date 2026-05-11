@@ -2802,6 +2802,7 @@ public class DangerousCommandApprovalService {
         summary.put("credentialPathPrechecked", Boolean.TRUE);
         summary.put("downloadOutputPathPrechecked", Boolean.TRUE);
         summary.put("downloadOutputDetachedOptionPrechecked", Boolean.TRUE);
+        summary.put("networkUploadSourcePathPrechecked", Boolean.TRUE);
         summary.put("proxyUrlPrechecked", Boolean.TRUE);
         summary.put("preproxyUrlPrechecked", Boolean.TRUE);
         summary.put("managedBackgroundProcessRequired", Boolean.TRUE);
@@ -2811,7 +2812,7 @@ public class DangerousCommandApprovalService {
         summary.put("foregroundMaxTimeoutSeconds", Integer.valueOf(maxForegroundTimeoutSeconds()));
         summary.put("foregroundMaxRetries", Integer.valueOf(foregroundMaxRetries()));
         summary.put("foregroundRetryBaseDelaySeconds", Integer.valueOf(foregroundRetryBaseDelaySeconds()));
-        summary.put("description", "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, download output to credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
+        summary.put("description", "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, download output or network upload source credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
         return summary;
     }
 
