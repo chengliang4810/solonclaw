@@ -3883,6 +3883,7 @@ public class DangerousCommandApprovalServiceTest {
                         "echo %OPENAI_API_KEY% | clip.exe",
                         "Set-Clipboard $env:OPENAI_API_KEY",
                         "Set-Clipboard -Value ${env:OPENAI_API_KEY}",
+                        "Set-Clipboard -InputObject $env:OPENAI_API_KEY",
                         "scb %JIMUQU_ACCESS_TOKEN%");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =

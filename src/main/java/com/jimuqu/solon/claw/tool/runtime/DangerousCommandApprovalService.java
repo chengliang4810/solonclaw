@@ -410,7 +410,7 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "(?:\\}|%|!)?[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\bprintenv\\s+"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:\\$env:|%)"
+                                                    + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:(?:-(?:Value|InputObject)\\b\\s*(?::|=|\\s+)\\s*)?)(?:\\$env:|%)"
                                                     + SENSITIVE_ENV_NAME
                                                     + "%?|\\b(?:Set-Clipboard|scb)\\b[^\\n]*\\$\\{env:"
                                                     + SENSITIVE_ENV_NAME
