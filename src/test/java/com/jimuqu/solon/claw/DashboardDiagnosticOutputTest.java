@@ -434,6 +434,59 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldScanBeyondReturnedApprovalLimitForPendingApprovals() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        List<SessionRecord> records = new ArrayList<SessionRecord>();
+        for (int i = 0; i < 3; i++) {
+            SessionRecord empty = new SessionRecord();
+            empty.setSessionId("session-empty-" + i);
+            empty.setSourceKey("source-empty-" + i);
+            empty.setTitle("empty " + i);
+            records.add(empty);
+        }
+        SessionRecord pending = new SessionRecord();
+        pending.setSessionId("session-older-pending");
+        pending.setSourceKey("source-older-pending");
+        pending.setTitle("older pending");
+        SqliteAgentSession pendingSession = new SqliteAgentSession(pending);
+        approvalService.storePendingApproval(
+                pendingSession,
+                "execute_shell",
+                "recursive_delete",
+                "需要确认",
+                "rm -rf runtime/cache");
+        records.add(pending);
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(records),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(1);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(result.get("session_scan_limit")).isEqualTo(Integer.valueOf(5));
+        assertThat(result.get("scanned_sessions")).isEqualTo(Integer.valueOf(4));
+        assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+        assertThat(items.get(0).get("session_id")).isEqualTo("session-older-pending");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldReturnStructuredResolveApprovalFailureWhenDependenciesUnavailable() throws Exception {
         AppConfig config = new AppConfig();
         Map<String, Object> body = new LinkedHashMap<String, Object>();

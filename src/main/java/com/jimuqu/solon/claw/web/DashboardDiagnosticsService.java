@@ -161,15 +161,21 @@ public class DashboardDiagnosticsService {
 
     public Map<String, Object> pendingApprovals(int limit) throws Exception {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
+        int sessionScanLimit = Math.max(effectiveLimit, Math.min(effectiveLimit * 5, 300));
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         if (sessionRepository == null || approvalService == null) {
             Map<String, Object> disabled = new LinkedHashMap<String, Object>();
             disabled.put("count", Integer.valueOf(0));
             disabled.put("items", items);
+            disabled.put("session_scan_limit", Integer.valueOf(sessionScanLimit));
+            disabled.put("scanned_sessions", Integer.valueOf(0));
+            disabled.put("truncated", Boolean.FALSE);
             return disabled;
         }
 
-        for (SessionRecord session : sessionRepository.listRecent(effectiveLimit)) {
+        int scannedSessions = 0;
+        for (SessionRecord session : sessionRepository.listRecent(sessionScanLimit)) {
+            scannedSessions++;
             List<DangerousCommandApprovalService.PendingApproval> pending =
                     approvalService.listPendingApprovals(session);
             for (DangerousCommandApprovalService.PendingApproval approval : pending) {
@@ -186,6 +192,9 @@ public class DashboardDiagnosticsService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("count", Integer.valueOf(items.size()));
         result.put("items", items);
+        result.put("session_scan_limit", Integer.valueOf(sessionScanLimit));
+        result.put("scanned_sessions", Integer.valueOf(scannedSessions));
+        result.put("truncated", Boolean.valueOf(items.size() >= effectiveLimit));
         return result;
     }
 
