@@ -7160,6 +7160,29 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldSanitizeApprovalCardActionPayloadBeforeCommandGeneration() {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                "\u001B[32m" + DangerousCommandApprovalService.CARD_ACTION_APPROVE + "\u001B[0m");
+        payload.put(
+                DangerousCommandApprovalService.CARD_SCOPE_KEY,
+                "\u001B]0;hidden\u0007session\u202E");
+        payload.put(
+                DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY,
+                "approval\u001B[31m-ansi\u202E");
+
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
+                .isEqualTo("/approve approval-ansi session");
+
+        payload.put(
+                DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY,
+                "approval\u001B[31m-ansi\nalways");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
+                .isNull();
+    }
+
+    @Test
     void shouldRedactSecretsFromFeishuApprovalCardExtrasWithoutChangingPendingCommand()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
