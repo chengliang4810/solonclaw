@@ -2529,6 +2529,9 @@ public class DangerousCommandApprovalServiceTest {
                         "aws configure set aws_secret_access_key secret",
                         "aws configure set aws_session_token token",
                         "aws configure set credential_process ./credential-helper",
+                        "aws configure set profile.dev.aws_secret_access_key secret",
+                        "aws configure set profile.dev.aws_session_token token",
+                        "aws configure set profile.dev.sso_start_url https://sso.example/start",
                         "aws configure set profile.dev.credential_process ./credential-helper",
                         "gcloud auth login --cred-file service-account.json",
                         "gcloud config set auth/credential_file_override service-account.json",
@@ -2569,6 +2572,7 @@ public class DangerousCommandApprovalServiceTest {
         List<String> cloudNonCredentialConfigChanges =
                 Arrays.asList(
                         "aws configure set region us-east-1",
+                        "aws configure set profile.dev.region us-east-1",
                         "gcloud config set project prod-project",
                         "az configure --defaults location=eastus",
                         "aliyun configure set --region cn-hangzhou",
