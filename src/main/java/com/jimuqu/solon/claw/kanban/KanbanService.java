@@ -1846,7 +1846,7 @@ public class KanbanService {
         summary.put("ended_at", run.get("ended_at"));
         summary.put("duration_ms", run.get("duration_ms"));
         summary.put("timed_out", run.get("timed_out"));
-        summary.put("summary", run.get("summary"));
+        summary.put("summary", safeDisplayText(run.get("summary"), 1000));
         summary.put("error", safeDisplayText(run.get("error"), 1000));
         return summary;
     }
@@ -1873,7 +1873,7 @@ public class KanbanService {
         overview.put("current_run_id", task.get("current_run_id"));
         overview.put("latest_run_id", latestRun == null ? null : latestRun.get("run_id"));
         overview.put("latest_outcome", latestRun == null ? null : latestRun.get("outcome"));
-        overview.put("latest_summary", latestRun == null ? null : latestRun.get("summary"));
+        overview.put("latest_summary", latestRun == null ? null : safeDisplayText(latestRun.get("summary"), 1000));
         overview.put("latest_error", latestRun == null ? null : safeDisplayText(latestRun.get("error"), 1000));
         overview.put("last_worker", firstNonNull(task.get("worker_id"), latestRun == null ? null : latestRun.get("worker_id")));
         overview.put("last_started_at", latestRun == null ? null : latestRun.get("started_at"));
@@ -2150,7 +2150,7 @@ public class KanbanService {
                     .append("  worker=")
                     .append(StrUtil.blankToDefault(String.valueOf(run.get("worker_id")), "-"));
             if (StrUtil.isNotBlank(String.valueOf(run.get("summary")))) {
-                buffer.append("\n  summary: ").append(run.get("summary"));
+                buffer.append("\n  summary: ").append(safeDisplayText(run.get("summary"), 1000));
             }
             if (StrUtil.isNotBlank(String.valueOf(run.get("error")))) {
                 buffer.append("\n  error: ").append(safeDisplayText(run.get("error"), 1000));
@@ -3030,7 +3030,7 @@ public class KanbanService {
         item.put("duration_ms", runDurationMillis(run));
         item.put("timed_out", Boolean.valueOf(isTimedOutRun(run)));
         item.put("outcome", run.getOutcome());
-        item.put("summary", run.getSummary());
+        item.put("summary", safeDisplayText(run.getSummary(), 1000));
         item.put("metadata", parseJson(run.getMetadataJson()));
         item.put("error", safeDisplayText(run.getError(), 1000));
         return item;
@@ -3134,7 +3134,7 @@ public class KanbanService {
                         .append(", outcome=")
                         .append(run.get("outcome"))
                         .append('\n');
-                appendContextField(buffer, "  summary", run.get("summary"));
+                appendContextField(buffer, "  summary", safeDisplayText(run.get("summary"), 1000));
                 appendContextField(buffer, "  error", run.get("error"));
                 Object metadata = run.get("metadata");
                 if (metadata != null) {
@@ -3279,7 +3279,7 @@ public class KanbanService {
     }
 
     private String summaryPreview(String value) {
-        String text = StrUtil.nullToEmpty(value).trim();
+        String text = StrUtil.nullToEmpty(safeDisplayText(value, 1000)).trim();
         if (text.length() <= 300) {
             return text;
         }

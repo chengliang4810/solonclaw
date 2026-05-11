@@ -123,6 +123,33 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
+    void shouldRedactResultRefsWhenDescribingExistingEnvelopes() {
+        String json =
+                "{\"status\":\"success\",\"success\":true,\"preview\":\"old preview\",\"result_ref\":\"/tmp/output-token=secret123-ghp_1234567890abcdef.txt\",\"size\":42,\"truncated\":true}";
+        String block =
+                "<persisted-output>\n"
+                        + "This tool result was too large (42 bytes).\n"
+                        + "Full output saved to: /tmp/output-token=secret123-ghp_1234567890abcdef.txt\n"
+                        + "Preview (first 3 chars):\n"
+                        + "old\n"
+                        + "</persisted-output>";
+
+        ToolResultStorageService.StoredResult jsonDescribed =
+                ToolResultStorageService.describeObservation(json);
+        ToolResultStorageService.StoredResult blockDescribed =
+                ToolResultStorageService.describeObservation(block);
+
+        assertThat(jsonDescribed.getResultRef())
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef");
+        assertThat(blockDescribed.getResultRef())
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    @Test
     void shouldSanitizePathSegmentsWhenPersistingResult() throws Exception {
         ToolResultStorageService service =
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 10, 200000, 300);

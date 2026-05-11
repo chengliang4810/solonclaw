@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SessionSearchEntry;
 import com.jimuqu.solon.claw.core.model.SessionSearchQuery;
@@ -11,6 +12,9 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SessionSearchTools;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -227,6 +231,82 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRedactResultRefsFromToolResultSearchIndex() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-room:user");
+        session.setTitle("tool backed session");
+        env.sessionRepository.save(session);
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-tool-redact-1");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:tool-room:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(session.getSessionId());
+        toolCall.setSourceKey("MEMORY:tool-room:user");
+        toolCall.setToolName("execute_shell");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("git status");
+        toolCall.setResultPreview("clean");
+        toolCall.setResultRef("/tmp/output-token=secret123-ghp_1234567890abcdef.txt");
+        toolCall.setResultIndexable(true);
+        toolCall.setStartedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        String metadata = readToolResultMetadata(env, run.getRunId());
+
+        assertThat(metadata).contains("\"result_ref\":\"[REDACTED_PATH]\"");
+        assertThat(metadata)
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef")
+                .doesNotContain("output-token");
+    }
+
+    @Test
+    void shouldRedactEventSummariesAndMetadataFromRunSearchIndex() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:event-room:user");
+        env.sessionRepository.save(session);
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-event-redact-1");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:event-room:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId(IdSupport.newId());
+        event.setRunId(run.getRunId());
+        event.setSessionId(session.getSessionId());
+        event.setSourceKey("MEMORY:event-room:user");
+        event.setEventType("attempt.error");
+        event.setSummary("failed with Authorization: Bearer ghp_eventsummary12345");
+        event.setMetadataJson(
+                ONode.serialize(
+                        java.util.Collections.singletonMap(
+                                "callback",
+                                "https://u:p@example.com/cb?token=event-token-secret")));
+        event.setCreatedAt(System.currentTimeMillis());
+        env.agentRunRepository.appendEvent(event);
+
+        String indexed = readRunEventFts(env, run.getRunId(), "attempt.error");
+
+        assertThat(indexed)
+                .contains("Bearer ***")
+                .doesNotContain("ghp_eventsummary12345")
+                .doesNotContain("event-token-secret")
+                .doesNotContain("u:p@example.com");
+    }
+
+    @Test
     void shouldRedactSecretsFromSessionSearchToolErrors() throws Exception {
         SessionSearchTools tools =
                 new SessionSearchTools(
@@ -254,6 +334,41 @@ public class SessionSearchServiceTest {
         List<Map> rawCalls = new ArrayList<Map>();
         rawCalls.add(raw);
         return new AssistantMessage("", false, rawCalls);
+    }
+
+    private String readToolResultMetadata(TestEnvironment env, String runId) throws Exception {
+        return readRunEventFtsColumn(env, runId, "tool.result", "metadata_json");
+    }
+
+    private String readRunEventFts(TestEnvironment env, String runId, String eventType)
+            throws Exception {
+        String summary = readRunEventFtsColumn(env, runId, eventType, "summary");
+        String metadata = readRunEventFtsColumn(env, runId, eventType, "metadata_json");
+        return summary + "\n" + metadata;
+    }
+
+    private String readRunEventFtsColumn(
+            TestEnvironment env, String runId, String eventType, String column) throws Exception {
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select "
+                                    + column
+                                    + " from agent_run_events_fts where run_id = ? and event_type = ?");
+            statement.setString(1, runId);
+            statement.setString(2, eventType);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                assertThat(resultSet.next()).isTrue();
+                return resultSet.getString(column);
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
     }
 
     private static class FailingSessionSearchService implements SessionSearchService {

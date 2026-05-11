@@ -260,7 +260,7 @@ public class DashboardRunService {
         map.put("status", record.getStatus());
         map.put("args_preview", redact(record.getArgsPreview(), 8000));
         map.put("result_preview", redact(record.getResultPreview(), 8000));
-        map.put("result_ref", record.getResultRef());
+        map.put("result_ref", redact(record.getResultRef(), 1000));
         map.put("error", redact(record.getError(), 2000));
         map.put("read_only", record.isReadOnly());
         map.put("interruptible", record.isInterruptible());
