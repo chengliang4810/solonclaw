@@ -621,6 +621,7 @@ public class SecurityPolicyService {
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
+        summary.put("packageManagerPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
         summary.put("schemelessSensitiveQueryBlocked", Boolean.TRUE);
@@ -745,6 +746,7 @@ public class SecurityPolicyService {
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
+        summary.put("packageManagerPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("unsupportedNetworkSchemeChecked", Boolean.TRUE);
         summary.put("urlKeySamples", toolArgsUrlKeySamples());
         summary.put("pathKeySamples", toolArgsPathKeySamples());
@@ -1346,6 +1348,7 @@ public class SecurityPolicyService {
         extractLocalBindAddresses(text, urls);
         extractJavaProxyOptionsAssignments(text, urls);
         extractPowerShellProxyEnvironmentAssignments(text, urls);
+        extractPackageManagerProxyConfigAssignments(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1502,6 +1505,78 @@ public class SecurityPolicyService {
             }
             addProxyEnvironmentValue(name, stripOptionalQuote(value), urls);
         }
+    }
+
+    private void extractPackageManagerProxyConfigAssignments(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String command = StrUtil.nullToEmpty(tokens.get(i)).trim().toLowerCase(Locale.ROOT);
+            if (!isPackageManagerConfigCommand(command)) {
+                continue;
+            }
+            int configIndex = findNextToken(tokens, i + 1, "config");
+            if (configIndex < 0) {
+                continue;
+            }
+            int setIndex = findNextToken(tokens, configIndex + 1, "set");
+            if (setIndex < 0 || setIndex + 2 >= tokens.size()) {
+                continue;
+            }
+            String key = tokens.get(setIndex + 1);
+            String value = tokens.get(setIndex + 2);
+            if (isPackageManagerNoProxyConfigKey(key)) {
+                addNoProxyHosts(value, urls);
+            } else if (isPackageManagerProxyConfigKey(key)) {
+                addProxyHost(value, urls);
+            }
+        }
+    }
+
+    private int findNextToken(List<String> tokens, int start, String expected) {
+        for (int i = start; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if ("--location".equals(token) || "--global".equals(token) || "-g".equals(token)) {
+                continue;
+            }
+            return expected.equalsIgnoreCase(token) ? i : -1;
+        }
+        return -1;
+    }
+
+    private boolean isPackageManagerConfigCommand(String command) {
+        return "npm".equals(command)
+                || "pnpm".equals(command)
+                || "yarn".equals(command)
+                || "yarnpkg".equals(command)
+                || "pip".equals(command)
+                || "pip3".equals(command);
+    }
+
+    private boolean isPackageManagerNoProxyConfigKey(String rawKey) {
+        String key = normalizePackageManagerConfigKey(rawKey);
+        return "noproxy".equals(key)
+                || "noproxylist".equals(key)
+                || "noproxyhosts".equals(key)
+                || "globalnoproxy".equals(key);
+    }
+
+    private boolean isPackageManagerProxyConfigKey(String rawKey) {
+        String key = normalizePackageManagerConfigKey(rawKey);
+        return "proxy".equals(key)
+                || "httpproxy".equals(key)
+                || "httpsproxy".equals(key)
+                || "allproxy".equals(key)
+                || "globalproxy".equals(key);
+    }
+
+    private String normalizePackageManagerConfigKey(String rawKey) {
+        String key = StrUtil.nullToEmpty(rawKey).trim().toLowerCase(Locale.ROOT);
+        int dot = key.lastIndexOf('.');
+        if (dot >= 0 && dot + 1 < key.length()) {
+            key = key.substring(dot + 1);
+        }
+        key = key.replace("-", "").replace("_", "");
+        return key;
     }
 
     private String stripOptionalQuote(String raw) {

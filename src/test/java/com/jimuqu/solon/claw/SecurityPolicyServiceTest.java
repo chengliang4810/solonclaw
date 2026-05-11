@@ -578,6 +578,51 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckPackageManagerPersistentProxyConfigAssignments() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict npmNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "npm config set noproxy internal.example,registry.npmjs.org");
+        SecurityPolicyService.UrlVerdict yarnNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "yarn config set noProxy .internal.example");
+        SecurityPolicyService.UrlVerdict pnpmNoProxy =
+                metadataPolicy.checkCommandUrls(
+                        "pnpm config set no-proxy metadata.google.internal");
+        SecurityPolicyService.UrlVerdict npmProxy =
+                privatePolicy.checkCommandUrls(
+                        "npm config set https-proxy http://internal.example:8080");
+        SecurityPolicyService.UrlVerdict pipProxy =
+                metadataPolicy.checkCommandUrls(
+                        "pip config set global.proxy http://169.254.169.254:8080");
+        SecurityPolicyService.UrlVerdict publicProxy =
+                publicPolicy.checkCommandUrls(
+                        "npm config set https-proxy http://proxy.example:8080");
+
+        assertThat(privatePolicy.extractUrlishValues("npm config set noproxy internal.example"))
+                .contains("http://internal.example");
+        assertThat(npmNoProxy.isAllowed()).isFalse();
+        assertThat(npmNoProxy.getMessage()).contains("内网");
+        assertThat(yarnNoProxy.isAllowed()).isFalse();
+        assertThat(yarnNoProxy.getMessage()).contains("内网");
+        assertThat(pnpmNoProxy.isAllowed()).isFalse();
+        assertThat(pnpmNoProxy.getMessage()).contains("元数据");
+        assertThat(npmProxy.isAllowed()).isFalse();
+        assertThat(npmProxy.getMessage()).contains("内网");
+        assertThat(pipProxy.isAllowed()).isFalse();
+        assertThat(pipProxy.getMessage()).contains("元数据");
+        assertThat(publicProxy.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -864,6 +909,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("packageManagerPersistentProxyConfigChecked"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
@@ -1228,6 +1275,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("packageManagerPersistentProxyConfigChecked"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("unsupportedNetworkSchemeChecked")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("urlKeySamples"))).contains("url", "endpoint", "*_url");
