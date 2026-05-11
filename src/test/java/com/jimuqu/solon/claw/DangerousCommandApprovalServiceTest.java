@@ -8471,6 +8471,36 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("裸块设备");
         assertThat(service.getPendingApproval(blockDeviceWriteTrace.session)).isNull();
 
+        Map<String, Object> deviceReadArgs = new LinkedHashMap<String, Object>();
+        deviceReadArgs.put("path", "/dev/zero");
+        Map<String, Object> gatewayDeviceRead = new LinkedHashMap<String, Object>();
+        gatewayDeviceRead.put("tool_name", "read_file");
+        gatewayDeviceRead.put("tool_args", deviceReadArgs);
+        TestTrace deviceReadTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(deviceReadTrace, "call_tool", gatewayDeviceRead);
+
+        assertThat(deviceReadTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(deviceReadTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("设备文件");
+        assertThat(service.getPendingApproval(deviceReadTrace.session)).isNull();
+
+        Map<String, Object> hubReadArgs = new LinkedHashMap<String, Object>();
+        hubReadArgs.put("path", "skills/.hub/index-cache/catalog.json");
+        Map<String, Object> gatewayHubRead = new LinkedHashMap<String, Object>();
+        gatewayHubRead.put("tool_name", "read_file");
+        gatewayHubRead.put("tool_args", hubReadArgs);
+        TestTrace hubReadTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(hubReadTrace, "call_tool", gatewayHubRead);
+
+        assertThat(hubReadTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(hubReadTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("Skills Hub");
+        assertThat(service.getPendingApproval(hubReadTrace.session)).isNull();
+
         Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
         pythonArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
         Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
