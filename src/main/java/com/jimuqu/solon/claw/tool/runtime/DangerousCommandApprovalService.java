@@ -2169,6 +2169,8 @@ public class DangerousCommandApprovalService {
         summary.put("approvalCardApprovalIdKey", CARD_APPROVAL_ID_KEY);
         summary.put("permanentApprovalAllowedExceptTirith", Boolean.TRUE);
         summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
+        summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("approverRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
@@ -2193,6 +2195,8 @@ public class DangerousCommandApprovalService {
         summary.put("scopeOptions", Arrays.asList("once", "session", "always"));
         summary.put("defaultScope", "once");
         summary.put("approvalIdSelectorSupported", Boolean.TRUE);
+        summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("approveCommandGenerated", Boolean.TRUE);
         summary.put("denyCommandGenerated", Boolean.TRUE);
         summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
@@ -2275,6 +2279,8 @@ public class DangerousCommandApprovalService {
         summary.put("tirithAlwaysScopeDowngradedToSession", Boolean.TRUE);
         summary.put("currentThreadApprovalTtlMillis", Long.valueOf(CURRENT_THREAD_APPROVAL_TTL_MILLIS));
         summary.put("currentThreadApprovalEnabled", Boolean.TRUE);
+        summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("approveRemovesPendingApproval", Boolean.TRUE);
         summary.put("rejectRemovesPendingApproval", Boolean.TRUE);
         summary.put("sessionSnapshotUpdated", Boolean.TRUE);

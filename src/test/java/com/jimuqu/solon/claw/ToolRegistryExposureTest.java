@@ -826,6 +826,7 @@ public class ToolRegistryExposureTest {
         assertThat(slashConfirmPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("approvalMetadataRedacted").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("unsafeSelectorRejected").getBoolean()).isTrue();
         assertThat(String.valueOf(slashConfirmPolicy))
                 .contains("/approve")
                 .contains("/deny")
@@ -834,6 +835,7 @@ public class ToolRegistryExposureTest {
                 .contains("once")
                 .contains("session")
                 .contains("always")
+                .contains("[A-Za-z0-9_.-]{1,128}")
                 .doesNotContain("secret-sudo");
         ONode approvalCardPolicy =
                 policyStatus.get("policy").get("coverage").get("approvalCardPolicy");
@@ -842,6 +844,7 @@ public class ToolRegistryExposureTest {
         assertThat(approvalCardPolicy.get("unsupportedPlatformsReturnEmptyExtras").getBoolean())
                 .isTrue();
         assertThat(approvalCardPolicy.get("approvalIdSelectorSupported").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("unsafeSelectorRejected").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("approveCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("denyCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("alwaysScopeCommandGenerated").getBoolean()).isTrue();
