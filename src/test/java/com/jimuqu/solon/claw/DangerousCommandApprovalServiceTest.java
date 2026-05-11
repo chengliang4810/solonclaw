@@ -8501,6 +8501,36 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("Skills Hub");
         assertThat(service.getPendingApproval(hubReadTrace.session)).isNull();
 
+        Map<String, Object> traversalArgs = new LinkedHashMap<String, Object>();
+        traversalArgs.put("path", "../runtime/config.yml");
+        Map<String, Object> gatewayTraversal = new LinkedHashMap<String, Object>();
+        gatewayTraversal.put("tool_name", "read_file");
+        gatewayTraversal.put("tool_args", traversalArgs);
+        TestTrace traversalTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(traversalTrace, "call_tool", gatewayTraversal);
+
+        assertThat(traversalTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(traversalTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("路径遍历");
+        assertThat(service.getPendingApproval(traversalTrace.session)).isNull();
+
+        Map<String, Object> controlPathArgs = new LinkedHashMap<String, Object>();
+        controlPathArgs.put("path", "logs/\u001B]0;hidden\u0007report.txt");
+        Map<String, Object> gatewayControlPath = new LinkedHashMap<String, Object>();
+        gatewayControlPath.put("tool_name", "write_file");
+        gatewayControlPath.put("tool_args", controlPathArgs);
+        TestTrace controlPathTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(controlPathTrace, "call_tool", gatewayControlPath);
+
+        assertThat(controlPathTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(controlPathTrace.getFinalAnswer())
+                .contains("文件安全策略")
+                .contains("非法字符");
+        assertThat(service.getPendingApproval(controlPathTrace.session)).isNull();
+
         Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
         pythonArgs.put("code", "import shutil\nshutil.rmtree('runtime/cache')\n");
         Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
