@@ -966,6 +966,58 @@ public class DashboardControllerHttpTest {
             assertThat(refreshedToken).isNotBlank();
             assertThat(refreshedToken).isNotEqualTo("refresh-secret-1");
 
+            tokenEndpoint.failNextTokenResponse();
+            HttpResult handle401RefreshError =
+                    request(
+                            "POST",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/handle-401",
+                            "{}",
+                            token);
+            assertThat(handle401RefreshError.status).isEqualTo(200);
+            assertThat(handle401RefreshError.body)
+                    .contains("\"recovered\":false")
+                    .contains("\"needs_reauth\":true")
+                    .contains("\"reason\":\"refresh_failed\"")
+                    .contains("api%255Fkey=***")
+                    .contains("token=***")
+                    .contains("refresh_token=***")
+                    .contains("client_secret=***")
+                    .doesNotContain("ghp_tokenerror12345")
+                    .doesNotContain("token-error-encoded")
+                    .doesNotContain("token-error-secret")
+                    .doesNotContain("token-error-client")
+                    .doesNotContain("token-error-fragment");
+
+            request(
+                    "GET",
+                    "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                            + "?error="
+                            + URLEncoder.encode("reset-pending-after-refresh-error", "UTF-8"),
+                    null,
+                    null);
+            beginOAuth =
+                    request(
+                            "POST",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/begin",
+                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                                    + tokenEndpoint.url()
+                                    + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
+                            token);
+            pendingStatus =
+                    request("GET", "/api/jimuqu/mcp/oauth-docs/oauth/status", null, token);
+            pendingState =
+                    ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
+            completeOAuth =
+                    request(
+                            "GET",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/callback"
+                                    + "?code=auth-code-recover&state="
+                                    + URLEncoder.encode(pendingState, "UTF-8"),
+                            null,
+                            null);
+            assertThat(completeOAuth.status).isEqualTo(200);
+            refreshedToken = tokenEndpoint.lastIssuedRefreshToken();
+
             HttpResult handle401 =
                     request(
                             "POST",
