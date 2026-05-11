@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.cli;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -50,6 +51,12 @@ public final class TerminalSecurityPolicyView {
         if ("attachments".equals(mode)) {
             return renderAttachmentPolicy(BoundedAttachmentIO.policySummary());
         }
+        if ("terminal-paste".equals(mode)) {
+            return renderTerminalPastePolicy(CliAttachmentResolver.policySummary());
+        }
+        if ("media-cache".equals(mode)) {
+            return renderMediaCachePolicy(new AttachmentCacheService(config).policySummary());
+        }
         if ("tool-results".equals(mode)) {
             return renderToolResultPolicy(toolResultStorageSummary(config));
         }
@@ -86,7 +93,13 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("schema")) {
             return "schema";
         }
-        if (rest.startsWith("attachment") || rest.startsWith("media")) {
+        if (rest.startsWith("terminal-paste") || rest.startsWith("paste") || rest.startsWith("local-attachment")) {
+            return "terminal-paste";
+        }
+        if (rest.startsWith("media-cache") || rest.startsWith("cache-media")) {
+            return "media-cache";
+        }
+        if (rest.startsWith("attachment") || rest.startsWith("download")) {
             return "attachments";
         }
         if (rest.startsWith("tool-result") || rest.startsWith("result")) {
@@ -129,7 +142,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(tirith, "promptInjectionGuardEnabled"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security urls、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security tool-results");
+                        "可用命令：/security audit、/security policy、/security approvals、/security urls、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results");
         return buffer.toString();
     }
 
@@ -338,6 +351,60 @@ public final class TerminalSecurityPolicyView {
         return buffer.toString();
     }
 
+    private static String renderTerminalPastePolicy(Map<String, Object> paste) {
+        StringBuilder buffer = new StringBuilder("终端粘贴附件安全策略摘要：");
+        buffer.append('\n')
+                .append("- 路径识别：pastedLocalPath=")
+                .append(value(paste, "pastedLocalPathDetection"))
+                .append(" fileUri=")
+                .append(value(paste, "fileUriDetection"))
+                .append(" windowsPath=")
+                .append(value(paste, "windowsPathDetection"))
+                .append(" posixPath=")
+                .append(value(paste, "posixPathDetection"));
+        buffer.append('\n')
+                .append("- 安全检查：pathPolicyBeforeCache=")
+                .append(value(paste, "pathPolicyCheckedBeforeCache"))
+                .append(" credentialBlocked=")
+                .append(value(paste, "credentialPathBlocked"))
+                .append(" rawPathHidden=")
+                .append(value(paste, "rawPathHiddenInPrompt"));
+        buffer.append('\n')
+                .append("- 边界：maxPaths=")
+                .append(value(paste, "maxAttachmentPaths"))
+                .append(" maxBytes=")
+                .append(value(paste, "maxAttachmentBytes"))
+                .append(" previewRedacted=")
+                .append(value(paste, "blockedPreviewRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderMediaCachePolicy(Map<String, Object> cache) {
+        StringBuilder buffer = new StringBuilder("媒体缓存安全策略摘要：");
+        buffer.append('\n')
+                .append("- 引用边界：prefix=")
+                .append(value(cache, "mediaReferencePrefix"))
+                .append(" rootRequired=")
+                .append(value(cache, "mediaReferenceRequiresMediaRoot"))
+                .append(" traversalBlocked=")
+                .append(value(cache, "mediaReferenceTraversalBlocked"));
+        buffer.append('\n')
+                .append("- 缓存边界：sizeChecked=")
+                .append(value(cache, "cacheBytesSizeChecked"))
+                .append(" maxBytes=")
+                .append(value(cache, "maxCacheBytes"))
+                .append(" mimeSniffing=")
+                .append(value(cache, "mimeSniffingEnabled"));
+        buffer.append('\n')
+                .append("- 脱敏：safeName=")
+                .append(value(cache, "safeOriginalNameSanitized"))
+                .append(" nameRedacted=")
+                .append(value(cache, "safeOriginalNameSecretRedacted"))
+                .append(" hostPathHidden=")
+                .append(value(cache, "hostPathsNotReturnedInMediaReference"));
+        return buffer.toString();
+    }
+
     private static void appendApprovalLine(StringBuilder buffer, Map<String, Object> approval) {
         buffer.append('\n')
                 .append("- 审批：mode=")
@@ -387,6 +454,22 @@ public final class TerminalSecurityPolicyView {
                 .append(value(attachment, "defaultMaxBytes"))
                 .append(" streamBounded=")
                 .append(value(attachment, "streamReadBounded"));
+        Map<String, Object> paste = CliAttachmentResolver.policySummary();
+        buffer.append('\n')
+                .append("- 终端粘贴：credentialBlocked=")
+                .append(value(paste, "credentialPathBlocked"))
+                .append(" rawPathHidden=")
+                .append(value(paste, "rawPathHiddenInPrompt"))
+                .append(" maxPaths=")
+                .append(value(paste, "maxAttachmentPaths"));
+        Map<String, Object> cache = new AttachmentCacheService(config).policySummary();
+        buffer.append('\n')
+                .append("- 媒体缓存：rootRequired=")
+                .append(value(cache, "mediaReferenceRequiresMediaRoot"))
+                .append(" traversalBlocked=")
+                .append(value(cache, "mediaReferenceTraversalBlocked"))
+                .append(" hostPathHidden=")
+                .append(value(cache, "hostPathsNotReturnedInMediaReference"));
         Map<String, Object> toolResults = toolResultStorageSummary(config);
         buffer.append('\n')
                 .append("- 工具输出：persistOversize=")

@@ -34,6 +34,8 @@ public class CliShellTipsTest {
                         "/security mcp",
                         "/security schema",
                         "/security attachments",
+                        "/security terminal-paste",
+                        "/security media-cache",
                         "/security tool-results");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
@@ -69,6 +71,8 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security audit"))
                 .contains("安全审计摘要")
                 .contains("/security mcp")
+                .contains("/security terminal-paste")
+                .contains("/security media-cache")
                 .contains("/security tool-results");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")
@@ -100,6 +104,14 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security attachments"))
                 .contains("附件下载安全策略摘要")
                 .contains("redirectUrl");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-paste"))
+                .contains("终端粘贴附件安全策略摘要")
+                .contains("credentialBlocked")
+                .contains("rawPathHidden");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security media-cache"))
+                .contains("媒体缓存安全策略摘要")
+                .contains("traversalBlocked")
+                .contains("hostPathHidden");
         assertThat(TerminalSecurityPolicyView.render(null, "/security tool-results"))
                 .contains("工具输出安全策略摘要")
                 .contains("oversizedPersisted");
