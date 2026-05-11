@@ -539,7 +539,7 @@ public class DangerousCommandApprovalService {
                                     "domestic_cloud_cli_credential_config_change",
                                     "domestic cloud CLI credential configuration changed",
                                     pattern(
-                                            "\\b(?:aliyun\\s+configure\\s+set\\b(?=[^\\n]*(?:--access-key-id|--access-key-secret|--sts-token)\\b)|(?:tccli|qcloud)\\s+configure\\s+set\\b(?=[^\\n]*(?:secretId|secretKey|token)\\b)|huaweicloud\\s+configure\\s+set\\b(?=[^\\n]*(?:access_key|secret_key|security_token)\\b))"),
+                                            "\\b(?:aliyun\\s+configure\\s+set\\b(?=[^\\n]*(?:--access-key-id|--access-key-secret|--sts-token)\\b)|(?:tccli|qcloud)\\s+configure\\s+set\\b(?=[^\\n]*(?:secretId|secretKey|token)\\b)|huaweicloud\\s+configure\\s+set\\b(?=[^\\n]*(?:access_key|secret_key|security_token)\\b)|ossutil\\s+config\\b(?=[^\\n]*(?:accessKeyID|accessKeySecret|stsToken|--access-key-id|--access-key-secret|--sts-token)\\b)|coscli\\s+config\\s+(?:add|set)\\b(?=[^\\n]*(?:secret_id|secret_key|token|SecretId|SecretKey)\\b)|obsutil\\s+config\\b(?=[^\\n]*(?:access_key|secret_key|security_token|ak|sk)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "macos_keychain_password_read",

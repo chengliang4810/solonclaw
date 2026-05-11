@@ -2469,7 +2469,13 @@ public class DangerousCommandApprovalServiceTest {
                         "tccli configure set secretId id secretKey key",
                         "qcloud configure set token token",
                         "huaweicloud configure set access_key id secret_key key",
-                        "huaweicloud configure set security_token token");
+                        "huaweicloud configure set security_token token",
+                        "ossutil config --access-key-id AKID --access-key-secret secret",
+                        "ossutil config --sts-token token",
+                        "coscli config add --secret_id id --secret_key key",
+                        "coscli config set SecretId id SecretKey key",
+                        "obsutil config -i ak -k sk",
+                        "obsutil config access_key id secret_key key");
         for (String command : domesticCloudCredentialConfigChanges) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2486,7 +2492,10 @@ public class DangerousCommandApprovalServiceTest {
                         "az configure --defaults location=eastus",
                         "aliyun configure set --region cn-hangzhou",
                         "tccli configure set region ap-shanghai",
-                        "huaweicloud configure set region cn-north-4");
+                        "huaweicloud configure set region cn-north-4",
+                        "ossutil config --endpoint oss-cn-hangzhou.aliyuncs.com",
+                        "coscli config show",
+                        "obsutil ls obs://bucket");
         for (String command : cloudNonCredentialConfigChanges) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)
