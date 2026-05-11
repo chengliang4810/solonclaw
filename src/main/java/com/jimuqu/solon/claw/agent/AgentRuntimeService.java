@@ -197,13 +197,21 @@ public class AgentRuntimeService {
         map.put("allowed_tools_json", scope.getAllowedToolsJson());
         map.put("skills_json", scope.getSkillsJson());
         map.put("memory", scope.getMemory());
-        map.put("agent_home_dir", scope.getAgentHomeDir());
-        map.put("workspace_dir", scope.getWorkspaceDir());
-        map.put("skills_dir", scope.getSkillsDir());
-        map.put("cache_dir", scope.getCacheDir());
-        map.put("agent_file_path", scope.getAgentFilePath());
-        map.put("memory_file_path", scope.getMemoryFilePath());
+        map.put("agent_home_dir", reference(scope, ""));
+        map.put("workspace_dir", reference(scope, "workspace"));
+        map.put("skills_dir", reference(scope, "skills"));
+        map.put("cache_dir", reference(scope, "cache"));
+        map.put("agent_file_path", reference(scope, "AGENT.md"));
+        map.put("memory_file_path", reference(scope, "MEMORY.md"));
         map.put("created_at", Long.valueOf(System.currentTimeMillis()));
         return ONode.serialize(map);
+    }
+
+    private String reference(AgentRuntimeScope scope, String child) {
+        String base = "agent://" + (scope == null ? AgentRuntimeScope.DEFAULT_AGENT : scope.getEffectiveName());
+        if (StrUtil.isBlank(child)) {
+            return base;
+        }
+        return base + "/" + child;
     }
 }

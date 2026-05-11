@@ -102,6 +102,11 @@ public class AgentMechanismTest {
                 .contains("\"default_model\":\"agent-model\"");
         assertThat(runs.get(0).getModel()).isEqualTo("agent-model");
         assertThat(runs.get(0).getAgentSnapshotJson()).doesNotContain("config.yml");
+        assertThat(runs.get(0).getAgentSnapshotJson())
+                .contains("\"workspace_dir\":\"agent://coder/workspace\"")
+                .contains("\"agent_file_path\":\"agent://coder/AGENT.md\"")
+                .contains("\"memory_file_path\":\"agent://coder/MEMORY.md\"")
+                .doesNotContain(env.appConfig.getRuntime().getHome());
 
         env.send("model-room", "model-user", "/model default:session-model");
         GatewayReply second = env.send("model-room", "model-user", "again");
