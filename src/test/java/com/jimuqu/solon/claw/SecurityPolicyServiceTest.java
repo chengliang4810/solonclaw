@@ -466,6 +466,8 @@ public class SecurityPolicyServiceTest {
 
         SecurityPolicyService.UrlVerdict doubleEncodedName =
                 policy.checkUrl("https://example.com/callback?api%255Fkey=secret123");
+        SecurityPolicyService.UrlVerdict repeatedEncodedName =
+                policy.checkUrl("https://example.com/callback?api%25255Fkey=secret123");
         SecurityPolicyService.UrlVerdict encodedSeparator =
                 policy.checkUrl("https://example.com/callback?page=1%2526client_secret=secret123");
         SecurityPolicyService.UrlVerdict htmlEntityName =
@@ -477,6 +479,8 @@ public class SecurityPolicyServiceTest {
 
         assertThat(doubleEncodedName.isAllowed()).isFalse();
         assertThat(doubleEncodedName.getMessage()).contains("敏感凭据参数");
+        assertThat(repeatedEncodedName.isAllowed()).isFalse();
+        assertThat(repeatedEncodedName.getMessage()).contains("敏感凭据参数");
         assertThat(encodedSeparator.isAllowed()).isFalse();
         assertThat(encodedSeparator.getMessage()).contains("敏感凭据参数");
         assertThat(htmlEntityName.isAllowed()).isFalse();
