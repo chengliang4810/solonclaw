@@ -1088,6 +1088,9 @@ public class SecurityPolicyService {
         if (path.length() == 0) {
             return FileVerdict.allow();
         }
+        if (containsControlCharacter(path)) {
+            return FileVerdict.block(path, "路径包含非法字符");
+        }
         String normalized = normalizePathText(path);
         if (containsControlCharacter(normalized)) {
             return FileVerdict.block(path, "路径包含非法字符");

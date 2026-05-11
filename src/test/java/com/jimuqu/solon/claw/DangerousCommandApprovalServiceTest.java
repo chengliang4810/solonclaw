@@ -7244,7 +7244,8 @@ public class DangerousCommandApprovalServiceTest {
         pending.setCommand(
                 "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz curl "
                         + "'https://api.example.test/run?access_token=sk-proj-abcdefghijklmnopqrstuvwxyz"
-                        + "&api%255Fkey=encoded-card-secret'");
+                        + "&api%255Fkey=encoded-card-secret"
+                        + ";client_secret=semicolon-card-secret#token=fragment-card-secret'");
         pending.setApprovalId("approval-secret");
 
         Map<String, Object> extras =
@@ -7255,7 +7256,11 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(extras.get("approvalCommand").toString()).contains("OPENAI_API_KEY=***");
         assertThat(extras.get("approvalCommand").toString()).contains("access_token=***");
         assertThat(extras.get("approvalCommand").toString()).contains("api%255Fkey=***");
+        assertThat(extras.get("approvalCommand").toString()).contains("client_secret=***");
+        assertThat(extras.get("approvalCommand").toString()).contains("token=***");
         assertThat(extras.get("approvalCommand").toString()).doesNotContain("encoded-card-secret");
+        assertThat(extras.get("approvalCommand").toString()).doesNotContain("semicolon-card-secret");
+        assertThat(extras.get("approvalCommand").toString()).doesNotContain("fragment-card-secret");
         assertThat(extras.get("approvalDescription").toString())
                 .doesNotContain("ghp_abcdefghijklmnop");
         assertThat(pending.getCommand()).contains("sk-proj-abcdefghijklmnopqrstuvwxyz");
