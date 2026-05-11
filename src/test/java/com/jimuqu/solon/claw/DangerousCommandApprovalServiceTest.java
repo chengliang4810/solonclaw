@@ -6303,6 +6303,18 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockLocalManagementEndpointReadsForFileTools() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        assertReadDenied(securityPolicyService, "/var/run/docker.sock", "管理套接字");
+        assertReadDenied(securityPolicyService, "/run/containerd/containerd.sock", "管理套接字");
+        assertReadDenied(securityPolicyService, "//./pipe/docker_engine", "命名管道");
+        assertReadDenied(securityPolicyService, "\\\\.\\pipe\\docker_engine", "命名管道");
+        assertReadDenied(securityPolicyService, "npipe:////./pipe/docker_engine", "命名管道");
+    }
+
+    @Test
     void shouldBlockRawBlockDeviceWritesForAllFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -9396,6 +9408,17 @@ public class DangerousCommandApprovalServiceTest {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs("file_write", args);
         assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getPath()).isEqualTo(path);
+    }
+
+    private static void assertReadDenied(
+            SecurityPolicyService securityPolicyService, String path, String message) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", path);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("file_read", args);
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains(message);
         assertThat(verdict.getPath()).isEqualTo(path);
     }
 
