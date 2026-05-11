@@ -715,6 +715,7 @@ public class ToolRegistryExposureTest {
                 .isFalse();
         assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("pathPolicy")))
                 .contains("/etc/passwd")
+                .contains("c:/windows/")
                 .contains("/dev/zero");
         assertThat(policyStatus.get("policy").get("terminal").get("envPassthroughCount").getInt())
                 .isEqualTo(1);
@@ -1074,8 +1075,10 @@ public class ToolRegistryExposureTest {
         assertThat(pathPolicyDetails.get("skillsHubInternalReadBlocked").getBoolean()).isTrue();
         assertThat(pathPolicyDetails.get("writeDeniedExactPathCount").getInt()).isGreaterThan(0);
         assertThat(pathPolicyDetails.get("writeDeniedPrefixCount").getInt()).isGreaterThan(0);
+        assertThat(pathPolicyDetails.get("writeDeniedWindowsPrefixCount").getInt()).isGreaterThan(0);
         assertThat(String.valueOf(pathPolicyDetails))
                 .contains("/etc/passwd")
+                .contains("c:/windows/")
                 .contains("/dev/zero")
                 .contains("A-Za-z0-9")
                 .doesNotContain("secret-sudo");

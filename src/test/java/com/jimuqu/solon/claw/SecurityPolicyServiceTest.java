@@ -960,9 +960,13 @@ public class SecurityPolicyServiceTest {
                 .doesNotContain("1234567890abcdef");
         assertThat(((Integer) summary.get("writeDeniedExactPathCount")).intValue()).isGreaterThan(0);
         assertThat(((Integer) summary.get("writeDeniedPrefixCount")).intValue()).isGreaterThan(0);
+        assertThat(((Integer) summary.get("writeDeniedWindowsPrefixCount")).intValue())
+                .isGreaterThan(0);
         assertThat(((Integer) summary.get("writeDeniedHomeFileCount")).intValue()).isGreaterThan(0);
         assertThat(((Integer) summary.get("blockedDevicePathCount")).intValue()).isGreaterThan(0);
         assertThat(String.valueOf(summary.get("writeDeniedExactPathSamples"))).contains("/etc/passwd");
+        assertThat(String.valueOf(summary.get("writeDeniedWindowsPrefixSamples")))
+                .contains("c:/windows/");
         assertThat(String.valueOf(summary.get("blockedDevicePathSamples"))).contains("/dev/zero");
         assertThat(String.valueOf(summary.get("workdirSafePattern"))).contains("A-Za-z0-9");
     }
