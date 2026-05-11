@@ -471,6 +471,7 @@ public class RuntimeConfigResolver {
                 "solonclaw.task.toolOutputMaxLines",
                 "solonclaw.task.toolOutputMaxLineLength",
                 "tool_output.max_bytes",
+                "tool_output.turn_budget_bytes",
                 "tool_output.max_lines",
                 "tool_output.max_line_length",
                 "solonclaw.task.mediaCacheTtlHours",

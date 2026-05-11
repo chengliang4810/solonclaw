@@ -200,6 +200,7 @@ public class CoreConfigOverrideLoadTest {
         FileUtil.writeUtf8String(
                 "tool_output:\n"
                         + "  max_bytes: 12345\n"
+                        + "  turn_budget_bytes: 67890\n"
                         + "  max_lines: 2345\n"
                         + "  max_line_length: 3456\n",
                 configFile);
@@ -210,6 +211,7 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(12345);
+        assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(67890);
         assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2345);
         assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(3456);
     }
@@ -262,6 +264,7 @@ public class CoreConfigOverrideLoadTest {
         FileUtil.writeUtf8String(
                 "tool_output:\n"
                         + "  max_bytes: \"75000\"\n"
+                        + "  turn_budget_bytes: \"125000\"\n"
                         + "  max_lines: \"222\"\n"
                         + "  max_line_length: \"333\"\n",
                 configFile);
@@ -272,6 +275,7 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(75000);
+        assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(125000);
         assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(222);
         assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(333);
     }
