@@ -2334,11 +2334,33 @@ public class SecurityPolicyService {
         value = SecretRedactor.stripDisplayControls(value);
         value = Normalizer.normalize(value, Normalizer.Form.NFKC);
         value = HtmlUtil.unescape(value).trim();
+        value = decodePathText(value);
         value = value.replace('\\', '/');
         while (value.contains("//")) {
             value = value.replace("//", "/");
         }
         return value.toLowerCase(Locale.ROOT);
+    }
+
+    private String decodePathText(String raw) {
+        String value = StrUtil.nullToEmpty(raw);
+        for (int i = 0; i < 4; i++) {
+            String decoded;
+            try {
+                decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+            } catch (Exception ignored) {
+                return value;
+            }
+            decoded = TerminalAnsiSanitizer.stripAnsi(decoded);
+            decoded = SecretRedactor.stripDisplayControls(decoded);
+            decoded = Normalizer.normalize(decoded, Normalizer.Form.NFKC);
+            decoded = HtmlUtil.unescape(decoded).trim();
+            if (decoded.equals(value)) {
+                return decoded;
+            }
+            value = decoded;
+        }
+        return value;
     }
 
     private boolean containsControlCharacter(String value) {

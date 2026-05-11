@@ -754,6 +754,27 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyEncodedTraversalPaths() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("path", "safe/%252e%252e/readme.txt");
+
+        SecurityPolicyService.FileVerdict doubleEncoded = policy.checkPath("safe/%252e%252e/readme.txt", false);
+        SecurityPolicyService.FileVerdict htmlEntity = policy.checkPath("safe/&#46;&#46;/readme.txt", false);
+        SecurityPolicyService.FileVerdict command = policy.checkCommandPaths("cat safe/%252e%252e/readme.txt");
+        SecurityPolicyService.FileVerdict toolArg = policy.checkFileToolArgs("read_file", args);
+
+        assertThat(doubleEncoded.isAllowed()).isFalse();
+        assertThat(doubleEncoded.getMessage()).contains("路径遍历");
+        assertThat(htmlEntity.isAllowed()).isFalse();
+        assertThat(htmlEntity.getMessage()).contains("路径遍历");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("路径遍历");
+        assertThat(toolArg.isAllowed()).isFalse();
+        assertThat(toolArg.getMessage()).contains("路径遍历");
+    }
+
+    @Test
     void shouldDenyCommandCredentialFilesInArchiveAndUploadCommands() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
