@@ -1856,6 +1856,9 @@ public class DashboardDiagnosticsService {
         if (coverage.get("credentialPolicyDetails") instanceof Map) {
             safe.put("credentialPolicyDetails", safeCredentialPolicySummary());
         }
+        if (coverage.get("credentialMountPolicyDetails") instanceof Map) {
+            safe.put("credentialMountPolicyDetails", safeCredentialFilePolicySummary());
+        }
         if (coverage.get("toolArgsPolicy") instanceof Map) {
             safe.put("toolArgsPolicy", safeToolArgsPolicySummary());
         }
@@ -1916,6 +1919,9 @@ public class DashboardDiagnosticsService {
         }
         if (coverage.get("backgroundProcessPolicy") instanceof Map) {
             safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary());
+        }
+        if (coverage.get("tirithPolicy") instanceof Map) {
+            safe.put("tirithPolicy", safeTirithPolicySummary());
         }
         if (coverage.get("approvalLifecyclePolicy") instanceof Map) {
             safe.put(
