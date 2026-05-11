@@ -283,6 +283,9 @@ public class SecurityPolicyService {
     private static final Pattern JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN =
             Pattern.compile(
                     "(?i)(?:^|\\s)(?:JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS|MAVEN_OPTS|GRADLE_OPTS)=((?:\"[^\"]*\")|(?:'[^']*')|\\S+)");
+    private static final Pattern POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN =
+            Pattern.compile(
+                    "(?i)(?:\\$env:|Env:)(?:HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|YARN_PROXY|YARN_HTTPS_PROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PIP_PROXY)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](?:HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|YARN_PROXY|YARN_HTTPS_PROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PIP_PROXY)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
     private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
             Arrays.asList(
                     "access_token",
@@ -615,6 +618,7 @@ public class SecurityPolicyService {
         summary.put("protocolRelativeUrlChecked", Boolean.TRUE);
         summary.put("schemelessHostChecked", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
+        summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
         summary.put("schemelessSensitiveQueryBlocked", Boolean.TRUE);
@@ -1336,6 +1340,7 @@ public class SecurityPolicyService {
         extractCurlDnsServers(text, urls);
         extractLocalBindAddresses(text, urls);
         extractJavaProxyOptionsAssignments(text, urls);
+        extractPowerShellProxyEnvironmentAssignments(text, urls);
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
@@ -1476,6 +1481,17 @@ public class SecurityPolicyService {
         Matcher matcher = JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN.matcher(text);
         while (matcher.find()) {
             addJavaProxyHostsFromOptions(stripOptionalQuote(matcher.group(1)), urls);
+        }
+    }
+
+    private void extractPowerShellProxyEnvironmentAssignments(String text, List<String> urls) {
+        Matcher matcher = POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN.matcher(text);
+        while (matcher.find()) {
+            String value = matcher.group(1);
+            if (StrUtil.isBlank(value)) {
+                value = matcher.group(2);
+            }
+            addProxyHost(stripOptionalQuote(value), urls);
         }
     }
 

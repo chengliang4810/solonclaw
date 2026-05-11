@@ -454,6 +454,39 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckPowerShellProxyEnvironmentAssignments() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict envProxy =
+                privatePolicy.checkCommandUrls(
+                        "$env:HTTP_PROXY='http://internal.example:8080'; iwr https://example.com");
+        SecurityPolicyService.UrlVerdict envColonProxy =
+                privatePolicy.checkCommandUrls(
+                        "Set-Item Env:HTTPS_PROXY http://internal.example:8443");
+        SecurityPolicyService.UrlVerdict setEnvironmentVariable =
+                metadataPolicy.checkCommandUrls(
+                        "[Environment]::SetEnvironmentVariable('ALL_PROXY','socks5://metadata.google.internal:1080')");
+        SecurityPolicyService.UrlVerdict publicProxy =
+                publicPolicy.checkCommandUrls(
+                        "$env:HTTP_PROXY='http://proxy.example:8080'; iwr https://example.com");
+
+        assertThat(envProxy.isAllowed()).isFalse();
+        assertThat(envProxy.getMessage()).contains("内网");
+        assertThat(envColonProxy.isAllowed()).isFalse();
+        assertThat(envColonProxy.getMessage()).contains("内网");
+        assertThat(setEnvironmentVariable.isAllowed()).isFalse();
+        assertThat(setEnvironmentVariable.getMessage()).contains("元数据");
+        assertThat(publicProxy.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -737,6 +770,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("protocolRelativeUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("schemelessHostChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("schemelessSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
