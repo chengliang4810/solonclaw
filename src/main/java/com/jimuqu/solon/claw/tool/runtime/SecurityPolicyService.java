@@ -289,6 +289,7 @@ public class SecurityPolicyService {
                     "refresh_token",
                     "id_token",
                     "auth_token",
+                    "token",
                     "client_secret",
                     "api_key",
                     "apikey",

@@ -504,6 +504,8 @@ public class SecurityPolicyServiceTest {
                 policy.checkUrl("https://example.com/callback?client&#95;secret=secret123");
         SecurityPolicyService.UrlVerdict mixedCase =
                 policy.checkUrl("https://example.com/callback?Refresh_Token=secret123");
+        SecurityPolicyService.UrlVerdict plainToken =
+                policy.checkUrl("https://example.com/callback?token=secret123");
         SecurityPolicyService.UrlVerdict dashedName =
                 policy.checkUrl("https://example.com/callback?access-token=secret123");
         SecurityPolicyService.UrlVerdict dottedName =
@@ -523,6 +525,8 @@ public class SecurityPolicyServiceTest {
         assertThat(htmlEntityName.getMessage()).contains("敏感凭据参数");
         assertThat(mixedCase.isAllowed()).isFalse();
         assertThat(mixedCase.getMessage()).contains("敏感凭据参数");
+        assertThat(plainToken.isAllowed()).isFalse();
+        assertThat(plainToken.getMessage()).contains("敏感凭据参数");
         assertThat(dashedName.isAllowed()).isFalse();
         assertThat(dashedName.getMessage()).contains("敏感凭据参数");
         assertThat(dottedName.isAllowed()).isFalse();
