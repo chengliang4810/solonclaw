@@ -1896,6 +1896,27 @@ public class DashboardDiagnosticsService {
         if (coverage.get("terminalGuardrailPolicy") instanceof Map) {
             safe.put("terminalGuardrailPolicy", safeTerminalGuardrailPolicySummary());
         }
+        if (coverage.get("smartApprovalPolicy") instanceof Map) {
+            safe.put("smartApprovalPolicy", safeSmartApprovalPolicySummary());
+        }
+        if (coverage.get("tirithApprovalPolicy") instanceof Map) {
+            safe.put("tirithApprovalPolicy", safeTirithApprovalPolicySummary());
+        }
+        if (coverage.get("cronApprovalPolicyDetails") instanceof Map) {
+            safe.put("cronApprovalPolicyDetails", safeCronApprovalPolicySummary());
+        }
+        if (coverage.get("subagentApprovalPolicyDetails") instanceof Map) {
+            safe.put("subagentApprovalPolicyDetails", safeSubagentApprovalPolicySummary());
+        }
+        if (coverage.get("sudoRewritePolicy") instanceof Map) {
+            safe.put("sudoRewritePolicy", safeSudoRewritePolicySummary());
+        }
+        if (coverage.get("terminalOutputPolicy") instanceof Map) {
+            safe.put("terminalOutputPolicy", safeTerminalOutputPolicySummary());
+        }
+        if (coverage.get("backgroundProcessPolicy") instanceof Map) {
+            safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary());
+        }
         if (coverage.get("approvalLifecyclePolicy") instanceof Map) {
             safe.put(
                     "approvalLifecyclePolicy",

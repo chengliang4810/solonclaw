@@ -366,6 +366,28 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(terminalGuardrailPolicy.get("sudoPasswordRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> smartApprovalPolicy =
+                (Map<String, Object>) coverage.get("smartApprovalPolicy");
+        assertThat(smartApprovalPolicy.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(smartApprovalPolicy.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> cronApprovalPolicy =
+                (Map<String, Object>) coverage.get("cronApprovalPolicyDetails");
+        assertThat(cronApprovalPolicy.get("hardlineAlwaysBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cronApprovalPolicy.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> subagentApprovalPolicy =
+                (Map<String, Object>) coverage.get("subagentApprovalPolicyDetails");
+        assertThat(subagentApprovalPolicy.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentApprovalPolicy.get("pendingApprovalCreatedWhenDenied")).isEqualTo(Boolean.FALSE);
+        Map<String, Object> sudoRewritePolicy = (Map<String, Object>) coverage.get("sudoRewritePolicy");
+        assertThat(sudoRewritePolicy.get("passwordRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> terminalOutputPolicy =
+                (Map<String, Object>) coverage.get("terminalOutputPolicy");
+        assertThat(terminalOutputPolicy.get("emptySuccessMessage")).isEqualTo("执行成功");
+        assertThat(terminalOutputPolicy.get("exitCodeSemanticsAvailable")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> backgroundProcessPolicy =
+                (Map<String, Object>) coverage.get("backgroundProcessPolicy");
+        assertThat(backgroundProcessPolicy.get("startHardlineBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessPolicy.get("stdinExecutionPayloadChecked")).isEqualTo(Boolean.TRUE);
         Map<String, Object> toolArgsPolicy = (Map<String, Object>) coverage.get("toolArgsPolicy");
         assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
