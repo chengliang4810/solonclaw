@@ -185,16 +185,16 @@ public class CronjobTools {
             Map<String, Object> view = formattedView(job);
             return ToolResultEnvelope.ok("Created cron job: " + job.getJobId())
                     .data("job_id", job.getJobId())
-                    .data("name", job.getName())
+                    .data("name", safeText(job.getName()))
                     .data("skill", view.get("skill"))
                     .data("skills", view.get("skills"))
                     .data("schedule", job.getCronExpr())
                     .data("repeat", repeatDisplay(job))
-                    .data("deliver", job.getDeliverPlatform())
+                    .data("deliver", safeText(job.getDeliverPlatform()))
                     .data("next_run_at", Long.valueOf(job.getNextRunAt()))
                     .data("job", view)
-                    .data("message", "Cron job '" + job.getName() + "' created.")
-                    .preview(job.getJobId() + " " + job.getName() + " ACTIVE")
+                    .data("message", "Cron job '" + safeText(job.getName()) + "' created.")
+                    .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
                     .toJson();
         }
 
@@ -213,8 +213,8 @@ public class CronjobTools {
                     .data("runs", runViews(runs))
                     .data("run_count", Integer.valueOf(runs.size()))
                     .data("limit", Integer.valueOf(historyLimit))
-                    .data("message", "Cron job '" + job.getName() + "' details.")
-                    .preview(job.getJobId() + " " + job.getName() + " " + job.getStatus())
+                    .data("message", "Cron job '" + safeText(job.getName()) + "' details.")
+                    .preview(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
                     .toJson();
         }
 
@@ -266,31 +266,31 @@ public class CronjobTools {
             job = cronJobService.resume(jobId);
         } else if ("remove".equals(normalized)) {
             job = cronJobService.remove(jobId);
-            return ToolResultEnvelope.ok("Cron job '" + job.getName() + "' removed.")
-                    .data("message", "Cron job '" + job.getName() + "' removed.")
+            return ToolResultEnvelope.ok("Cron job '" + safeText(job.getName()) + "' removed.")
+                    .data("message", "Cron job '" + safeText(job.getName()) + "' removed.")
                     .data("removed_job", removedView(job))
-                    .preview(job.getJobId() + " " + job.getName() + " REMOVED")
+                    .preview(safeText(job.getJobId() + " " + job.getName() + " REMOVED"))
                     .toJson();
         } else if ("run".equals(normalized)) {
             job = cronJobService.trigger(jobId);
             Map<String, Object> view = formattedView(job);
-            return ToolResultEnvelope.ok("Cron job queued for immediate run: " + job.getName())
+            return ToolResultEnvelope.ok("Cron job queued for immediate run: " + safeText(job.getName()))
                     .data("job", view)
                     .data("triggered", Boolean.TRUE)
                     .data("next_run_at", view.get("next_run_at"))
                     .data(
                             "trigger_message",
                             "Cron job '"
-                                    + job.getName()
+                                    + safeText(job.getName())
                                     + "' will run on the next scheduler tick.")
-                    .preview(job.getJobId() + " " + job.getName() + " TRIGGERED")
+                    .preview(safeText(job.getJobId() + " " + job.getName() + " TRIGGERED"))
                     .toJson();
         } else {
             return ToolResultEnvelope.error("Unsupported cronjob action: " + safeText(action)).toJson();
         }
         return ToolResultEnvelope.ok("Cron job action completed: " + normalized)
                 .data("job", formattedView(job))
-                .preview(job.getJobId() + " " + job.getName() + " " + job.getStatus())
+                .preview(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
                 .toJson();
         } catch (Exception e) {
             return ToolResultEnvelope.error(safeError(e)).toJson();
@@ -802,7 +802,7 @@ public class CronjobTools {
     private Map<String, Object> failureView(CronJobRecord job) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("job_id", job.getJobId());
-        result.put("name", job.getName());
+        result.put("name", safeText(job.getName()));
         result.put("last_status", job.getLastStatus());
         result.put("last_error", safeText(job.getLastError()));
         result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
@@ -833,21 +833,21 @@ public class CronjobTools {
     private Map<String, Object> formattedView(CronJobRecord job) {
         Map<String, Object> base = cronJobService.toView(job);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("job_id", job.getJobId());
-        result.put("name", job.getName());
+        result.put("job_id", safeText(job.getJobId()));
+        result.put("name", safeText(job.getName()));
         result.put("skill", base.get("skill"));
         result.put("skills", base.get("skills"));
         result.put("prompt_preview", base.get("prompt_preview"));
-        result.put("model", job.getModel());
-        result.put("provider", job.getProvider());
-        result.put("base_url", job.getBaseUrl());
-        result.put("schedule", job.getCronExpr());
+        result.put("model", safeText(job.getModel()));
+        result.put("provider", safeText(job.getProvider()));
+        result.put("base_url", safeObjectText(base.get("base_url")));
+        result.put("schedule", safeText(job.getCronExpr()));
         result.put("schedule_detail", base.get("schedule"));
         result.put("schedule_display", base.get("schedule_display"));
         result.put("repeat", repeatDisplay(job));
         result.put("deliver", base.get("deliver"));
-        result.put("deliver_chat_id", base.get("deliver_chat_id"));
-        result.put("deliver_thread_id", base.get("deliver_thread_id"));
+        result.put("deliver_chat_id", safeObjectText(base.get("deliver_chat_id")));
+        result.put("deliver_thread_id", safeObjectText(base.get("deliver_thread_id")));
         result.put("next_run_at", base.get("next_run_at"));
         result.put("last_run_at", base.get("last_run_at"));
         result.put("last_status", job.getLastStatus());
@@ -855,9 +855,9 @@ public class CronjobTools {
         result.put("enabled", base.get("enabled"));
         result.put("state", base.get("state"));
         result.put("paused_at", base.get("paused_at"));
-        result.put("paused_reason", job.getPausedReason());
+        result.put("paused_reason", safeText(job.getPausedReason()));
         result.put("wrap_response", Boolean.valueOf(job.isWrapResponse()));
-        put(result, "script", job.getScript());
+        put(result, "script", safeObjectText(base.get("script")));
         if (job.isNoAgent()) {
             result.put("no_agent", Boolean.TRUE);
         }
@@ -870,15 +870,19 @@ public class CronjobTools {
         if (enabledToolsets instanceof Iterable && ((Iterable<?>) enabledToolsets).iterator().hasNext()) {
             result.put("enabled_toolsets", enabledToolsets);
         }
-        put(result, "workdir", job.getWorkdir());
+        put(result, "workdir", safeObjectText(base.get("workdir")));
         return result;
+    }
+
+    private String safeObjectText(Object value) {
+        return value == null ? null : safeText(String.valueOf(value));
     }
 
     private Map<String, Object> removedView(CronJobRecord job) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", job.getJobId());
-        result.put("name", job.getName());
-        result.put("schedule", job.getCronExpr());
+        result.put("name", safeText(job.getName()));
+        result.put("schedule", safeText(job.getCronExpr()));
         return result;
     }
 
@@ -910,7 +914,7 @@ public class CronjobTools {
             if (buffer.length() > 0) {
                 buffer.append('\n');
             }
-            buffer.append(job.getJobId()).append(' ').append(job.getName()).append(' ').append(job.getStatus());
+            buffer.append(safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()));
         }
         return buffer.toString();
     }

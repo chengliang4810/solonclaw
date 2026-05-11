@@ -1695,6 +1695,61 @@ public class DefaultCronSchedulerTest {
                 null,
                 null);
 
+        CronJobRecord secretJob = job("job-tool-secret", "MEMORY:tool-room:user");
+        secretJob.setName("secret token=ghp_crontoolname12345");
+        secretJob.setPrompt("prompt Authorization: Bearer ghp_crontoolprompt12345");
+        secretJob.setDeliverPlatform("FEISHU");
+        secretJob.setDeliverChatId("chat-ghp_crontoolchat12345");
+        secretJob.setDeliverThreadId("thread-ghp_crontoolthread12345");
+        secretJob.setScript("script-ghp_crontoolscript12345.py");
+        secretJob.setWorkdir("/tmp/token-workdir-ghp_crontoolworkdir12345");
+        secretJob.setModel("model-ghp_crontoolmodel12345");
+        secretJob.setProvider("provider-ghp_crontoolprovider12345");
+        secretJob.setBaseUrl("https://u:p@example.com/v1?token=crontool-token");
+        secretJob.setStatus("PAUSED");
+        secretJob.setPausedReason("paused token=ghp_crontoolpaused12345");
+        env.cronJobRepository.save(secretJob);
+        String secretInspect =
+                tools.cronjob(
+                        "inspect",
+                        secretJob.getJobId(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        assertThat(secretInspect)
+                .contains("Bearer ***")
+                .doesNotContain("ghp_crontoolname12345")
+                .doesNotContain("ghp_crontoolprompt12345")
+                .doesNotContain("ghp_crontoolchat12345")
+                .doesNotContain("ghp_crontoolthread12345")
+                .doesNotContain("ghp_crontoolscript12345")
+                .doesNotContain("ghp_crontoolworkdir12345")
+                .doesNotContain("ghp_crontoolmodel12345")
+                .doesNotContain("ghp_crontoolprovider12345")
+                .doesNotContain("crontool-token")
+                .doesNotContain("ghp_crontoolpaused12345")
+                .doesNotContain("u:p@example.com");
+        service.remove(secretJob.getJobId());
+
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         FileUtil.writeString("print('metadata')", FileUtil.file(scriptsDir, "metadata.py"), StandardCharsets.UTF_8);
