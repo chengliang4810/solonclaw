@@ -177,7 +177,7 @@ public class SlashConfirmService {
         while (value.startsWith("/")) {
             value = value.substring(1);
         }
-        return value;
+        return SecretRedactor.redact(value, 2000);
     }
 
     private String cleanDisplay(String value) {

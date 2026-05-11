@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
+import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -185,6 +186,24 @@ public class SlashConfirmServiceTest {
 
         assertThat(service.isAlwaysConfirmed("reload-mcp")).isTrue();
         assertThat(service.isAlwaysConfirmed("/RELOAD-MCP")).isTrue();
+    }
+
+    @Test
+    void shouldRedactEncodedSecretsBeforePersistingAlwaysConfirmedCommands() throws Exception {
+        MemorySettings settings = new MemorySettings();
+        SlashConfirmService service = new SlashConfirmService(settings);
+
+        service.addAlwaysConfirmed(
+                "/reload-mcp https://example.test/callback?api%255Fkey=slash-always-secret");
+
+        String stored = settings.get(AgentSettingConstants.SLASH_CONFIRM_ALWAYS_COMMANDS);
+        assertThat(stored)
+                .contains("api%255fkey=***")
+                .doesNotContain("slash-always-secret");
+        assertThat(
+                        service.isAlwaysConfirmed(
+                                "/reload-mcp https://example.test/callback?api%255Fkey=slash-always-secret"))
+                .isTrue();
     }
 
     private static class MemorySettings implements GlobalSettingRepository {
