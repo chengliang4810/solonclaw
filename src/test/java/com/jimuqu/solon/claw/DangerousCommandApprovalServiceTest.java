@@ -3508,6 +3508,40 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileTranscriptOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "cat .env | tee capture.log",
+                        "type credentials.json | tee capture.log",
+                        "Get-Content .anthropic_oauth.json | Out-String",
+                        "gc .npmrc | Out-Default",
+                        "script -q transcript.log -c 'cat service-account.json'");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_transcript_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat report.txt | tee capture.log"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-Content report.txt | Out-String"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "script -q transcript.log -c 'cat report.txt'"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileVisualEncodeCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

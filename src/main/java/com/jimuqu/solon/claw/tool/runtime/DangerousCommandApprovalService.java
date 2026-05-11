@@ -816,6 +816,16 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_transcript_output",
+                                    "transcript credential file content",
+                                    pattern(
+                                            "(?:\\b(?:cat|type|Get-Content|gc)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n|;&]*\\|\\s*(?:tee\\b|Out-String\\b|Out-Default\\b)|(?:^|[;&|\\n`])\\s*script\\b[^\\n|;&]*\\s-c\\s+[\"'][^\"'\\n]*(?:cat|type|Get-Content|gc)\\b[^\"'\\n]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(
