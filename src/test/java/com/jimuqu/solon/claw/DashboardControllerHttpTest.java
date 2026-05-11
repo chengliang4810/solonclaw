@@ -2804,6 +2804,19 @@ public class DashboardControllerHttpTest {
                 .contains("token=***")
                 .doesNotContain("ghp_kanbandashboard12345")
                 .doesNotContain("ghp_kanbanbody12345");
+
+        HttpResult invalidTaskJson =
+                request(
+                        "POST",
+                        "/api/kanban/tasks",
+                        "{\"title\":\"token=ghp_kanbanparse12345\"",
+                        token);
+        assertThat(invalidTaskJson.status).isEqualTo(400);
+        assertThat(invalidTaskJson.body)
+                .contains("KANBAN_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_kanbanparse12345")
+                .doesNotContain("token=");
     }
 
     @Test

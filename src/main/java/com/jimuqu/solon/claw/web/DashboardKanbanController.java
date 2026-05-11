@@ -464,11 +464,26 @@ public class DashboardKanbanController {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> body(Context context) throws Exception {
-        String body = context.body();
-        if (body == null || body.trim().isEmpty()) {
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (raw == null || raw.trim().isEmpty()) {
             return new LinkedHashMap<String, Object>();
         }
-        return ONode.deserialize(ONode.ofJson(body).toJson(), LinkedHashMap.class);
+        try {
+            ONode node = ONode.ofJson(raw);
+            if (node.toData() instanceof Map) {
+                return ONode.deserialize(node.toJson(), LinkedHashMap.class);
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
+        }
     }
 
     private int intParam(String value, int defaultValue) {
