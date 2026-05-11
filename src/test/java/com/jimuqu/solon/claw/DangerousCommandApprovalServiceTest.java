@@ -4492,6 +4492,46 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCodeCredentialFileStdoutCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> pythonCommands =
+                Arrays.asList(
+                        "print(open('.env').read())",
+                        "sys.stdout.write(open('credentials.json', 'r').read())",
+                        "print(Path('service-account.json').read_text())");
+        for (String command : pythonCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_credential_file_stdout");
+        }
+
+        List<String> jsCommands =
+                Arrays.asList(
+                        "console.log(fs.readFileSync('.env', 'utf8'))",
+                        "console.error(fs.readFileSync('credentials.json'))",
+                        "console.info(await fs.promises.readFile('token.json', 'utf8'))");
+        for (String command : jsCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("js_credential_file_stdout");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "print(open('report.txt').read())"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js", "console.log(fs.readFileSync('report.txt', 'utf8'))"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeHttpCredentialFileVariableDisclosureCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

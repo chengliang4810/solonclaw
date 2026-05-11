@@ -1668,6 +1668,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']\\s*:"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_credential_file_stdout",
+                                    "Python prints credential file content",
+                                    pattern(
+                                            "\\b(?:print|sys\\.stdout\\.write)\\s*\\([^\\n]*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_http_credential_file_variable_send",
                                     "Python sends credential file content variable through HTTP",
                                     pattern(
@@ -1719,6 +1725,12 @@ public class DangerousCommandApprovalService {
                                                     + "[\"']\\s*,|\\baxios\\.defaults\\.headers(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*\\s*\\[\\s*[\"']"
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "[\"']\\s*\\]\\s*="),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_credential_file_stdout",
+                                    "JavaScript prints credential file content",
+                                    pattern(
+                                            "\\bconsole\\.(?:log|info|warn|error)\\s*\\([^\\n]*(?:fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|await\\s+fs\\.promises\\.readFile\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'])"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_http_credential_file_variable_send",
