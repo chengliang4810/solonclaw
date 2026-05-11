@@ -379,6 +379,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"path_policy\"")
                 .contains("\"credential_policy\"")
                 .contains("\"tool_args_policy\"")
+                .contains("\"tirith_policy\"")
                 .contains("\"userinfoBlocked\":true")
                 .contains("\"encodedSensitiveQueryBlocked\":true")
                 .contains("\"repeatedEncodedSensitiveQueryBlocked\":true")
@@ -400,6 +401,15 @@ public class DashboardControllerHttpTest {
                 .contains("\"returnedDocumentContentChecked\":true")
                 .contains("\"downloadOutputPathOptionChecked\":true")
                 .contains("\"proxyOptionUrlChecked\":true")
+                .contains("\"warnRequiresApproval\":true")
+                .contains("\"blockRequiresApproval\":true")
+                .contains("\"commandPassedAsSingleArgument\":true")
+                .contains("\"subprocessEnvironmentSanitized\":true")
+                .contains("\"timeoutKillsProcess\":true")
+                .contains("\"stdoutStderrCollectedSeparately\":true")
+                .contains("\"parseFailureKeepsDecision\":true")
+                .contains("\"toolShellDetectionApplied\":true")
+                .contains("\"secretRedaction\":true")
                 .contains("\"credential_file_count\"")
                 .contains("\"credential_file_policy\"")
                 .contains("\"runtimeRelativeOnly\":true")
@@ -471,7 +481,9 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"directorySegmentSamples\"")
                 .doesNotContain("\"configuredCredentialFileSamples\"")
                 .doesNotContain("\"urlKeySamples\"")
-                .doesNotContain("\"pathKeySamples\"");
+                .doesNotContain("\"pathKeySamples\"")
+                .doesNotContain("\"configuredPath\"")
+                .doesNotContain("\"resolvedPath\"");
 
         HttpResult commandAudit =
                 request(

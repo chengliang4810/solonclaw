@@ -466,6 +466,7 @@ public class DashboardDiagnosticsService {
         policy.put("path_policy", safePathPolicySummary());
         policy.put("credential_policy", safeCredentialPolicySummary());
         policy.put("tool_args_policy", safeToolArgsPolicySummary());
+        policy.put("tirith_policy", safeTirithPolicySummary());
         map.put("policy", policy);
 
         Map<String, Object> terminal = new LinkedHashMap<String, Object>();
@@ -1253,6 +1254,44 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "proxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "preproxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "unsupportedNetworkSchemeChecked");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeTirithPolicySummary() {
+        if (tirithSecurityService == null) {
+            return unavailablePolicy("tirith security service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = tirithSecurityService.policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "configured");
+            copyPolicyValue(summary, safe, "available");
+            copyPolicyValue(summary, safe, "timeoutSeconds");
+            copyPolicyValue(summary, safe, "failOpen");
+            copyPolicyValue(summary, safe, "actions");
+            copyPolicyValue(summary, safe, "warnRequiresApproval");
+            copyPolicyValue(summary, safe, "blockRequiresApproval");
+            copyPolicyValue(summary, safe, "commandPassedAsSingleArgument");
+            copyPolicyValue(summary, safe, "nonInteractiveMode");
+            copyPolicyValue(summary, safe, "jsonOutputMode");
+            copyPolicyValue(summary, safe, "subprocessEnvironmentSanitized");
+            copyPolicyValue(summary, safe, "timeoutKillsProcess");
+            copyPolicyValue(summary, safe, "stdoutStderrCollectedSeparately");
+            copyPolicyValue(summary, safe, "exitCodeZeroAllows");
+            copyPolicyValue(summary, safe, "exitCodeOneBlocks");
+            copyPolicyValue(summary, safe, "exitCodeTwoWarns");
+            copyPolicyValue(summary, safe, "unexpectedExitCodeUsesFailureMode");
+            copyPolicyValue(summary, safe, "parseFailureKeepsDecision");
+            copyPolicyValue(summary, safe, "toolShellDetectionApplied");
+            copyPolicyValue(summary, safe, "findingLimit");
+            copyPolicyValue(summary, safe, "summaryLimit");
+            copyPolicyValue(summary, safe, "secretRedaction");
+            copyPolicyValue(summary, safe, "shellDetection");
+            copyPolicyValue(summary, safe, "failOpenMode");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
