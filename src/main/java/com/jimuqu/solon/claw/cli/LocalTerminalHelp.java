@@ -30,6 +30,7 @@ public final class LocalTerminalHelp {
                 + "/busy [status|queue|steer|interrupt|reject] - 查看或切换运行中输入策略\n"
                 + "/cron guide|capabilities [--json] - 查看自动化字段、别名、技能绑定和投递策略\n"
                 + "/kanban guide|drawer|pipeline|retry|history|dispatch - 查看或操作看板任务抽屉、流水和派发\n"
+                + "/security audit|policy|approvals|urls - 查看安全审计、审批、URL 和工具参数策略摘要\n"
                 + "/reload-mcp [now|always] - 重载 MCP 工具并刷新下一轮工具 schema\n"
                 + "/approve [确认编号|all] [session|always] - 批准危险命令审批\n"
                 + "/deny [确认编号] - 拒绝危险命令审批\n"
@@ -44,6 +45,6 @@ public final class LocalTerminalHelp {
                 + "/exit! 或 /quit! - 停止运行中的后台任务并强制退出\n"
                 + "粘贴本地文件路径 - 自动作为附件发送，凭据路径会被安全策略阻断\n"
                 + "\n"
-                + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/title、/status、/model、/cron、/kanban、/approve、/deny、/busy 等。";
+                + "对话命令仍可使用 /new、/retry、/undo、/branch、/resume、/title、/status、/model、/cron、/kanban、/security、/approve、/deny、/busy 等。";
     }
 }

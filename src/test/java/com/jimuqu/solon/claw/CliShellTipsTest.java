@@ -22,6 +22,7 @@ public class CliShellTipsTest {
 
         assertThat(commandList()).containsExactly(TerminalCommandCatalog.SLASH_COMMANDS);
         assertThat(LocalTerminalHelp.text()).contains("/reload-mcp [now|always]");
+        assertThat(commandList()).contains("/security", "/security audit", "/security policy");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
 

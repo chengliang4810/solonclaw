@@ -105,6 +105,7 @@ public class TuiShellHeaderTest {
                 .contains("/goal")
                 .contains("/cron")
                 .contains("/kanban")
+                .contains("/security")
                 .contains("/recap")
                 .contains("/reload-mcp")
                 .contains("/acp");
