@@ -333,13 +333,7 @@ public class SolonClawShellSkill extends ShellSkill {
                 command,
                 securityPolicyService);
         File dir = resolveBackgroundWorkdir(workdir);
-        String ptyNote = null;
-        if (Boolean.TRUE.equals(pty) && commandRequiresPipeStdin(command)) {
-            ptyNote =
-                    "PTY disabled for this command because it expects piped stdin/EOF "
-                            + "(for example gh auth login --with-token). For local background "
-                            + "processes, call process(action='close') after writing so it receives EOF.";
-        }
+        String ptyNote = ptyDisabledNote(command, pty);
         List<String> normalizedWatchPatterns = normalizeWatchPatterns(watchPatterns);
         String conflictNote = null;
         if (Boolean.TRUE.equals(notifyOnComplete) && !normalizedWatchPatterns.isEmpty()) {
@@ -431,6 +425,15 @@ public class SolonClawShellSkill extends ShellSkill {
             normalized = normalized.replace("  ", " ");
         }
         return normalized.startsWith("gh auth login") && normalized.contains("--with-token");
+    }
+
+    public String ptyDisabledNote(String command, Boolean pty) {
+        if (!Boolean.TRUE.equals(pty) || !commandRequiresPipeStdin(command)) {
+            return null;
+        }
+        return "PTY disabled for this command because it expects piped stdin/EOF "
+                + "(for example gh auth login --with-token). For local background "
+                + "processes, call process(action='close') after writing so it receives EOF.";
     }
 
     public String interpretExitCode(String command, Integer exitCode) {

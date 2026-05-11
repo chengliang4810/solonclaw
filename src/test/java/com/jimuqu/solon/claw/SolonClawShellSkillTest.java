@@ -742,26 +742,21 @@ public class SolonClawShellSkillTest {
     @Test
     void shouldReturnPtyDisabledNoteForJimuquPipeStdinBackgroundCommands() throws Exception {
         AppConfig config = new AppConfig();
-        ProcessRegistry registry = new ProcessRegistry();
-        String workdir = Files.createTempDirectory("jimuqu-shell").toString();
-        SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config, null, registry);
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
 
-        ONode result =
-                ONode.ofJson(
-                        skill.terminal(
+        assertThat(
+                        skill.ptyDisabledNote(
                                 "gh auth login --hostname github.com --git-protocol https --with-token",
-                                Boolean.TRUE,
-                                Integer.valueOf(1),
-                                workdir,
-                                Boolean.FALSE,
-                                Boolean.TRUE));
-
-        assertThat(result.get("session_id").getString()).startsWith("proc_");
-        assertThat(result.get("pty").getBoolean()).isFalse();
-        assertThat(result.get("pty_note").getString())
+                                Boolean.TRUE))
                 .contains("PTY disabled")
                 .contains("gh auth login --with-token");
-        assertThat(registry.stop(result.get("session_id").getString())).isTrue();
+        assertThat(skill.ptyDisabledNote("gh auth login --web", Boolean.TRUE)).isNull();
+        assertThat(
+                        skill.ptyDisabledNote(
+                                "gh auth login --hostname github.com --git-protocol https --with-token",
+                                Boolean.FALSE))
+                .isNull();
     }
 
     @Test
