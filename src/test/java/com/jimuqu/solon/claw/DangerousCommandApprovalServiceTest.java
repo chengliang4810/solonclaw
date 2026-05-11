@@ -4713,6 +4713,50 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCodeCredentialFileArchiveArtifactWriteCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> pythonCommands =
+                Arrays.asList(
+                        "z = zipfile.ZipFile('debug.zip', 'w')\nz.write('.env')",
+                        "archive = zipfile.ZipFile('test-results.zip', 'w')\narchive.writestr('token.txt', Path('token.json').read_text())",
+                        "tar = tarfile.open('trace.tar.gz', 'w:gz')\ntar.add('credentials.json')");
+        for (String command : pythonCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_credential_file_archive_artifact_write");
+        }
+
+        List<String> jsCommands =
+                Arrays.asList(
+                        "const archive = archiver('debug.zip');\narchive.file('.env', { name: '.env' });",
+                        "const zip = zip('test-results.zip');\nzip.add('credentials.json');",
+                        "const t = tar('trace.tar.gz');\nt.entry({ name: 'token.json' }, fs.readFileSync('token.json'));");
+        for (String command : jsCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_credential_file_archive_artifact_write");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python",
+                                "z = zipfile.ZipFile('debug.zip', 'w')\nz.write('report.txt')"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js",
+                                "const archive = archiver('debug.zip');\narchive.file('report.txt', { name: 'report.txt' });"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeHttpCredentialFileVariableDisclosureCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
