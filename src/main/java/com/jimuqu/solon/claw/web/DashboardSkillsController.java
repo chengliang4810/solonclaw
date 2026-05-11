@@ -33,14 +33,45 @@ public class DashboardSkillsController {
     }
 
     @Mapping(value = "/api/skills/toggle", method = MethodType.PUT)
-    public Map<String, Object> toggle(Context context) throws Exception {
-        ONode body = ONode.ofJson(context.body());
-        return skillsService.toggleSkill(
-                body.get("name").getString(), body.get("enabled").getBoolean());
+    public Map<String, Object> toggle(Context context) {
+        try {
+            ONode body = body(context);
+            return skillsService.toggleSkill(
+                    body.get("name").getString(), body.get("enabled").getBoolean());
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("SKILLS_BAD_REQUEST", e.getMessage());
+        } catch (Exception e) {
+            context.status(500);
+            return DashboardResponse.error("SKILLS_FAILED", e.getMessage());
+        }
     }
 
     @Mapping(value = "/api/tools/toolsets", method = MethodType.GET)
     public List<Map<String, Object>> toolsets() {
         return skillsService.getToolsets();
+    }
+
+    private ONode body(Context context) {
+        String raw;
+        try {
+            raw = context.body();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
+        }
+        if (raw == null || raw.trim().length() == 0) {
+            return new ONode();
+        }
+        try {
+            ONode node = ONode.ofJson(raw);
+            if (node.toData() instanceof Map) {
+                return node;
+            }
+            throw new IllegalArgumentException("请求体必须是 JSON 对象 / Request body must be a JSON object");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
+        }
     }
 }

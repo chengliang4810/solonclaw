@@ -645,6 +645,19 @@ public class DashboardControllerHttpTest {
         HttpResult skillsAfterToggle = request("GET", "/api/skills", null, token);
         assertThat(skillsAfterToggle.body).contains("\"enabled\":false");
 
+        HttpResult invalidSkillToggle =
+                request(
+                        "PUT",
+                        "/api/skills/toggle",
+                        "{\"name\":\"sample-skill token=ghp_skillparse12345\"",
+                        token);
+        assertThat(invalidSkillToggle.status).isEqualTo(400);
+        assertThat(invalidSkillToggle.body)
+                .contains("SKILLS_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_skillparse12345")
+                .doesNotContain("sample-skill token");
+
         HttpResult createCron =
                 request(
                         "POST",
@@ -2850,6 +2863,19 @@ public class DashboardControllerHttpTest {
                 .doesNotContain(secret.getAbsolutePath())
                 .doesNotContain(runtimeHome.getAbsolutePath())
                 .doesNotContain("ghp_mediaindex12345");
+
+        HttpResult invalidJson =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/index",
+                        "{\"mediaId\":\"media-token=ghp_mediaparse12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("MEDIA_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_mediaparse12345")
+                .doesNotContain("media-token");
 
         HttpResult missing =
                 request(
