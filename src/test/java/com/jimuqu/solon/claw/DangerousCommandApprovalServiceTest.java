@@ -96,6 +96,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("networkCredentialFieldAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveHttpHeaderAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawCredentialFileUploadDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("codeCredentialFileStdoutDetection")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("codeCredentialFileVariableStdoutDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialDisclosureDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialFileDisclosureDetection")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("codeHttpCredentialFileVariableDisclosureDetection"))
@@ -4521,6 +4523,34 @@ public class DangerousCommandApprovalServiceTest {
             assertThat(result.getPatternKey()).as(command).isEqualTo("js_credential_file_stdout");
         }
 
+        List<String> pythonVariableCommands =
+                Arrays.asList(
+                        "secret = open('.env').read()\nprint(secret)",
+                        "payload = Path('credentials.json').read_text()\nsys.stdout.write(payload)",
+                        "body = Path('service-account.json').read_bytes()\nsys.stderr.write(body)");
+        for (String command : pythonVariableCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_credential_file_variable_stdout");
+        }
+
+        List<String> jsVariableCommands =
+                Arrays.asList(
+                        "const secret = fs.readFileSync('.env', 'utf8');\nconsole.log(secret);",
+                        "let payload = fs.readFileSync('credentials.json');\nconsole.error(payload);",
+                        "var token = await fs.promises.readFile('token.json', 'utf8');\nconsole.warn(token);");
+        for (String command : jsVariableCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_credential_file_variable_stdout");
+        }
+
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_python", "print(open('report.txt').read())"))
@@ -4528,6 +4558,15 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_js", "console.log(fs.readFileSync('report.txt', 'utf8'))"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "payload = open('report.txt').read()\nprint(payload)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js",
+                                "const payload = fs.readFileSync('report.txt', 'utf8');\nconsole.log(payload);"))
                 .isNull();
     }
 
