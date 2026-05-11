@@ -3263,6 +3263,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileEditorOpenCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "vim .env",
+                        "nano credentials.json",
+                        "code client_secret.json",
+                        "notepad.exe service-account.json",
+                        "emacs .anthropic_oauth.json",
+                        "nvim ~/.config/gcloud/application_default_credentials.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_editor_open");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "vim report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "code README.md"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "notepad.exe notes.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileTerminalOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

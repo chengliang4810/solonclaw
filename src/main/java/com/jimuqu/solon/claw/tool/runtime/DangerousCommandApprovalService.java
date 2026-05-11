@@ -762,6 +762,13 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_editor_open",
+                                    "open credential file in editor",
+                                    pattern(
+                                            "\\b(?:vi|vim|nvim|nano|emacs|code|notepad(?:\\.exe)?|notepad\\+\\+)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(
