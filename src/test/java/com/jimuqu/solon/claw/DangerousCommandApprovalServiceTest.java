@@ -8045,6 +8045,44 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldNotReuseStaleHitlApprovalForDifferentDangerousCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        TestTrace first = new TestTrace();
+        Map<String, Object> firstArgs = new LinkedHashMap<String, Object>();
+        firstArgs.put("action", "start");
+        firstArgs.put("command", "rm -rf runtime/cache");
+        service.buildInterceptor().onAction(first, "process", firstArgs);
+        assertThat(service.getPendingApproval(first.session)).isNotNull();
+        assertThat(
+                        service.approve(
+                                first.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        TestTrace second = new TestTrace(first.session);
+        Map<String, Object> secondArgs = new LinkedHashMap<String, Object>();
+        secondArgs.put("action", "start");
+        secondArgs.put("command", "git reset --hard origin/main");
+        service.buildInterceptor().onAction(second, "process", secondArgs);
+
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(second.session);
+        assertThat(second.getFinalAnswer()).contains("需要审批").contains("git reset --hard");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getCommand()).isEqualTo("git reset --hard origin/main");
+        assertThat(pending.getPatternKeys()).containsExactly("git_reset_hard");
+        assertThat(DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                        "process", "git reset --hard origin/main"))
+                .isFalse();
+    }
+
+    @Test
     void shouldLetApprovedProcessCommandPassToolFallbackOnce() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
