@@ -1887,6 +1887,15 @@ public class DashboardDiagnosticsService {
         if (coverage.get("toolResultStoragePolicy") instanceof Map) {
             safe.put("toolResultStoragePolicy", safeToolResultStoragePolicySummary());
         }
+        if (coverage.get("dangerousCommandApprovalPolicy") instanceof Map) {
+            safe.put("dangerousCommandApprovalPolicy", safeApprovalPolicySummary());
+        }
+        if (coverage.get("hardlinePolicy") instanceof Map) {
+            safe.put("hardlinePolicy", safeHardlinePolicySummary());
+        }
+        if (coverage.get("terminalGuardrailPolicy") instanceof Map) {
+            safe.put("terminalGuardrailPolicy", safeTerminalGuardrailPolicySummary());
+        }
         if (coverage.get("approvalLifecyclePolicy") instanceof Map) {
             safe.put(
                     "approvalLifecyclePolicy",

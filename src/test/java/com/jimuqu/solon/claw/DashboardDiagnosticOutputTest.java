@@ -349,6 +349,23 @@ public class DashboardDiagnosticOutputTest {
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
         Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        Map<String, Object> coverageApprovalPolicy =
+                (Map<String, Object>) coverage.get("dangerousCommandApprovalPolicy");
+        assertThat(coverageApprovalPolicy.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("privateUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(coverageApprovalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(coverageApprovalPolicy.get("secretStoreRuleSamples")))
+                .contains("secret_store_read")
+                .contains("secret_store_destroy");
+        Map<String, Object> hardlinePolicy = (Map<String, Object>) coverage.get("hardlinePolicy");
+        assertThat(hardlinePolicy.get("ruleCount")).isEqualTo(approvalPolicy.get("hardlineRuleCount"));
+        assertThat(hardlinePolicy.get("approvalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> terminalGuardrailPolicy =
+                (Map<String, Object>) coverage.get("terminalGuardrailPolicy");
+        assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(terminalGuardrailPolicy.get("sudoPasswordRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> toolArgsPolicy = (Map<String, Object>) coverage.get("toolArgsPolicy");
         assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
