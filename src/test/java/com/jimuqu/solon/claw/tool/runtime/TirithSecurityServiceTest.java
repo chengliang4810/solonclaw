@@ -172,7 +172,10 @@ public class TirithSecurityServiceTest {
         assertThat(diagnostic.getSummary()).contains("unavailable").contains("fail-closed");
         assertThat(diagnostic.getConfiguredPath()).contains("***").doesNotContain(token);
         assertThat(diagnostic.getResolvedPath()).contains("***").doesNotContain(token);
-        assertThat(String.valueOf(diagnostic.toMap())).contains("***").doesNotContain(token);
+        assertThat(String.valueOf(diagnostic.toMap()))
+                .contains("path://tirith-")
+                .doesNotContain("jimuqu-missing-tirith")
+                .doesNotContain(token);
     }
 
     @Test
@@ -203,7 +206,10 @@ public class TirithSecurityServiceTest {
                 .contains("powershell")
                 .contains("cmd");
         assertThat(summary.get("failOpenMode")).isEqualTo("block_on_operational_failure");
-        assertThat(String.valueOf(summary)).contains("***").doesNotContain(token);
+        assertThat(String.valueOf(summary))
+                .contains("path://tirith-")
+                .doesNotContain("jimuqu-missing-tirith")
+                .doesNotContain(token);
     }
 
     @Test

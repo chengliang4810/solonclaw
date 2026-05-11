@@ -471,6 +471,8 @@ public class TirithSecurityService {
         private final boolean configured;
         private final String configuredPath;
         private final String resolvedPath;
+        private final String configuredDisplayPath;
+        private final String resolvedDisplayPath;
         private final boolean available;
         private final int timeoutSeconds;
         private final boolean failOpen;
@@ -489,6 +491,8 @@ public class TirithSecurityService {
             this.configured = configured;
             this.configuredPath = safeText(configuredPath, MAX_SUMMARY_LENGTH);
             this.resolvedPath = safeText(resolvedPath, MAX_SUMMARY_LENGTH);
+            this.configuredDisplayPath = safePathRef(configuredPath);
+            this.resolvedDisplayPath = safePathRef(resolvedPath);
             this.available = available;
             this.timeoutSeconds = timeoutSeconds;
             this.failOpen = failOpen;
@@ -531,14 +535,27 @@ public class TirithSecurityService {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
             map.put("enabled", Boolean.valueOf(enabled));
             map.put("configured", Boolean.valueOf(configured));
-            map.put("configuredPath", configuredPath);
-            map.put("resolvedPath", resolvedPath);
+            map.put("configuredPath", configuredDisplayPath);
+            map.put("resolvedPath", resolvedDisplayPath);
             map.put("available", Boolean.valueOf(available));
             map.put("timeoutSeconds", Integer.valueOf(timeoutSeconds));
             map.put("failOpen", Boolean.valueOf(failOpen));
             map.put("summary", summary);
             return map;
         }
+    }
+
+    private static String safePathRef(String path) {
+        String value = StrUtil.blankToDefault(path, "tirith").trim();
+        if (StrUtil.isBlank(value)) {
+            return "path://tirith";
+        }
+        File file = new File(value);
+        if (file.isAbsolute() || value.indexOf(File.separatorChar) >= 0 || value.indexOf('/') >= 0) {
+            String name = StrUtil.blankToDefault(file.getName(), "tirith");
+            return "path://" + safeText(name, 200);
+        }
+        return safeText(value, 200);
     }
 
     public static class Finding {
