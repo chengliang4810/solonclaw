@@ -2450,6 +2450,12 @@ public class DangerousCommandApprovalService {
         summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialFileVariableDisclosureDetection", Boolean.TRUE);
         summary.put("powershellCredentialFileHttpDisclosureDetection", Boolean.TRUE);
+        summary.put("urlPolicyPrechecked", Boolean.TRUE);
+        summary.put("privateUrlPolicyPrechecked", Boolean.TRUE);
+        summary.put("credentialUrlPolicyPrechecked", Boolean.TRUE);
+        summary.put("websitePolicyPrechecked", Boolean.TRUE);
+        summary.put("unsafeUrlBlockedBeforeApproval", Boolean.TRUE);
+        summary.put("unsafeUrlApprovalBypassAllowed", Boolean.FALSE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));

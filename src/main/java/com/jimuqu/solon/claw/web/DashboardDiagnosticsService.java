@@ -546,6 +546,12 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "terminalGuardrails");
             copyPolicyValue(summary, safe, "sudoRewriteConfigured");
             copyPolicyValue(summary, safe, "backgroundProcessGuard");
+            copyPolicyValue(summary, safe, "urlPolicyPrechecked");
+            copyPolicyValue(summary, safe, "privateUrlPolicyPrechecked");
+            copyPolicyValue(summary, safe, "credentialUrlPolicyPrechecked");
+            copyPolicyValue(summary, safe, "websitePolicyPrechecked");
+            copyPolicyValue(summary, safe, "unsafeUrlBlockedBeforeApproval");
+            copyPolicyValue(summary, safe, "unsafeUrlApprovalBypassAllowed");
             copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
             copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
             copyPolicyValue(summary, safe, "alwaysApprovalCount");

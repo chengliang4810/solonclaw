@@ -104,6 +104,12 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellCredentialFileHttpDisclosureDetection"))
                 .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("privateUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("websitePolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("unsafeUrlBlockedBeforeApproval")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")
