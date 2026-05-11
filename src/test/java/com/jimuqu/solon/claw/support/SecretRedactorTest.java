@@ -129,6 +129,16 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldNotMaskNonSensitiveNamesContainingSensitiveSuffixes() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/list?monkey=banana&keystone=door&ok=value");
+
+        assertThat(result)
+                .isEqualTo("https://example.com/list?monkey=banana&keystone=door&ok=value");
+    }
+
+    @Test
     void shouldRedactSensitivePathFragments() {
         String result =
                 SecretRedactor.redact(
