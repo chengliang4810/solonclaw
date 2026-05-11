@@ -646,6 +646,7 @@ public class SecurityPolicyService {
         summary.put("percentEncodedHostChecked", Boolean.TRUE);
         summary.put("idnHostNormalized", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
+        summary.put("systemDnsCommandChecked", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("systemProxyCommandChecked", Boolean.TRUE);
@@ -780,6 +781,7 @@ public class SecurityPolicyService {
         summary.put("networkUploadCredentialOnlyBlocked", Boolean.TRUE);
         summary.put("proxyOptionUrlChecked", Boolean.TRUE);
         summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
+        summary.put("systemDnsCommandChecked", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("systemProxyCommandChecked", Boolean.TRUE);
@@ -1502,6 +1504,7 @@ public class SecurityPolicyService {
         extractCurlConnectionOverrideHosts(text, urls);
         extractCurlDohUrls(text, urls);
         extractCurlDnsServers(text, urls);
+        extractSystemDnsCommands(text, urls);
         extractLocalBindAddresses(text, urls);
         extractJavaProxyOptionsAssignments(text, urls);
         extractPowerShellProxyEnvironmentAssignments(text, urls);
@@ -2257,6 +2260,114 @@ public class SecurityPolicyService {
             }
             addDnsServerHosts(value, urls);
         }
+    }
+
+    private void extractSystemDnsCommands(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if ("networksetup".equalsIgnoreCase(token)) {
+                i = extractNetworksetupDnsServers(tokens, i, urls);
+            } else if ("Set-DnsClientServerAddress".equalsIgnoreCase(token)) {
+                i = extractPowerShellDnsServers(tokens, i, urls);
+            } else if ("netsh".equalsIgnoreCase(token)) {
+                i = extractNetshDnsServers(tokens, i, urls);
+            } else if ("nmcli".equalsIgnoreCase(token)) {
+                i = extractNmcliDnsServers(tokens, i, urls);
+            }
+        }
+    }
+
+    private int extractNetworksetupDnsServers(List<String> tokens, int index, List<String> urls) {
+        if (!matchesToken(tokens, index + 1, "-setdnsservers") || index + 3 >= tokens.size()) {
+            return index;
+        }
+        for (int i = index + 3; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                return i;
+            }
+            addDnsServerHosts(token.replace(';', ','), urls);
+        }
+        return tokens.size() - 1;
+    }
+
+    private int extractPowerShellDnsServers(List<String> tokens, int index, List<String> urls) {
+        for (int i = index + 1; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                return i;
+            }
+            String inline = optionInlineValue(token, "-ServerAddresses");
+            if (StrUtil.isNotBlank(inline)) {
+                addDnsServerHosts(inline.replace(';', ','), urls);
+                continue;
+            }
+            if ("-ServerAddresses".equalsIgnoreCase(token) && i + 1 < tokens.size()) {
+                addDnsServerHosts(tokens.get(++i).replace(';', ','), urls);
+            }
+        }
+        return tokens.size() - 1;
+    }
+
+    private int extractNetshDnsServers(List<String> tokens, int index, List<String> urls) {
+        if (!matchesToken(tokens, index + 1, "interface")
+                || !matchesToken(tokens, index + 2, "ip")
+                || !matchesToken(tokens, index + 3, "set")
+                || !matchesToken(tokens, index + 4, "dns")) {
+            return index;
+        }
+        for (int i = index + 5; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                return i;
+            }
+            int equals = token.indexOf('=');
+            if (equals > 0) {
+                String key = token.substring(0, equals);
+                String value = token.substring(equals + 1);
+                if ("static".equalsIgnoreCase(key) || "address".equalsIgnoreCase(key)) {
+                    addDnsServerHosts(value, urls);
+                }
+                continue;
+            }
+            if (looksLikeDnsServerToken(token)) {
+                addDnsServerHosts(token, urls);
+            }
+        }
+        return tokens.size() - 1;
+    }
+
+    private int extractNmcliDnsServers(List<String> tokens, int index, List<String> urls) {
+        if (!matchesToken(tokens, index + 1, "connection") || !matchesToken(tokens, index + 2, "modify")) {
+            return index;
+        }
+        for (int i = index + 3; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                return i;
+            }
+            if (isNmcliDnsKey(token) && i + 1 < tokens.size()) {
+                addDnsServerHosts(tokens.get(++i).replace(';', ','), urls);
+            }
+        }
+        return tokens.size() - 1;
+    }
+
+    private boolean isNmcliDnsKey(String token) {
+        String normalized = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+        return "ipv4.dns".equals(normalized)
+                || "+ipv4.dns".equals(normalized)
+                || "ipv6.dns".equals(normalized)
+                || "+ipv6.dns".equals(normalized);
+    }
+
+    private boolean looksLikeDnsServerToken(String token) {
+        String value = cleanUrlToken(token);
+        if (StrUtil.isBlank(value)) {
+            return false;
+        }
+        return value.contains(".") || value.contains(":") || value.contains("metadata.");
     }
 
     private void extractLocalBindAddresses(String text, List<String> urls) {

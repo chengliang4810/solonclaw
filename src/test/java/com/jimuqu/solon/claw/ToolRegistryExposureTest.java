@@ -1131,6 +1131,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("preproxyOptionUrlChecked").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("systemDnsCommandChecked").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("setxProxyEnvironmentChecked").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("systemProxyCommandChecked").getBoolean())

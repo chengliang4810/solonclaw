@@ -1381,6 +1381,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "percentEncodedHostChecked");
             copyPolicyValue(summary, safe, "idnHostNormalized");
             copyPolicyValue(summary, safe, "dnsResolutionRequired");
+            copyPolicyValue(summary, safe, "systemDnsCommandChecked");
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "setxProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "systemProxyCommandChecked");
@@ -1532,6 +1533,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "networkUploadCredentialOnlyBlocked");
             copyPolicyValue(summary, safe, "proxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "preproxyOptionUrlChecked");
+            copyPolicyValue(summary, safe, "systemDnsCommandChecked");
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "setxProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "systemProxyCommandChecked");

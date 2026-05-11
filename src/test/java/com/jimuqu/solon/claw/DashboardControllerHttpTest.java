@@ -457,6 +457,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"downloadOutputPathOptionChecked\":true")
                 .contains("\"proxyOptionUrlChecked\":true")
                 .contains("\"preproxyOptionUrlChecked\":true")
+                .contains("\"systemDnsCommandChecked\":true")
                 .contains("\"powershellProxyEnvironmentChecked\":true")
                 .contains("\"setxProxyEnvironmentChecked\":true")
                 .contains("\"systemProxyCommandChecked\":true")

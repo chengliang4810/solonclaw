@@ -833,6 +833,45 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckSystemDnsCommands() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict macosDns =
+                privatePolicy.checkCommandUrls(
+                        "networksetup -setdnsservers Wi-Fi 10.0.0.5 8.8.8.8");
+        SecurityPolicyService.UrlVerdict powershellDns =
+                metadataPolicy.checkCommandUrls(
+                        "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 169.254.169.254,8.8.8.8");
+        SecurityPolicyService.UrlVerdict netshDns =
+                privatePolicy.checkCommandUrls(
+                        "netsh interface ip set dns name=Ethernet static=10.0.0.5");
+        SecurityPolicyService.UrlVerdict nmcliDns =
+                metadataPolicy.checkCommandUrls(
+                        "nmcli connection modify eth0 ipv4.dns metadata.google.internal");
+        SecurityPolicyService.UrlVerdict publicDns =
+                publicPolicy.checkCommandUrls("networksetup -setdnsservers Wi-Fi 8.8.8.8");
+
+        assertThat(privatePolicy.extractUrlishValues("networksetup -setdnsservers Wi-Fi 10.0.0.5 8.8.8.8"))
+                .contains("10.0.0.5");
+        assertThat(macosDns.isAllowed()).isFalse();
+        assertThat(macosDns.getMessage()).contains("内网");
+        assertThat(powershellDns.isAllowed()).isFalse();
+        assertThat(powershellDns.getMessage()).contains("元数据");
+        assertThat(netshDns.isAllowed()).isFalse();
+        assertThat(netshDns.getMessage()).contains("内网");
+        assertThat(nmcliDns.isAllowed()).isFalse();
+        assertThat(nmcliDns.getMessage()).contains("元数据");
+        assertThat(publicDns.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldCheckWindowsRegistryProxyCommands() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
@@ -1260,6 +1299,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("percentEncodedHostChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("idnHostNormalized")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("systemDnsCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
@@ -1701,6 +1741,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyOptionUrlChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("systemDnsCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
