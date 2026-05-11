@@ -312,6 +312,10 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict protocolRelative =
                 policy.checkCommandAlwaysBlockedUrls(
                         "curl //%31%36%39.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict directProtocolRelative =
+                policy.checkAlwaysBlockedUrl("//%31%36%39.254.169.254/latest/meta-data/");
+        SecurityPolicyService.UrlVerdict publicProtocolRelative =
+                policy.checkAlwaysBlockedUrl("//example.com/path");
 
         assertThat(direct.isAllowed()).isFalse();
         assertThat(direct.getMessage()).contains("元数据");
@@ -319,6 +323,30 @@ public class SecurityPolicyServiceTest {
         assertThat(command.getMessage()).contains("元数据");
         assertThat(protocolRelative.isAllowed()).isFalse();
         assertThat(protocolRelative.getMessage()).contains("元数据");
+        assertThat(directProtocolRelative.isAllowed()).isFalse();
+        assertThat(directProtocolRelative.getMessage()).contains("元数据");
+        assertThat(publicProtocolRelative.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldBlockPercentEncodedPrivateHostsAcrossUrlSurfaces() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("url", "http://%31%32%37.0.0.1:8080/admin");
+
+        SecurityPolicyService.UrlVerdict direct =
+                policy.checkUrl("http://%31%32%37.0.0.1:8080/admin");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandUrls("curl http://%31%32%37.0.0.1:8080/admin");
+        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("webfetch", args);
+
+        assertThat(direct.isAllowed()).isFalse();
+        assertThat(direct.getMessage()).contains("内网");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("内网");
+        assertThat(toolArg.isAllowed()).isFalse();
+        assertThat(toolArg.getMessage()).contains("内网");
     }
 
     @Test
@@ -952,6 +980,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("unsupportedNetworkSchemeBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("protocolRelativeUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("schemelessHostChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("percentEncodedHostChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
@@ -969,6 +998,22 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("fragmentSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitivePathCredentialBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("cloudMetadataBlocked")).isEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    void shouldExposePrivateUrlPolicySummary() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        Map<String, Object> summary = policy.privateUrlPolicySummary();
+
+        assertThat(summary.get("cloudMetadataAlwaysBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("obfuscatedIpv4Checked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("percentEncodedHostChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("ipv4MappedIpv6Checked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("loopbackBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("linkLocalBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("siteLocalBlocked")).isEqualTo(Boolean.TRUE);
     }
 
     @Test

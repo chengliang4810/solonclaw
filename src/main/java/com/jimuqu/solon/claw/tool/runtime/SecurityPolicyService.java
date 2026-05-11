@@ -335,6 +335,9 @@ public class SecurityPolicyService {
 
     public UrlVerdict checkAlwaysBlockedUrl(String url) {
         String raw = normalizeUrlText(url);
+        if (raw.startsWith("//")) {
+            return checkAlwaysBlockedUrl("http:" + raw);
+        }
         if (raw.length() == 0 || !raw.contains("://")) {
             return UrlVerdict.allow();
         }
@@ -458,7 +461,7 @@ public class SecurityPolicyService {
         boolean trustedPrivateHost =
                 ("https".equals(scheme) || "wss".equals(scheme))
                         && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
-        int[] hostIpv4 = parseObfuscatedIpv4(host);
+        int[] hostIpv4 = parseIpv4HostLiteral(host);
         if (hostIpv4 != null) {
             String ip = formatIpv4(hostIpv4);
             if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
@@ -629,6 +632,7 @@ public class SecurityPolicyService {
         summary.put("unsupportedNetworkSchemeBlocked", Boolean.TRUE);
         summary.put("protocolRelativeUrlChecked", Boolean.TRUE);
         summary.put("schemelessHostChecked", Boolean.TRUE);
+        summary.put("percentEncodedHostChecked", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -655,6 +659,7 @@ public class SecurityPolicyService {
         summary.put("cloudMetadataAlwaysBlocked", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("obfuscatedIpv4Checked", Boolean.TRUE);
+        summary.put("percentEncodedHostChecked", Boolean.TRUE);
         summary.put("ipv4MappedIpv6Checked", Boolean.TRUE);
         summary.put("loopbackBlocked", Boolean.TRUE);
         summary.put("linkLocalBlocked", Boolean.TRUE);
@@ -3835,6 +3840,36 @@ public class SecurityPolicyService {
                 && octets.length == 4
                 && (isAlwaysBlockedIpv4(octets[0], octets[1], octets[2], octets[3])
                         || isBlockedIpv4(octets[0], octets[1], octets[2], octets[3]));
+    }
+
+    private int[] parseIpv4HostLiteral(String host) {
+        int[] obfuscated = parseObfuscatedIpv4(host);
+        if (obfuscated != null) {
+            return obfuscated;
+        }
+        String value = StrUtil.nullToEmpty(host).toLowerCase(Locale.ROOT).trim();
+        if (value.indexOf(':') >= 0) {
+            return null;
+        }
+        String[] parts = value.split("\\.");
+        if (parts.length != 4) {
+            return null;
+        }
+        int[] octets = new int[4];
+        for (int i = 0; i < parts.length; i++) {
+            if (!Pattern.compile("^\\d{1,3}$").matcher(parts[i]).matches()) {
+                return null;
+            }
+            try {
+                octets[i] = Integer.parseInt(parts[i], 10);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            if (octets[i] < 0 || octets[i] > 255) {
+                return null;
+            }
+        }
+        return octets;
     }
 
     private int[] parseObfuscatedIpv4(String host) {
