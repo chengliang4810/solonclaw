@@ -699,6 +699,8 @@ public class SecurityPolicyService {
         summary.put("returnedDocumentContentChecked", Boolean.TRUE);
         summary.put("returnedUrlKeySamples", Arrays.asList("href", "link", "browser_download_url", "source_url", "finalUrl"));
         summary.put("recursivePathExtraction", Boolean.TRUE);
+        summary.put("encodedUrlParameterPolicyInherited", Boolean.TRUE);
+        summary.put("rawPathControlCharacterPolicyInherited", Boolean.TRUE);
         summary.put("writeIntentDetection", Boolean.TRUE);
         summary.put("patchTargetExtraction", Boolean.TRUE);
         summary.put("downloadOutputPathOptionChecked", Boolean.TRUE);
