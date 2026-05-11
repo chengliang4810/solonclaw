@@ -100,7 +100,7 @@ public class DangerousCommandApprovalService {
     private static final String SENSITIVE_HTTP_HEADER_NAME =
             "(?:authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|x-access-token)";
     private static final String SENSITIVE_REQUEST_FIELD_NAME =
-            "(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|secret|client[_-]?secret|password|passwd|credential|authorization|auth[_-]?token)";
+            "(?:access[_.\\s-]?token|refresh[_.\\s-]?token|id[_.\\s-]?token|api[_.\\s-]?key|secret|client[_.\\s-]?secret|password|passwd|credential|authorization|auth[_.\\s-]?token)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
     private static final String HARDLINE_COMMAND_POSITION =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
