@@ -1410,7 +1410,9 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "[\"']\\s*,)|\\b[A-Za-z_][A-Za-z0-9_]*\\.add_header\\s*\\(\\s*[\"']"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "[\"']\\s*,"),
+                                                    + "[\"']\\s*,|\\b[A-Za-z_][A-Za-z0-9_]*\\.headers\\.update\\s*\\(\\s*\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*:"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
                                     "python_http_credential_file_variable_send",
@@ -1461,7 +1463,9 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_HTTP_HEADER_NAME
                                                     + "[\"']\\s*:)|\\bheaders\\s*\\.\\s*(?:set|append)\\s*\\(\\s*[\"']"
                                                     + SENSITIVE_HTTP_HEADER_NAME
-                                                    + "[\"']\\s*,"),
+                                                    + "[\"']\\s*,|\\baxios\\.defaults\\.headers(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*\\s*\\[\\s*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*\\]\\s*="),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_http_credential_file_variable_send",
