@@ -99,7 +99,12 @@ public class TuiShellHeaderTest {
 
         String header = renderHeader(shell, "tui");
 
-        assertThat(header).contains("tip: ").contains("/tips").contains("/goal").contains("/recap");
+        assertThat(header)
+                .contains("tip: ")
+                .contains("/tips")
+                .contains("/goal")
+                .contains("/recap")
+                .contains("/reload-mcp");
     }
 
     @Test

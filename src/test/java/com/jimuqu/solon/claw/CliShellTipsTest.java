@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliShell;
 import com.jimuqu.solon.claw.cli.ConsoleEventSink;
+import com.jimuqu.solon.claw.cli.LocalTerminalHelp;
 import com.jimuqu.solon.claw.cli.TerminalCommandCatalog;
 import java.util.Arrays;
 import java.io.PrintWriter;
@@ -20,6 +21,7 @@ public class CliShellTipsTest {
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
 
         assertThat(commandList()).containsExactly(TerminalCommandCatalog.SLASH_COMMANDS);
+        assertThat(LocalTerminalHelp.text()).contains("/reload-mcp [now|always]");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
 
