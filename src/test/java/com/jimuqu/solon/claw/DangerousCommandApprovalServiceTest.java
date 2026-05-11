@@ -6322,6 +6322,26 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldExposeLocalManagementEndpointPathPolicySummary() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+
+        Map<String, Object> summary = securityPolicyService.pathPolicySummary();
+
+        assertThat(summary.get("localManagementSocketWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementPipeWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(((Integer) summary.get("localManagementSocketPathCount")).intValue())
+                .isGreaterThan(0);
+        assertThat(((Integer) summary.get("localManagementPipePathCount")).intValue())
+                .isGreaterThan(0);
+        assertThat(String.valueOf(summary.get("localManagementSocketPathSamples")))
+                .contains("docker.sock");
+        assertThat(String.valueOf(summary.get("localManagementPipePathSamples")))
+                .contains("docker_engine");
+        assertThat(String.valueOf(summary.get("description"))).contains("local management endpoints");
+    }
+
+    @Test
     void shouldBlockJimuquWriteDeniedHomeFilesForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
