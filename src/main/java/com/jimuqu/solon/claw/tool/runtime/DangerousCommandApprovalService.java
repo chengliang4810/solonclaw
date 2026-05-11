@@ -1704,6 +1704,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:zipfile\\.[A-Za-z0-9_]+|tarfile\\.[A-Za-z0-9_]+)\\s*\\([^\\n]*(?:debug|trace|artifact|artifacts|report|test-output|test-results)[^\"'\\n]*\\.(?:zip|tar|tgz|tar\\.gz)[\\s\\S]{0,1200}\\b(?:write|writestr|add|addfile)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_credential_file_clipboard_export",
+                                    "Python copies credential file content to clipboard",
+                                    pattern(
+                                            "(?:\\b(?:pyperclip|clipboard)\\.(?:copy|set)\\s*\\([^\\n]*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))|\\b([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(?:open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)\\.read\\s*\\(\\s*\\)|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\(\\s*\\))[\\s\\S]{0,1200}\\b(?:pyperclip|clipboard)\\.(?:copy|set)\\s*\\([^\\n)]*\\b\\1\\b)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_http_credential_file_variable_send",
                                     "Python sends credential file content variable through HTTP",
                                     pattern(
@@ -1791,6 +1797,12 @@ public class DangerousCommandApprovalService {
                                     "JavaScript writes credential file content into archive artifact",
                                     pattern(
                                             "\\b(?:archiver|zip|tar)\\s*\\([^\\n]*(?:debug|trace|artifact|artifacts|report|test-output|test-results)[^\"'\\n]*\\.(?:zip|tar|tgz|tar\\.gz)[\\s\\S]{0,1200}\\b(?:append|file|directory|add|entry)\\s*\\([^\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_credential_file_clipboard_export",
+                                    "JavaScript copies credential file content to clipboard",
+                                    pattern(
+                                            "(?:\\b(?:clipboardy|clipboard|navigator\\.clipboard)\\.(?:writeSync|write|writeText|copy)\\s*\\([^\\n]*(?:fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|await\\s+fs\\.promises\\.readFile\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'])|\\b(?:const|let|var)\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:fs\\.(?:readFileSync|createReadStream)\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\)|await\\s+fs\\.promises\\.readFile\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"'][^\\n)]*\\))[\\s\\S]{0,1200}\\b(?:clipboardy|clipboard|navigator\\.clipboard)\\.(?:writeSync|write|writeText|copy)\\s*\\([^\\n)]*\\b\\1\\b)"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_http_credential_file_variable_send",
