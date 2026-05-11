@@ -2944,6 +2944,9 @@ public class DefaultCronSchedulerTest {
         assertThat(String.valueOf(payload.get("clear_fields"))).contains("deliver_thread_id");
         assertThat(String.valueOf(payload.get("status_fields"))).contains("recent_failures");
         assertThat(String.valueOf(payload.get("history_fields"))).contains("delivery_result");
+        assertThat(payload.get("delivery")).isEqualTo(delivery);
+        assertThat(payload.get("skill_binding")).isEqualTo(skillBinding);
+        assertThat(payload.get("execution")).isEqualTo(execution);
         assertThat(String.valueOf(policy.get("actions")))
                 .contains("add")
                 .contains("edit")
@@ -2999,6 +3002,34 @@ public class DefaultCronSchedulerTest {
         assertThat(execution.get("scriptMustStayInRuntimeScripts")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("dangerousCommandApprovalApplied")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("promptThreatScanApplied")).isEqualTo(Boolean.TRUE);
+
+        Map<?, ?> capabilities =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "capabilities",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(capabilities.get("execution")).isEqualTo(execution);
+        assertThat(capabilities.get("delivery")).isEqualTo(delivery);
+        assertThat(capabilities.get("skill_binding")).isEqualTo(skillBinding);
     }
 
     @Test
