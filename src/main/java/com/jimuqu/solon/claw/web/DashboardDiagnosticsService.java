@@ -708,6 +708,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "statusAliasSupported");
             copyPolicyValue(summary, safe, "approveAllSupported");
             copyPolicyValue(summary, safe, "rejectAllSupported");
+            copyPolicyValue(summary, safe, "bulkRejectUsesSafeSelector");
             copyPolicyValue(summary, safe, "clearSessionSupported");
             copyPolicyValue(summary, safe, "clearAlwaysSupported");
             copyPolicyValue(summary, safe, "clearAllSupported");
@@ -754,6 +755,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "managementCommands");
             copyPolicyValue(summary, safe, "pendingQueueSupported");
             copyPolicyValue(summary, safe, "pendingListHidesApprovalKey");
+            copyPolicyValue(summary, safe, "pendingListUsesSafeSelector");
             copyPolicyValue(summary, safe, "pendingListShowsPatternKey");
             copyPolicyValue(summary, safe, "sessionApprovalListShowsCountOnly");
             copyPolicyValue(summary, safe, "alwaysApprovalListShowsCountOnly");
@@ -1842,6 +1844,7 @@ public class DashboardDiagnosticsService {
                 "statusAliasSupported",
                 "approveAllSupported",
                 "rejectAllSupported",
+                "bulkRejectUsesSafeSelector",
                 "clearSessionSupported",
                 "clearAlwaysSupported",
                 "clearAllSupported",
@@ -1880,6 +1883,7 @@ public class DashboardDiagnosticsService {
                 "managementCommands",
                 "pendingQueueSupported",
                 "pendingListHidesApprovalKey",
+                "pendingListUsesSafeSelector",
                 "pendingListShowsPatternKey",
                 "sessionApprovalListShowsCountOnly",
                 "alwaysApprovalListShowsCountOnly",

@@ -429,6 +429,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("defaultScope")).isEqualTo("once");
         assertThat(summary.get("pendingQueueSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pendingListHidesApprovalKey")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("pendingListUsesSafeSelector")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pendingListShowsPatternKey")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sessionApprovalListShowsCountOnly")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("alwaysApprovalListShowsCountOnly")).isEqualTo(Boolean.TRUE);
@@ -496,6 +497,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("statusAliasSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approveAllSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rejectAllSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("bulkRejectUsesSafeSelector")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("clearSessionSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("clearAlwaysSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("clearAllSupported")).isEqualTo(Boolean.TRUE);

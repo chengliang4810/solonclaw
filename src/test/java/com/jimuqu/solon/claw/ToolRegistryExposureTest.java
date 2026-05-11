@@ -795,6 +795,7 @@ public class ToolRegistryExposureTest {
         assertThat(approvalLifecyclePolicy.get("statusAliasSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("approveAllSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("rejectAllSupported").getBoolean()).isTrue();
+        assertThat(approvalLifecyclePolicy.get("bulkRejectUsesSafeSelector").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("clearSessionSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("clearAlwaysSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("clearAllSupported").getBoolean()).isTrue();
@@ -823,6 +824,7 @@ public class ToolRegistryExposureTest {
         assertThat(slashConfirmPolicy.get("clearAlwaysSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("clearAllSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("pendingQueueSupported").getBoolean()).isTrue();
+        assertThat(slashConfirmPolicy.get("pendingListUsesSafeSelector").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("commandPreviewRedacted").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("encodedUrlParameterRedacted").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("approvalMetadataRedacted").getBoolean()).isTrue();

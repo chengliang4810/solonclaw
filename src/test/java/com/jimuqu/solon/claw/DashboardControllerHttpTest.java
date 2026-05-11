@@ -409,6 +409,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"tirithPermanentApprovalHidden\":true")
                 .contains("\"outboundApprovalIdSanitized\":true")
                 .contains("\"unsafeApprovalIdFallsBackToKeySelector\":true")
+                .contains("\"pendingListUsesSafeSelector\":true")
+                .contains("\"bulkRejectUsesSafeSelector\":true")
                 .contains("\"rawCommandRedactedInExtras\":true")
                 .contains("\"observerEventsRedacted\":true")
                 .contains("\"encodedUrlParameterRedacted\":true")
