@@ -6469,6 +6469,32 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldApplyWritePolicyToFileToolAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> outsideArgs = new LinkedHashMap<String, Object>();
+        outsideArgs.put("fileName", "D:/workspace/other/file.txt");
+        Map<String, Object> credentialArgs = new LinkedHashMap<String, Object>();
+        credentialArgs.put("fileName", ".env.local");
+
+        for (String toolName :
+                Arrays.asList("write_file", "delete_file", "file_remove", "remove_file", "unlink_file")) {
+            SecurityPolicyService.FileVerdict outside =
+                    securityPolicyService.checkFileToolArgs(toolName, outsideArgs);
+            SecurityPolicyService.FileVerdict credential =
+                    securityPolicyService.checkFileToolArgs(toolName, credentialArgs);
+
+            assertThat(outside.isAllowed()).as(toolName).isFalse();
+            assertThat(outside.getMessage()).as(toolName).contains("安全写入根");
+            assertThat(outside.getPath()).as(toolName).isEqualTo("D:/workspace/other/file.txt");
+            assertThat(credential.isAllowed()).as(toolName).isFalse();
+            assertThat(credential.getMessage()).as(toolName).contains("凭据");
+            assertThat(credential.getPath()).as(toolName).isEqualTo(".env.local");
+        }
+    }
+
+    @Test
     void shouldApplyWritePolicyWhenGenericToolArgsDeclareWriteIntent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTerminal().setWriteSafeRoot("D:/workspace/safe-root");

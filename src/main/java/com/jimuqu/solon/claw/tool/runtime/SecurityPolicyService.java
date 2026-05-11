@@ -2036,7 +2036,10 @@ public class SecurityPolicyService {
     private static List<String> toolArgsWriteLikeToolSamples() {
         return Arrays.asList(
                 "file_write",
+                "write_file",
                 "file_delete",
+                "delete_file",
+                "remove_file",
                 "file_append",
                 "file_move",
                 "file_rename",
@@ -2137,6 +2140,9 @@ public class SecurityPolicyService {
                 || "file_delete".equals(normalized)
                 || "write_file".equals(normalized)
                 || "delete_file".equals(normalized)
+                || "file_remove".equals(normalized)
+                || "remove_file".equals(normalized)
+                || "unlink_file".equals(normalized)
                 || "file_append".equals(normalized)
                 || "append_file".equals(normalized)
                 || "file_move".equals(normalized)
