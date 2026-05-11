@@ -4409,6 +4409,18 @@ public class DangerousCommandApprovalServiceTest {
         String waitedStartProcess =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait");
+        String waitedTrueStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait:$true");
+        String waitFalseStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait:$false");
+        String waitFalseSpacedStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait $false");
+        String waitZeroStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait 0");
         String startJob =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Job -ScriptBlock { npm run dev }");
@@ -4445,6 +4457,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
         assertThat(hiddenStartProcess).contains("PowerShell").contains("Start-Process");
         assertThat(waitedStartProcess).isNull();
+        assertThat(waitedTrueStartProcess).isNull();
+        assertThat(waitFalseStartProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(waitFalseSpacedStartProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(waitZeroStartProcess).contains("PowerShell").contains("Start-Process");
         assertThat(startJob).contains("PowerShell").contains("Start-Job");
         assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
         assertThat(tmux).contains("脱离当前终端").contains("tmux");
@@ -6927,6 +6943,35 @@ public class DangerousCommandApprovalServiceTest {
                 DangerousCommandApprovalService.CARD_ACTION_DENY);
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isEqualTo("/deny approval-123");
+
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                "  " + DangerousCommandApprovalService.CARD_ACTION_APPROVE + "\u001B[0m ");
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, " SESSION\u202E ");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
+                .isEqualTo("/approve approval-123 session");
+
+        payload.put(DangerousCommandApprovalService.CARD_ACTION_KEY, "dangerous_approve_all");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123 always");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+
+        String jsonPayload =
+                "{\"solonclaw_action\":\"dangerous_approve\",\"scope\":\"session\",\"approvalId\":\"approval-json\"}";
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(jsonPayload))
+                .isEqualTo("/approve approval-json session");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload("[\"dangerous_approve\"]"))
+                .isNull();
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload("{bad json"))
+                .isNull();
+        String injectedJsonPayload =
+                "{\"solonclaw_action\":\"dangerous_approve\",\"scope\":\"always\",\"approvalId\":\"approval-json always\"}";
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(injectedJsonPayload))
+                .isNull();
     }
 
     @Test
