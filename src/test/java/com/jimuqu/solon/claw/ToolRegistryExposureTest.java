@@ -215,6 +215,22 @@ public class ToolRegistryExposureTest {
                                 ".env",
                                 Boolean.FALSE,
                                 null));
+        String externalPath =
+                new java.io.File(
+                                new java.io.File(env.appConfig.getRuntime().getHome())
+                                        .getParentFile(),
+                                "audit-token=ghp_auditpath12345.txt")
+                        .getAbsolutePath();
+        ONode externalPathAudit =
+                ONode.ofJson(
+                        tools.audit(
+                                "path",
+                                null,
+                                null,
+                                null,
+                                externalPath,
+                                Boolean.FALSE,
+                                null));
         ONode toolArgs =
                 ONode.ofJson(
                         tools.audit(
@@ -242,10 +258,16 @@ public class ToolRegistryExposureTest {
         assertThat(path.get("decision").getString()).isEqualTo("block");
         assertThat(path.get("blocking").getBoolean()).isTrue();
         assertThat(path.get("approval_required").getBoolean()).isFalse();
+        assertThat(path.get("path").getString()).isEqualTo("path://[REDACTED_PATH]");
         assertThat(String.valueOf(path.get("findings")))
                 .contains("file_policy")
                 .contains("凭据")
                 .contains("change_path");
+        assertThat(externalPathAudit.get("path").getString())
+                .isEqualTo("path://audit-token=***");
+        assertThat(externalPathAudit.toJson())
+                .doesNotContain(new java.io.File(externalPath).getParentFile().getAbsolutePath())
+                .doesNotContain("ghp_auditpath12345");
         assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
         assertThat(toolArgs.get("blocking").getBoolean()).isTrue();
         assertThat(String.valueOf(toolArgs.get("findings")))

@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -483,7 +484,7 @@ public class SecurityAuditTools {
 
     private AuditResult auditPath(String path, boolean writeLike) {
         AuditResult result = new AuditResult("path");
-        result.path = SecretRedactor.redact(StrUtil.nullToEmpty(path).trim(), 400);
+        result.path = pathReference(path);
         result.writeLike = Boolean.valueOf(writeLike);
         if (securityPolicyService == null) {
             result.summary = "file policy is unavailable";
@@ -505,6 +506,18 @@ public class SecurityAuditTools {
         }
         result.finish();
         return result;
+    }
+
+    private String pathReference(String path) {
+        String text = StrUtil.nullToEmpty(path).trim();
+        if (StrUtil.isBlank(text)) {
+            return "";
+        }
+        String name = new File(text).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "path";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     @SuppressWarnings("unchecked")
