@@ -95,6 +95,8 @@ public class DangerousCommandApprovalService {
             "(?:" + PROJECT_SENSITIVE_WRITE_TARGET + "|" + SENSITIVE_WRITE_TARGET + ")";
     private static final String CREDENTIAL_PERMISSION_TARGET =
             "(?:(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:(?:[^\\s/\\\\\"'`]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s\"'`]+|(?:(?:~|\\$HOME|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|\\.{1,2})[/\\\\])?(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?|\\.netrc|\\.git-credentials|\\.npmrc|\\.yarnrc|\\.pnpmrc|\\.pypirc|\\.curlrc|\\.wgetrc|credentials(?:\\.(?:json|toml|tfrc\\.json))?|auth\\.json|oauth_creds\\.json|token\\.json|service[_-]account(?:[_-]key)?\\.json|google-credentials\\.json|id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?))";
+    private static final String NETWORK_CREDENTIAL_FILE_TARGET =
+            "(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)";
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
@@ -648,6 +650,26 @@ public class DangerousCommandApprovalService {
                                     "send credential from local netrc or cookie file",
                                     pattern(
                                             "\\b(?:curl|wget)\\b[^\\n]*(?:\\s--netrc(?:-optional|-file)?(?:=|\\s+)?\\S*|\\s--(?:config|load-cookies|cookie-jar)(?:=|\\s+)\\S|\\s(?-i:-K)\\s*\\S+|\\s--(?:cert|key|proxy-cert|proxy-key|certificate|private-key|ca-certificate|cacert|capath)(?:=|\\s+)\\S+|\\s(?-i:-E)\\s+\\S+|\\s(?-i:-[bcEK])\\S+|\\s(?-i:-c)\\s+\\S|\\s(?-i:-b)\\s+(?:\\S*[/\\\\])?\\S*(?:cookie|cookies|jar)\\S*|\\s(?:--upload-file|--body-file|--post-file)(?:=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s-T\\s*\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--data(?:-[a-z-]+)?|-d|--json)(?:=|\\s+)@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\s(?:--form(?:-string)?|-F)(?:=|\\s+)[^\\s'\"|;&]*=@\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*)|\\baria2c\\b[^\\n]*\\s--(?:load-cookies|certificate|private-key|ca-certificate)(?:=|\\s+)\\S+|\\b(?:httpie|https?|xh)\\b[^\\n]*\\s(?:[^\\s'\"|;&]+@|@)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*|\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*\\s-InFile\\b\\s*(?::|=|\\s+)\\S*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)\\S*"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "powershell_network_credential_file_send",
+                                    "PowerShell sends credential file through HTTP",
+                                    pattern(
+                                            "\\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*-(?:Body|Form)\\b\\s*(?::|=|\\s+)\\s*\\(?\\s*(?:@\\{[^\\n}]*\\b(?:Get-Content|gc|Get-Item|gi)\\b[^\\n}]*[\"']?\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?|\\b(?:Get-Content|gc|Get-Item|gi)\\b[^\\n|;&]*[\"']?\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "powershell_webclient_credential_file_send",
+                                    "PowerShell WebClient sends credential file",
+                                    pattern(
+                                            "(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:File|Data|String)\\s*\\([^\\n]*[\"']\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']|(?:New-Object\\s+Net\\.WebClient|\\[Net\\.WebClient\\]::new\\s*\\(\\s*\\)|\\[System\\.Net\\.WebClient\\]::new\\s*\\(\\s*\\))[^\\n]*\\.Upload(?:Data|String)\\s*\\([^\\n]*\\b(?:Get-Content|gc)\\b[^\\n)]*[\"']?\\S*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "remote_credential_file_transfer",
@@ -2063,6 +2085,7 @@ public class DangerousCommandApprovalService {
         summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);
         summary.put("codeHttpCredentialFileVariableDisclosureDetection", Boolean.TRUE);
+        summary.put("powershellCredentialFileHttpDisclosureDetection", Boolean.TRUE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
