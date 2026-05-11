@@ -909,7 +909,7 @@ public class KanbanServiceTest {
         assertThat(String.valueOf(log)).contains("line-two");
         assertThat(String.valueOf(log.get("path")))
                 .isEqualTo("runtime://logs/kanban/" + taskId + ".log");
-        assertThat(String.valueOf(log.get("host_path"))).contains(taskId + ".log");
+        assertThat(log).doesNotContainKey("host_path");
         assertThat(String.valueOf(log.get("path"))).doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(service.handleCommand("log " + taskId + " 9", "tester")).contains("line-two");
         assertThat(service.handleCommand("log " + taskId + " --tail 9", "tester")).contains("line-two");

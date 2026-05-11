@@ -688,7 +688,6 @@ public class KanbanService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("task_id", taskId);
         result.put("path", workerLogReference(taskId));
-        result.put("host_path", logFile.getAbsolutePath());
         if (!logFile.exists() || !logFile.isFile()) {
             result.put("exists", Boolean.FALSE);
             result.put("content", null);
