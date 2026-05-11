@@ -7299,6 +7299,45 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldStripDisplayControlsFromPendingApprovalIdentityFields() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestTrace trace = new TestTrace();
+        Map<String, Object> pending = new LinkedHashMap<String, Object>();
+        pending.put("approvalId", "approval\u202E-control");
+        pending.put("toolName", "execute\u202E_shell");
+        pending.put("patternKey", "recursive\u202E_delete");
+        pending.put(
+                "patternKeys",
+                Arrays.asList("recursive\u202E_delete", "recursive_delete"));
+        pending.put("description", "recursive delete");
+        pending.put("command", "rm -rf runtime/cache");
+        pending.put("commandHash", "hash\u202E-control");
+        pending.put("approvalKey", "execute_shell:recursive\u202E_delete:hash-control");
+        pending.put("createdAt", System.currentTimeMillis());
+        pending.put("expiresAt", System.currentTimeMillis() + 60000L);
+        trace.session.getContext().put("_dangerous_command_pending_", pending);
+
+        DangerousCommandApprovalService.PendingApproval restored =
+                env.dangerousCommandApprovalService.getPendingApproval(trace.session);
+
+        assertThat(restored).isNotNull();
+        assertThat(restored.getApprovalId()).isEqualTo("approval-control");
+        assertThat(restored.getToolName()).isEqualTo("execute_shell");
+        assertThat(restored.getPatternKey()).isEqualTo("recursive_delete");
+        assertThat(restored.getPatternKeys()).containsExactly("recursive_delete");
+        assertThat(restored.getApprovalKey()).isEqualTo("execute_shell:recursive_delete:hash-control");
+        assertThat(restored.approvalKey()).isEqualTo("execute_shell:recursive_delete:hash-control");
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                DangerousCommandApprovalService.ApprovalScope.SESSION,
+                                "test"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "recursive_delete"))
+                .isTrue();
+    }
+
+    @Test
     void shouldNotifyApprovalObserversWhenPendingApprovalTimesOut() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         final List<String> choices = new java.util.ArrayList<String>();

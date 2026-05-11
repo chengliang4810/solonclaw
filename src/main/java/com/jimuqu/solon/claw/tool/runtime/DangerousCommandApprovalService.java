@@ -3507,9 +3507,9 @@ public class DangerousCommandApprovalService {
             String toolName, DetectionResult detection, String code) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("approvalId", IdSupport.newId());
-        payload.put("toolName", toolName);
-        payload.put("patternKey", detection.getPatternKey());
-        payload.put("patternKeys", new ArrayList<String>(detection.effectivePatternKeys()));
+        payload.put("toolName", cleanApprovalText(toolName));
+        payload.put("patternKey", cleanApprovalText(detection.getPatternKey()));
+        payload.put("patternKeys", cleanApprovalList(detection.effectivePatternKeys()));
         payload.put("description", detection.getDescription());
         payload.put("command", StrUtil.nullToEmpty(code));
         payload.put("commandHash", commandHash(detection.getNormalizedCode()));
@@ -4012,13 +4012,13 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String toolName = stringValue(map.get("toolName"));
-        String patternKey = stringValue(map.get("patternKey"));
+        String toolName = cleanApprovalText(map.get("toolName"));
+        String patternKey = cleanApprovalText(map.get("patternKey"));
         String description = stringValue(map.get("description"));
         String command = stringValue(map.get("command"));
-        String commandHash = stringValue(map.get("commandHash"));
-        String approvalKey = stringValue(map.get("approvalKey"));
-        String approvalId = stringValue(map.get("approvalId"));
+        String commandHash = cleanApprovalText(map.get("commandHash"));
+        String approvalKey = cleanApprovalText(map.get("approvalKey"));
+        String approvalId = cleanApprovalText(map.get("approvalId"));
         long createdAt = longValue(map.get("createdAt"));
         long expiresAt = longValue(map.get("expiresAt"));
         if (StrUtil.hasBlank(toolName, patternKey)) {
@@ -4029,7 +4029,7 @@ public class DangerousCommandApprovalService {
         pending.setApprovalId(approvalId);
         pending.setToolName(toolName);
         pending.setPatternKey(patternKey);
-        pending.setPatternKeys(listValue(map.get("patternKeys")));
+        pending.setPatternKeys(cleanApprovalList(listValue(map.get("patternKeys"))));
         pending.setDescription(description);
         pending.setCommand(command);
         pending.setCommandHash(commandHash);
@@ -4072,6 +4072,27 @@ public class DangerousCommandApprovalService {
 
     private String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value);
+    }
+
+    private static String cleanApprovalText(Object value) {
+        if (value == null) {
+            return "";
+        }
+        return SecretRedactor.stripDisplayControls(String.valueOf(value)).trim();
+    }
+
+    private static List<String> cleanApprovalList(List<String> values) {
+        List<String> cleaned = new ArrayList<String>();
+        if (values == null) {
+            return cleaned;
+        }
+        for (String value : values) {
+            String item = cleanApprovalText(value);
+            if (StrUtil.isNotBlank(item) && !cleaned.contains(item)) {
+                cleaned.add(item);
+            }
+        }
+        return cleaned;
     }
 
     private long longValue(Object value) {
@@ -4397,7 +4418,7 @@ public class DangerousCommandApprovalService {
     }
 
     private String approvalPattern(String toolName, String patternKey) {
-        return StrUtil.nullToEmpty(toolName).trim() + ":" + StrUtil.nullToEmpty(patternKey).trim();
+        return cleanApprovalText(toolName) + ":" + cleanApprovalText(patternKey);
     }
 
     private boolean isTirithPattern(String patternKey) {
@@ -4678,25 +4699,26 @@ public class DangerousCommandApprovalService {
 
         public String approvalKey() {
             return StrUtil.blankToDefault(
-                    approvalKey,
-                    StrUtil.nullToEmpty(toolName)
+                    cleanApprovalText(approvalKey),
+                    cleanApprovalText(toolName)
                             + ":"
-                            + StrUtil.nullToEmpty(patternKey)
+                            + cleanApprovalText(patternKey)
                             + ":"
-                            + StrUtil.nullToEmpty(commandHash));
+                            + cleanApprovalText(commandHash));
         }
 
         public List<String> effectivePatternKeys() {
             List<String> values = new ArrayList<String>();
             if (patternKeys != null) {
                 for (String key : patternKeys) {
-                    if (StrUtil.isNotBlank(key) && !values.contains(key.trim())) {
-                        values.add(key.trim());
+                    String value = cleanApprovalText(key);
+                    if (StrUtil.isNotBlank(value) && !values.contains(value)) {
+                        values.add(value);
                     }
                 }
             }
             if (values.isEmpty() && StrUtil.isNotBlank(patternKey)) {
-                values.add(patternKey.trim());
+                values.add(cleanApprovalText(patternKey));
             }
             return values;
         }
