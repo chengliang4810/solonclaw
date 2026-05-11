@@ -36,8 +36,12 @@ public class DashboardDiagnosticOutputTest {
     void shouldRedactGatewayDoctorAndDiagnosticsOutput() throws Exception {
         AppConfig config = new AppConfig();
         File runtimeHome = new File("target/diagnostic-secret-runtime").getAbsoluteFile();
+        File externalState =
+                new File(
+                        "target/diagnostic-external-token=ghp_diagnosticexternal123/state.db")
+                        .getAbsoluteFile();
         config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "data/state.db").getAbsolutePath());
+        config.getRuntime().setStateDb(externalState.getAbsolutePath());
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
 
@@ -93,13 +97,15 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         null);
         String diagnosticsJson = ONode.serialize(diagnosticsService.diagnostics());
-        assertThat(diagnosticsJson).contains("runtime://data/state.db");
+        assertThat(diagnosticsJson).contains("path://state.db");
         assertThat(diagnosticsJson).contains("audit_policy");
         assertThat(diagnosticsJson).contains("codeExecutionPolicy");
         assertThat(diagnosticsJson).contains("credentialMountPolicy");
         assertThat(diagnosticsJson).contains("mcpRuntimePolicy");
         assertThat(diagnosticsJson).contains("readOnlyAuditTool");
         assertThat(diagnosticsJson).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diagnosticsJson).doesNotContain(externalState.getParentFile().getAbsolutePath());
+        assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticexternal123");
         assertThat(diagnosticsJson).contains("https://user:***@example.com/v1?token=***");
         assertThat(diagnosticsJson).doesNotContain("provider-pass");
         assertThat(diagnosticsJson).doesNotContain("provider-token");

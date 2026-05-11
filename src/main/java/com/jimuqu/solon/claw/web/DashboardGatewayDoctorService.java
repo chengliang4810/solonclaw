@@ -133,7 +133,15 @@ public class DashboardGatewayDoctorService {
             String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
             return "runtime://" + relative;
         }
-        return SecretRedactor.redact(text, 400);
+        return externalPathReference(text);
+    }
+
+    private String externalPathReference(String value) {
+        String name = new File(StrUtil.nullToEmpty(value)).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "external";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     private String normalized(File file) {
