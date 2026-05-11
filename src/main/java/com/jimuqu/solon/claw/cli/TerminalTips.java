@@ -16,6 +16,7 @@ public final class TerminalTips {
                             "/goal <目标> --max N 会启动跨轮长目标循环。",
                             "/recap 可显示恢复会话用的紧凑历史摘要。",
                             "/trajectory save <问题> 可保存会话轨迹样本。",
+                            "/reload-mcp now 可立即重载 MCP 工具 schema。",
                             "/compact <重点> 可压缩当前会话上下文。",
                             "/attachments <路径> 可在发送前预检附件识别结果。",
                             "/approve <确认编号> session 可批准当前会话的危险命令。",

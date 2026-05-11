@@ -23,6 +23,7 @@ public class TerminalTipsTest {
                 .contains("/goal")
                 .contains("/recap")
                 .contains("/trajectory save")
+                .contains("/reload-mcp now")
                 .contains("/compact")
                 .contains("/attachments")
                 .contains("/approve")
