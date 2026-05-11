@@ -7334,6 +7334,12 @@ public class DangerousCommandApprovalServiceTest {
                 DangerousCommandApprovalService.CARD_ACTION_APPROVE);
         payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123 always");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123;always");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123|always");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval:123");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
 
         String jsonPayload =
                 "{\"solonclaw_action\":\"dangerous_approve\",\"scope\":\"session\",\"approvalId\":\"approval-json\"}";

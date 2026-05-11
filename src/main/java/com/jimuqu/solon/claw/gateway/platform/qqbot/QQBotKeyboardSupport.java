@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.platform.qqbot;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -17,13 +18,17 @@ final class QQBotKeyboardSupport {
     private QQBotKeyboardSupport() {}
 
     static ONode buildApprovalKeyboard(String approvalId) {
+        String safeApprovalId = DangerousCommandApprovalService.safeApprovalSelectorToken(approvalId);
+        if (safeApprovalId == null) {
+            safeApprovalId = "";
+        }
         List<Object> buttons = new ArrayList<Object>();
         buttons.add(
                 button(
                         "allow",
                         "✅ 允许一次",
                         "已允许",
-                        "approve:" + approvalId + ":allow-once",
+                        "approve:" + safeApprovalId + ":allow-once",
                         1,
                         "approval"));
         buttons.add(
@@ -31,7 +36,7 @@ final class QQBotKeyboardSupport {
                         "always",
                         "⭐ 始终允许",
                         "已始终允许",
-                        "approve:" + approvalId + ":allow-always",
+                        "approve:" + safeApprovalId + ":allow-always",
                         1,
                         "approval"));
         buttons.add(
@@ -39,7 +44,7 @@ final class QQBotKeyboardSupport {
                         "deny",
                         "❌ 拒绝",
                         "已拒绝",
-                        "approve:" + approvalId + ":deny",
+                        "approve:" + safeApprovalId + ":deny",
                         0,
                         "approval"));
 
@@ -55,7 +60,10 @@ final class QQBotKeyboardSupport {
         if (!matcher.matches()) {
             return null;
         }
-        String approvalId = matcher.group(1);
+        String approvalId = DangerousCommandApprovalService.safeApprovalSelectorToken(matcher.group(1));
+        if (approvalId == null) {
+            return null;
+        }
         String decision = matcher.group(2);
         if ("deny".equals(decision)) {
             return StrUtil.isBlank(approvalId) ? "/deny" : "/deny " + approvalId;

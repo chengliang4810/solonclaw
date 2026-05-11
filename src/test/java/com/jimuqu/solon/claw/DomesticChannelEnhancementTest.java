@@ -295,6 +295,27 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRejectUnsafeQqbotApprovalButtonSelectors() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        GatewayMessage separator =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-unsafe\",\"chat_type\":2,\"user_openid\":\"user-c\",\"resolved\":{\"button_data\":\"approve:approval-123;always:allow-always\"}}}");
+        GatewayMessage pipe =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-unsafe2\",\"chat_type\":2,\"user_openid\":\"user-c\",\"resolved\":{\"button_data\":\"approve:approval-123|always:deny\"}}}");
+        GatewayMessage colon =
+                adapter.parse(
+                        "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-unsafe3\",\"chat_type\":2,\"user_openid\":\"user-c\",\"resolved\":{\"button_data\":\"approve:approval:123:allow-once\"}}}");
+
+        assertThat(separator).isNull();
+        assertThat(pipe).isNull();
+        assertThat(colon).isNull();
+    }
+
+    @Test
     void shouldIgnoreQqbotNonJimuquApprovalDecision() {
         AppConfig config = new AppConfig();
         config.getChannels().getQqbot().setAllowAllUsers(true);

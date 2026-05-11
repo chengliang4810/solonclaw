@@ -124,6 +124,7 @@ public class DangerousCommandApprovalService {
     private static final Pattern PYTHON_SHELL_EXEC_CALL =
             pattern(
                     "\\b(?:os\\.system|subprocess\\.(?:run|Popen|call|check_call|check_output))\\s*\\(");
+    private static final Pattern APPROVAL_SELECTOR_TOKEN = Pattern.compile("[A-Za-z0-9_.-]{1,128}");
     private static final Set<String> COMMAND_ARGUMENT_KEYS =
             Collections.unmodifiableSet(
                     new LinkedHashSet<String>(
@@ -2463,9 +2464,8 @@ public class DangerousCommandApprovalService {
         }
 
         String action = safeCardToken(map.get(CARD_ACTION_KEY)).toLowerCase(Locale.ROOT);
-        String approvalId =
-                safeCardToken(map.get(CARD_APPROVAL_ID_KEY));
-        if (containsWhitespace(approvalId)) {
+        String approvalId = safeApprovalSelectorToken(map.get(CARD_APPROVAL_ID_KEY));
+        if (approvalId == null) {
             return null;
         }
         if (CARD_ACTION_DENY.equals(action)) {
@@ -2492,16 +2492,12 @@ public class DangerousCommandApprovalService {
                 .trim();
     }
 
-    private static boolean containsWhitespace(String value) {
-        if (StrUtil.isBlank(value)) {
-            return false;
+    public static String safeApprovalSelectorToken(Object value) {
+        String token = safeCardToken(value);
+        if (StrUtil.isBlank(token)) {
+            return "";
         }
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isWhitespace(value.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
+        return APPROVAL_SELECTOR_TOKEN.matcher(token).matches() ? token : null;
     }
 
     private String evaluate(ReActTrace trace, String toolName, Map<String, Object> args) {
