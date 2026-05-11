@@ -91,45 +91,117 @@ function Assert-CleanReleaseText {
 }
 
 function Normalize-ReleaseItem {
-    param([string] $Item)
+    param([object] $Item)
 
-    Assert-CleanReleaseText $Item
-    if ($Item -match "\s/\s") {
-        return $Item
+    Assert-CleanReleaseText $Item.Subject
+    Assert-CleanReleaseText $Item.Body
+    $subject = $Item.Subject
+    if ($subject -notmatch "\s/\s") {
+        $subject = ("提交：{0} / Commit: {0}" -f $subject)
     }
-    return ("提交：{0} / Commit: {0}" -f $Item)
+
+    $details = Format-ReleaseDetails $Item.Body
+    if ([string]::IsNullOrWhiteSpace($details)) {
+        return $subject
+    }
+    return ($subject + [Environment]::NewLine + $details)
 }
 
-function Get-CommitSubjects {
+function Format-ReleaseDetails {
+    param([string] $Body)
+
+    if ([string]::IsNullOrWhiteSpace($Body)) {
+        return ""
+    }
+
+    $lines = @($Body -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($lines.Length -eq 0) {
+        return ""
+    }
+
+    $formatted = @("  详情 / Details:")
+    foreach ($line in $lines) {
+        $detail = $line
+        if ($detail -match "^[-*]\s+") {
+            $detail = ($detail -replace "^[-*]\s+", "")
+        }
+        $formatted += ("  - " + $detail)
+    }
+    return ($formatted -join [Environment]::NewLine)
+}
+
+function New-CommitEntry {
+    param(
+        [string] $Subject,
+        [string] $Body
+    )
+
+    return [PSCustomObject]@{
+        Subject = $Subject
+        Body = $Body
+    }
+}
+
+function Get-CommitEntries {
     param([string] $Range)
 
-    $subjects = & git log --pretty=format:'%s' $Range 2>$null
+    $separator = [string] [char] 31
+    $recordSeparator = [string] [char] 30
+    $rawLines = & git log --pretty=format:"%s%x1f%b%x1e" $Range 2>$null
     if ($LASTEXITCODE -ne 0) {
-        throw ("Failed to read git commit subjects for range: {0}" -f $Range)
+        throw ("Failed to read git commits for range: {0}" -f $Range)
     }
-    return @($subjects | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $raw = ($rawLines -join [Environment]::NewLine)
+    $entries = @()
+    foreach ($record in @($raw -split [Regex]::Escape($recordSeparator))) {
+        if ([string]::IsNullOrWhiteSpace($record)) {
+            continue
+        }
+        $parts = $record -split [Regex]::Escape($separator), 2
+        $subject = ""
+        $body = ""
+        if ($parts.Length -gt 0) {
+            $subject = ($parts[0] -as [string]).Trim()
+        }
+        if ($parts.Length -gt 1) {
+            $body = ($parts[1] -as [string]).Trim()
+        }
+        if (-not [string]::IsNullOrWhiteSpace($subject)) {
+            $entries += (New-CommitEntry -Subject $subject -Body $body)
+        }
+    }
+    return $entries
 }
 
-function Get-HeadCommitSubject {
-    $subjects = & git log -1 --pretty=format:'%s' HEAD 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to read current git commit subject."
+function Get-HeadCommitEntry {
+    $entries = Get-CommitEntries "HEAD"
+    if ($entries.Length -gt 0) {
+        return @($entries[0])
     }
-    return @($subjects | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to read current git commit."
+    }
+    return @()
 }
 
 function Select-Items {
     param(
-        [string[]] $Items,
+        [object[]] $Items,
         [string] $Pattern
     )
 
-    return @($Items | Where-Object { $_ -match $Pattern })
+    return @($Items | Where-Object { (($_.Subject + "`n" + $_.Body) -match $Pattern) })
+}
+
+function Get-CommitEntryKey {
+    param([object] $Item)
+
+    return ($Item.Subject + ([string] [char] 31) + $Item.Body)
 }
 
 function Write-Items {
     param(
-        [string[]] $Items,
+        [object[]] $Items,
         [string] $Fallback
     )
 
@@ -145,10 +217,10 @@ Assert-CleanReleaseText $Version
 Assert-CleanReleaseText $CommitRange
 Assert-CleanReleaseText $DisplayRange
 Invoke-ProjectNamingGuard $CommitRange
-$commits = Get-CommitSubjects $CommitRange
+$commits = Get-CommitEntries $CommitRange
 $rangeFallbackNote = ""
 if ($commits.Length -eq 0) {
-    $commits = Get-HeadCommitSubject
+    $commits = Get-HeadCommitEntry
     $DisplayRange = (& git rev-parse --short HEAD).Trim()
     Assert-CleanReleaseText $DisplayRange
     Invoke-ProjectNamingGuard "HEAD"
@@ -159,7 +231,8 @@ Empty commit range; the current commit was used to generate these release notes.
 "@
 }
 foreach ($commit in $commits) {
-    Assert-CleanReleaseText $commit
+    Assert-CleanReleaseText $commit.Subject
+    Assert-CleanReleaseText $commit.Body
 }
 
 $featurePattern = '(^|\b)(feat|feature)(\(.+\))?:|功能|新增|支持|对齐|补齐|完善|实现|add|implement|support|align|complete|improve'
@@ -168,12 +241,12 @@ $features = Select-Items $commits $featurePattern
 $fixes = Select-Items $commits $fixPattern
 $classified = New-Object 'System.Collections.Generic.HashSet[string]'
 foreach ($item in $features) {
-    [void] $classified.Add($item)
+    [void] $classified.Add((Get-CommitEntryKey $item))
 }
 foreach ($item in $fixes) {
-    [void] $classified.Add($item)
+    [void] $classified.Add((Get-CommitEntryKey $item))
 }
-$others = @($commits | Where-Object { -not $classified.Contains($_) })
+$others = @($commits | Where-Object { -not $classified.Contains((Get-CommitEntryKey $_)) })
 
 $body = @"
 ## jimuqu-agent $Tag

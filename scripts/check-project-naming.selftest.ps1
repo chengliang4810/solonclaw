@@ -420,10 +420,14 @@ try {
         & git commit -m "fix: clean release notes / Clean release notes" | Out-Null
         Add-Content -Path (Join-Path $sandbox "README.md") -Value "Scoped feature fixture"
         & git add README.md | Out-Null
-        & git commit -m "feat(cron): scoped feature release note / Scoped feature release note" | Out-Null
+        & git commit -m "feat(cron): scoped feature release note / Scoped feature release note" `
+            -m "功能：补充计划任务投递策略说明。" `
+            -m "Feature: add scheduled delivery policy details." | Out-Null
         Add-Content -Path (Join-Path $sandbox "README.md") -Value "Scoped fix fixture"
         & git add README.md | Out-Null
-        & git commit -m "fix(api): scoped fix release note / Scoped fix release note" | Out-Null
+        & git commit -m "fix(api): scoped fix release note / Scoped fix release note" `
+            -m "缺陷修复：避免空提交范围只生成占位说明。" `
+            -m "Fix: avoid placeholder-only notes for empty ranges." | Out-Null
 
         $cleanReleaseOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $releaseNotesScriptPath `
             -OutputPath $releaseNotesPath `
@@ -441,8 +445,14 @@ try {
         if ($cleanReleaseText -notmatch "### 功能 / Features[\s\S]*feat\(cron\): scoped feature release note / Scoped feature release note") {
             throw "Release notes generation did not classify scoped feat commits as features."
         }
+        if ($cleanReleaseText -notmatch "### 功能 / Features[\s\S]*详情 / Details:[\s\S]*功能：补充计划任务投递策略说明。[\s\S]*Feature: add scheduled delivery policy details.") {
+            throw "Release notes generation did not include feature details from commit body."
+        }
         if ($cleanReleaseText -notmatch "### 缺陷修复 / Fixes[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note") {
             throw "Release notes generation did not classify scoped fix commits as fixes."
+        }
+        if ($cleanReleaseText -notmatch "### 缺陷修复 / Fixes[\s\S]*详情 / Details:[\s\S]*缺陷修复：避免空提交范围只生成占位说明。[\s\S]*Fix: avoid placeholder-only notes for empty ranges.") {
+            throw "Release notes generation did not include fix details from commit body."
         }
     } finally {
         Pop-Location
