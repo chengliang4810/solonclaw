@@ -717,14 +717,17 @@ public class AcpStdioServerTest {
                                 + sessionId
                                 + "\",\"config_id\":\"runtime.token\","
                                 + "\"value\":{\"access_token\":\"ghp_acpconfig12345\","
+                                + "\"callback\":\"https://example.test/callback?api%255Fkey=acp-config-encoded-secret\","
                                 + "\"nested\":{\"api_key\":\"sk-test-acpconfig12345\"}}}}");
 
         assertThat(config)
                 .contains("\"id\":70")
                 .contains("\"access_token\":\"***\"")
+                .contains("api%255Fkey=***")
                 .contains("\"api_key\":\"***\"")
                 .doesNotContain("ghp_acpconfig12345")
-                .doesNotContain("sk-test-acpconfig12345");
+                .doesNotContain("sk-test-acpconfig12345")
+                .doesNotContain("acp-config-encoded-secret");
 
         String listed =
                 server.handle(
@@ -739,7 +742,8 @@ public class AcpStdioServerTest {
                 .doesNotContain("ghp_acpmcparg12345")
                 .doesNotContain("ghp_acpmcpauth12345")
                 .doesNotContain("ghp_acpconfig12345")
-                .doesNotContain("sk-test-acpconfig12345");
+                .doesNotContain("sk-test-acpconfig12345")
+                .doesNotContain("acp-config-encoded-secret");
     }
 
     @Test
