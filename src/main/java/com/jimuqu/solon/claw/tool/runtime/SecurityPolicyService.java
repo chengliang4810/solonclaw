@@ -633,6 +633,7 @@ public class SecurityPolicyService {
         summary.put("protocolRelativeUrlChecked", Boolean.TRUE);
         summary.put("schemelessHostChecked", Boolean.TRUE);
         summary.put("percentEncodedHostChecked", Boolean.TRUE);
+        summary.put("idnHostNormalized", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);

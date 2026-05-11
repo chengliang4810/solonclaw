@@ -350,6 +350,37 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldNormalizeIdnHostSeparatorsBeforeStaticUrlPolicyChecks() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(config, "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict metadataIdeographicDot =
+                policy.checkAlwaysBlockedUrl("http://metadata\u3002google\u3002internal/");
+        SecurityPolicyService.UrlVerdict metadataFullwidthDot =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "curl http://metadata\uFF0Egoogle\uFF0Einternal/");
+        SecurityPolicyService.UrlVerdict metadataHalfwidthDot =
+                policy.checkCommandAlwaysBlockedUrls(
+                        "curl http://metadata\uFF61google\uFF61internal/");
+        SecurityPolicyService.UrlVerdict websiteFullwidthHost =
+                policy.checkUrl("http://blocked\uFF0Eexample/path");
+
+        assertThat(metadataIdeographicDot.isAllowed()).isFalse();
+        assertThat(metadataIdeographicDot.getMessage()).contains("元数据");
+        assertThat(metadataFullwidthDot.isAllowed()).isFalse();
+        assertThat(metadataFullwidthDot.getMessage()).contains("元数据");
+        assertThat(metadataHalfwidthDot.isAllowed()).isFalse();
+        assertThat(metadataHalfwidthDot.getMessage()).contains("元数据");
+        assertThat(websiteFullwidthHost.isAllowed()).isFalse();
+        assertThat(websiteFullwidthHost.getMessage()).contains("website policy");
+    }
+
+    @Test
     void shouldBlockSchemelessUserInfoUrlsInCommandsAndArguments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -981,6 +1012,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("protocolRelativeUrlChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("schemelessHostChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("percentEncodedHostChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("idnHostNormalized")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
