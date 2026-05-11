@@ -854,6 +854,14 @@ public class DangerousCommandApprovalService {
                                                     + "))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_pager_output",
+                                    "view credential file through pager",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:bat|batcat|most|pg)\\b(?![^\\n|;&]*(?:\\||>|>>))[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(

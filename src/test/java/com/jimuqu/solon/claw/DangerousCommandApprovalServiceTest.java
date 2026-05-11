@@ -3400,6 +3400,38 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFilePagerOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "bat .env",
+                        "batcat credentials.json",
+                        "most token.json",
+                        "pg client_secret.json",
+                        "bat --style=plain .anthropic_oauth.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_pager_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "bat report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "most report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "bat .env | pbcopy"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileCompareOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
