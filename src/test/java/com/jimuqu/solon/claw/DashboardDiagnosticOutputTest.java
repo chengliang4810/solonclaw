@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
@@ -422,6 +423,56 @@ public class DashboardDiagnosticOutputTest {
         assertThat(event.getChoice()).isEqualTo("revoke");
         assertThat(event.getApprover()).doesNotContain("ghp_revokeapprover123");
         assertThat(event.getApprover()).contains("token=***");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRedactAlwaysApprovalRevokeAuditKey() throws Exception {
+        AppConfig config = new AppConfig();
+        FixedApprovalAuditRepository auditRepository =
+                new FixedApprovalAuditRepository(Collections.<ApprovalAuditEvent>emptyList());
+        MemoryGlobalSettingRepository globalSettings = new MemoryGlobalSettingRepository();
+        String approval = "execute_shell\u202E:token_ghp_revokeapprovalsecret123\u202E";
+        globalSettings.set(
+                AgentSettingConstants.DANGEROUS_COMMAND_ALWAYS_PATTERNS,
+                ONode.serialize(Collections.singletonList(approval)));
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        globalSettings, config, new SecurityPolicyService(config));
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        auditRepository,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+        Map<String, Object> list = diagnosticsService.alwaysApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("approvalId", String.valueOf(items.get(0).get("approval_id")));
+        body.put("approver", "dashboard");
+
+        Map<String, Object> result = diagnosticsService.revokeAlwaysApproval(body);
+
+        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(auditRepository.events).hasSize(1);
+        ApprovalAuditEvent event = auditRepository.events.get(0);
+        assertThat(event.getApprovalKey())
+                .isEqualTo("execute_shell:***");
+        assertThat(event.getApprovalKey())
+                .doesNotContain("\u202E")
+                .doesNotContain("revokeapprovalsecret123");
+        assertThat(event.getPatternKeysJson())
+                .contains("token_ghp_***")
+                .doesNotContain("\\u202E")
+                .doesNotContain("revokeapprovalsecret123");
     }
 
     @Test

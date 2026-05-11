@@ -649,7 +649,7 @@ public class DashboardDiagnosticsService {
         audit.setApprover(SecretRedactor.redact(approver, 200));
         audit.setToolName(StrUtil.nullToEmpty(String.valueOf(item.get("tool_name"))));
         audit.setApprovalId("");
-        audit.setApprovalKey(StrUtil.nullToEmpty(approval));
+        audit.setApprovalKey(redactedApprovalKey(approval));
         audit.setCommandHash("");
         audit.setCommandPreview("");
         audit.setDescription("撤销长期审批授权");
