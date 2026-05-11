@@ -3331,6 +3331,33 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactExecuteCodeTimeoutOutput() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig);
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "import time\n"
+                                        + "print('token=ghp_timeoutsecret12345', flush=True)\n"
+                                        + "time.sleep(3)\n",
+                                Integer.valueOf(1)));
+
+        assertThat(result.get("status").getString()).isEqualTo("timeout");
+        assertThat(result.get("error").getString()).contains("timed out");
+        assertThat(result.get("output").getString())
+                .contains("token=***")
+                .contains("timed out")
+                .doesNotContain("ghp_timeoutsecret12345");
+    }
+
+    @Test
     void shouldAllowExecuteCodeToCallJimuquFileAndTerminalToolsThroughRpc() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
