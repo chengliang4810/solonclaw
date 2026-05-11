@@ -23,7 +23,7 @@ public final class SecretRedactor {
     private static final Pattern URL_USERINFO =
             Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s:@]+):([^/?#\\s@]+)@");
     private static final Pattern ENCODED_URL_USERINFO =
-            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(?:%3a|%3A)([^/?#\\s@]+)@");
+            Pattern.compile("(?i)\\b(https?|wss?|ftp)://([^/?#\\s@]+)(%(?:25){0,3}3a)([^/?#\\s@]+)@");
     private static final Pattern SENSITIVE_URL_USERINFO =
             Pattern.compile("(?i)\\b(?:https?|wss?|ftp)://[^/?#\\s:@]+:[^/?#\\s@]+@[^\\s]+");
     private static final Pattern DB_CONNSTR =
@@ -187,7 +187,11 @@ public final class SecretRedactor {
             matcher.appendReplacement(
                     buffer,
                     Matcher.quoteReplacement(
-                            matcher.group(1) + "://" + matcher.group(2) + "%3A***@"));
+                            matcher.group(1)
+                                    + "://"
+                                    + matcher.group(2)
+                                    + matcher.group(3)
+                                    + "***@"));
         }
         matcher.appendTail(buffer);
         return buffer.toString();

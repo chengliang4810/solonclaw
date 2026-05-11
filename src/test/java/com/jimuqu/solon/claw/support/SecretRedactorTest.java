@@ -78,6 +78,14 @@ class SecretRedactorTest {
         assertThat(encoded)
                 .isEqualTo("https://user%3A***@example.com/path?ok=value")
                 .doesNotContain("encoded-password");
+
+        String repeatedlyEncoded =
+                SecretRedactor.maskUrl(
+                        "https://user%253Aencoded-password@example.com/path?ok=value");
+
+        assertThat(repeatedlyEncoded)
+                .isEqualTo("https://user%253A***@example.com/path?ok=value")
+                .doesNotContain("encoded-password");
     }
 
     @Test
