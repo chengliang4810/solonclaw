@@ -118,7 +118,7 @@ public class CronjobTools {
                     .data("history_fields", policy.get("history_fields"))
                     .data("delivery", policy.get("delivery"))
                     .data("skill_binding", policy.get("skill_binding"))
-                    .preview("cronjob policy: add/edit/pause/resume/run/remove/history")
+                    .preview("cronjob policy: add/edit/pause/resume/run/remove/history, skills, delivery, wrap_response")
                     .toJson();
         }
 
