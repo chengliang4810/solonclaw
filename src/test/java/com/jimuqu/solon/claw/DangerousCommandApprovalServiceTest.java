@@ -3263,6 +3263,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileEncodedOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "base64 .env",
+                        "base64 credentials.json > credentials.b64",
+                        "openssl base64 -in token.json -out token.b64",
+                        "openssl enc -base64 -in client_secret.json -out client_secret.b64",
+                        "certutil -encode service-account.json service-account.b64",
+                        "Get-Content .anthropic_oauth.json | [Convert]::ToBase64String");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_encoded_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "base64 report.txt > report.b64"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "openssl enc -base64 -d -in payload.txt -out payload.sh"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "certutil -encode report.txt report.b64"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileCopyToSharedLocationCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
