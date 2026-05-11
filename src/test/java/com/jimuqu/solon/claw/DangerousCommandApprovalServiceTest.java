@@ -4800,6 +4800,49 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCodeCredentialFileNotificationOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> pythonCommands =
+                Arrays.asList(
+                        "notify2.notify('secret', open('.env').read())",
+                        "plyer.notification.notify(message=Path('credentials.json').read_text())",
+                        "token = Path('token.json').read_text()\nnotification.notify(message=token)");
+        for (String command : pythonCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_credential_file_notification_output");
+        }
+
+        List<String> jsCommands =
+                Arrays.asList(
+                        "new Notification('secret', { body: fs.readFileSync('.env', 'utf8') })",
+                        "notifier.notify({ message: await fs.promises.readFile('credentials.json', 'utf8') })",
+                        "const token = fs.readFileSync('token.json', 'utf8');\nnodeNotifier.notify({ message: token });");
+        for (String command : jsCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_credential_file_notification_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "notify2.notify('report', open('report.txt').read())"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js",
+                                "new Notification('report', { body: fs.readFileSync('report.txt', 'utf8') })"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeHttpCredentialFileVariableDisclosureCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
