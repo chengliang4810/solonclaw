@@ -304,6 +304,26 @@ public class DashboardControllerHttpTest {
         assertThat(diagnostics.body)
                 .contains("\"providers\"")
                 .contains("\"channels\"")
+                .contains("\"policies\"")
+                .contains("\"schema_sanitizer\"")
+                .contains("\"patch_parser\"")
+                .contains("\"code_execution\"")
+                .contains("\"subprocess_environment\"")
+                .contains("\"mcpInputSchemaSanitized\":true")
+                .contains("\"invalidSchemaDefaultsToObject\":true")
+                .contains("\"nullableUnionCollapsed\":true")
+                .contains("\"patchFormat\":\"V4A\"")
+                .contains("\"atomicValidationBeforeWrite\":true")
+                .contains("\"credentialPolicyPrechecked\":true")
+                .contains("\"executeCodeSupported\":true")
+                .contains("\"scriptPreflightUrlPolicy\":true")
+                .contains("\"hardlineRulesApplied\":true")
+                .contains("\"sandboxEnvironmentSanitized\":true")
+                .contains("\"rpcToolOutputsRedacted\":true")
+                .contains("\"defaultDenyUnknownEnv\":true")
+                .contains("\"providerBlocklistOverridesPassthrough\":true")
+                .contains("\"secretNameSubstringsBlocked\":true")
+                .contains("\"runtimeSafetyTogglesBlocked\":true")
                 .contains("\"mcp\"")
                 .contains("\"runtime_policy\"")
                 .contains("\"oauth_policy\"")
@@ -390,6 +410,13 @@ public class DashboardControllerHttpTest {
         assertThat(mcpDiagnostics.toJson())
                 .doesNotContain("\"oauthFailureMarkers\"")
                 .doesNotContain("\"pathishArgumentKeys\"");
+        ONode toolPolicies = ONode.ofJson(diagnostics.body).get("data").get("tools").get("policies");
+        assertThat(toolPolicies.toJson())
+                .doesNotContain("\"unsupportedKeywordsStripped\"")
+                .doesNotContain("\"topLevelForbiddenCombinatorsStripped\"")
+                .doesNotContain("\"patternAndFormatKeywords\"")
+                .doesNotContain("\"rpcTools\"")
+                .doesNotContain("\"forcePrefix\"");
 
         HttpResult commandAudit =
                 request(

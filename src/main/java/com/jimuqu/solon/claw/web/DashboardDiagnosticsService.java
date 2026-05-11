@@ -25,7 +25,11 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
+import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
@@ -368,7 +372,17 @@ public class DashboardDiagnosticsService {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("count", toolRegistry.listToolNames().size());
         map.put("names", toolRegistry.listToolNames());
+        map.put("policies", toolPolicies());
         return map;
+    }
+
+    private Map<String, Object> toolPolicies() {
+        Map<String, Object> policies = new LinkedHashMap<String, Object>();
+        policies.put("schema_sanitizer", safeSchemaSanitizerPolicySummary());
+        policies.put("patch_parser", safePatchParserPolicySummary());
+        policies.put("code_execution", safeCodeExecutionPolicySummary());
+        policies.put("subprocess_environment", safeSubprocessEnvironmentPolicySummary());
+        return policies;
     }
 
     private Map<String, Object> mcp() {
@@ -705,6 +719,134 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "callbackErrorsRedacted");
             copyPolicyValue(summary, safe, "tokenErrorsRedacted");
             copyPolicyValue(summary, safe, "tokenResponseRequiresAccessToken");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeSchemaSanitizerPolicySummary() {
+        try {
+            Map<String, Object> summary = SolonClawToolSchemaSanitizer.policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "appliesTo");
+            copyPolicyValue(summary, safe, "inputSchemaSanitized");
+            copyPolicyValue(summary, safe, "outputFunctionToolSchemaSanitized");
+            copyPolicyValue(summary, safe, "mcpInputSchemaSanitized");
+            copyPolicyValue(summary, safe, "invalidSchemaDefaultsToObject");
+            copyPolicyValue(summary, safe, "topLevelObjectRequired");
+            copyPolicyValue(summary, safe, "propertiesInjectedForObject");
+            copyPolicyValue(summary, safe, "requiredPrunedToKnownProperties");
+            copyPolicyValue(summary, safe, "nullableUnionCollapsed");
+            copyPolicyValue(summary, safe, "patternAndFormatStripped");
+            copyPolicyValue(summary, safe, "schemaObjectSanitizationNonMutating");
+            copyPolicyValue(summary, safe, "jsonLibrary");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safePatchParserPolicySummary() {
+        try {
+            Map<String, Object> summary = SolonClawPatchTools.patchParserPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "toolName");
+            copyPolicyValue(summary, safe, "modes");
+            copyPolicyValue(summary, safe, "patchFormat");
+            copyPolicyValue(summary, safe, "beginEndMarkersRequired");
+            copyPolicyValue(summary, safe, "operations");
+            copyPolicyValue(summary, safe, "atomicValidationBeforeWrite");
+            copyPolicyValue(summary, safe, "noPartialWritesOnValidationFailure");
+            copyPolicyValue(summary, safe, "replaceRequiresUniqueMatchByDefault");
+            copyPolicyValue(summary, safe, "replaceAllRequiresExplicitFlag");
+            copyPolicyValue(summary, safe, "additionOnlyContextHintsSupported");
+            copyPolicyValue(summary, safe, "ambiguousHunksBlocked");
+            copyPolicyValue(summary, safe, "missingHunksBlocked");
+            copyPolicyValue(summary, safe, "addWillNotOverwriteExistingFile");
+            copyPolicyValue(summary, safe, "moveWillNotOverwriteDestination");
+            copyPolicyValue(summary, safe, "deleteRequiresExistingFile");
+            copyPolicyValue(summary, safe, "pathTraversalBlocked");
+            copyPolicyValue(summary, safe, "nulPathBlocked");
+            copyPolicyValue(summary, safe, "jarInternalPathBlocked");
+            copyPolicyValue(summary, safe, "symlinkEscapeBlocked");
+            copyPolicyValue(summary, safe, "credentialPolicyPrechecked");
+            copyPolicyValue(summary, safe, "moveDestinationPolicyChecked");
+            copyPolicyValue(summary, safe, "errorsRedacted");
+            copyPolicyValue(summary, safe, "staleFileWarnings");
+            copyPolicyValue(summary, safe, "diffReturned");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeCodeExecutionPolicySummary() {
+        try {
+            Map<String, Object> summary =
+                    SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig);
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "executeCodeSupported");
+            copyPolicyValue(summary, safe, "executePythonSupported");
+            copyPolicyValue(summary, safe, "executeJsSupported");
+            copyPolicyValue(summary, safe, "solonAiSysSkillsWrapped");
+            copyPolicyValue(summary, safe, "workdirTextValidated");
+            copyPolicyValue(summary, safe, "scriptPreflightPathPolicy");
+            copyPolicyValue(summary, safe, "scriptPreflightUrlPolicy");
+            copyPolicyValue(summary, safe, "dangerousCommandRulesApplied");
+            copyPolicyValue(summary, safe, "hardlineRulesApplied");
+            copyPolicyValue(summary, safe, "foregroundBackgroundGuardrail");
+            copyPolicyValue(summary, safe, "managedFileToolPathLiteralsIgnoredForPreflight");
+            copyPolicyValue(summary, safe, "stagingDirectoryPerRun");
+            copyPolicyValue(summary, safe, "stagingCleanup");
+            copyPolicyValue(summary, safe, "sandboxEnvironmentSanitized");
+            copyPolicyValue(summary, safe, "pythonPathPrependsStaging");
+            copyPolicyValue(summary, safe, "pythonIoEncodingUtf8");
+            copyPolicyValue(summary, safe, "pythonDontWriteBytecode");
+            copyPolicyValue(summary, safe, "rpcToolBridgeEnabled");
+            copyPolicyValue(summary, safe, "rpcRequestFilesSorted");
+            copyPolicyValue(summary, safe, "rpcToolOutputsRedacted");
+            copyPolicyValue(summary, safe, "defaultTimeoutSeconds");
+            copyPolicyValue(summary, safe, "maxTimeoutClampedByTerminalConfig");
+            copyPolicyValue(summary, safe, "timeoutKillsProcess");
+            copyPolicyValue(summary, safe, "stdoutLimitChars");
+            copyPolicyValue(summary, safe, "stderrLimitChars");
+            copyPolicyValue(summary, safe, "ansiOutputStripped");
+            copyPolicyValue(summary, safe, "outputRedacted");
+            copyPolicyValue(summary, safe, "outputTruncated");
+            copyPolicyValue(summary, safe, "stderrReturnedOnlyOnErrors");
+            copyPolicyValue(summary, safe, "safeErrorTextRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeSubprocessEnvironmentPolicySummary() {
+        try {
+            Map<String, Object> summary = SubprocessEnvironmentSanitizer.policySummary(appConfig);
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "defaultDenyUnknownEnv");
+            copyPolicyValue(summary, safe, "safePrefixCount");
+            copyPolicyValue(summary, safe, "safeContextEnvCount");
+            copyPolicyValue(summary, safe, "secretSubstringCount");
+            copyPolicyValue(summary, safe, "providerBlocklistCount");
+            copyPolicyValue(summary, safe, "configuredPassthroughCount");
+            copyPolicyValue(summary, safe, "skillScopedPassthroughSupported");
+            copyPolicyValue(summary, safe, "skillScopedPassthroughThreadLocal");
+            copyPolicyValue(summary, safe, "providerBlocklistOverridesPassthrough");
+            copyPolicyValue(summary, safe, "forcePrefixSupported");
+            copyPolicyValue(summary, safe, "forcePrefixRequiresValidEnvName");
+            copyPolicyValue(summary, safe, "secretNameSubstringsBlocked");
+            copyPolicyValue(summary, safe, "runtimeSafetyTogglesBlocked");
+            copyPolicyValue(summary, safe, "channelSecretsBlocked");
+            copyPolicyValue(summary, safe, "toolBackendSecretsBlocked");
+            copyPolicyValue(summary, safe, "gatewaySecretsBlocked");
+            copyPolicyValue(summary, safe, "pathFallbackEnabledForPosix");
+            copyPolicyValue(summary, safe, "windowsPathFallbackDisabled");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
