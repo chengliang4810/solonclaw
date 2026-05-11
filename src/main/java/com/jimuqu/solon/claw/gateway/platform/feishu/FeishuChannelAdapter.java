@@ -1527,7 +1527,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (status >= 400) {
             throw new IllegalStateException(HutoolHttpErrorFormatter.failure(purpose, response));
         }
-        return response.body();
+        return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
     private void assertSafeUrl(String url, String purpose) {

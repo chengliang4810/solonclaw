@@ -17,11 +17,14 @@ import com.jimuqu.solon.claw.gateway.platform.wecom.WeComChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.lark.oapi.core.request.EventReq;
 import com.sun.net.httpserver.HttpServer;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -563,6 +566,34 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldBoundFeishuHttpSuccessResponseBodies() throws Exception {
+        TestFeishuAdapter adapter = new TestFeishuAdapter(new AppConfig());
+        StringBuilder body = new StringBuilder("token=ghp_feishulargebody12345 ");
+        for (int i = 0; i < BoundedAttachmentIO.JSON_MAX_BYTES + 32; i++) {
+            body.append('x');
+        }
+        HttpServer server = successServer(body.toString());
+        try {
+            HttpResponse response =
+                    HttpRequest.get(localUrl(server))
+                            .timeout(1000)
+                            .setFollowRedirects(false)
+                            .execute();
+            try {
+                assertThatThrownBy(() -> adapter.exposeGuardedResponseBody(response, "Feishu API"))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("Download exceeds max size")
+                        .hasMessageNotContaining("ghp_feishulargebody12345")
+                        .hasMessageNotContaining("token=");
+            } finally {
+                response.close();
+            }
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldRejectJimuquStyleWeakCredentialAliasesCaseInsensitively() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);
@@ -911,6 +942,20 @@ public class DomesticChannelEnhancementTest {
         return server;
     }
 
+    private HttpServer successServer(String body) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/",
+                exchange -> {
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    exchange.getResponseBody().write(bytes);
+                    exchange.close();
+                });
+        server.start();
+        return server;
+    }
+
     private String localUrl(HttpServer server) {
         return "http://127.0.0.1:" + server.getAddress().getPort();
     }
@@ -992,6 +1037,19 @@ public class DomesticChannelEnhancementTest {
 
         private ONode exposeEnsureOk(String response, String defaultMessage) {
             return ensureOk(response, defaultMessage);
+        }
+
+        private String exposeGuardedResponseBody(HttpResponse response, String purpose)
+                throws Throwable {
+            Method method =
+                    FeishuChannelAdapter.class.getDeclaredMethod(
+                            "guardedResponseBody", HttpResponse.class, String.class);
+            method.setAccessible(true);
+            try {
+                return String.valueOf(method.invoke(this, response, purpose));
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
         }
     }
 
