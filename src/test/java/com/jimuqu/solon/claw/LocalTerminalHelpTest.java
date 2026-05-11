@@ -46,6 +46,7 @@ public class LocalTerminalHelpTest {
                 .contains("/yolo [status|on|off]")
                 .contains("/skin")
                 .contains("Ctrl-G")
+                .contains("Ctrl-T")
                 .contains("/exit")
                 .contains("/exit!")
                 .contains("/quit")

@@ -90,7 +90,7 @@ public class TuiShellHeaderTest {
 
         String header = renderHeader(shell, "tui");
 
-        assertThat(header).contains("Ctrl-G").contains("Ctrl-S").contains("Ctrl-Y");
+        assertThat(header).contains("Ctrl-G").contains("Ctrl-S").contains("Ctrl-T").contains("Ctrl-Y");
     }
 
     @Test
