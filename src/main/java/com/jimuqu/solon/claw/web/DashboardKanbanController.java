@@ -30,25 +30,52 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/boards", method = MethodType.POST)
     public Map<String, Object> createBoard(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.createBoard(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.createBoard(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/boards/{slug}/switch", method = MethodType.POST)
     public Map<String, Object> switchBoard(String slug) throws Exception {
-        return DashboardResponse.ok(kanbanService.switchBoard(slug));
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.switchBoard(slug);
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/boards/{slug}", method = MethodType.PUT)
     public Map<String, Object> renameBoard(String slug, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.renameBoard(slug, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.renameBoard(slug, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/boards/{slug}", method = MethodType.DELETE)
     public Map<String, Object> removeBoard(String slug, Context context) throws Exception {
-        return DashboardResponse.ok(
-                kanbanService.removeBoard(
-                        slug,
-                        Boolean.parseBoolean(String.valueOf(context.param("delete")))));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.removeBoard(
+                                slug,
+                                Boolean.parseBoolean(String.valueOf(context.param("delete"))));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks", method = MethodType.GET)
@@ -63,7 +90,14 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/tasks", method = MethodType.POST)
     public Map<String, Object> createTask(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.createTask(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.createTask(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}", method = MethodType.GET)
@@ -78,52 +112,122 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/tasks/{taskId}", method = MethodType.PUT)
     public Map<String, Object> updateTask(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.updateTask(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.updateTask(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/links", method = MethodType.POST)
     public Map<String, Object> link(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.link(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.link(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/links/remove", method = MethodType.POST)
     public Map<String, Object> unlink(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.unlink(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.unlink(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/status", method = MethodType.POST)
     public Map<String, Object> status(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.status(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.status(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/step", method = MethodType.POST)
     public Map<String, Object> step(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.step(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.step(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/reclaim", method = MethodType.POST)
     public Map<String, Object> reclaim(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.reclaim(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.reclaim(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/reassign", method = MethodType.POST)
     public Map<String, Object> reassign(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.reassign(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.reassign(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/retry", method = MethodType.POST)
     public Map<String, Object> retry(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.retry(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.retry(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/unblock", method = MethodType.POST)
     public Map<String, Object> unblock(String taskId) throws Exception {
-        return DashboardResponse.ok(kanbanService.unblock(taskId));
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.unblock(taskId);
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/edit", method = MethodType.POST)
     public Map<String, Object> edit(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.edit(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.edit(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/runs", method = MethodType.GET)
@@ -172,7 +276,14 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/notify-subscriptions", method = MethodType.POST)
     public Map<String, Object> notifySubscribe(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.notifySubscribe(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifySubscribe(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/notify-subscriptions", method = MethodType.GET)
@@ -182,7 +293,14 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/notify-subscriptions/remove", method = MethodType.POST)
     public Map<String, Object> notifyUnsubscribe(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.notifyUnsubscribe(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyUnsubscribe(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/log", method = MethodType.GET)
@@ -192,47 +310,110 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/gc", method = MethodType.POST)
     public Map<String, Object> gc(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.gc(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.gc(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/claim", method = MethodType.POST)
     public Map<String, Object> claim(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.claim(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.claim(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/claim-next", method = MethodType.POST)
     public Map<String, Object> claimNext(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.claimNext(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.claimNext(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/heartbeat-claim", method = MethodType.POST)
     public Map<String, Object> heartbeatClaim(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.heartbeatClaim(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.heartbeatClaim(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/heartbeat", method = MethodType.POST)
     public Map<String, Object> heartbeatWorker(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.heartbeatWorker(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.heartbeatWorker(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/spawn-failure", method = MethodType.POST)
     public Map<String, Object> markSpawnFailure(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.markSpawnFailure(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.markSpawnFailure(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/release-stale", method = MethodType.POST)
     public Map<String, Object> releaseStaleClaims() throws Exception {
-        return DashboardResponse.ok(kanbanService.releaseStaleClaims());
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.releaseStaleClaims();
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/reclaim-timeouts", method = MethodType.POST)
     public Map<String, Object> reclaimTimedOutWorkers() throws Exception {
-        return DashboardResponse.ok(kanbanService.reclaimTimedOutWorkers());
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.reclaimTimedOutWorkers();
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/dispatch", method = MethodType.POST)
     public Map<String, Object> dispatch(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.dispatch(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.dispatch(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/daemon", method = MethodType.GET)
@@ -242,7 +423,14 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/daemon/start", method = MethodType.POST)
     public Map<String, Object> startDaemon(Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.startDaemon(body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.startDaemon(body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/daemon/stop", method = MethodType.POST)
@@ -252,12 +440,26 @@ public class DashboardKanbanController {
 
     @Mapping(value = "/api/kanban/tasks/{taskId}/comments", method = MethodType.POST)
     public Map<String, Object> comment(String taskId, Context context) throws Exception {
-        return DashboardResponse.ok(kanbanService.comment(taskId, body(context)));
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.comment(taskId, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/kanban/tasks/{taskId}", method = MethodType.DELETE)
     public Map<String, Object> delete(String taskId) throws Exception {
-        return DashboardResponse.ok(kanbanService.delete(taskId));
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.delete(taskId);
+                    }
+                });
     }
 
     @SuppressWarnings("unchecked")
@@ -275,5 +477,25 @@ public class DashboardKanbanController {
         } catch (Exception e) {
             return defaultValue;
         }
+    }
+
+    private Map<String, Object> safeKanban(Context context, KanbanAction action) throws Exception {
+        try {
+            return DashboardResponse.ok(action.run());
+        } catch (IllegalArgumentException e) {
+            if (context != null) {
+                context.status(400);
+            }
+            return DashboardResponse.error("KANBAN_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            if (context != null) {
+                context.status(400);
+            }
+            return DashboardResponse.error("KANBAN_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private interface KanbanAction {
+        Map<String, Object> run() throws Exception;
     }
 }

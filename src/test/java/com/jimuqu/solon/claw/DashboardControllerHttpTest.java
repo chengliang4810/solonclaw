@@ -2197,6 +2197,24 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapKanbanMutationErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult missingTask =
+                request(
+                        "POST",
+                        "/api/kanban/tasks/missing-token=ghp_kanbandashboard12345/status",
+                        "{\"status\":\"done\",\"result\":\"token=ghp_kanbanbody12345\"}",
+                        token);
+        assertThat(missingTask.status).isEqualTo(400);
+        assertThat(missingTask.body)
+                .contains("KANBAN_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("ghp_kanbandashboard12345")
+                .doesNotContain("ghp_kanbanbody12345");
+    }
+
+    @Test
     void shouldHideMediaCacheHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");
