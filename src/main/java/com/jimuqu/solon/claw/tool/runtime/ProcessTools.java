@@ -737,9 +737,21 @@ public class ProcessTools {
         }
         File dir = new File(TerminalPathSupport.toProcessCwd(value));
         if (!dir.isDirectory()) {
-            throw new IllegalArgumentException("cwd is not a directory: " + value);
+            throw new IllegalArgumentException("cwd is not a directory: " + safePath(value));
         }
         return dir;
+    }
+
+    private String safePath(String path) {
+        String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).trim();
+        if (value.length() == 0) {
+            return "[unknown]";
+        }
+        String name = new File(value).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "[path]";
+        }
+        return SecretRedactor.redact(name, 400);
     }
 
     private void assertBackgroundSafe(String command) {

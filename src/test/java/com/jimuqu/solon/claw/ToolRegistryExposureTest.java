@@ -2359,6 +2359,38 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactManagedProcessInvalidCwdErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools =
+                new ProcessTools(
+                        env.processRegistry,
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File missing =
+                new File(
+                        runtimeHome.getParentFile(),
+                        "process-token=ghp_processcwd12345-missing");
+
+        ONode result =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                shortEchoCommand(),
+                                null,
+                                missing.getAbsolutePath(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+
+        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("error").getString()).contains("cwd is not a directory");
+        assertThat(result.get("error").getString()).doesNotContain(runtimeHome.getParent());
+        assertThat(result.get("error").getString()).doesNotContain("ghp_processcwd12345");
+    }
+
+    @Test
     void shouldDropFileSkillWhenAllFileToolsAreDisabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.toolRegistry.disableTools(
