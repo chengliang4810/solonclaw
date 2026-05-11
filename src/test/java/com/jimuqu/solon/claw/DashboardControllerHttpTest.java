@@ -2718,6 +2718,19 @@ public class DashboardControllerHttpTest {
                 .contains("token=***")
                 .doesNotContain("ghp_chatrun12345");
 
+        HttpResult invalidJson =
+                request(
+                        "POST",
+                        "/api/chat/runs",
+                        "{\"input\":\"/resume ghp_chatparse12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("CHAT_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_chatparse12345")
+                .doesNotContain("/resume");
+
         HttpResult invalidRun = request("POST", "/api/chat/runs", "{}", token);
         assertThat(invalidRun.status).isEqualTo(400);
         assertThat(invalidRun.body).contains("CHAT_BAD_REQUEST");
