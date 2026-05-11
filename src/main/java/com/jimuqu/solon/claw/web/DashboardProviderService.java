@@ -597,7 +597,11 @@ public class DashboardProviderService {
     }
 
     private String trimForError(String body) {
-        String text = StrUtil.nullToEmpty(body).replace('\n', ' ').replace('\r', ' ').trim();
+        String text =
+                SecretRedactor.redact(StrUtil.nullToEmpty(body), 1000)
+                        .replace('\n', ' ')
+                        .replace('\r', ' ')
+                        .trim();
         return text.length() > 240 ? text.substring(0, 240) + "..." : text;
     }
 

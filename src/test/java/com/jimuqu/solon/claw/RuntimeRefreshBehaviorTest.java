@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -364,6 +365,44 @@ public class RuntimeRefreshBehaviorTest {
                     .hasMessageContaining("Provider model list URL blocked")
                     .hasMessageContaining("169.254.169.254")
                     .hasMessageContaining("token=***");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactProviderModelListErrorBody() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"error\":\"api_key=sk-provider-model-secret token=ghp_providermodel12345\"}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(500, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            AppConfig config = new AppConfig();
+            DashboardProviderService providerService =
+                    new DashboardProviderService(
+                            config,
+                            null,
+                            new LlmProviderService(config),
+                            new AllowLocalButBlockMetadataSecurityPolicyService(config));
+            Map<String, Object> body = new LinkedHashMap<String, Object>();
+            body.put("baseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            body.put("dialect", "openai");
+
+            assertThatThrownBy(() -> providerService.listRemoteModels(body))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("获取模型列表失败：HTTP 500")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageContaining("token=***")
+                    .hasMessageNotContaining("sk-provider-model-secret")
+                    .hasMessageNotContaining("ghp_providermodel12345");
         } finally {
             server.stop(0);
         }
