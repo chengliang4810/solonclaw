@@ -286,6 +286,9 @@ public class SecurityPolicyService {
     private static final Pattern POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN =
             Pattern.compile(
                     "(?i)(?:\\$env:|Env:)(HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
+    private static final Pattern POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN =
+            Pattern.compile(
+                    "(?i)(?:\\$env:|Env:)(DOCKER_HOST|CONTAINER_HOST|PODMAN_HOST)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](DOCKER_HOST|CONTAINER_HOST|PODMAN_HOST)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
     private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
             Arrays.asList(
                     "access_token",
@@ -1057,6 +1060,10 @@ public class SecurityPolicyService {
     }
 
     private UrlVerdict checkCommandLocalManagementSockets(String command) {
+        UrlVerdict powershellEnvVerdict = checkPowerShellLocalManagementEnvironment(command);
+        if (!powershellEnvVerdict.allowed) {
+            return powershellEnvVerdict;
+        }
         List<String> tokens = shellLikeTokens(command, 200);
         for (int i = 0; i < tokens.size(); i++) {
             String token = cleanUrlToken(tokens.get(i));
@@ -1084,6 +1091,25 @@ public class SecurityPolicyService {
         return UrlVerdict.allow();
     }
 
+    private UrlVerdict checkPowerShellLocalManagementEnvironment(String command) {
+        Matcher matcher = POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN.matcher(StrUtil.nullToEmpty(command));
+        while (matcher.find()) {
+            String value = matcher.group(2);
+            if (StrUtil.isBlank(value)) {
+                value = matcher.group(4);
+            }
+            String path = localManagementSocketEnvironmentPath(value);
+            if (isLocalManagementSocket(path)) {
+                return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
+            }
+            String pipe = localManagementPipeToken(path);
+            if (StrUtil.isNotBlank(pipe)) {
+                return UrlVerdict.block(pipe, "阻断本地容器/运行时管理命名管道访问：" + pipe);
+            }
+        }
+        return UrlVerdict.allow();
+    }
+
     private String localManagementSocketEnvironmentValue(String token) {
         int assignment = StrUtil.nullToEmpty(token).indexOf('=');
         if (assignment <= 0 || assignment + 1 >= token.length()) {
@@ -1095,7 +1121,11 @@ public class SecurityPolicyService {
                 && !"PODMAN_HOST".equalsIgnoreCase(name)) {
             return "";
         }
-        String value = cleanUrlToken(token.substring(assignment + 1));
+        return localManagementSocketEnvironmentPath(token.substring(assignment + 1));
+    }
+
+    private String localManagementSocketEnvironmentPath(String rawValue) {
+        String value = cleanUrlToken(stripOptionalQuote(rawValue));
         if (value.regionMatches(true, 0, "unix://", 0, "unix://".length())) {
             return value.substring("unix://".length());
         }
