@@ -16,6 +16,7 @@ public final class TerminalShortcuts {
         }
         register(reader, "jimuqu-events", "/events", KeyMap.ctrl('G'));
         register(reader, "jimuqu-sessions", "/sessions", KeyMap.ctrl('S'));
+        register(reader, "jimuqu-tasks", "/tasks", KeyMap.ctrl('T'));
         register(reader, "jimuqu-copy", "/copy", KeyMap.ctrl('Y'));
     }
 
@@ -43,6 +44,6 @@ public final class TerminalShortcuts {
     }
 
     public static String helpLine() {
-        return "快捷键：Ctrl-G 事件，Ctrl-S 会话，Ctrl-Y 复制上一条回复";
+        return "快捷键：Ctrl-G 事件，Ctrl-S 会话，Ctrl-T 任务，Ctrl-Y 复制上一条回复";
     }
 }

@@ -17,10 +17,12 @@ public class TerminalShortcutsTest {
 
         TerminalShortcuts.install(reader);
 
-        assertThat(reader.getWidgets()).containsKeys("jimuqu-events", "jimuqu-sessions", "jimuqu-copy");
+        assertThat(reader.getWidgets())
+                .containsKeys("jimuqu-events", "jimuqu-sessions", "jimuqu-tasks", "jimuqu-copy");
         KeyMap<Binding> keyMap = reader.getKeyMaps().get(LineReader.MAIN);
         assertReference(keyMap.getBound(KeyMap.ctrl('G')), "jimuqu-events");
         assertReference(keyMap.getBound(KeyMap.ctrl('S')), "jimuqu-sessions");
+        assertReference(keyMap.getBound(KeyMap.ctrl('T')), "jimuqu-tasks");
         assertReference(keyMap.getBound(KeyMap.ctrl('Y')), "jimuqu-copy");
     }
 
@@ -29,6 +31,7 @@ public class TerminalShortcutsTest {
         assertThat(TerminalShortcuts.helpLine())
                 .contains("Ctrl-G")
                 .contains("Ctrl-S")
+                .contains("Ctrl-T")
                 .contains("Ctrl-Y");
     }
 
