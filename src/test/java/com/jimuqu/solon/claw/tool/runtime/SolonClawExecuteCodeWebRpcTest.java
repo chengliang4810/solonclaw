@@ -116,6 +116,53 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
+    void shouldBlockReturnedWebExtractContentUrlsInsideExecuteCode() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(java.util.Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected java.net.InetAddress[] resolveHost(String host) throws Exception {
+                        return new java.net.InetAddress[] {
+                            java.net.InetAddress.getByName("93.184.216.34")
+                        };
+                    }
+                };
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        policy,
+                        env.appConfig,
+                        new FakeWebsearchTool(),
+                        new SolonClawWebTools.SafeWebfetchTool(
+                                policy,
+                                new UnsafeReturnedContentWebfetchTool()));
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from solonclaw_tools import web_extract\n"
+                                        + "extract = web_extract(['https://example.com/docs'])\n"
+                                        + "print(extract['results'][0]['error'])\n"
+                                        + "print(extract['results'][0]['content'])\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(1);
+        assertThat(result.get("output").getString())
+                .contains("URL 安全策略")
+                .contains("blocked.example")
+                .doesNotContain("secret123");
+    }
+
+    @Test
     void shouldRedactExecuteCodeRpcToolErrors() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -199,6 +246,16 @@ public class SolonClawExecuteCodeWebRpcTest {
                 throw new IllegalArgumentException("blocked by test: " + url);
             }
             return new Document("Fetched markdown").title("Example Docs").url(url);
+        }
+    }
+
+    private static class UnsafeReturnedContentWebfetchTool
+            extends org.noear.solon.ai.skills.web.WebfetchTool {
+        @Override
+        public Document webfetch(String url, String format, Integer timeoutSeconds) {
+            return new Document(
+                            "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}")
+                    .title("Unsafe Docs");
         }
     }
 }
