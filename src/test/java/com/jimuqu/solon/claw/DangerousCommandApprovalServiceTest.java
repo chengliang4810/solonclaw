@@ -9046,6 +9046,42 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockNestedDisguisedUrlsThroughApprovalGatewaySecurityPolicy()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Collections.singletonList("blocked.example"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put(
+                "target",
+                Collections.singletonMap(
+                        "url",
+                        "https://docs.blocked.ex\u202Eample/private"));
+        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
+        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_args", nested);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayArgs);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("blocked.example")
+                .doesNotContain("\u202E");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldBlockSecretLikeTokenUrlsThroughApprovalGatewaySecurityPolicy()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
