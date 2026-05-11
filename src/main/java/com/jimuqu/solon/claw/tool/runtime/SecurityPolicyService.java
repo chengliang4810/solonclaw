@@ -775,6 +775,7 @@ public class SecurityPolicyService {
         summary.put("preproxyOptionUrlChecked", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
+        summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("packageManagerPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("unsupportedNetworkSchemeChecked", Boolean.TRUE);

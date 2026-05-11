@@ -1383,6 +1383,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "dnsResolutionRequired");
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "proxyBypassEnvironmentChecked");
+            copyPolicyValue(summary, safe, "gitPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "packageManagerProxyBypassEnvironmentChecked");
             copyPolicyValue(summary, safe, "packageManagerPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "userinfoBlocked");
@@ -1530,6 +1531,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "preproxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "proxyBypassEnvironmentChecked");
+            copyPolicyValue(summary, safe, "gitPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "packageManagerProxyBypassEnvironmentChecked");
             copyPolicyValue(summary, safe, "packageManagerPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "unsupportedNetworkSchemeChecked");
