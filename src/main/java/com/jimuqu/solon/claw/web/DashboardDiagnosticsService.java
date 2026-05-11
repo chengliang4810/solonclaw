@@ -430,6 +430,12 @@ public class DashboardDiagnosticsService {
                         approvalService == null
                                 ? 0
                                 : approvalService.listAlwaysApprovals().size()));
+        approvals.put("approval_policy", safeApprovalPolicySummary());
+        approvals.put("hardline_policy", safeHardlinePolicySummary());
+        approvals.put("cron_approval_policy", safeCronApprovalPolicySummary());
+        approvals.put("subagent_approval_policy", safeSubagentApprovalPolicySummary());
+        approvals.put("smart_approval_policy", safeSmartApprovalPolicySummary());
+        approvals.put("tirith_approval_policy", safeTirithApprovalPolicySummary());
         approvals.put("approval_lifecycle_policy", safeApprovalLifecyclePolicySummary());
         approvals.put("slash_confirm_policy", safeSlashConfirmPolicySummary());
         approvals.put("approval_card_policy", safeApprovalCardPolicySummary());
@@ -498,6 +504,9 @@ public class DashboardDiagnosticsService {
                 "background_process_policy",
                 safeBackgroundProcessPolicySummary());
         terminal.put(
+                "terminal_guardrail_policy",
+                safeTerminalGuardrailPolicySummary());
+        terminal.put(
                 "max_foreground_timeout_seconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
         terminal.put(
@@ -509,6 +518,175 @@ public class DashboardDiagnosticsService {
         map.put("terminal", terminal);
         map.put("audit_policy", securityAuditPolicy());
         return map;
+    }
+
+    private Map<String, Object> safeApprovalPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.approvalPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "mode");
+            copyPolicyValue(summary, safe, "cronMode");
+            copyPolicyValue(summary, safe, "subagentAutoApprove");
+            copyPolicyValue(summary, safe, "smartJudgeConfigured");
+            copyPolicyValue(summary, safe, "dangerousRuleCount");
+            copyPolicyValue(summary, safe, "hardlineRuleCount");
+            copyPolicyValue(summary, safe, "dangerousRuleSamples");
+            copyPolicyValue(summary, safe, "domesticCloudRuleSamples");
+            copyPolicyValue(summary, safe, "cloudStorageRuleSamples");
+            copyPolicyValue(summary, safe, "credentialHandlingRuleSamples");
+            copyPolicyValue(summary, safe, "hardlineRuleSamples");
+            copyPolicyValue(summary, safe, "terminalGuardrailCount");
+            copyPolicyValue(summary, safe, "terminalGuardrails");
+            copyPolicyValue(summary, safe, "sudoRewriteConfigured");
+            copyPolicyValue(summary, safe, "backgroundProcessGuard");
+            copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
+            copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
+            copyPolicyValue(summary, safe, "alwaysApprovalCount");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeHardlinePolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.hardlinePolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "ruleCount");
+            copyPolicyValue(summary, safe, "ruleSamples");
+            copyPolicyValue(summary, safe, "coveredTools");
+            copyPolicyValue(summary, safe, "blockedCategories");
+            copyPolicyValue(summary, safe, "metadataUrlBlocked");
+            copyPolicyValue(summary, safe, "codeToolShellExtractionCovered");
+            copyPolicyValue(summary, safe, "pythonShellExtractionCovered");
+            copyPolicyValue(summary, safe, "javascriptChildProcessExtractionCovered");
+            copyPolicyValue(summary, safe, "approvalBypassAllowed");
+            copyPolicyValue(summary, safe, "slashApproveBypassAllowed");
+            copyPolicyValue(summary, safe, "sessionApprovalBypassAllowed");
+            copyPolicyValue(summary, safe, "alwaysApprovalBypassAllowed");
+            copyPolicyValue(summary, safe, "yoloBypassAllowed");
+            copyPolicyValue(summary, safe, "smartApprovalBypassAllowed");
+            copyPolicyValue(summary, safe, "blockingDecision");
+            copyPolicyValue(summary, safe, "approvalRequired");
+            copyPolicyValue(summary, safe, "commandPreviewRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeCronApprovalPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.cronApprovalPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "mode");
+            copyPolicyValue(summary, safe, "autoApproveDangerousCommands");
+            copyPolicyValue(summary, safe, "defaultDecision");
+            copyPolicyValue(summary, safe, "configKeys");
+            copyPolicyValue(summary, safe, "approveAliases");
+            copyPolicyValue(summary, safe, "denyAliases");
+            copyPolicyValue(summary, safe, "runsWithoutHumanApproval");
+            copyPolicyValue(summary, safe, "hardlineAlwaysBlocked");
+            copyPolicyValue(summary, safe, "dangerousPatternCheckedBeforeRun");
+            copyPolicyValue(summary, safe, "requiresExplicitApproveMode");
+            copyPolicyValue(summary, safe, "scriptContentChecked");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeSubagentApprovalPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.subagentApprovalPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "autoApproveDangerousCommands");
+            copyPolicyValue(summary, safe, "defaultDecision");
+            copyPolicyValue(summary, safe, "configKey");
+            copyPolicyValue(summary, safe, "runKind");
+            copyPolicyValue(summary, safe, "hardlinePrechecked");
+            copyPolicyValue(summary, safe, "filePolicyPrechecked");
+            copyPolicyValue(summary, safe, "urlPolicyPrechecked");
+            copyPolicyValue(summary, safe, "terminalGuardrailPrechecked");
+            copyPolicyValue(summary, safe, "smartApprovalRunsBeforeSubagentPolicy");
+            copyPolicyValue(summary, safe, "humanApprovalPromptSuppressed");
+            copyPolicyValue(summary, safe, "currentThreadApprovalWhenAutoApproved");
+            copyPolicyValue(summary, safe, "pendingApprovalCreatedWhenDenied");
+            copyPolicyValue(summary, safe, "denyMessageIncludesConfigHint");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeSmartApprovalPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.smartApprovalPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "mode");
+            copyPolicyValue(summary, safe, "smartMode");
+            copyPolicyValue(summary, safe, "judgeConfigured");
+            copyPolicyValue(summary, safe, "active");
+            copyPolicyValue(summary, safe, "decisionTypes");
+            copyPolicyValue(summary, safe, "approveWritesSessionApproval");
+            copyPolicyValue(summary, safe, "approveMarksCurrentThread");
+            copyPolicyValue(summary, safe, "escalateFallsBackToHumanApproval");
+            copyPolicyValue(summary, safe, "denyBlocksExecution");
+            copyPolicyValue(summary, safe, "judgeFailureFallsBackToHumanApproval");
+            copyPolicyValue(summary, safe, "hardlinePrechecked");
+            copyPolicyValue(summary, safe, "filePolicyPrechecked");
+            copyPolicyValue(summary, safe, "urlPolicyPrechecked");
+            copyPolicyValue(summary, safe, "terminalGuardrailPrechecked");
+            copyPolicyValue(summary, safe, "tirithFindingsIncluded");
+            copyPolicyValue(summary, safe, "subagentPolicyRunsAfterSmartApproval");
+            copyPolicyValue(summary, safe, "approvalCardFallback");
+            copyPolicyValue(summary, safe, "reasonStoredInBlockMessage");
+            copyPolicyValue(summary, safe, "commandPreviewRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeTirithApprovalPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.tirithApprovalPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "scannerConfigured");
+            copyPolicyValue(summary, safe, "scanRunsInApprovalMode");
+            copyPolicyValue(summary, safe, "patternKeyPrefix");
+            copyPolicyValue(summary, safe, "emptyFindingsPatternKey");
+            copyPolicyValue(summary, safe, "findingsBecomePatternKeys");
+            copyPolicyValue(summary, safe, "combinedWithLocalDangerRules");
+            copyPolicyValue(summary, safe, "permanentApprovalAllowed");
+            copyPolicyValue(summary, safe, "alwaysScopeDowngradedToSession");
+            copyPolicyValue(summary, safe, "approvalCardAlwaysHidden");
+            copyPolicyValue(summary, safe, "smartApprovalCanApproveSessionOnly");
+            copyPolicyValue(summary, safe, "smartApprovalCanDeny");
+            copyPolicyValue(summary, safe, "pendingMessageBlocksAlwaysScope");
+            copyPolicyValue(summary, safe, "descriptionRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
     }
 
     private Map<String, Object> safeApprovalLifecyclePolicySummary() {
@@ -1093,6 +1271,41 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "waitTimeoutClamped");
             copyPolicyValue(summary, safe, "processWaitTimeoutSeconds");
             copyPolicyValue(summary, safe, "managedBackgroundRequiredForLongRunningCommands");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeTerminalGuardrailPolicySummary() {
+        if (approvalService == null) {
+            return unavailablePolicy("approval service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = approvalService.terminalGuardrailPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "backgroundShellWrappersBlocked");
+            copyPolicyValue(summary, safe, "detachedSessionLaunchersBlocked");
+            copyPolicyValue(summary, safe, "powershellBackgroundCommandsBlocked");
+            copyPolicyValue(summary, safe, "inlineAmpersandBlocked");
+            copyPolicyValue(summary, safe, "trailingAmpersandBlocked");
+            copyPolicyValue(summary, safe, "longLivedForegroundBlocked");
+            copyPolicyValue(summary, safe, "longLivedForegroundPatternCount");
+            copyPolicyValue(summary, safe, "longLivedForegroundSamples");
+            copyPolicyValue(summary, safe, "appliesToTools");
+            copyPolicyValue(summary, safe, "commandPathPrechecked");
+            copyPolicyValue(summary, safe, "credentialPathPrechecked");
+            copyPolicyValue(summary, safe, "downloadOutputPathPrechecked");
+            copyPolicyValue(summary, safe, "downloadOutputDetachedOptionPrechecked");
+            copyPolicyValue(summary, safe, "proxyUrlPrechecked");
+            copyPolicyValue(summary, safe, "preproxyUrlPrechecked");
+            copyPolicyValue(summary, safe, "managedBackgroundProcessRequired");
+            copyPolicyValue(summary, safe, "processRegistryBacked");
+            copyPolicyValue(summary, safe, "sudoRewriteConfigured");
+            copyPolicyValue(summary, safe, "sudoPasswordRedacted");
+            copyPolicyValue(summary, safe, "foregroundMaxTimeoutSeconds");
+            copyPolicyValue(summary, safe, "foregroundMaxRetries");
+            copyPolicyValue(summary, safe, "foregroundRetryBaseDelaySeconds");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);

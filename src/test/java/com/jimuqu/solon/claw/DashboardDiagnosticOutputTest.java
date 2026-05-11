@@ -105,6 +105,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("credentialMountPolicy");
         assertThat(diagnosticsJson).contains("mcpRuntimePolicy");
         assertThat(diagnosticsJson).contains("readOnlyAuditTool");
+        assertThat(diagnosticsJson).contains("approval_policy");
+        assertThat(diagnosticsJson).contains("hardline_policy");
+        assertThat(diagnosticsJson).contains("cron_approval_policy");
+        assertThat(diagnosticsJson).contains("subagent_approval_policy");
+        assertThat(diagnosticsJson).contains("smart_approval_policy");
+        assertThat(diagnosticsJson).contains("tirith_approval_policy");
+        assertThat(diagnosticsJson).contains("terminal_guardrail_policy");
+        assertThat(diagnosticsJson).contains("approval service is unavailable");
         assertThat(diagnosticsJson).doesNotContain(runtimeHome.getAbsolutePath());
         assertThat(diagnosticsJson).doesNotContain(externalState.getParentFile().getAbsolutePath());
         assertThat(diagnosticsJson).doesNotContain("ghp_diagnosticexternal123");
