@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import java.io.File;
@@ -122,6 +123,52 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).doesNotContain("sk-test-providersecret");
         assertThat(diagnosticsJson).doesNotContain("ghp_doctorerror123");
         assertThat(diagnosticsJson).doesNotContain("doctor-password");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeToolResultStoragePolicyThroughDashboardSecurityAudit() throws Exception {
+        AppConfig config = new AppConfig();
+        ToolResultStorageService toolResultStorageService =
+                new ToolResultStorageService(
+                        new File("target/dashboard-security-audit-results").getAbsolutePath(),
+                        512,
+                        768,
+                        300);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        toolResultStorageService);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("action", "policy");
+
+        Map<String, Object> result = diagnosticsService.securityAudit(body);
+
+        Map<String, Object> policy = (Map<String, Object>) result.get("policy");
+        Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        assertThat(coverage.get("toolResultStorage")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> storagePolicy =
+                (Map<String, Object>) coverage.get("toolResultStoragePolicy");
+        assertThat(storagePolicy.get("enabled")).isEqualTo(Boolean.TRUE);
+        assertThat(storagePolicy.get("inlineLimitBytes")).isEqualTo(Integer.valueOf(512));
+        assertThat(storagePolicy.get("turnBudgetBytes")).isEqualTo(Integer.valueOf(768));
+        assertThat(storagePolicy.get("previewLength")).isEqualTo(Integer.valueOf(300));
+        assertThat(String.valueOf(storagePolicy))
+                .contains("resultRefReturned")
+                .contains("previewRedacted")
+                .doesNotContain("dashboard-security-audit-results");
+        assertThat(policy.get("activeSurfaces").toString()).contains("toolResultStorage");
     }
 
     @Test

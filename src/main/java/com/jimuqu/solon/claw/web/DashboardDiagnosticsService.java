@@ -134,7 +134,11 @@ public class DashboardDiagnosticsService {
         Map<String, Object> input = body == null ? Collections.<String, Object>emptyMap() : body;
         SecurityAuditTools tools =
                 new SecurityAuditTools(
-                        securityPolicyService, approvalService, tirithSecurityService, appConfig);
+                        securityPolicyService,
+                        approvalService,
+                        tirithSecurityService,
+                        toolResultStorageService,
+                        appConfig);
         String result =
                 tools.audit(
                         text(input, "action"),
