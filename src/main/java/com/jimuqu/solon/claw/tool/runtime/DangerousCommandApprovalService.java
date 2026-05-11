@@ -487,7 +487,7 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:gcloud\\s+auth\\s+(?:application-default\\s+)?print-(?:access|identity)-token|az\\s+(?:account\\s+get-access-token|acr\\s+login\\b(?=[^\\n]*--expose-token\\b))|gh\\s+auth\\s+token|aws\\s+(?:ecr\\s+get-login-password|codeartifact\\s+get-authorization-token|sts\\s+(?:get-session-token|get-federation-token|assume-role(?:-with-(?:web-identity|saml))?)|sso\\s+get-role-credentials|configure\\s+export-credentials)|kubectl"
                                                     + KUBECTL_OPTION_PREFIX
-                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b|aliyun\\s+configure\\s+(?:get|export)\\b|(?:tccli|qcloud)\\s+configure\\s+list\\b|huaweicloud\\s+configure\\s+show\\b)"),
+                                                    + "\\s+create\\s+token\\b|vault\\s+token\\s+lookup\\b|doctl\\s+auth\\s+list\\b|flyctl\\s+auth\\s+token\\b|heroku\\s+auth:token\\b|aliyun\\s+configure\\s+(?:get|export)\\b|(?:tccli|qcloud)\\s+configure\\s+list\\b|huaweicloud\\s+configure\\s+show\\b|ossutil\\s+config\\s+(?:get|show)\\b(?=[^\\n]*(?:accessKeySecret|stsToken|secret|token)\\b)|coscli\\s+config\\s+show\\b(?=[^\\n]*(?:--secret|secret|token)\\b)|obsutil\\s+config\\s+(?:get|show)\\b(?=[^\\n]*(?:secret_key|security_token|sk|token)\\b))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kubernetes_credential_config_read",

@@ -2181,7 +2181,12 @@ public class DangerousCommandApprovalServiceTest {
                         "aliyun configure export",
                         "tccli configure list",
                         "qcloud configure list",
-                        "huaweicloud configure show");
+                        "huaweicloud configure show",
+                        "ossutil config get accessKeySecret",
+                        "ossutil config show secret",
+                        "coscli config show --secret",
+                        "obsutil config get secret_key",
+                        "obsutil config show security_token");
         for (String command : cliTokenReads) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -2232,7 +2237,10 @@ public class DangerousCommandApprovalServiceTest {
                         "heroku auth:whoami",
                         "aliyun configure list",
                         "tccli configure get region",
-                        "huaweicloud configure list");
+                        "huaweicloud configure list",
+                        "ossutil config get endpoint",
+                        "coscli config show",
+                        "obsutil ls obs://bucket");
         for (String command : cliTokenSafeCommands) {
             assertThat(env.dangerousCommandApprovalService.detect("execute_shell", command))
                     .as(command)
