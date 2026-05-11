@@ -51,6 +51,7 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -1132,7 +1133,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
             if (response.getStatus() >= 400) {
                 throw new IllegalStateException(
-                        "DingTalk upload bytes failed: HTTP " + response.getStatus());
+                        HutoolHttpErrorFormatter.failure("DingTalk upload bytes", response));
             }
         } finally {
             response.close();
@@ -1205,7 +1206,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             + SecretRedactor.maskUrl(response.header("Location")));
         }
         if (status >= 400) {
-            throw new IllegalStateException(purpose + " failed: HTTP " + status);
+            throw new IllegalStateException(HutoolHttpErrorFormatter.failure(purpose, response));
         }
         return response.body();
     }
