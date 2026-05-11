@@ -1245,7 +1245,7 @@ public class DashboardDiagnosticsService {
             boolean sudoPasswordConfigured =
                     appConfig != null
                             && appConfig.getTerminal() != null
-                            && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
+                            && appConfig.getTerminal().getSudoPassword() != null;
             Map<String, Object> summary =
                     SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured);
             Map<String, Object> safe = new LinkedHashMap<String, Object>();

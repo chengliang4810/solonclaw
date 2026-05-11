@@ -226,6 +226,42 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldMatchSudoRewriteDiagnosticsForExplicitEmptyPassword() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setSudoPassword("");
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("action", "policy");
+
+        Map<String, Object> result = diagnosticsService.securityAudit(body);
+
+        Map<String, Object> policy = (Map<String, Object>) result.get("policy");
+        Map<String, Object> terminal = (Map<String, Object>) policy.get("terminal");
+        Map<String, Object> sudoPolicy =
+                (Map<String, Object>) terminal.get("sudoRewritePolicy");
+        assertThat(terminal.get("sudoPasswordConfigured")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoPolicy.get("configured")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoPolicy.get("stdinPasswordInjection")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoPolicy.get("passwordRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(ONode.serialize(result)).doesNotContain("sudoPassword\":\"\"");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldExposeApprovalRuleSourcesAndPermanentDisableReason() throws Exception {
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService approvalService =
