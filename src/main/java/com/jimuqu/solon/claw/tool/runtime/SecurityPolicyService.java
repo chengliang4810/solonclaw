@@ -3137,6 +3137,7 @@ public class SecurityPolicyService {
     private String normalizeUrlText(String raw) {
         String value = StrUtil.nullToEmpty(raw).replace("\u0000", "");
         value = TerminalAnsiSanitizer.stripAnsi(value);
+        value = SecretRedactor.stripDisplayControls(value);
         value = Normalizer.normalize(value, Normalizer.Form.NFKC);
         value = HtmlUtil.unescape(value);
         return value.trim();

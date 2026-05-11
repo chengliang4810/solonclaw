@@ -5856,6 +5856,8 @@ public class DangerousCommandApprovalServiceTest {
 
         SecurityPolicyService.UrlVerdict direct =
                 securityPolicyService.checkUrl("https://docs.blocked.example/page?token=secret");
+        SecurityPolicyService.UrlVerdict bidiDirect =
+                securityPolicyService.checkUrl("https://docs.blocked.ex\u202Eample/page?token=secret");
         SecurityPolicyService.UrlVerdict directSchemeless =
                 securityPolicyService.checkUrl("www.blocked.example/docs");
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -5873,6 +5875,8 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(direct.isAllowed()).isFalse();
         assertThat(direct.getMessage()).contains("blocked.example");
+        assertThat(bidiDirect.isAllowed()).isFalse();
+        assertThat(bidiDirect.getMessage()).contains("blocked.example").doesNotContain("\u202E");
         assertThat(directSchemeless.isAllowed()).isFalse();
         assertThat(directSchemeless.getMessage()).contains("blocked.example");
         assertThat(query.isAllowed()).isFalse();
