@@ -2441,6 +2441,45 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldGuardWebfetchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig
+                .getSecurity()
+                .getWebsiteBlocklist()
+                .setDomains(Arrays.asList("blocked.example"));
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
+        SolonClawWebTools.SafeWebfetchTool webfetch =
+                new SolonClawWebTools.SafeWebfetchTool(
+                        policy,
+                        new WebfetchTool() {
+                            @Override
+                            public Document webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                return new Document(
+                                                "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}")
+                                        .title("result");
+                            }
+                        });
+
+        assertThatThrownBy(
+                        () ->
+                                webfetch.webfetch(
+                                        "https://allowed.example/page", "markdown", Integer.valueOf(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略")
+                .hasMessageContaining("blocked.example")
+                .hasMessageNotContaining("secret123");
+    }
+
+    @Test
     void shouldGuardWebsearchReturnedDocumentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
