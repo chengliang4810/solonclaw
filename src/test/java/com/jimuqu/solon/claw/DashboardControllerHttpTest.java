@@ -2987,6 +2987,19 @@ public class DashboardControllerHttpTest {
     void shouldWrapProviderMutationErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
+        HttpResult invalidCreate =
+                request(
+                        "POST",
+                        "/api/providers",
+                        "{\"providerKey\":\"bad-provider\",\"apiKey\":\"ghp_invalidprovider12345\"",
+                        token);
+        assertThat(invalidCreate.status).isEqualTo(400);
+        assertThat(invalidCreate.body)
+                .contains("PROVIDER_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidprovider12345")
+                .doesNotContain("bad-provider");
+
         HttpResult invalidDefault =
                 request(
                         "PUT",
@@ -3010,6 +3023,19 @@ public class DashboardControllerHttpTest {
                 .contains("PROVIDER_BAD_REQUEST")
                 .contains("token=***")
                 .doesNotContain("fallback-token-secret");
+
+        HttpResult invalidFallbackJson =
+                request(
+                        "PUT",
+                        "/api/model/fallbacks",
+                        "{\"fallbackProviders\":[{\"provider\":\"bad-fallback\",\"token\":\"ghp_invalidfallback12345\"}",
+                        token);
+        assertThat(invalidFallbackJson.status).isEqualTo(400);
+        assertThat(invalidFallbackJson.body)
+                .contains("PROVIDER_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidfallback12345")
+                .doesNotContain("bad-fallback");
 
         HttpResult deleteDefault = request("DELETE", "/api/providers/default", null, token);
         assertThat(deleteDefault.status).isEqualTo(400);
