@@ -945,8 +945,54 @@ public class AcpStdioServerTest {
         assertThat(responded)
                 .contains("\"id\":128")
                 .contains("\"ok\":false")
-                .contains("api%255Fkey=***")
+                .contains("\"id\":\"__invalid_selector__\"")
+                .doesNotContain("url_policy")
                 .doesNotContain("acp-response-secret");
+    }
+
+    @Test
+    void shouldRejectUnsafeAcpPermissionSelectorsBeforeSlashApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
+
+        String sessionId = extractSessionId(newAcpSession(server, 129));
+        SessionRecord session = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+
+        String responded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":130,\"method\":\"permissions/respond\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"id\":\"approval-123;always\",\"outcome\":\"allow_always\"}}");
+
+        SessionRecord updated = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+        assertThat(responded)
+                .contains("\"id\":130")
+                .contains("\"ok\":false")
+                .contains("\"id\":\"__invalid_selector__\"")
+                .contains("当前没有待审批的危险命令")
+                .doesNotContain("approval-123;always");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNotNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                updatedAgentSession, "recursive_delete"))
+                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("recursive_delete"))
+                .isFalse();
     }
 
     @Test

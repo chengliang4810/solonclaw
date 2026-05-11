@@ -753,12 +753,16 @@ public class AcpStdioServer {
         String command = approvalCommand(selector, outcome);
         GatewayReply reply = cliRuntime.send(state.getSessionId(), command, ConversationEventSink.noop());
         sessionManager.refresh(state);
+        String safeSelector = DangerousCommandApprovalService.safeApprovalSelectorToken(selector);
+        if (safeSelector == null) {
+            safeSelector = "__invalid_selector__";
+        }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", reply != null && !reply.isError());
         result.put("session_id", state.getSessionId());
         result.put("sessionId", state.getSessionId());
-        result.put("id", safeAcpText(selector));
+        result.put("id", safeAcpText(safeSelector));
         result.put("outcome", normalizedPermissionOutcome(outcome));
         result.put("message", safeAcpText(reply == null ? "" : StrUtil.nullToEmpty(reply.getContent())));
         result.put("content", contentBlocks(reply == null ? "" : reply.getContent()));
@@ -873,7 +877,10 @@ public class AcpStdioServer {
     private String approvalCommand(String selector, String outcome) {
         String normalized = normalizedPermissionOutcome(outcome);
         String target =
-                SecretRedactor.stripDisplayControls(StrUtil.blankToDefault(selector, "")).trim();
+                DangerousCommandApprovalService.safeApprovalSelectorToken(selector);
+        if (target == null) {
+            return "deny".equals(normalized) ? "/deny __invalid_selector__" : "/approve __invalid_selector__";
+        }
         if ("deny".equals(normalized)) {
             return StrUtil.isBlank(target) ? "/deny" : "/deny " + target;
         }
