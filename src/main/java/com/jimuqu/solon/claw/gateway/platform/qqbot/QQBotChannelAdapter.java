@@ -386,7 +386,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             if (!response.isSuccessful()) {
                 throw new IllegalStateException("QQBot token HTTP " + response.code());
             }
-            ONode node = ONode.ofJson(response.body() == null ? "{}" : response.body().string());
+            String raw = safeBody(response);
+            ONode node = ONode.ofJson(StrUtil.isBlank(raw) ? "{}" : raw);
             accessToken =
                     firstNonBlank(
                             node.get("access_token").getString(),
@@ -482,7 +483,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private String safeBody(Response response) throws Exception {
-        return response.body() == null ? "" : response.body().string();
+        if (response.body() == null) {
+            return "";
+        }
+        return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
     private String safeHttpErrorBody(String raw) {

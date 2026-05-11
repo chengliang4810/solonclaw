@@ -280,6 +280,10 @@ public final class BoundedAttachmentIO {
         return readLimited(body.byteStream(), maxBytes);
     }
 
+    public static String readOkHttpText(Response response, long maxBytes) throws Exception {
+        return new String(readOkHttpResponse(response, maxBytes), StandardCharsets.UTF_8);
+    }
+
     public static byte[] downloadOkHttp(
             OkHttpClient client,
             String url,

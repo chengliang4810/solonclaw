@@ -594,6 +594,100 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldBoundDingTalkHttpSuccessResponseBodies() throws Exception {
+        DingTalkChannelAdapter adapter =
+                new DingTalkChannelAdapter(
+                        new AppConfig().getChannels().getDingtalk(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(new AppConfig()));
+        StringBuilder body = new StringBuilder("token=ghp_dingtalklargebody12345 ");
+        for (int i = 0; i < BoundedAttachmentIO.JSON_MAX_BYTES + 32; i++) {
+            body.append('x');
+        }
+        HttpServer server = successServer(body.toString());
+        try {
+            HttpResponse response =
+                    HttpRequest.get(localUrl(server))
+                            .timeout(1000)
+                            .setFollowRedirects(false)
+                            .execute();
+            try {
+                Method guarded =
+                        DingTalkChannelAdapter.class.getDeclaredMethod(
+                                "guardedResponseBody", HttpResponse.class, String.class);
+                guarded.setAccessible(true);
+
+                assertThatThrownBy(() -> invoke(guarded, adapter, response, "DingTalk API"))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("Download exceeds max size")
+                        .hasMessageNotContaining("ghp_dingtalklargebody12345")
+                        .hasMessageNotContaining("token=");
+            } finally {
+                response.close();
+            }
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldBoundYuanbaoHttpSuccessResponseBodies() throws Exception {
+        HttpServer server = successServer(largeJsonBody("ghp_yuanbaolargebody12345"));
+        try {
+            AppConfig config = new AppConfig();
+            config.getSecurity().setAllowPrivateUrls(true);
+            config.getChannels().getYuanbao().setAppId("yb_real");
+            config.getChannels().getYuanbao().setAppSecret("real_secret");
+            config.getChannels().getYuanbao().setApiDomain(localUrl(server));
+            YuanbaoChannelAdapter adapter =
+                    new YuanbaoChannelAdapter(
+                            config.getChannels().getYuanbao(), new SecurityPolicyService(config));
+            Method postJson =
+                    YuanbaoChannelAdapter.class.getDeclaredMethod(
+                            "postJson", String.class, String.class);
+            postJson.setAccessible(true);
+
+            assertThatThrownBy(() -> invoke(postJson, adapter, "/openapi/bot/messages", "{}"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Download exceeds max size")
+                    .hasMessageNotContaining("ghp_yuanbaolargebody12345")
+                    .hasMessageNotContaining("token=");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldBoundQqbotHttpSuccessResponseBodies() throws Exception {
+        HttpServer server = successServer(largeJsonBody("ghp_qqbotlargebody12345"));
+        try {
+            AppConfig config = new AppConfig();
+            config.getSecurity().setAllowPrivateUrls(true);
+            config.getChannels().getQqbot().setApiDomain(localUrl(server));
+            QQBotChannelAdapter adapter =
+                    new QQBotChannelAdapter(
+                            config.getChannels().getQqbot(),
+                            new AttachmentCacheService(config),
+                            new SecurityPolicyService(config));
+            setField(adapter, "accessToken", "cached-token");
+            setField(
+                    adapter,
+                    "accessTokenExpireAt",
+                    Long.valueOf(System.currentTimeMillis() + 120000L));
+            Method getJson = QQBotChannelAdapter.class.getDeclaredMethod("getJson", String.class);
+            getJson.setAccessible(true);
+
+            assertThatThrownBy(() -> invoke(getJson, adapter, "/gateway"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Download exceeds max size")
+                    .hasMessageNotContaining("ghp_qqbotlargebody12345")
+                    .hasMessageNotContaining("token=");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldRejectJimuquStyleWeakCredentialAliasesCaseInsensitively() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);
@@ -954,6 +1048,14 @@ public class DomesticChannelEnhancementTest {
                 });
         server.start();
         return server;
+    }
+
+    private String largeJsonBody(String secret) {
+        StringBuilder body = new StringBuilder("{\"token\":\"").append(secret).append("\",\"pad\":\"");
+        for (int i = 0; i < BoundedAttachmentIO.JSON_MAX_BYTES + 32; i++) {
+            body.append('x');
+        }
+        return body.append("\"}").toString();
     }
 
     private String localUrl(HttpServer server) {

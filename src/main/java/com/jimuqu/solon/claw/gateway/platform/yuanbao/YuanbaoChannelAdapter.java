@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -216,7 +217,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .build();
         Response response = client.newCall(request).execute();
         try {
-            String raw = response.body() == null ? "" : response.body().string();
+            String raw = safeBody(response);
             if (!response.isSuccessful()) {
                 throw new IllegalStateException(
                         "Yuanbao HTTP "
@@ -228,6 +229,13 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         } finally {
             response.close();
         }
+    }
+
+    private String safeBody(Response response) throws Exception {
+        if (response.body() == null) {
+            return "";
+        }
+        return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
     private String apiDomain() {
