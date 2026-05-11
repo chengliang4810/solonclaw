@@ -4161,6 +4161,9 @@ public class DangerousCommandApprovalServiceTest {
                         "Set-Clipboard $env:OPENAI_API_KEY",
                         "Set-Clipboard -Value ${env:OPENAI_API_KEY}",
                         "Set-Clipboard -InputObject $env:OPENAI_API_KEY",
+                        "$env:OPENAI_API_KEY | Set-Clipboard",
+                        "${env:JIMUQU_ACCESS_TOKEN} | scb",
+                        "[Environment]::GetEnvironmentVariable('ANTHROPIC_API_KEY') | Set-Clipboard",
                         "scb %JIMUQU_ACCESS_TOKEN%");
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -4176,6 +4179,8 @@ public class DangerousCommandApprovalServiceTest {
                         "type credentials.json | clip",
                         "Get-Content token.json | Set-Clipboard",
                         "gc service-account.json | scb",
+                        "(Get-Content .env) | Set-Clipboard",
+                        "(gc ~/.npmrc) | scb",
                         "Set-Clipboard -Path .env.local",
                         "Set-Clipboard -LiteralPath ~/.npmrc");
         for (String command : credentialFileCommands) {

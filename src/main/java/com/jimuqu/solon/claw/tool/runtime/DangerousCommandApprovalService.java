@@ -416,7 +416,9 @@ public class DangerousCommandApprovalService {
                                                     + SENSITIVE_ENV_NAME
                                                     + "%?|\\b(?:Set-Clipboard|scb)\\b[^\\n]*\\$\\{env:"
                                                     + SENSITIVE_ENV_NAME
-                                                    + "\\})"),
+                                                    + "\\}|(?:\\$env:|\\$\\{env:|\\[Environment\\]::GetEnvironmentVariable\\(\\s*['\"]?)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "(?:['\"]?\\)|\\})?[^\\n|;&]*\\|\\s*(?:Set-Clipboard|scb)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_file_clipboard_export",
@@ -426,7 +428,9 @@ public class DangerousCommandApprovalService {
                                                     + CREDENTIAL_PERMISSION_TARGET
                                                     + "[^\\n|;&]*\\|\\s*(?:pbcopy|clip(?:\\.exe)?|xclip|xsel|wl-copy|Set-Clipboard|scb)\\b|\\b(?:Set-Clipboard|scb)\\b[^\\n]*(?:-(?:Path|LiteralPath)\\b\\s*(?::|=|\\s+)\\s*)"
                                                     + CREDENTIAL_PERMISSION_TARGET
-                                                    + ")"),
+                                                    + "|\\(\\s*(?:Get-Content|gc)\\b[^\\n|;&)]*"
+                                                    + CREDENTIAL_PERMISSION_TARGET
+                                                    + "[^\\n|;&)]*\\)\\s*\\|\\s*(?:Set-Clipboard|scb)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "sensitive_environment_inline_assignment",
