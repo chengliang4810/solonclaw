@@ -1340,6 +1340,10 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "networkUploadSourcePathPrechecked");
             copyPolicyValue(summary, safe, "proxyUrlPrechecked");
             copyPolicyValue(summary, safe, "preproxyUrlPrechecked");
+            copyPolicyValue(summary, safe, "systemDnsCommandPrechecked");
+            copyPolicyValue(summary, safe, "systemProxyCommandPrechecked");
+            copyPolicyValue(summary, safe, "windowsRegistryProxyCommandPrechecked");
+            copyPolicyValue(summary, safe, "hostsAndResolverPathPrechecked");
             copyPolicyValue(summary, safe, "managedBackgroundProcessRequired");
             copyPolicyValue(summary, safe, "processRegistryBacked");
             copyPolicyValue(summary, safe, "sudoRewriteConfigured");

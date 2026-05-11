@@ -397,6 +397,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("networkUploadSourcePathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("preproxyUrlPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("systemDnsCommandPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("systemProxyCommandPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("windowsRegistryProxyCommandPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("hostsAndResolverPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("managedBackgroundProcessRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("processRegistryBacked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sudoRewriteConfigured")).isEqualTo(Boolean.TRUE);

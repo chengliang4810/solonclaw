@@ -145,7 +145,9 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-guardrails"))
                 .contains("终端护栏策略摘要")
                 .contains("managedRequired")
-                .contains("credentialPath");
+                .contains("credentialPath")
+                .contains("systemDns")
+                .contains("systemProxy");
         assertThat(TerminalSecurityPolicyView.render(null, "/security tirith"))
                 .contains("Tirith 安全策略摘要")
                 .contains("jsonMode")

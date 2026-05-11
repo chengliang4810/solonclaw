@@ -409,7 +409,11 @@ public final class TerminalSecurityPolicyView {
                 .append(" credentialPath=")
                 .append(value(guardrail, "credentialPathPrechecked"))
                 .append(" proxyUrl=")
-                .append(value(guardrail, "proxyUrlPrechecked"));
+                .append(value(guardrail, "proxyUrlPrechecked"))
+                .append(" systemDns=")
+                .append(value(guardrail, "systemDnsCommandPrechecked"))
+                .append(" systemProxy=")
+                .append(value(guardrail, "systemProxyCommandPrechecked"));
         return buffer.toString();
     }
 

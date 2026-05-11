@@ -976,6 +976,14 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(coverageTerminalGuardrailPolicy.get("preproxyUrlPrechecked").getBoolean())
                 .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("systemDnsCommandPrechecked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("systemProxyCommandPrechecked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("windowsRegistryProxyCommandPrechecked").getBoolean())
+                .isTrue();
+        assertThat(coverageTerminalGuardrailPolicy.get("hostsAndResolverPathPrechecked").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(coverageTerminalGuardrailPolicy))
                 .contains("nohup")
                 .contains("docker compose up")
