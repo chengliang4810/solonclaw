@@ -427,6 +427,35 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldRedactSecretsFromKanbanRunSummaries() throws Exception {
+        KanbanService service = service();
+        String taskId = createTask(service, "脱敏任务", "alice", "tester");
+        Map<String, Object> runningBody = new LinkedHashMap<String, Object>();
+        runningBody.put("status", "running");
+        runningBody.put("claim_lock", "lock-secret");
+        runningBody.put("worker_id", "worker-secret");
+        service.updateTask(taskId, runningBody);
+        service.status(
+                taskId,
+                "done",
+                "完成结果",
+                "Authorization: Bearer ghp_kanbansummary12345 callback https://u:p@example.com/cb?token=kanban-token",
+                null);
+
+        String detail = String.valueOf(service.task(taskId));
+        String runsText = service.handleCommand("runs " + taskId, "tester");
+        String runsJson = service.handleCommand("runs " + taskId + " --json", "tester");
+        String drawer = String.valueOf(service.taskDrawer(taskId, 128));
+        String context = String.valueOf(service.context(taskId));
+
+        assertRedactedRunSummary(detail);
+        assertRedactedRunSummary(runsText);
+        assertRedactedRunSummary(runsJson);
+        assertRedactedRunSummary(drawer);
+        assertRedactedRunSummary(context);
+    }
+
+    @Test
     void shouldUnblockOnlyBlockedTasks() throws Exception {
         KanbanService service = service();
         String blockedId = createTask(service, "等待人工确认", "alice", "alice");
@@ -934,5 +963,13 @@ public class KanbanServiceTest {
                 java.util.regex.Pattern.compile("KB-[0-9A-F]{8}").matcher(value);
         assertThat(matcher.find()).isTrue();
         return matcher.group();
+    }
+
+    private static void assertRedactedRunSummary(String value) {
+        assertThat(value)
+                .contains("Bearer ***")
+                .doesNotContain("ghp_kanbansummary12345")
+                .doesNotContain("kanban-token")
+                .doesNotContain("u:p@example.com");
     }
 }
