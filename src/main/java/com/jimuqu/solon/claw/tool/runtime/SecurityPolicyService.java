@@ -590,6 +590,11 @@ public class SecurityPolicyService {
         summary.put("websiteBlocklistLoadedSharedFileCount", Integer.valueOf(shared.loadedFileCount));
         summary.put("websiteBlocklistSkippedSharedFileCount", Integer.valueOf(shared.skippedFileCount));
         summary.put("websiteBlocklistSharedRuleSamples", redactSample(shared.ruleSamples, 6));
+        summary.put("allowedNetworkSchemes", Arrays.asList("http", "https", "ws", "wss"));
+        summary.put("unsupportedNetworkSchemeBlocked", Boolean.TRUE);
+        summary.put("protocolRelativeUrlChecked", Boolean.TRUE);
+        summary.put("schemelessHostChecked", Boolean.TRUE);
+        summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
         summary.put("encodedSensitiveQueryBlocked", Boolean.TRUE);

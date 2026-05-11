@@ -654,6 +654,15 @@ public class SecurityPolicyServiceTest {
                 .contains("shared.example")
                 .contains("token-sk-***")
                 .doesNotContain("1234567890abcdef");
+        assertThat(String.valueOf(summary.get("allowedNetworkSchemes")))
+                .contains("http")
+                .contains("https")
+                .contains("ws")
+                .contains("wss");
+        assertThat(summary.get("unsupportedNetworkSchemeBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("protocolRelativeUrlChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("schemelessHostChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("encodedSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
