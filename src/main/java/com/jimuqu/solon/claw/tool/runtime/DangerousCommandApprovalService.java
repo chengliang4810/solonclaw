@@ -1962,6 +1962,7 @@ public class DangerousCommandApprovalService {
                 Arrays.asList(
                         "aws_s3_recursive_remove",
                         "domestic_object_storage_recursive_remove",
+                        "remote_credential_file_transfer",
                         "object_storage_exposure_change"));
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());

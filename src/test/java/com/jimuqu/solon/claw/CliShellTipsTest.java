@@ -59,6 +59,7 @@ public class CliShellTipsTest {
         assertThat(buffer.toString())
                 .contains("审批策略摘要")
                 .contains("object_storage_exposure_change")
+                .contains("remote_credential_file_transfer")
                 .contains("终端护栏");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
                 .contains("URL 安全策略摘要")

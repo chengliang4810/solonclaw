@@ -85,6 +85,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(String.valueOf(summary.get("cloudStorageRuleSamples")))
                 .contains("aws_s3_recursive_remove")
                 .contains("domestic_object_storage_recursive_remove")
+                .contains("remote_credential_file_transfer")
                 .contains("object_storage_exposure_change");
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
