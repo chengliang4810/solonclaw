@@ -2645,6 +2645,19 @@ public class DashboardControllerHttpTest {
     void shouldWrapRunControlErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
+        HttpResult invalidJson =
+                request(
+                        "POST",
+                        "/api/runs/run-invalid-json/control",
+                        "{\"command\":\"interrupt\",\"reason\":\"ghp_invalidruncontrol12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("RUN_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidruncontrol12345")
+                .doesNotContain("interrupt");
+
         HttpResult missingRun =
                 request(
                         "POST",
@@ -2662,6 +2675,19 @@ public class DashboardControllerHttpTest {
     @Test
     void shouldRedactSubagentControlEcho() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult invalidJson =
+                request(
+                        "POST",
+                        "/api/jimuqu/runs/subagents/sub-invalid-json/control",
+                        "{\"command\":\"pause token=ghp_invalidsubcommand12345\"",
+                        token);
+        assertThat(invalidJson.status).isEqualTo(400);
+        assertThat(invalidJson.body)
+                .contains("RUN_BAD_REQUEST")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invalidsubcommand12345")
+                .doesNotContain("pause token");
 
         HttpResult control =
                 request(
