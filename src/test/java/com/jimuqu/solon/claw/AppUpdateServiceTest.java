@@ -177,6 +177,24 @@ public class AppUpdateServiceTest {
 
     }
 
+    @Test
+    void shouldRedactGithubApiErrorBody() {
+        String leakedToken = "ghp_updatebody12345";
+        FakeVersionService versionService = new FakeVersionService(new AppConfig());
+        versionService.setCurrentVersion("0.0.1");
+        versionService.setCurrentTag("v0.0.1");
+        FakeUpdateService service = new FakeUpdateService(new AppConfig(), versionService);
+        service.setReleaseStatus(500);
+        service.setReleaseBody("{\"message\":\"token=" + leakedToken + "\"}");
+
+        AppUpdateService.VersionStatus status = service.getVersionStatus(true);
+
+        assertThat(status.getUpdateErrorMessage())
+                .contains("HTTP 500")
+                .contains("token=***")
+                .doesNotContain(leakedToken);
+    }
+
     private static class FakeUpdateService extends AppUpdateService {
         private int releaseStatus = 200;
         private String releaseBody = "";

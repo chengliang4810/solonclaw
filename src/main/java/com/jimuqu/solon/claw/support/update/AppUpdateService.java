@@ -538,9 +538,22 @@ public class AppUpdateService {
             return prefix + "，" + result.getErrorMessage();
         }
         if (result.getStatusCode() > 0) {
-            return prefix + "，HTTP " + result.getStatusCode();
+            String body = safeErrorBody(result.getBody());
+            return prefix
+                    + "，HTTP "
+                    + result.getStatusCode()
+                    + (StrUtil.isBlank(body) ? "" : " " + body);
         }
         return prefix + "，未知错误";
+    }
+
+    private String safeErrorBody(String body) {
+        String text =
+                SecretRedactor.redact(StrUtil.nullToEmpty(body), 1000)
+                        .replace('\n', ' ')
+                        .replace('\r', ' ')
+                        .trim();
+        return text.length() > 240 ? text.substring(0, 240) + "..." : text;
     }
 
     private Proxy resolveProxy() {
