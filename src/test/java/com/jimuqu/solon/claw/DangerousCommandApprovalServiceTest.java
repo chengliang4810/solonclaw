@@ -2130,9 +2130,13 @@ public class DangerousCommandApprovalServiceTest {
                         "env | grep TOKEN",
                         "cmd /c set",
                         "set > env.txt",
+                        "printenv | pbcopy",
+                        "cmd /c set | clip",
                         "Get-ChildItem Env:",
                         "gci Env:",
-                        "Get-Item Env:*");
+                        "Get-Item Env:*",
+                        "Get-ChildItem Env: | Set-Clipboard",
+                        "gci Env: | scb");
         for (String command : dumps) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
