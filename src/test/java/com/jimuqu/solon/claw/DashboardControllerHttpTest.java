@@ -2197,6 +2197,27 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapDashboardChatErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult missingRun =
+                request(
+                        "POST",
+                        "/api/chat/runs/missing-token=ghp_chatrun12345/cancel",
+                        null,
+                        token);
+        assertThat(missingRun.status).isEqualTo(404);
+        assertThat(missingRun.body)
+                .contains("CHAT_NOT_FOUND")
+                .contains("token=***")
+                .doesNotContain("ghp_chatrun12345");
+
+        HttpResult invalidRun = request("POST", "/api/chat/runs", "{}", token);
+        assertThat(invalidRun.status).isEqualTo(400);
+        assertThat(invalidRun.body).contains("CHAT_BAD_REQUEST");
+    }
+
+    @Test
     void shouldWrapKanbanMutationErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
