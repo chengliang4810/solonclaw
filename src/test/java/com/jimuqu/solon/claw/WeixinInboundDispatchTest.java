@@ -155,6 +155,26 @@ public class WeixinInboundDispatchTest {
                 .hasMessageContaining("token=***");
     }
 
+    @Test
+    void shouldRedactWeixinFailureJson() throws Throwable {
+        WeiXinChannelAdapter adapter = newAdapter();
+        Method safeJson = WeiXinChannelAdapter.class.getDeclaredMethod("safeJson", ONode.class);
+        safeJson.setAccessible(true);
+        ONode failure =
+                new ONode()
+                        .set("errcode", 40001)
+                        .set("errmsg", "invalid token=ghp_weixinfail12345")
+                        .set("body", new ONode().set("api_key", "sk-weixin-failure-secret"));
+
+        String message = String.valueOf(invoke(safeJson, adapter, failure));
+
+        assertThat(message)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_weixinfail12345")
+                .doesNotContain("sk-weixin-failure-secret");
+    }
+
     private WeiXinChannelAdapter newAdapter() throws Exception {
         return newAdapter(newConfig());
     }

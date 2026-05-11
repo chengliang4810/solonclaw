@@ -438,7 +438,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         String uploadParam = uploadInfo.get("upload_param").getString();
         if (StrUtil.isBlank(uploadParam)) {
             throw new IllegalStateException(
-                    "Weixin upload init missing upload url: " + uploadInfo.toJson());
+                    "Weixin upload init missing upload url: " + safeJson(uploadInfo));
         }
         String cdnBaseUrl =
                 StrUtil.blankToDefault(config.getCdnBaseUrl(), DEFAULT_CDN_BASE_URL)
@@ -482,7 +482,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         int errCode = node.get("errcode").getInt(0);
         int ret = node.get("ret").getInt(0);
         if (errCode != 0 || ret != 0) {
-            throw new IllegalStateException(defaultMessage + ": " + node.toJson());
+            throw new IllegalStateException(defaultMessage + ": " + safeJson(node));
         }
     }
 
@@ -536,14 +536,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 int errCode = response.get("errcode").getInt(0);
                 int ret = response.get("ret").getInt(0);
                 if (errCode != 0 || ret != 0) {
-                    log.warn("[WEIXIN] getupdates failed: {}", response.toJson());
+                    log.warn("[WEIXIN] getupdates failed: {}", safeJson(response));
                     if (errCode == -14 || ret == -14) {
-                        setLastError("weixin_session_expired", response.toJson());
+                        setLastError("weixin_session_expired", safeJson(response));
                         setDetail("session expired");
                         sleepQuietly(10);
                         continue;
                     }
-                    setLastError("weixin_poll_failed", response.toJson());
+                    setLastError("weixin_poll_failed", safeJson(response));
                     setDetail("poll failed");
                     sleepQuietly(2);
                     continue;
@@ -1131,6 +1131,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                             + "，"
                             + verdict.getMessage());
         }
+    }
+
+    private String safeJson(ONode value) {
+        return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
     private String normalizeBaseUrl(String baseUrl) {
