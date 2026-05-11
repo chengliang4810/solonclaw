@@ -121,7 +121,7 @@ public class DashboardMediaService {
     }
 
     public Map<String, Object> download(String mediaId) throws Exception {
-        Map<String, Object> detail = rawDetail(mediaId);
+        Map<String, Object> detail = requireRawDetail(mediaId);
         File file = FileUtil.file(String.valueOf(detail.get("local_path")));
         if (!file.isFile()) {
             return updateStatus(mediaId, "download_missing", "local file not found");
@@ -134,7 +134,7 @@ public class DashboardMediaService {
     }
 
     public Map<String, Object> reference(String mediaId) throws Exception {
-        Map<String, Object> detail = rawDetail(mediaId);
+        Map<String, Object> detail = requireRawDetail(mediaId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("media_id", mediaId);
         result.put("reference", mediaReference(FileUtil.file(String.valueOf(detail.get("local_path")))));
@@ -213,6 +213,14 @@ public class DashboardMediaService {
         } finally {
             connection.close();
         }
+    }
+
+    private Map<String, Object> requireRawDetail(String mediaId) throws Exception {
+        Map<String, Object> detail = rawDetail(mediaId);
+        if (detail.isEmpty()) {
+            throw new IllegalArgumentException("Media not found: " + mediaId);
+        }
+        return detail;
     }
 
     private String mediaReference(File file) {

@@ -2302,6 +2302,41 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapMediaErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        File secret = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String("apiKey: ghp_mediapath12345\n", secret);
+
+        HttpResult invalidPath =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/index",
+                        "{\"mediaId\":\"media-token=ghp_mediaindex12345\","
+                                + "\"localPath\":\""
+                                + jsonEscape(secret.getAbsolutePath())
+                                + "\",\"platform\":\"MEMORY\"}",
+                        token);
+        assertThat(invalidPath.status).isEqualTo(400);
+        assertThat(invalidPath.body)
+                .contains("MEDIA_BAD_REQUEST")
+                .doesNotContain(secret.getAbsolutePath())
+                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain("ghp_mediaindex12345");
+
+        HttpResult missing =
+                request(
+                        "POST",
+                        "/api/jimuqu/media/missing-token=ghp_mediamissing12345/download",
+                        "{}",
+                        token);
+        assertThat(missing.status).isEqualTo(400);
+        assertThat(missing.body)
+                .contains("MEDIA_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("ghp_mediamissing12345");
+    }
+
+    @Test
     void shouldRejectDashboardChatAttachmentPathsOutsideMediaCache() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         File secret = new File(runtimeHome, "config.yml");
