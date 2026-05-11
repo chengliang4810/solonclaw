@@ -2732,6 +2732,100 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldRedactSecretsFromCronjobToolSuccessResultsOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-room:user");
+        env.cronJobRepository.save(job("job-ghp_crondep12345", "MEMORY:tool-room:user"));
+
+        String createdJson =
+                tools.cronjob(
+                        "create",
+                        null,
+                        "name-ghp_cronname12345",
+                        "30m",
+                        "prompt Authorization: Bearer ghp_cronprompt12345",
+                        "feishu:chat-ghp_crondeliver12345",
+                        "chat-ghp_cronchat12345",
+                        "thread-ghp_cronthread12345",
+                        "skill-ghp_cronskill12345",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "job-ghp_crondep12345",
+                        null,
+                        "terminal-ghp_crontoolset12345",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        Map<?, ?> created = (Map<?, ?>) ONode.ofJson(createdJson).toData();
+        String createdText = String.valueOf(created);
+        String jobId = String.valueOf(created.get("job_id"));
+
+        assertThat(createdText)
+                .contains("ghp_***")
+                .contains("Bearer ***")
+                .doesNotContain("ghp_cronname12345")
+                .doesNotContain("ghp_cronprompt12345")
+                .doesNotContain("ghp_crondeliver12345")
+                .doesNotContain("ghp_cronchat12345")
+                .doesNotContain("ghp_cronthread12345")
+                .doesNotContain("ghp_cronskill12345")
+                .doesNotContain("ghp_crondep12345")
+                .doesNotContain("ghp_crontoolset12345");
+
+        Map<?, ?> inspected =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "inspect",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Integer.valueOf(5),
+                                                null))
+                                .toData();
+
+        assertThat(String.valueOf(inspected))
+                .contains("ghp_***")
+                .doesNotContain("ghp_cronprompt12345")
+                .doesNotContain("ghp_cronskill12345")
+                .doesNotContain("ghp_crondep12345")
+                .doesNotContain("ghp_crontoolset12345");
+
+        CronJobRecord record = env.cronJobRepository.findById(jobId);
+        assertThat(record.getPrompt()).contains("ghp_cronprompt12345");
+        assertThat(record.getSkillsJson()).contains("ghp_cronskill12345");
+        assertThat(record.getContextFromJson()).contains("ghp_crondep12345");
+        assertThat(record.getEnabledToolsetsJson()).contains("ghp_crontoolset12345");
+    }
+
+    @Test
     void shouldDefaultCronjobToolDeliveryToOrigin() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

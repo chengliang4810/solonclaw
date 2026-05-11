@@ -835,25 +835,25 @@ public class CronjobTools {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("job_id", safeText(job.getJobId()));
         result.put("name", safeText(job.getName()));
-        result.put("skill", base.get("skill"));
-        result.put("skills", base.get("skills"));
-        result.put("prompt_preview", base.get("prompt_preview"));
+        result.put("skill", safeValue(base.get("skill")));
+        result.put("skills", safeValue(base.get("skills")));
+        result.put("prompt_preview", safeValue(base.get("prompt_preview")));
         result.put("model", safeText(job.getModel()));
         result.put("provider", safeText(job.getProvider()));
         result.put("base_url", safeObjectText(base.get("base_url")));
         result.put("schedule", safeText(job.getCronExpr()));
-        result.put("schedule_detail", base.get("schedule"));
-        result.put("schedule_display", base.get("schedule_display"));
+        result.put("schedule_detail", safeValue(base.get("schedule")));
+        result.put("schedule_display", safeValue(base.get("schedule_display")));
         result.put("repeat", repeatDisplay(job));
-        result.put("deliver", base.get("deliver"));
+        result.put("deliver", safeValue(base.get("deliver")));
         result.put("deliver_chat_id", safeObjectText(base.get("deliver_chat_id")));
         result.put("deliver_thread_id", safeObjectText(base.get("deliver_thread_id")));
         result.put("next_run_at", base.get("next_run_at"));
         result.put("last_run_at", base.get("last_run_at"));
-        result.put("last_status", job.getLastStatus());
+        result.put("last_status", safeText(job.getLastStatus()));
         result.put("last_delivery_error", safeText(job.getLastDeliveryError()));
         result.put("enabled", base.get("enabled"));
-        result.put("state", base.get("state"));
+        result.put("state", safeValue(base.get("state")));
         result.put("paused_at", base.get("paused_at"));
         result.put("paused_reason", safeText(job.getPausedReason()));
         result.put("wrap_response", Boolean.valueOf(job.isWrapResponse()));
@@ -863,12 +863,13 @@ public class CronjobTools {
         }
         Object contextFrom = base.get("context_from");
         if (contextFrom instanceof Iterable && ((Iterable<?>) contextFrom).iterator().hasNext()) {
-            result.put("context_from", contextFrom);
-            result.put("depends_on", contextFrom);
+            Object safeContextFrom = safeValue(contextFrom);
+            result.put("context_from", safeContextFrom);
+            result.put("depends_on", safeContextFrom);
         }
         Object enabledToolsets = base.get("enabled_toolsets");
         if (enabledToolsets instanceof Iterable && ((Iterable<?>) enabledToolsets).iterator().hasNext()) {
-            result.put("enabled_toolsets", enabledToolsets);
+            result.put("enabled_toolsets", safeValue(enabledToolsets));
         }
         put(result, "workdir", safeObjectText(base.get("workdir")));
         return result;
@@ -876,6 +877,28 @@ public class CronjobTools {
 
     private String safeObjectText(Object value) {
         return value == null ? null : safeText(String.valueOf(value));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object safeValue(Object value) {
+        if (value instanceof String) {
+            return safeText((String) value);
+        }
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                result.put(String.valueOf(entry.getKey()), safeValue(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof Iterable) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object item : (Iterable<Object>) value) {
+                result.add(safeValue(item));
+            }
+            return result;
+        }
+        return value;
     }
 
     private Map<String, Object> removedView(CronJobRecord job) {
