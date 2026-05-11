@@ -730,6 +730,30 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyCredentialPathsWithDisplayControlsAndEntities() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("path", "client&#95;secret.json");
+
+        SecurityPolicyService.FileVerdict bidiPath = policy.checkPath(".e\u202Env", false);
+        SecurityPolicyService.FileVerdict fullWidthPath = policy.checkPath("ｃredentials.json", false);
+        SecurityPolicyService.FileVerdict entityToolArg = policy.checkFileToolArgs("read_file", args);
+        SecurityPolicyService.FileVerdict commandPath =
+                policy.checkCommandPaths("cat credentials/o\u202Eauth_creds.json");
+
+        assertThat(bidiPath.isAllowed()).isFalse();
+        assertThat(bidiPath.getMessage()).contains("凭据");
+        assertThat(fullWidthPath.isAllowed()).isFalse();
+        assertThat(fullWidthPath.getMessage()).contains("凭据");
+        assertThat(entityToolArg.isAllowed()).isFalse();
+        assertThat(entityToolArg.getPath()).isEqualTo("client&#95;secret.json");
+        assertThat(entityToolArg.getMessage()).contains("凭据");
+        assertThat(commandPath.isAllowed()).isFalse();
+        assertThat(commandPath.getPath()).isEqualTo("credentials/oauth_creds.json");
+        assertThat(commandPath.getMessage()).contains("凭据");
+    }
+
+    @Test
     void shouldDenyCommandCredentialFilesInArchiveAndUploadCommands() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 

@@ -715,6 +715,17 @@ public class SecurityPolicyService {
         if (code.length() == 0) {
             return FileVerdict.allow();
         }
+        String normalizedCode = normalizePathScanText(code);
+        if (!normalizedCode.equals(code)) {
+            FileVerdict normalizedVerdict = checkCommandPathsCandidate(normalizedCode);
+            if (!normalizedVerdict.allowed) {
+                return normalizedVerdict;
+            }
+        }
+        return checkCommandPathsCandidate(code);
+    }
+
+    private FileVerdict checkCommandPathsCandidate(String code) {
         FileVerdict compactOutputVerdict = checkCompactOutputOptionCredentialPaths(code);
         if (!compactOutputVerdict.allowed) {
             return compactOutputVerdict;
@@ -749,6 +760,14 @@ public class SecurityPolicyService {
             return configuredCredentialVerdict;
         }
         return FileVerdict.allow();
+    }
+
+    private String normalizePathScanText(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        value = TerminalAnsiSanitizer.stripAnsi(value);
+        value = SecretRedactor.stripDisplayControls(value);
+        value = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        return HtmlUtil.unescape(value).trim();
     }
 
     private FileVerdict checkCredentialPathOptions(String command) {
@@ -2311,6 +2330,10 @@ public class SecurityPolicyService {
 
     private String normalizePathText(String raw) {
         String value = StrUtil.nullToEmpty(raw).trim();
+        value = TerminalAnsiSanitizer.stripAnsi(value);
+        value = SecretRedactor.stripDisplayControls(value);
+        value = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        value = HtmlUtil.unescape(value).trim();
         value = value.replace('\\', '/');
         while (value.contains("//")) {
             value = value.replace("//", "/");
