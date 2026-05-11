@@ -1253,6 +1253,7 @@ public class AcpStdioServerTest {
                 .contains("\"tool_call_update\"")
                 .contains("\"tool_call_id\":\"call_1\"")
                 .contains("\"toolName\":\"read_file\"")
+                .contains("\"title\":\"read_file: path://README.md\"")
                 .contains("\"path\":\"README.md\"")
                 .contains("file content")
                 .contains("\"agent_message_chunk\"")
@@ -1300,6 +1301,40 @@ public class AcpStdioServerTest {
                 .contains("bearer ***")
                 .doesNotContain("sk-1234567890abcdef")
                 .doesNotContain("sk-abcdef1234567890");
+    }
+
+    @Test
+    void shouldUsePathReferenceForPersistedAcpToolTitles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord record = env.sessionRepository.bindNewSession("MEMORY:cli:persisted-acp-tool-path");
+        record.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser("need a file"),
+                                assistantWithToolCall(
+                                        "call_path",
+                                        "read_file",
+                                        "path",
+                                        "D:/workspace/token=ghp_acptoolpath12345/report.md"),
+                                ChatMessage.ofTool("file content", "read_file", "call_path"))));
+        env.sessionRepository.save(record);
+
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        String loaded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"session/load\",\"params\":{\"session_id\":\""
+                                + record.getSessionId()
+                                + "\",\"cwd\":\"D:/projects/jimuqu-agent\"}}");
+
+        assertThat(loaded)
+                .contains("\"title\":\"read_file: path://report.md\"")
+                .contains("\"path\":\"[REDACTED_PATH]\"")
+                .doesNotContain("ghp_acptoolpath12345");
     }
 
 

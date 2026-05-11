@@ -1254,7 +1254,7 @@ public class AcpStdioServer {
             return name + ": " + truncate(safeAcpText(String.valueOf(command)), 100);
         }
         if (path != null && StrUtil.isNotBlank(String.valueOf(path))) {
-            return name + ": " + safeAcpText(String.valueOf(path));
+            return name + ": " + safeAcpPathRef(String.valueOf(path));
         }
         if (query != null && StrUtil.isNotBlank(String.valueOf(query))) {
             return name + ": " + truncate(safeAcpText(String.valueOf(query)), 100);
