@@ -245,6 +245,54 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldRedactEncodedPendingApprovalDiagnosticOutput() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-encoded-pending");
+        record.setSourceKey("source-encoded-pending");
+        record.setTitle("编码审批 https://example.test/callback?api%255Fkey=diagnostic-secret");
+        record.setBranchName("main");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "url_policy?api%255Fkey=diagnostic-secret",
+                "encoded pending https://example.test/callback?api%255Fkey=diagnostic-secret",
+                "curl https://example.test/callback?api%255Fkey=diagnostic-secret");
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(Collections.singletonList(record)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        String json = ONode.serialize(items.get(0));
+
+        assertThat(json)
+                .contains("api%255Fkey=***")
+                .contains("\"pattern_key\":\"url_policy?api%255Fkey=***\"")
+                .contains(
+                        "\"command_preview\":\"curl https://example.test/callback?api%255Fkey=***\"")
+                .doesNotContain("\"approval_key\":")
+                .doesNotContain("diagnostic-secret");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldUseOpaqueSelectorForLegacyApprovalWithoutApprovalId() throws Exception {
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService approvalService =
