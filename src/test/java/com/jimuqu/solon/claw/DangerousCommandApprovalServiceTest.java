@@ -5461,12 +5461,21 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult gitNoProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "git config --global http.noProxy localhost,127.0.0.1");
+        DangerousCommandApprovalService.DetectionResult gitAssignedProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --global https.proxy=http://127.0.0.1:8080");
+        DangerousCommandApprovalService.DetectionResult gitReplaceProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "git config --global --replace-all http.proxy http://127.0.0.1:8080");
         DangerousCommandApprovalService.DetectionResult npmProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "npm config set https-proxy http://proxy.example:8080");
         DangerousCommandApprovalService.DetectionResult npmNoProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "npm config set noproxy localhost,127.0.0.1");
+        DangerousCommandApprovalService.DetectionResult npmAssignedNoProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "npm config set noproxy=localhost,127.0.0.1");
         DangerousCommandApprovalService.DetectionResult pnpmProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "pnpm config set https-proxy http://proxy.example:8080");
@@ -5482,6 +5491,9 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult pipProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "pip config set global.proxy http://proxy.example:8080");
+        DangerousCommandApprovalService.DetectionResult pip3AssignedProxyWrite =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "pip3 config set global.proxy=http://proxy.example:8080");
         DangerousCommandApprovalService.DetectionResult pipNoProxyWrite =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "pip config set global.no_proxy localhost,127.0.0.1");
@@ -5627,11 +5639,20 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(gitNoProxyWrite).isNotNull();
         assertThat(gitNoProxyWrite.getPatternKey())
                 .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(gitAssignedProxyWrite).isNotNull();
+        assertThat(gitAssignedProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(gitReplaceProxyWrite).isNotNull();
+        assertThat(gitReplaceProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
         assertThat(npmProxyWrite).isNotNull();
         assertThat(npmProxyWrite.getPatternKey())
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(npmNoProxyWrite).isNotNull();
         assertThat(npmNoProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(npmAssignedNoProxyWrite).isNotNull();
+        assertThat(npmAssignedNoProxyWrite.getPatternKey())
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(pnpmProxyWrite).isNotNull();
         assertThat(pnpmProxyWrite.getPatternKey())
@@ -5647,6 +5668,9 @@ public class DangerousCommandApprovalServiceTest {
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(pipProxyWrite).isNotNull();
         assertThat(pipProxyWrite.getPatternKey())
+                .isEqualTo("persistent_proxy_configuration_change");
+        assertThat(pip3AssignedProxyWrite).isNotNull();
+        assertThat(pip3AssignedProxyWrite.getPatternKey())
                 .isEqualTo("persistent_proxy_configuration_change");
         assertThat(pipNoProxyWrite).isNotNull();
         assertThat(pipNoProxyWrite.getPatternKey())
