@@ -196,7 +196,8 @@ public final class SecretRedactor {
         while (start < value.length()) {
             int question = value.indexOf('?', start);
             int amp = value.indexOf('&', start);
-            int separator = minPositive(question, amp);
+            int semicolon = value.indexOf(';', start);
+            int separator = minPositive(minPositive(question, amp), semicolon);
             if (separator < 0 || separator + 1 >= value.length()) {
                 buffer.append(value.substring(start));
                 break;
@@ -222,8 +223,9 @@ public final class SecretRedactor {
 
     private static int nextParameterEnd(String value, int start) {
         int amp = value.indexOf('&', start);
+        int semicolon = value.indexOf(';', start);
         int hash = value.indexOf('#', start);
-        int end = minPositive(amp, hash);
+        int end = minPositive(minPositive(amp, semicolon), hash);
         return end < 0 ? value.length() : end;
     }
 

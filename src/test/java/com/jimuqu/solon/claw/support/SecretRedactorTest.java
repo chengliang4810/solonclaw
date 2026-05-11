@@ -107,6 +107,17 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactSemicolonSeparatedSensitiveUrlParameters() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback;api%255Fkey=secret-value-123;ok=value");
+
+        assertThat(result)
+                .isEqualTo("https://example.com/callback;api%255Fkey=***;ok=value")
+                .doesNotContain("secret-value-123");
+    }
+
+    @Test
     void shouldRedactSensitivePathFragments() {
         String result =
                 SecretRedactor.redact(
