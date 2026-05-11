@@ -6292,6 +6292,10 @@ public class DangerousCommandApprovalServiceTest {
         assertWriteDenied(securityPolicyService, "/private/var/root-owned");
         assertWriteDenied(securityPolicyService, "/var/run/docker.sock");
         assertWriteDenied(securityPolicyService, "/run/docker.sock");
+        assertWriteDenied(securityPolicyService, "/run/containerd/containerd.sock");
+        assertWriteDenied(securityPolicyService, "/run/podman/podman.sock");
+        assertWriteDenied(securityPolicyService, "/var/run/cri-dockerd.sock");
+        assertWriteDenied(securityPolicyService, "/var/run/crio/crio.sock");
     }
 
     @Test

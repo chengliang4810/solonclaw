@@ -1071,6 +1071,9 @@ public class SecurityPolicyService {
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
+        if (writeLike && isLocalManagementSocket(path)) {
+            return FileVerdict.block(path, "写入本地容器/运行时管理套接字被阻断");
+        }
         if (writeLike && isOutsideSafeWriteRoot(path)) {
             return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
         }
