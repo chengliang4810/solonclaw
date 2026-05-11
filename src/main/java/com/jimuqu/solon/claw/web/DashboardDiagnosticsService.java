@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
@@ -486,6 +487,12 @@ public class DashboardDiagnosticsService {
         terminal.put(
                 "tool_result_storage_policy",
                 safeToolResultStoragePolicySummary());
+        terminal.put(
+                "sudo_rewrite_policy",
+                safeSudoRewritePolicySummary());
+        terminal.put(
+                "background_process_policy",
+                safeBackgroundProcessPolicySummary());
         terminal.put(
                 "max_foreground_timeout_seconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
@@ -1025,6 +1032,63 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "storageBase");
             copyPolicyValue(summary, safe, "describePersistedObservation");
             copyPolicyValue(summary, safe, "storageFailureFallsBackToPreviewOnly");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeSudoRewritePolicySummary() {
+        try {
+            boolean sudoPasswordConfigured =
+                    appConfig != null
+                            && appConfig.getTerminal() != null
+                            && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
+            Map<String, Object> summary =
+                    SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured);
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "configured");
+            copyPolicyValue(summary, safe, "configKey");
+            copyPolicyValue(summary, safe, "rewritesRealSudoInvocations");
+            copyPolicyValue(summary, safe, "stdinPasswordInjection");
+            copyPolicyValue(summary, safe, "passwordRedacted");
+            copyPolicyValue(summary, safe, "existingStdinFlagPreserved");
+            copyPolicyValue(summary, safe, "commentsIgnored");
+            copyPolicyValue(summary, safe, "quotedSudoIgnored");
+            copyPolicyValue(summary, safe, "envAssignmentPrefixSupported");
+            copyPolicyValue(summary, safe, "compoundCommandSupported");
+            copyPolicyValue(summary, safe, "ptyDisabledForStdinPipe");
+            copyPolicyValue(summary, safe, "missingPasswordHint");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeBackgroundProcessPolicySummary() {
+        try {
+            Map<String, Object> summary = ProcessTools.backgroundProcessPolicySummary(appConfig);
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "actions");
+            copyPolicyValue(summary, safe, "processRegistryBacked");
+            copyPolicyValue(summary, safe, "trackedSessionId");
+            copyPolicyValue(summary, safe, "pidExposed");
+            copyPolicyValue(summary, safe, "stdoutPreview");
+            copyPolicyValue(summary, safe, "outputRedacted");
+            copyPolicyValue(summary, safe, "completionEvents");
+            copyPolicyValue(summary, safe, "stopSupported");
+            copyPolicyValue(summary, safe, "stdinWriteSubmitCloseSupported");
+            copyPolicyValue(summary, safe, "startDangerousCommandChecked");
+            copyPolicyValue(summary, safe, "startHardlineBlocked");
+            copyPolicyValue(summary, safe, "startPathPolicyChecked");
+            copyPolicyValue(summary, safe, "startUrlPolicyChecked");
+            copyPolicyValue(summary, safe, "currentThreadApprovalCanBypassStartCheck");
+            copyPolicyValue(summary, safe, "stdinExecutionPayloadChecked");
+            copyPolicyValue(summary, safe, "stdinExecutionTools");
+            copyPolicyValue(summary, safe, "stdinPrivilegeWrapperDetection");
+            copyPolicyValue(summary, safe, "waitTimeoutClamped");
+            copyPolicyValue(summary, safe, "processWaitTimeoutSeconds");
+            copyPolicyValue(summary, safe, "managedBackgroundRequiredForLongRunningCommands");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);

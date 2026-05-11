@@ -407,6 +407,18 @@ public class DashboardControllerHttpTest {
                 .contains("\"persistedOutputRedacted\":true")
                 .contains("\"fullOutputSavedRaw\":false")
                 .contains("\"storageBase\":\"tool-results\"")
+                .contains("\"sudo_rewrite_policy\"")
+                .contains("\"rewritesRealSudoInvocations\":true")
+                .contains("\"stdinPasswordInjection\":true")
+                .contains("\"passwordRedacted\":true")
+                .contains("\"ptyDisabledForStdinPipe\":true")
+                .contains("\"background_process_policy\"")
+                .contains("\"processRegistryBacked\":true")
+                .contains("\"stdinWriteSubmitCloseSupported\":true")
+                .contains("\"startDangerousCommandChecked\":true")
+                .contains("\"startHardlineBlocked\":true")
+                .contains("\"stdinExecutionPayloadChecked\":true")
+                .contains("\"managedBackgroundRequiredForLongRunningCommands\":true")
                 .contains("\"sudo_password_configured\"");
         assertThat(diagnostics.body)
                 .doesNotContain("\"sudo_password\"")
@@ -431,6 +443,11 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"patternAndFormatKeywords\"")
                 .doesNotContain("\"rpcTools\"")
                 .doesNotContain("\"forcePrefix\"");
+        ONode terminalDiagnostics =
+                ONode.ofJson(diagnostics.body).get("data").get("security").get("terminal");
+        assertThat(terminalDiagnostics.toJson())
+                .doesNotContain("\"envKey\"")
+                .doesNotContain("\"stdinWrapperFamilies\"");
 
         HttpResult commandAudit =
                 request(
