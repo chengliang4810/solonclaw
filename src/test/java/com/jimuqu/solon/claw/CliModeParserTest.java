@@ -76,19 +76,22 @@ public class CliModeParserTest {
                 .contains("complete -F _jimuqu_agent_completion jimuqu-agent")
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
-                .contains("--session --ask -p");
+                .contains("--session --ask -p")
+                .contains("/reload-mcp now");
         assertThat(zsh)
                 .contains("#compdef jimuqu-agent")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
                 .contains("Send one prompt or local terminal command")
+                .contains("/reload-mcp always")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
                 .contains("complete -c jimuqu-agent -f")
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
-                .contains("__fish_seen_argument -s p -l ask");
+                .contains("__fish_seen_argument -s p -l ask")
+                .contains("/reload-mcp");
         for (String command : TerminalCommandCatalog.SLASH_COMMANDS) {
             assertThat(bash).contains(command);
             assertThat(zsh).contains(command);

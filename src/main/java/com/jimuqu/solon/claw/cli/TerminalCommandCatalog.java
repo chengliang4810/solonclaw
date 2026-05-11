@@ -10,7 +10,7 @@ public final class TerminalCommandCatalog {
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/title", "/goal", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
-                "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp",
+                "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp", "/reload-mcp",
                 "/model pick", "/skin classic", "/skin mono", "/skin contrast",
                 "/busy status", "/busy queue", "/busy steer", "/busy interrupt", "/busy reject",
                 "/approve list", "/approve status", "/approve all", "/approve all session",
@@ -36,6 +36,7 @@ public final class TerminalCommandCatalog {
                 "/kanban comment", "/kanban block", "/kanban done", "/kanban archive",
                 "/restart", "/stop", "/compact", "/compress", "/rollback", "/recap",
                 "/trajectory", "/confirm", "/yolo", "/version", "/platforms",
+                "/reload-mcp now", "/reload-mcp always",
                 "/models", "/sessions", "/session", "/history", "/events", "/tasks",
                 "/attachments", "/transcript", "/tips", "/skin", "/copy", "/exit", "/quit",
                 "/exit!", "/quit!"
