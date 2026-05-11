@@ -506,7 +506,12 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict powershellNoProxy =
                 privatePolicy.checkCommandUrls(
                         "$env:NO_PROXY='.internal.example,example.com'; iwr https://example.com");
+        SecurityPolicyService.UrlVerdict powershellNoProxyOnly =
+                privatePolicy.checkCommandUrls("$env:NO_PROXY='.internal.example,example.com'");
         SecurityPolicyService.UrlVerdict powershellSetEnvironmentVariable =
+                metadataPolicy.checkCommandUrls(
+                        "[Environment]::SetEnvironmentVariable('NO_PROXY','metadata.google.internal')");
+        SecurityPolicyService.UrlVerdict powershellSetNoProxyOnly =
                 metadataPolicy.checkCommandUrls(
                         "[Environment]::SetEnvironmentVariable('NO_PROXY','metadata.google.internal')");
         SecurityPolicyService.UrlVerdict publicBypass =
@@ -519,8 +524,12 @@ public class SecurityPolicyServiceTest {
         assertThat(shellMetadataBypass.getMessage()).contains("元数据");
         assertThat(powershellNoProxy.isAllowed()).isFalse();
         assertThat(powershellNoProxy.getMessage()).contains("内网");
+        assertThat(powershellNoProxyOnly.isAllowed()).isFalse();
+        assertThat(powershellNoProxyOnly.getMessage()).contains("内网");
         assertThat(powershellSetEnvironmentVariable.isAllowed()).isFalse();
         assertThat(powershellSetEnvironmentVariable.getMessage()).contains("元数据");
+        assertThat(powershellSetNoProxyOnly.isAllowed()).isFalse();
+        assertThat(powershellSetNoProxyOnly.getMessage()).contains("元数据");
         assertThat(publicBypass.isAllowed()).isTrue();
     }
 
@@ -547,6 +556,8 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict powershellNpmNoProxy =
                 metadataPolicy.checkCommandUrls(
                         "$env:NPM_CONFIG_NO_PROXY='169.254.169.254'; npm install");
+        SecurityPolicyService.UrlVerdict powershellNpmNoProxyOnly =
+                metadataPolicy.checkCommandUrls("$env:NPM_CONFIG_NO_PROXY='169.254.169.254'");
         SecurityPolicyService.UrlVerdict publicNoProxy =
                 publicPolicy.checkCommandUrls(
                         "NPM_CONFIG_NOPROXY=registry.npmjs.org npm install");
@@ -561,6 +572,8 @@ public class SecurityPolicyServiceTest {
         assertThat(pnpmNoProxy.getMessage()).contains("元数据");
         assertThat(powershellNpmNoProxy.isAllowed()).isFalse();
         assertThat(powershellNpmNoProxy.getMessage()).contains("元数据");
+        assertThat(powershellNpmNoProxyOnly.isAllowed()).isFalse();
+        assertThat(powershellNpmNoProxyOnly.getMessage()).contains("元数据");
         assertThat(publicNoProxy.isAllowed()).isTrue();
     }
 
