@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SessionSearchEntry;
 import com.jimuqu.solon.claw.core.model.SessionSearchQuery;
@@ -268,6 +269,44 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRedactEventSummariesAndMetadataFromRunSearchIndex() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:event-room:user");
+        env.sessionRepository.save(session);
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-event-redact-1");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:event-room:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId(IdSupport.newId());
+        event.setRunId(run.getRunId());
+        event.setSessionId(session.getSessionId());
+        event.setSourceKey("MEMORY:event-room:user");
+        event.setEventType("attempt.error");
+        event.setSummary("failed with Authorization: Bearer ghp_eventsummary12345");
+        event.setMetadataJson(
+                ONode.serialize(
+                        java.util.Collections.singletonMap(
+                                "callback",
+                                "https://u:p@example.com/cb?token=event-token-secret")));
+        event.setCreatedAt(System.currentTimeMillis());
+        env.agentRunRepository.appendEvent(event);
+
+        String indexed = readRunEventFts(env, run.getRunId(), "attempt.error");
+
+        assertThat(indexed)
+                .contains("Bearer ***")
+                .doesNotContain("ghp_eventsummary12345")
+                .doesNotContain("event-token-secret")
+                .doesNotContain("u:p@example.com");
+    }
+
+    @Test
     void shouldRedactSecretsFromSessionSearchToolErrors() throws Exception {
         SessionSearchTools tools =
                 new SessionSearchTools(
@@ -298,16 +337,31 @@ public class SessionSearchServiceTest {
     }
 
     private String readToolResultMetadata(TestEnvironment env, String runId) throws Exception {
+        return readRunEventFtsColumn(env, runId, "tool.result", "metadata_json");
+    }
+
+    private String readRunEventFts(TestEnvironment env, String runId, String eventType)
+            throws Exception {
+        String summary = readRunEventFtsColumn(env, runId, eventType, "summary");
+        String metadata = readRunEventFtsColumn(env, runId, eventType, "metadata_json");
+        return summary + "\n" + metadata;
+    }
+
+    private String readRunEventFtsColumn(
+            TestEnvironment env, String runId, String eventType, String column) throws Exception {
         Connection connection = env.sqliteDatabase.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select metadata_json from agent_run_events_fts where run_id = ? and event_type = 'tool.result'");
+                            "select "
+                                    + column
+                                    + " from agent_run_events_fts where run_id = ? and event_type = ?");
             statement.setString(1, runId);
+            statement.setString(2, eventType);
             ResultSet resultSet = statement.executeQuery();
             try {
                 assertThat(resultSet.next()).isTrue();
-                return resultSet.getString("metadata_json");
+                return resultSet.getString(column);
             } finally {
                 resultSet.close();
                 statement.close();
