@@ -294,6 +294,26 @@ public class AgentMechanismTest {
     }
 
     @Test
+    void shouldRedactSecretsFromAgentToolSuccessPreviewOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentTools tools =
+                new AgentTools(
+                        env.agentProfileService,
+                        env.sessionRepository,
+                        "MEMORY:agent-success-room:agent-success-user");
+
+        tools.agentManage(
+                "create operator 角色 Authorization: Bearer ghp_agentrole12345");
+        String response = tools.agentManage("show operator");
+
+        assertThat(response)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_agentrole12345");
+        assertThat(env.agentProfileService.findByName("operator").getRolePrompt())
+                .contains("ghp_agentrole12345");
+    }
+
+    @Test
     void shouldAllowAgentManageToolThroughAgentAllowlist() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("operator", "管理 Agent");
