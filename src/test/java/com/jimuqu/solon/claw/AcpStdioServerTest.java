@@ -435,7 +435,7 @@ public class AcpStdioServerTest {
                                 + "\",\"cwd\":\"D:/projects/fork\"}}");
         assertThat(forked)
                 .contains("\"id\":6")
-                .contains("\"cwd\":\"D:/projects/fork\"")
+                .contains("\"cwd\":\"path://fork\"")
                 .contains("\"source_key\":\"MEMORY:cli:");
 
         String cancelled =
@@ -701,7 +701,7 @@ public class AcpStdioServerTest {
 
         assertThat(created)
                 .contains("\"id\":69")
-                .contains("token=***")
+                .contains("\"cwd\":\"path://token=***\"")
                 .contains("api_key=***")
                 .contains("Bearer ***")
                 .doesNotContain("ghp_acpcwd12345")
@@ -733,7 +733,7 @@ public class AcpStdioServerTest {
         assertThat(listed)
                 .contains("\"id\":71")
                 .contains(sessionId)
-                .contains("token=***")
+                .contains("\"cwd\":\"path://token=***\"")
                 .doesNotContain("ghp_acpcwd12345")
                 .doesNotContain("sk-test-acpmcp12345")
                 .doesNotContain("ghp_acpmcparg12345")

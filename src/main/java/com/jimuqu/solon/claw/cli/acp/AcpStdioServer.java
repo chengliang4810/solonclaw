@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -509,7 +510,7 @@ public class AcpStdioServer {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", state.getSessionId());
         result.put("sessionId", state.getSessionId());
-        result.put("cwd", safeAcpText(state.getCwd()));
+        result.put("cwd", safeAcpPathRef(state.getCwd()));
         result.put("updated_at", state.getUpdatedAt());
         result.put("updatedAt", state.getUpdatedAt());
         if (StrUtil.isNotBlank(state.getTitle())) {
@@ -1309,6 +1310,18 @@ public class AcpStdioServer {
 
     private String safeAcpText(String value) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), 8000);
+    }
+
+    private String safeAcpPathRef(String value) {
+        String text = StrUtil.nullToEmpty(value).trim();
+        if (StrUtil.isBlank(text) || ".".equals(text)) {
+            return StrUtil.blankToDefault(text, ".");
+        }
+        String name = new File(text).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "cwd";
+        }
+        return "path://" + SecretRedactor.redact(name, 400);
     }
 
     private String historyMessageText(Object content) {
