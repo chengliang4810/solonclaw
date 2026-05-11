@@ -8606,6 +8606,47 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockUnsupportedNetworkSchemesThroughApprovalGatewaySecurityPolicy()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
+        webfetchArgs.put("url", "ftp://example.com/private.txt");
+        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
+        gatewayWebfetch.put("tool_name", "web_extract");
+        gatewayWebfetch.put("tool_args", webfetchArgs);
+        TestTrace webfetchTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(webfetchTrace, "call_tool", gatewayWebfetch);
+
+        assertThat(webfetchTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(webfetchTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("仅允许 http/https/ws/wss");
+        assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
+
+        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
+        shellArgs.put("command", "curl sftp://example.com/private.txt");
+        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
+        gatewayShell.put("tool_name", "execute_shell_command");
+        gatewayShell.put("tool_args", shellArgs);
+        TestTrace shellTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(shellTrace, "call_tool", gatewayShell);
+
+        assertThat(shellTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(shellTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("仅允许 http/https/ws/wss");
+        assertThat(service.getPendingApproval(shellTrace.session)).isNull();
+    }
+
+    @Test
     void shouldBlockHostTargetArgumentsThroughApprovalGatewaySecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(false);
