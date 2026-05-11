@@ -284,6 +284,30 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
+    void shouldRejectPatchWithoutEnvelopeBeforeWriting() throws Exception {
+        Path dir = Files.createTempDirectory("jimuqu-patch-test");
+        Path file = dir.resolve("loose.txt");
+        Files.write(file, "alpha\n".getBytes(StandardCharsets.UTF_8));
+        SolonClawPatchTools tools = new SolonClawPatchTools(dir.toString());
+        String patch =
+                "*** Update File: loose.txt\n"
+                        + "@@ alpha @@\n"
+                        + "-alpha\n"
+                        + "+beta\n";
+
+        String json = tools.patch("patch", null, null, null, null, patch);
+
+        Map<?, ?> result = parse(json);
+        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(result.get("error")))
+                .contains("patch rejected")
+                .contains("Begin Patch")
+                .contains("End Patch");
+        assertThat(new String(Files.readAllBytes(file), StandardCharsets.UTF_8))
+                .isEqualTo("alpha\n");
+    }
+
+    @Test
     void shouldRejectUpdateMoveToExistingTargetWithoutPartialWrites() throws Exception {
         Path dir = Files.createTempDirectory("jimuqu-patch-test");
         Path source = dir.resolve("source.txt");
