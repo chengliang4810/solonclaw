@@ -35,6 +35,9 @@ public class DashboardRuntimeConfigController {
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
         }
     }
 
@@ -54,15 +57,27 @@ public class DashboardRuntimeConfigController {
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
         }
     }
 
     @Mapping(value = "/api/runtime-config/reveal", method = MethodType.POST)
     public Map<String, Object> reveal(Context context) throws Exception {
         if (!authService.allowReveal()) {
-            throw new IllegalStateException("Reveal rate limit exceeded");
+            context.status(429);
+            return DashboardResponse.error("RUNTIME_CONFIG_RATE_LIMITED", "Reveal rate limit exceeded");
         }
-        ONode body = ONode.ofJson(context.body());
-        return DashboardResponse.ok(runtimeConfigService.reveal(body.get("key").getString()));
+        try {
+            ONode body = ONode.ofJson(context.body());
+            return DashboardResponse.ok(runtimeConfigService.reveal(body.get("key").getString()));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
+        }
     }
 }

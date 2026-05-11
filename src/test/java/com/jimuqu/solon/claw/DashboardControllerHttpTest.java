@@ -2373,6 +2373,35 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapRuntimeConfigStateErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult unsupportedSet =
+                request(
+                        "PUT",
+                        "/api/runtime-config",
+                        "{\"key\":\"token=ghp_runtimeconfig12345\",\"value\":\"x\"}",
+                        token);
+        assertThat(unsupportedSet.status).isEqualTo(400);
+        assertThat(unsupportedSet.body)
+                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("ghp_runtimeconfig12345");
+
+        HttpResult unsupportedReveal =
+                request(
+                        "POST",
+                        "/api/runtime-config/reveal",
+                        "{\"key\":\"token=ghp_runtimereveal12345\"}",
+                        token);
+        assertThat(unsupportedReveal.status).isEqualTo(400);
+        assertThat(unsupportedReveal.body)
+                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("ghp_runtimereveal12345");
+    }
+
+    @Test
     void shouldWrapProviderMutationErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
