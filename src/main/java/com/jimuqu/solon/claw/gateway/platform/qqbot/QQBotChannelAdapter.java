@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -303,7 +304,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
-                    "QQBot attachment file not found: " + attachment.getLocalPath());
+                    MessageAttachmentSupport.fileNotFoundMessage("QQBot", attachment));
         }
         String kind =
                 AttachmentCacheService.normalizeKind(

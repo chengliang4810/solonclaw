@@ -48,6 +48,27 @@ public final class MessageAttachmentSupport {
                 : message.getAttachments();
     }
 
+    public static String fileNotFoundMessage(String platform, MessageAttachment attachment) {
+        String name =
+                attachment == null
+                        ? ""
+                        : StrUtil.blankToDefault(
+                                attachment.getOriginalName(), attachment.getLocalPath());
+        String path = attachment == null ? "" : attachment.getLocalPath();
+        StringBuilder message =
+                new StringBuilder(StrUtil.blankToDefault(platform, "Channel"))
+                        .append(" attachment file not found");
+        String safeName = safeAttachmentName(name);
+        if (StrUtil.isNotBlank(safeName)) {
+            message.append(": ").append(safeName);
+        }
+        String safePath = safeAttachmentPath(path);
+        if (StrUtil.isNotBlank(safePath) && !StrUtil.equals(safePath, safeName)) {
+            message.append(" (path=").append(safePath).append(")");
+        }
+        return SecretRedactor.redact(message.toString(), 1000);
+    }
+
     private static String safeInline(String text) {
         String value = StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
         return value.length() > 300 ? value.substring(0, 300) : value;
@@ -125,8 +146,13 @@ public final class MessageAttachmentSupport {
                 || ".npmrc".equals(name)
                 || ".pypirc".equals(name)
                 || "authorized_keys".equals(name)
-                || "id_rsa".equals(name)
-                || "id_ed25519".equals(name)
+                || name.startsWith("id_rsa")
+                || name.startsWith("id_ed25519")
+                || name.contains("credential")
+                || name.contains("secret")
+                || name.contains("password")
+                || name.contains("passwd")
+                || name.contains("private_key")
                 || "credentials".equals(name)
                 || "credentials.json".equals(name)
                 || ".credentials.json".equals(name)

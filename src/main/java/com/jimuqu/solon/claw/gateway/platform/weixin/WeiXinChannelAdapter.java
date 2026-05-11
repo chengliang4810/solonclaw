@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAd
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -302,7 +303,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
-                    "Weixin attachment file not found: " + attachment.getLocalPath());
+                    MessageAttachmentSupport.fileNotFoundMessage("Weixin", attachment));
         }
 
         String kind =
