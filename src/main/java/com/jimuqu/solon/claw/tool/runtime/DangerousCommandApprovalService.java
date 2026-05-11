@@ -1369,6 +1369,32 @@ public class DangerousCommandApprovalService {
                                             "(?<![\\w.])(?:eval|exec)\\s*\\(|\\bcompile\\s*\\([^\\n)]*,[^\\n)]*,\\s*['\"]exec['\"]"),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_http_credential_header_send",
+                                    "Python sends credential through HTTP header",
+                                    pattern(
+                                            "\\b(?:requests|httpx)\\.(?:request|get|post|put|patch|delete)\\s*\\([^\\n]*(?:headers\\s*=\\s*\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*:|headers\\s*=\\s*dict\\s*\\([^\\n)]*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*=)|\\burllib\\.request\\.Request\\s*\\([^\\n]*(?:headers\\s*=\\s*\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*:|add_header\\s*\\(\\s*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*,)|\\b[A-Za-z_][A-Za-z0-9_]*\\.add_header\\s*\\(\\s*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*,"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
+                                    "python_http_credential_body_send",
+                                    "Python sends credential through HTTP body",
+                                    pattern(
+                                            "\\b(?:requests|httpx)\\.(?:request|post|put|patch)\\s*\\([^\\n]*(?:json|data)\\s*=\\s*(?:\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "[\"']\\s*:|dict\\s*\\([^\\n)]*"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "\\s*=)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "js_child_process",
                                     "Node child_process execution",
                                     pattern(
@@ -1384,6 +1410,30 @@ public class DangerousCommandApprovalService {
                                     "Node dynamic code execution",
                                     pattern(
                                             "\\b(?:eval|Function)\\s*\\(|\\bnew\\s+Function\\s*\\(|\\bvm\\.runIn(?:ThisContext|NewContext|Context)\\s*\\("),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_http_credential_header_send",
+                                    "JavaScript sends credential through HTTP header",
+                                    pattern(
+                                            "\\b(?:fetch|axios\\.(?:request|get|post|put|patch|delete))\\s*\\([^\\n]*(?:headers\\s*:\\s*\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*:|headers\\s*:\\s*new\\s+Headers\\s*\\(\\s*\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*:)|\\bheaders\\s*\\.\\s*(?:set|append)\\s*\\(\\s*[\"']"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "[\"']\\s*,"),
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "js_http_credential_body_send",
+                                    "JavaScript sends credential through HTTP body",
+                                    pattern(
+                                            "\\b(?:fetch|axios\\.(?:request|post|put|patch))\\s*\\([^\\n]*(?:body\\s*:\\s*JSON\\.stringify\\s*\\(\\s*\\{[^\\n}]*[\"']"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "[\"']\\s*:|data\\s*:\\s*\\{[^\\n}]*[\"']?"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "[\"']?\\s*:)|\\baxios\\.(?:post|put|patch)\\s*\\([^,\\n]+,\\s*\\{[^\\n}]*[\"']?"
+                                                    + SENSITIVE_REQUEST_FIELD_NAME
+                                                    + "[\"']?\\s*:"),
                                     ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_fs_remove",
@@ -1986,6 +2036,7 @@ public class DangerousCommandApprovalService {
         summary.put("networkCredentialFieldAliasDetection", Boolean.TRUE);
         summary.put("sensitiveHttpHeaderAliasDetection", Boolean.TRUE);
         summary.put("rawCredentialFileUploadDetection", Boolean.TRUE);
+        summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
