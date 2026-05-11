@@ -4635,7 +4635,23 @@ public class DangerousCommandApprovalServiceTest {
     @Test
     void shouldAutoDenySubagentDangerousCommandByDefaultLikeJimuqu() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        DangerousCommandApprovalService service = env.dangerousCommandApprovalService;
+        FakeTirithSecurityService tirith =
+                new FakeTirithSecurityService(
+                        scanResult(
+                                "warn",
+                                Collections.singletonList(
+                                        finding(
+                                                "subagent_secret",
+                                                "HIGH",
+                                                "Subagent token=tirith-subagent-secret",
+                                                "")),
+                                "subagent token=tirith-subagent-secret"));
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig),
+                        tirith);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("code", "rm -rf runtime/cache");
         TestTrace trace = new TestTrace();
@@ -4655,7 +4671,11 @@ public class DangerousCommandApprovalServiceTest {
         }
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer()).contains("子 Agent 默认拒绝").contains("recursive delete");
+        assertThat(trace.getFinalAnswer())
+                .contains("子 Agent 默认拒绝")
+                .contains("recursive delete")
+                .contains("token=***")
+                .doesNotContain("tirith-subagent-secret");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 

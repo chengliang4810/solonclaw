@@ -3479,7 +3479,7 @@ public class DangerousCommandApprovalService {
                         : StrUtil.blankToDefault(
                                 detection.getDescription(), detection.getPatternKey());
         return "BLOCKED: 子 Agent 默认拒绝可审批危险命令："
-                + description
+                + redactApprovalDisplay(description, 1000)
                 + "。如确实需要在可信批处理里允许，请设置 approvals.subagentAutoApprove=true。";
     }
 
