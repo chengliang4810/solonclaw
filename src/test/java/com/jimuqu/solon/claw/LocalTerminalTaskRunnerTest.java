@@ -46,7 +46,11 @@ public class LocalTerminalTaskRunnerTest {
                 .contains("终端后台任务")
                 .contains("running=1")
                 .contains("long request")
-                .contains("exit=-");
+                .contains("exit=-")
+                .contains("/queue <提示>")
+                .contains("/steer <提示>")
+                .contains("/stop")
+                .contains("/busy status");
         assertThat(buffer.toString(StandardCharsets.UTF_8.name())).contains("已提交到后台");
 
         release.countDown();

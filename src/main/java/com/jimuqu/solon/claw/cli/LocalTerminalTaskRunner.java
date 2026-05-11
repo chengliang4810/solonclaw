@@ -66,6 +66,8 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
             }
             buffer.append(" input=").append(snapshot.getLabel());
         }
+        buffer.append('\n')
+                .append("操作：/queue <提示> 排队，/steer <提示> 注入运行中任务，/stop 停止当前 run，/busy status 查看策略。");
         return buffer.toString();
     }
 
