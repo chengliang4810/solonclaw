@@ -1,5 +1,8 @@
 package com.jimuqu.solon.claw.kanban;
 
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,9 +67,23 @@ public class KanbanDispatchResult {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("task_id", task.getTaskId());
         item.put("assignee", task.getAssignee());
-        item.put("workspace_path", workspacePath);
+        item.put("workspace_path", workspaceReference(task, workspacePath));
         item.put("worker_pid", workerPid <= 0 ? null : Long.valueOf(workerPid));
         spawned.add(item);
+    }
+
+    private String workspaceReference(KanbanTaskRecord task, String workspacePath) {
+        if (task != null && "scratch".equals(task.getWorkspaceKind())) {
+            return "workspace://kanban/" + SecretRedactor.redact(task.getTaskId(), 200);
+        }
+        if (StrUtil.isBlank(workspacePath)) {
+            return null;
+        }
+        String name = new File(workspacePath).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "workspace";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     public Map<String, Object> toMap() {

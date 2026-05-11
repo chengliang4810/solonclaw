@@ -132,7 +132,8 @@ public class KanbanServiceTest {
         Map<String, Object> child = service.task(childId);
         assertThat(child.get("status")).isEqualTo("todo");
         assertThat(child.get("workspace_kind")).isEqualTo("dir");
-        assertThat(child.get("workspace_path")).isEqualTo("C:\\\\work\\\\child");
+        assertThat(child.get("workspace_path")).isEqualTo("path://child");
+        assertThat(String.valueOf(child)).doesNotContain("C:\\\\work\\\\child");
         assertThat(String.valueOf(child.get("parents"))).contains(parentId);
 
         String bobList = service.handleCommand("list --assignee bob --status todo --tenant demo", "tester");

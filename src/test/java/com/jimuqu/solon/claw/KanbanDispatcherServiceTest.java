@@ -54,6 +54,9 @@ public class KanbanDispatcherServiceTest {
         Map<String, Object> result = dispatcher.dispatch(body);
 
         assertThat(String.valueOf(result.get("spawned"))).contains(taskId).contains("worker");
+        assertThat(String.valueOf(result.get("spawned")))
+                .contains("workspace://kanban/" + taskId)
+                .doesNotContain(System.getProperty("user.dir"));
         assertThat(result.get("skipped_unassigned")).asString().doesNotContain(taskId);
         assertThat(spawner.spawned).isEqualTo(1);
         Map<String, Object> detail = service.task(taskId);

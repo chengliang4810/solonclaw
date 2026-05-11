@@ -1717,7 +1717,7 @@ public class KanbanService {
         result.put("priority", Integer.valueOf(task.getPriority()));
         result.put("tenant", task.getTenant());
         result.put("workspace_kind", task.getWorkspaceKind());
-        result.put("workspace_path", task.getWorkspacePath());
+        result.put("workspace_path", workspaceReference(task));
         result.put("created_by", task.getCreatedBy());
         result.put("result", task.getResult());
         result.put("idempotency_key", task.getIdempotencyKey());
@@ -2698,6 +2698,24 @@ public class KanbanService {
 
     private File scratchWorkspaceRoot() {
         return FileUtil.file(runtimeHome(), "kanban", "workspaces");
+    }
+
+    private String workspaceReference(KanbanTaskRecord task) {
+        if (task == null) {
+            return null;
+        }
+        if ("scratch".equals(task.getWorkspaceKind())) {
+            return "workspace://kanban/" + SecretRedactor.redact(task.getTaskId(), 200);
+        }
+        String path = task.getWorkspacePath();
+        if (StrUtil.isBlank(path)) {
+            return null;
+        }
+        String name = FileUtil.file(path).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "workspace";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     private File runtimeLogsDir() {
