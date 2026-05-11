@@ -776,6 +776,16 @@ public class DangerousCommandApprovalService {
                                                     + NETWORK_CREDENTIAL_FILE_TARGET),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_metadata_output",
+                                    "print credential file metadata",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:ls|stat|file|du|wc)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|(?:^|[;&|\\n`])\\s*(?:Get-Item|gi|Get-ChildItem|gci)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(

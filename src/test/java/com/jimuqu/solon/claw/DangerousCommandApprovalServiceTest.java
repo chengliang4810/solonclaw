@@ -3263,6 +3263,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileMetadataOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "ls -l .env",
+                        "stat credentials.json",
+                        "file client_secret.json",
+                        "du -h service-account.json",
+                        "wc -c token.json",
+                        "Get-Item .anthropic_oauth.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_metadata_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "ls -l report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "stat README.md"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Get-Item notes.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileSystemOpenCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
