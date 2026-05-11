@@ -2525,6 +2525,7 @@ public class DangerousCommandApprovalServiceTest {
                         "aws configure set aws_secret_access_key secret",
                         "aws configure set aws_session_token token",
                         "aws configure set credential_process ./credential-helper",
+                        "aws configure set profile.dev.credential_process ./credential-helper",
                         "gcloud auth login --cred-file service-account.json",
                         "gcloud config set auth/credential_file_override service-account.json",
                         "gcloud config set account deploy@example.com",
@@ -2626,13 +2627,18 @@ public class DangerousCommandApprovalServiceTest {
                         "ssh-add ~/.ssh/id_rsa",
                         "ssh-add $HOME/.ssh/id_ed25519",
                         "ssh-add $env:HOME/.ssh/id_ecdsa_sk",
-                        "ssh-add %USERPROFILE%\\.ssh\\id_dsa");
+                        "ssh-add %USERPROFILE%\\.ssh\\id_dsa",
+                        "ssh-add - <<< \"$SSH_PRIVATE_KEY\"",
+                        "printf '%s' \"$PRIVATE_KEY\" | ssh-add -",
+                        "ssh-add - < id_ed25519.pem");
         for (String command : sshAddPrivateKeys) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
             assertThat(result).as(command).isNotNull();
             assertThat(result.getPatternKey()).as(command).isEqualTo("ssh_add_private_key");
         }
+        assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "ssh-add -l"))
+                .isNull();
 
         List<String> privateKeyMaterialExports =
                 Arrays.asList(

@@ -546,7 +546,7 @@ public class DangerousCommandApprovalService {
                                     "cloud_cli_credential_config_change",
                                     "cloud CLI credential configuration changed",
                                     pattern(
-                                            "\\b(?:aws\\s+configure\\s+set\\s+(?:aws_access_key_id|aws_secret_access_key|aws_session_token|sso_start_url|credential_process)\\b|gcloud\\s+auth\\s+login\\b(?=[^\\n]*--cred-file\\b)|gcloud\\s+config\\s+set\\s+(?:auth/credential_file_override|account)\\b|az\\s+ad\\s+app\\s+credential\\s+reset\\b)"),
+                                            "\\b(?:aws\\s+configure\\s+set\\s+(?:(?:profile\\.[A-Za-z0-9_.-]+\\.)?(?:aws_access_key_id|aws_secret_access_key|aws_session_token|sso_start_url|credential_process))\\b|gcloud\\s+auth\\s+login\\b(?=[^\\n]*--cred-file\\b)|gcloud\\s+config\\s+set\\s+(?:auth/credential_file_override|account)\\b|az\\s+ad\\s+app\\s+credential\\s+reset\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "domestic_cloud_cli_credential_config_change",
@@ -570,7 +570,7 @@ public class DangerousCommandApprovalService {
                                     "ssh_add_private_key",
                                     "load SSH private key into agent",
                                     pattern(
-                                            "\\bssh-add\\b(?=[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\][^\\s\"'`]*(?:id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|\\.pem)\\b)(?![^\\n]*\\s-[lLdD]\\b)"),
+                                            "(?:\\bssh-add\\b(?:(?=[^\\n]*(?:~|\\$HOME|\\$env:HOME|%USERPROFILE%|\\.{1,2})[/\\\\]\\.ssh[/\\\\][^\\s\"'`]*(?:id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?|\\.pem)\\b)(?![^\\n]*\\s-[lLdD]\\b)|(?=[^\\n]*\\s-\\s*(?:<<<|<|$))(?=[^\\n]*(?:SSH_PRIVATE_KEY|PRIVATE_KEY|BEGIN\\s+(?:OPENSSH|RSA|EC|DSA)\\s+PRIVATE\\s+KEY|id_(?:rsa|ed25519|ecdsa|dsa)|\\.pem)))|(?:SSH_PRIVATE_KEY|PRIVATE_KEY|BEGIN\\s+(?:OPENSSH|RSA|EC|DSA)\\s+PRIVATE\\s+KEY|id_(?:rsa|ed25519|ecdsa|dsa)|\\.pem)[^\\n]*\\|\\s*ssh-add\\s+-(?:\\s|$))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "private_key_material_export",
