@@ -106,12 +106,14 @@ public class AttachmentCacheService {
             boolean fromQuote,
             String transcribedText) {
         if (file == null || !file.isFile()) {
-            throw new IllegalArgumentException("Attachment file does not exist: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
         FileUtil.file(platformDir(platform)).getAbsoluteFile();
         if (!isUnderCacheRoot(canonical)) {
-            throw new IllegalArgumentException("Attachment file is outside runtime cache: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file is outside runtime cache: " + safePath(file));
         }
 
         MessageAttachment attachment = new MessageAttachment();
@@ -132,11 +134,13 @@ public class AttachmentCacheService {
             boolean fromQuote,
             String transcribedText) {
         if (file == null || !file.isFile()) {
-            throw new IllegalArgumentException("Attachment file does not exist: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (!isUnderMediaRoot(canonical)) {
-            throw new IllegalArgumentException("Attachment file is outside media cache: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file is outside media cache: " + safePath(file));
         }
         return fromLocalFile(platform, canonical, explicitKind, fromQuote, transcribedText);
     }
@@ -153,14 +157,16 @@ public class AttachmentCacheService {
             boolean fromQuote,
             String transcribedText) {
         if (file == null || !file.isFile()) {
-            throw new IllegalArgumentException("Attachment file does not exist: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (isUnderCacheRoot(canonical)) {
             return fromLocalFile(platform, canonical, explicitKind, fromQuote, transcribedText);
         }
         if (!isSafeRuntimeGeneratedFile(canonical)) {
-            throw new IllegalArgumentException("Attachment file is outside runtime cache: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file is outside runtime cache: " + safePath(file));
         }
         if (canonical.length() > MAX_CACHE_BYTES) {
             throw new IllegalStateException("Attachment too large: " + canonical.length());
@@ -172,7 +178,7 @@ public class AttachmentCacheService {
             Files.copy(canonical.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Failed to cache generated attachment: " + canonical.getAbsolutePath(), e);
+                    "Failed to cache generated attachment: " + safePath(canonical), e);
         }
         return fromLocalFile(platform, target, explicitKind, fromQuote, transcribedText);
     }
@@ -194,7 +200,8 @@ public class AttachmentCacheService {
     public String mediaReference(File file) {
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (!isUnderMediaRoot(canonical)) {
-            throw new IllegalArgumentException("Attachment file is outside media cache: " + file);
+            throw new IllegalArgumentException(
+                    "Attachment file is outside media cache: " + safePath(file));
         }
         try {
             String relative =
@@ -205,7 +212,7 @@ public class AttachmentCacheService {
                             .replace('\\', '/');
             return MEDIA_REFERENCE_PREFIX + relative;
         } catch (IOException e) {
-            throw new IllegalArgumentException("Invalid media cache path: " + file, e);
+            throw new IllegalArgumentException("Invalid media cache path: " + safePath(file), e);
         }
     }
 
@@ -221,7 +228,8 @@ public class AttachmentCacheService {
         File file = new File(cacheRoot, relative);
         File canonical = FileUtil.file(file).getAbsoluteFile();
         if (!isUnderMediaRoot(canonical)) {
-            throw new IllegalArgumentException("Attachment file is outside media cache: " + value);
+            throw new IllegalArgumentException(
+                    "Attachment file is outside media cache: " + safeMediaReference(value));
         }
         return canonical;
     }
@@ -482,6 +490,31 @@ public class AttachmentCacheService {
             value = value.substring(0, 120);
         }
         return value.length() == 0 ? "attachment.bin" : value;
+    }
+
+    private static String safePath(File file) {
+        if (file == null) {
+            return "[unknown]";
+        }
+        String name = file.getName();
+        if (StrUtil.isBlank(name)) {
+            name = file.getPath();
+        }
+        return safeName(SecretRedactor.redact(name, 400));
+    }
+
+    private static String safeMediaReference(String value) {
+        String text = StrUtil.nullToEmpty(value).replace('\\', '/').trim();
+        if (StrUtil.isBlank(text)) {
+            return "";
+        }
+        if (text.startsWith(MEDIA_REFERENCE_PREFIX)) {
+            String relative = text.substring(MEDIA_REFERENCE_PREFIX.length());
+            int slash = relative.lastIndexOf('/');
+            String name = slash >= 0 ? relative.substring(slash + 1) : relative;
+            return MEDIA_REFERENCE_PREFIX + safeName(SecretRedactor.redact(name, 400));
+        }
+        return safePath(new File(text));
     }
 
     private boolean isUnderCacheRoot(File file) {

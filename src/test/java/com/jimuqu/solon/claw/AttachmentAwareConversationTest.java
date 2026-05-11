@@ -83,7 +83,10 @@ public class AttachmentAwareConversationTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File outside = new File(runtimeHome.getParentFile(), "outside-attachment-secret.txt");
+        File outside =
+                new File(
+                        runtimeHome.getParentFile(),
+                        "outside-attachment-token=ghp_secretvalue.txt");
         Files.write(outside.toPath(), "secret".getBytes("UTF-8"));
         File mediaDir = attachmentCacheService.platformDir(PlatformType.MEMORY);
         Files.createDirectories(mediaDir.toPath());
@@ -106,7 +109,58 @@ public class AttachmentAwareConversationTest {
                                 attachmentCacheService.fromMediaCacheFile(
                                         PlatformType.MEMORY, link.toFile(), "file", false, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("outside media cache");
+                .hasMessageContaining("outside media cache")
+                .hasMessageContaining("leaked.txt")
+                .hasMessageNotContaining(runtimeHome.getParent())
+                .hasMessageNotContaining("ghp_secretvalue");
+    }
+
+    @Test
+    void shouldRedactMissingAttachmentPathErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File missing =
+                new File(
+                        runtimeHome.getParentFile(),
+                        "private-token=ghp_missingsecret-report.pdf");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () ->
+                                attachmentCacheService.fromLocalFile(
+                                        PlatformType.MEMORY, missing, "file", false, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Attachment file does not exist")
+                .hasMessageNotContaining(runtimeHome.getParent())
+                .hasMessageNotContaining("ghp_missingsecret");
+    }
+
+    @Test
+    void shouldRedactOutsideAttachmentPathErrors() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
+        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File outside =
+                new File(
+                        runtimeHome.getParentFile(),
+                        "outside-token=ghp_outsidesecret-report.pdf");
+        Files.write(outside.toPath(), "secret".getBytes("UTF-8"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () ->
+                                attachmentCacheService.fromLocalOrGeneratedFile(
+                                        PlatformType.MEMORY, outside, "file", false, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("outside runtime cache")
+                .hasMessageNotContaining(runtimeHome.getParent())
+                .hasMessageNotContaining("ghp_outsidesecret");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> attachmentCacheService.mediaReference(outside))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("outside media cache")
+                .hasMessageNotContaining(runtimeHome.getParent())
+                .hasMessageNotContaining("ghp_outsidesecret");
     }
 
     @Test
