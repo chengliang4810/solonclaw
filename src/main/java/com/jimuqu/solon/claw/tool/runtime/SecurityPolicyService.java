@@ -1069,6 +1069,9 @@ public class SecurityPolicyService {
             } else if (token.startsWith("--abstract-unix-socket=")) {
                 path = cleanUrlToken(token.substring("--abstract-unix-socket=".length()));
             }
+            if (StrUtil.isBlank(path)) {
+                path = localManagementSocketEnvironmentValue(token);
+            }
             if (isLocalManagementSocket(path)) {
                 return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
             }
@@ -1078,6 +1081,24 @@ public class SecurityPolicyService {
             }
         }
         return UrlVerdict.allow();
+    }
+
+    private String localManagementSocketEnvironmentValue(String token) {
+        int assignment = StrUtil.nullToEmpty(token).indexOf('=');
+        if (assignment <= 0 || assignment + 1 >= token.length()) {
+            return "";
+        }
+        String name = token.substring(0, assignment).trim();
+        if (!"DOCKER_HOST".equalsIgnoreCase(name)
+                && !"CONTAINER_HOST".equalsIgnoreCase(name)
+                && !"PODMAN_HOST".equalsIgnoreCase(name)) {
+            return "";
+        }
+        String value = cleanUrlToken(token.substring(assignment + 1));
+        if (value.regionMatches(true, 0, "unix://", 0, "unix://".length())) {
+            return value.substring("unix://".length());
+        }
+        return value;
     }
 
     private boolean isLocalManagementSocket(String rawPath) {

@@ -1444,6 +1444,12 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandUrls("curl npipe:////./pipe/docker%255fengine/containers/json");
         SecurityPolicyService.UrlVerdict entityCommand =
                 policy.checkCommandUrls("DOCKER_HOST=npipe:////./pipe/docker&#95;engine docker ps");
+        SecurityPolicyService.UrlVerdict unixSocketEnv =
+                policy.checkCommandUrls("DOCKER_HOST=unix:///var/run/docker.sock docker ps");
+        SecurityPolicyService.UrlVerdict podmanSocketEnv =
+                policy.checkCommandUrls("CONTAINER_HOST=unix:///run/podman/podman.sock podman ps");
+        SecurityPolicyService.UrlVerdict ordinarySocketEnv =
+                policy.checkCommandUrls("DOCKER_HOST=unix://runtime/app.sock docker ps");
 
         assertThat(bidiPath.isAllowed()).isFalse();
         assertThat(bidiPath.getMessage()).contains("命名管道");
@@ -1451,6 +1457,11 @@ public class SecurityPolicyServiceTest {
         assertThat(encodedCommand.getMessage()).contains("命名管道");
         assertThat(entityCommand.isAllowed()).isFalse();
         assertThat(entityCommand.getMessage()).contains("命名管道");
+        assertThat(unixSocketEnv.isAllowed()).isFalse();
+        assertThat(unixSocketEnv.getMessage()).contains("管理套接字");
+        assertThat(podmanSocketEnv.isAllowed()).isFalse();
+        assertThat(podmanSocketEnv.getMessage()).contains("管理套接字");
+        assertThat(ordinarySocketEnv.isAllowed()).isTrue();
     }
 
     @Test
