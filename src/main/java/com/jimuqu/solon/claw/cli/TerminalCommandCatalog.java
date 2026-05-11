@@ -10,7 +10,7 @@ public final class TerminalCommandCatalog {
             new String[] {
                 "/help", "/new", "/retry", "/undo", "/branch", "/resume", "/status", "/usage",
                 "/title", "/goal", "/busy", "/model", "/reasoning", "/tools", "/skills", "/agent",
-                "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp", "/reload-mcp",
+                "/cron", "/approve", "/kanban", "/deny", "/queue", "/steer", "/acp", "/acp status", "/reload-mcp",
                 "/model pick", "/skin classic", "/skin mono", "/skin contrast",
                 "/busy status", "/busy queue", "/busy steer", "/busy interrupt", "/busy reject",
                 "/approve list", "/approve status", "/approve all", "/approve all session",

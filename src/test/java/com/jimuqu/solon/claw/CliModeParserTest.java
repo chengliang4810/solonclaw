@@ -77,6 +77,7 @@ public class CliModeParserTest {
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains("--session --ask -p")
+                .contains("/acp status")
                 .contains("/reload-mcp now");
         assertThat(zsh)
                 .contains("#compdef jimuqu-agent")
