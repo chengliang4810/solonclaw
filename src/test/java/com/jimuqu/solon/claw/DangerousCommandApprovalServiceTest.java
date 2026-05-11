@@ -9501,7 +9501,7 @@ public class DangerousCommandApprovalServiceTest {
                     @Override
                     public SmartApprovalDecision judge(
                             String toolName, String command, String description) {
-                        return SmartApprovalDecision.escalate("needs user");
+                        return SmartApprovalDecision.escalate("needs user token=smart-escalate-secret");
                     }
                 });
         TestTrace trace = new TestTrace();
@@ -9511,7 +9511,9 @@ public class DangerousCommandApprovalServiceTest {
         service.buildInterceptor().onAction(trace, "execute_shell", args);
 
         assertThat(service.getPendingApproval(trace.session)).isNotNull();
-        assertThat(trace.getFinalAnswer()).contains("危险命令需要审批");
+        assertThat(trace.getFinalAnswer())
+                .contains("危险命令需要审批")
+                .doesNotContain("smart-escalate-secret");
         assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isFalse();
     }
 
