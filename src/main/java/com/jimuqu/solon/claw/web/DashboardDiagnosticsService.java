@@ -1729,6 +1729,9 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(security, safe, "websiteBlocklistEnabled");
         copyPolicyValue(security, safe, "websiteBlocklistDomainCount");
         copyPolicyValue(security, safe, "websiteBlocklistSharedFileCount");
+        copyPolicyValue(security, safe, "websiteBlocklistSharedRuleCount");
+        copyPolicyValue(security, safe, "websiteBlocklistLoadedSharedFileCount");
+        copyPolicyValue(security, safe, "websiteBlocklistSkippedSharedFileCount");
         return safe;
     }
 

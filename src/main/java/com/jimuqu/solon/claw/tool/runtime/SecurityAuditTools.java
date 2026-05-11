@@ -178,6 +178,18 @@ public class SecurityAuditTools {
         security.put(
                 "websiteBlocklistSharedFileCount",
                 Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
+        if (securityPolicyService != null) {
+            Map<String, Object> urlPolicy = securityPolicyService.urlPolicySummary();
+            security.put(
+                    "websiteBlocklistSharedRuleCount",
+                    urlPolicy.get("websiteBlocklistSharedRuleCount"));
+            security.put(
+                    "websiteBlocklistLoadedSharedFileCount",
+                    urlPolicy.get("websiteBlocklistLoadedSharedFileCount"));
+            security.put(
+                    "websiteBlocklistSkippedSharedFileCount",
+                    urlPolicy.get("websiteBlocklistSkippedSharedFileCount"));
+        }
         result.policy.put("security", security);
 
         Map<String, Object> terminal = new LinkedHashMap<String, Object>();

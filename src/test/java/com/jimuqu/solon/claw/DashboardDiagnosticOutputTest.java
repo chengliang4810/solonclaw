@@ -24,7 +24,10 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import cn.hutool.core.io.FileUtil;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -123,6 +126,54 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).doesNotContain("sk-test-providersecret");
         assertThat(diagnosticsJson).doesNotContain("ghp_doctorerror123");
         assertThat(diagnosticsJson).doesNotContain("doctor-password");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeWebsiteSharedPolicyDiagnosticsWithoutLeakingPaths() throws Exception {
+        Path parent = Files.createTempDirectory("jimuqu-dashboard-website-policy");
+        Path runtimeHome = Files.createDirectory(parent.resolve("runtime-token=ghp_dashboardwebsecret123"));
+        File shared = runtimeHome.resolve("shared-token=sk-dashboard-secret.txt").toFile();
+        FileUtil.writeUtf8String("blocked.example\nshared-token-sk-dashboardsecret.example\n", shared);
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(runtimeHome.toString());
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("inline.example"));
+        config.getSecurity()
+                .getWebsiteBlocklist()
+                .setSharedFiles(Arrays.asList(shared.getName(), "../missing-token=sk-dashboard-secret.txt"));
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("action", "policy");
+
+        Map<String, Object> result = diagnosticsService.securityAudit(body);
+
+        Map<String, Object> policy = (Map<String, Object>) result.get("policy");
+        Map<String, Object> security = (Map<String, Object>) policy.get("security");
+        assertThat(security.get("websiteBlocklistSharedFileCount")).isEqualTo(Integer.valueOf(2));
+        assertThat(security.get("websiteBlocklistLoadedSharedFileCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(security.get("websiteBlocklistSkippedSharedFileCount")).isEqualTo(Integer.valueOf(1));
+        assertThat(security.get("websiteBlocklistSharedRuleCount")).isEqualTo(Integer.valueOf(2));
+        String json = ONode.serialize(result);
+        assertThat(json)
+                .doesNotContain(runtimeHome.toString())
+                .doesNotContain(shared.getAbsolutePath())
+                .doesNotContain("ghp_dashboardwebsecret123")
+                .doesNotContain("sk-dashboard-secret");
     }
 
     @Test
@@ -442,7 +493,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> item = items.get(0);
         String selector = String.valueOf(item.get("selector"));
 
-        assertThat(item.get("approval_id")).isEqualTo("");
+        assertThat(item.get("approval_id")).isEqualTo(selector);
         assertThat(selector).startsWith("key_").hasSize(28);
         assertThat(selector).isNotEqualTo(approvalKey).doesNotContain("execute_shell:");
         assertThat(item).doesNotContainKey("approval_key");
