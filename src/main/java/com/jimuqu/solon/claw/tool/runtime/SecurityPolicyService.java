@@ -234,6 +234,12 @@ public class SecurityPolicyService {
                     "/run/podman/podman.sock",
                     "/var/run/cri-dockerd.sock",
                     "/var/run/crio/crio.sock");
+    private static final List<String> LOCAL_MANAGEMENT_PIPE_PATHS =
+            Arrays.asList(
+                    "//./pipe/docker_engine",
+                    "\\\\.\\pipe\\docker_engine",
+                    "npipe:////./pipe/docker_engine",
+                    "npipe://./pipe/docker_engine");
     private static final List<String> SSH_FILE_CONFIG_OPTION_NAMES =
             Arrays.asList(
                     "IdentityFile",
@@ -774,7 +780,7 @@ public class SecurityPolicyService {
             }
         }
         for (String option : COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES) {
-            if (token.startsWith(option) && token.length() > option.length()) {
+            if (startsWithCompactShortOptionValue(token, option)) {
                 return token.substring(option.length());
             }
         }
@@ -821,11 +827,22 @@ public class SecurityPolicyService {
             return "";
         }
         for (String option : NETWORK_CREDENTIAL_SHORT_OPTIONS) {
-            if (token.startsWith(option) && token.length() > option.length()) {
+            if (startsWithCompactShortOptionValue(token, option)) {
                 return token.substring(option.length());
             }
         }
         return "";
+    }
+
+    private boolean startsWithCompactShortOptionValue(String token, String option) {
+        if (!token.startsWith(option) || token.length() <= option.length() + 1) {
+            return false;
+        }
+        char next = token.charAt(option.length());
+        return next != '-'
+                && next != ':'
+                && next != '='
+                && !Character.isLetter(next);
     }
 
     private boolean isDetachedNetworkCredentialShortOption(String token) {
@@ -938,6 +955,10 @@ public class SecurityPolicyService {
             if (isLocalManagementSocket(path)) {
                 return UrlVerdict.block(path, "阻断本地容器/运行时管理套接字访问：" + path);
             }
+            String pipe = localManagementPipeToken(token);
+            if (StrUtil.isNotBlank(pipe)) {
+                return UrlVerdict.block(pipe, "阻断本地容器/运行时管理命名管道访问：" + pipe);
+            }
         }
         return UrlVerdict.allow();
     }
@@ -953,6 +974,50 @@ public class SecurityPolicyService {
             }
         }
         return false;
+    }
+
+    private String localManagementPipeToken(String token) {
+        if (isLocalManagementPipe(token)) {
+            return token;
+        }
+        int assignment = token.indexOf('=');
+        if (assignment > 0 && assignment + 1 < token.length()) {
+            String value = token.substring(assignment + 1);
+            if (isLocalManagementPipe(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private boolean isLocalManagementPipe(String rawPath) {
+        String normalized = normalizePipeText(rawPath);
+        if (normalized.length() == 0) {
+            return false;
+        }
+        for (String pipePath : LOCAL_MANAGEMENT_PIPE_PATHS) {
+            String localPipe = normalizePipeText(pipePath);
+            if (normalized.equals(localPipe) || normalized.startsWith(localPipe + "/")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizePipeText(String rawPath) {
+        String value = StrUtil.nullToEmpty(rawPath).trim();
+        value = HtmlUtil.unescape(value).trim();
+        value = value.replace('\\', '/').toLowerCase(Locale.ROOT);
+        while (value.endsWith(",") || value.endsWith(";") || value.endsWith("\"") || value.endsWith("'")) {
+            value = value.substring(0, value.length() - 1).trim();
+        }
+        if (value.startsWith("npipe:////./")) {
+            return "//./" + value.substring("npipe:////./".length());
+        }
+        if (value.startsWith("npipe://./")) {
+            return "//./" + value.substring("npipe://./".length());
+        }
+        return value;
     }
 
     public UrlVerdict checkCommandAlwaysBlockedUrls(String command) {
@@ -1997,6 +2062,12 @@ public class SecurityPolicyService {
         while (gitDiffMatcher.find()) {
             addPathValue(paths, gitDiffMatcher.group(1));
             addPathValue(paths, gitDiffMatcher.group(2));
+        }
+        Matcher gitRenameMatcher =
+                Pattern.compile("^(?:rename|copy)\\s+(?:from|to)\\s+(.+)$", Pattern.MULTILINE)
+                        .matcher(text);
+        while (gitRenameMatcher.find()) {
+            addPathValue(paths, gitRenameMatcher.group(1));
         }
         Matcher unifiedHeaderMatcher =
                 Pattern.compile("^(?:---|\\+\\+\\+)\\s+(?:a/|b/)?([^\\s]+).*$", Pattern.MULTILINE)

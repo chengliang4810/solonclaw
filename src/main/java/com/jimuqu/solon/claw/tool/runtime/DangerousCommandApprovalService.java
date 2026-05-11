@@ -440,6 +440,34 @@ public class DangerousCommandApprovalService {
                                                     + "['\"]?\\s*,\\s*[^,)]+)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "sensitive_environment_http_header_send",
+                                    "send sensitive environment variable through HTTP header",
+                                    pattern(
+                                            "(?:"
+                                                    + SHELL_COMMAND_START
+                                                    + "(?:curl|wget)\\b[^\\n]*(?:(?:-H\\s*|--header\\s*(?:=\\s*)?|--proxy-header\\s*(?:=\\s*)?)[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:\\s*[^\\n'\"|;&]*(?:\\$\\{?|\\$env:|%|!)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "(?:\\}|%|!)?|(?:--header=|--proxy-header=)[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:\\s*[^\\n'\"|;&]*(?:\\$\\{?|\\$env:|%|!)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "(?:\\}|%|!)?)|"
+                                                    + SHELL_COMMAND_START
+                                                    + "(?:httpie|https?|xh)\\b[^\\n]*\\s[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*:\\s*['\"]?[^\\n'\"|;&]*(?:\\$\\{?|\\$env:|%|!)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "(?:\\}|%|!)?|"
+                                                    + SHELL_COMMAND_START
+                                                    + "(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b[^\\n]*(?:-Headers?\\b\\s*(?::|=|\\s+)\\s*@\\{[^\\n}]*[\"']?\\s*"
+                                                    + SENSITIVE_HTTP_HEADER_NAME
+                                                    + "\\s*[\"']?\\s*=\\s*['\"]?[^\\n'\";}]*(?:\\$env:|\\$\\{env:|\\$\\{?|%|!)"
+                                                    + SENSITIVE_ENV_NAME
+                                                    + "(?:\\}|%|!)?))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_read",
                                     "print sensitive environment variable",
                                     pattern(
