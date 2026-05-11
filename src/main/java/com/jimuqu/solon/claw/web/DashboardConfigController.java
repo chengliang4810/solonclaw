@@ -39,16 +39,48 @@ public class DashboardConfigController {
 
     @Mapping(value = "/api/config", method = MethodType.PUT)
     public Map<String, Object> save(Context context) throws Exception {
-        return DashboardResponse.ok(
-                configService.saveConfig(
-                        ONode.deserialize(
-                                ONode.ofJson(context.body()).get("config").toJson(),
-                                LinkedHashMap.class)));
+        return safeConfig(
+                context,
+                new ConfigAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return configService.saveConfig(
+                                ONode.deserialize(
+                                        ONode.ofJson(context.body()).get("config").toJson(),
+                                        LinkedHashMap.class));
+                    }
+                });
     }
 
     @Mapping(value = "/api/config/raw", method = MethodType.PUT)
     public Map<String, Object> saveRaw(Context context) throws Exception {
-        return DashboardResponse.ok(
-                configService.saveRaw(ONode.ofJson(context.body()).get("yaml_text").getString()));
+        return safeConfig(
+                context,
+                new ConfigAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return configService.saveRaw(
+                                ONode.ofJson(context.body()).get("yaml_text").getString());
+                    }
+                });
+    }
+
+    private Map<String, Object> safeConfig(Context context, ConfigAction action) {
+        try {
+            return DashboardResponse.ok(action.run());
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("CONFIG_BAD_REQUEST", e.getMessage());
+        } catch (Exception e) {
+            context.status(400);
+            return DashboardResponse.error("CONFIG_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private interface ConfigAction {
+        Map<String, Object> run() throws Exception;
     }
 }

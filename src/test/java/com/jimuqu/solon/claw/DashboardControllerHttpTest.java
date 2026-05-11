@@ -2402,6 +2402,35 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapDashboardConfigSaveErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult unsupportedSave =
+                request(
+                        "PUT",
+                        "/api/config",
+                        "{\"config\":{\"terminal\":{\"credentialFiles\":[\"C:/secret/ghp_configsave12345.txt\"]}}}",
+                        token);
+        assertThat(unsupportedSave.status).isEqualTo(400);
+        assertThat(unsupportedSave.body)
+                .contains("CONFIG_BAD_REQUEST")
+                .contains("runtime-relative paths")
+                .doesNotContain("ghp_configsave12345");
+
+        HttpResult unsupportedRaw =
+                request(
+                        "PUT",
+                        "/api/config/raw",
+                        "{\"yaml_text\":\"terminal:\\n  credentialFiles:\\n    - C:/secret/ghp_configraw12345.txt\"}",
+                        token);
+        assertThat(unsupportedRaw.status).isEqualTo(400);
+        assertThat(unsupportedRaw.body)
+                .contains("CONFIG_BAD_REQUEST")
+                .contains("runtime-relative paths")
+                .doesNotContain("ghp_configraw12345");
+    }
+
+    @Test
     void shouldWrapProviderMutationErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
