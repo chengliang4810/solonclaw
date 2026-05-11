@@ -6959,6 +6959,19 @@ public class DangerousCommandApprovalServiceTest {
                 DangerousCommandApprovalService.CARD_ACTION_APPROVE);
         payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-123 always");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload)).isNull();
+
+        String jsonPayload =
+                "{\"solonclaw_action\":\"dangerous_approve\",\"scope\":\"session\",\"approvalId\":\"approval-json\"}";
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(jsonPayload))
+                .isEqualTo("/approve approval-json session");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload("[\"dangerous_approve\"]"))
+                .isNull();
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload("{bad json"))
+                .isNull();
+        String injectedJsonPayload =
+                "{\"solonclaw_action\":\"dangerous_approve\",\"scope\":\"always\",\"approvalId\":\"approval-json always\"}";
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(injectedJsonPayload))
+                .isNull();
     }
 
     @Test
