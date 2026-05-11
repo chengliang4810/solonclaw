@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -108,7 +109,7 @@ public class DefaultCheckpointService implements CheckpointService {
     public CheckpointRecord rollback(String checkpointId) throws Exception {
         CheckpointRecord record = findById(checkpointId);
         if (record == null) {
-            throw new IllegalStateException("未找到 checkpoint：" + checkpointId);
+            throw new IllegalStateException("未找到 checkpoint：" + safeIdentifier(checkpointId));
         }
 
         ONode manifest =
@@ -225,7 +226,7 @@ public class DefaultCheckpointService implements CheckpointService {
     public Map<String, Object> preview(String checkpointId) throws Exception {
         CheckpointRecord record = findById(checkpointId);
         if (record == null) {
-            throw new IllegalStateException("未找到 checkpoint：" + checkpointId);
+            throw new IllegalStateException("未找到 checkpoint：" + safeIdentifier(checkpointId));
         }
 
         ONode manifest =
@@ -257,8 +258,8 @@ public class DefaultCheckpointService implements CheckpointService {
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("checkpoint_id", record.getCheckpointId());
-        result.put("source_key", record.getSourceKey());
-        result.put("session_id", record.getSessionId());
+        result.put("source_key", safeIdentifier(record.getSourceKey()));
+        result.put("session_id", safeIdentifier(record.getSessionId()));
         result.put("created_at", record.getCreatedAt());
         result.put("restored_at", record.getRestoredAt());
         result.put("files", files);
@@ -268,6 +269,10 @@ public class DefaultCheckpointService implements CheckpointService {
 
     private String fileReference(String path) {
         return "file://" + safePath(path);
+    }
+
+    private String safeIdentifier(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 400);
     }
 
     private String snapshotReference(CheckpointRecord record, String path) {

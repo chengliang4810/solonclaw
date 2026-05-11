@@ -6,6 +6,9 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
+import java.io.File;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -131,6 +134,33 @@ public class DashboardSessionServiceTest {
     }
 
     @Test
+    void shouldRedactSecretsFromDashboardCheckpointList() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:dash-checkpoint:ghp_dashboardcheckpointsource";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        File checkpointDir = new File(env.appConfig.getRuntime().getCacheDir(), "checkpoints/dashboard");
+        File manifest = new File(checkpointDir, "manifest.json");
+        insertCheckpoint(
+                env,
+                "dashboard-checkpoint",
+                sourceKey,
+                "session-ghp_dashboardcheckpointsession",
+                checkpointDir,
+                manifest);
+
+        DashboardSessionService service =
+                new DashboardSessionService(env.sessionRepository, env.checkpointService);
+        Map<String, Object> checkpoints = service.checkpoints(session.getSessionId());
+        String checkpointText = String.valueOf(checkpoints);
+
+        assertThat(checkpointText)
+                .contains("source_key=MEMORY:dash-checkpoint:***")
+                .contains("session_id=session-ghp_***")
+                .doesNotContain("ghp_dashboardcheckpointsource")
+                .doesNotContain("ghp_dashboardcheckpointsession");
+    }
+
+    @Test
     void shouldResolveLatestDescendantThroughNewestChildPath() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord root = env.sessionRepository.bindNewSession("MEMORY:lineage-root:user");
@@ -175,5 +205,36 @@ public class DashboardSessionServiceTest {
         Map<String, Object> leaf = service.latestDescendant(grandchild.getSessionId());
         assertThat(leaf.get("session_id")).isEqualTo(grandchild.getSessionId());
         assertThat(leaf.get("changed")).isEqualTo(Boolean.FALSE);
+    }
+
+    private static void insertCheckpoint(
+            TestEnvironment env,
+            String checkpointId,
+            String sourceKey,
+            String sessionId,
+            File checkpointDir,
+            File manifest)
+            throws Exception {
+        checkpointDir.mkdirs();
+        java.nio.file.Files.write(
+                manifest.toPath(),
+                "{\"files\":[],\"skipped\":[]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into checkpoints (checkpoint_id, source_key, session_id, checkpoint_dir, manifest_path, created_at, restored_at) values (?, ?, ?, ?, ?, ?, ?)");
+            statement.setString(1, checkpointId);
+            statement.setString(2, sourceKey);
+            statement.setString(3, sessionId);
+            statement.setString(4, checkpointDir.getAbsolutePath());
+            statement.setString(5, manifest.getAbsolutePath());
+            statement.setLong(6, System.currentTimeMillis());
+            statement.setLong(7, 0L);
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
     }
 }

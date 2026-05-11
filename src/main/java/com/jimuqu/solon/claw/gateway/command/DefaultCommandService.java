@@ -3696,7 +3696,7 @@ public class DefaultCommandService implements CommandService {
                                             new java.util.Date(record.getRestoredAt()))
                                     : "never");
             if (StrUtil.isNotBlank(record.getSessionId())) {
-                buffer.append(", session=").append(record.getSessionId());
+                buffer.append(", session=").append(safeIdentifier(record.getSessionId()));
             }
         }
         return buffer.toString();
@@ -4180,6 +4180,10 @@ public class DefaultCommandService implements CommandService {
         } catch (Exception ignored) {
             return 0L;
         }
+    }
+
+    private String safeIdentifier(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 400);
     }
 
     private int parseGoalMaxTurns(String raw, int defaultValue) {

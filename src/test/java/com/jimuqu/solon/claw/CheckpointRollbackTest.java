@@ -102,6 +102,42 @@ public class CheckpointRollbackTest {
     }
 
     @Test
+    void shouldRedactCheckpointPreviewIdentifiers() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File checkpointDir =
+                FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "checkpoints", "identifiers");
+        File manifest = FileUtil.file(checkpointDir, "manifest.json");
+        FileUtil.writeUtf8String("{\"files\":[],\"skipped\":[]}", manifest);
+        insertCheckpoint(
+                env,
+                "identifier-checkpoint",
+                "MEMORY:room-a:ghp_checkpointsourcepreviewsecret",
+                "session-ghp_checkpointsessionpreviewsecret",
+                checkpointDir,
+                manifest);
+
+        Map<String, Object> preview = env.checkpointService.preview("identifier-checkpoint");
+        String previewText = String.valueOf(preview);
+
+        assertThat(previewText)
+                .contains("source_key=MEMORY:room-a:***")
+                .contains("session_id=session-ghp_***")
+                .doesNotContain("ghp_checkpointsourcepreviewsecret")
+                .doesNotContain("ghp_checkpointsessionpreviewsecret");
+    }
+
+    @Test
+    void shouldRedactMissingCheckpointIds() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> env.checkpointService.rollback("missing-ghp_checkpointmissingsecret"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("未找到 checkpoint")
+                .hasMessageNotContaining("ghp_checkpointmissingsecret");
+    }
+
+    @Test
     void shouldRedactUnsafeCheckpointRollbackPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
@@ -158,14 +194,31 @@ public class CheckpointRollbackTest {
     private static void insertCheckpoint(
             TestEnvironment env, String checkpointId, File checkpointDir, File manifest)
             throws Exception {
+        insertCheckpoint(
+                env,
+                checkpointId,
+                "MEMORY:room-a:user-a",
+                "session-a",
+                checkpointDir,
+                manifest);
+    }
+
+    private static void insertCheckpoint(
+            TestEnvironment env,
+            String checkpointId,
+            String sourceKey,
+            String sessionId,
+            File checkpointDir,
+            File manifest)
+            throws Exception {
         Connection connection = env.sqliteDatabase.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert into checkpoints (checkpoint_id, source_key, session_id, checkpoint_dir, manifest_path, created_at, restored_at) values (?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, checkpointId);
-            statement.setString(2, "MEMORY:room-a:user-a");
-            statement.setString(3, "session-a");
+            statement.setString(2, sourceKey);
+            statement.setString(3, sessionId);
             statement.setString(4, checkpointDir.getAbsolutePath());
             statement.setString(5, manifest.getAbsolutePath());
             statement.setLong(6, System.currentTimeMillis());

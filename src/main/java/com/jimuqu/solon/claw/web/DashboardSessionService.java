@@ -486,7 +486,7 @@ public class DashboardSessionService {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("checkpoint_id", checkpoint.getCheckpointId());
         item.put("source_key", safe(checkpoint.getSourceKey(), 400));
-        item.put("session_id", checkpoint.getSessionId());
+        item.put("session_id", safe(checkpoint.getSessionId(), 400));
         item.put("created_at", checkpoint.getCreatedAt());
         item.put("restored_at", checkpoint.getRestoredAt());
         return item;

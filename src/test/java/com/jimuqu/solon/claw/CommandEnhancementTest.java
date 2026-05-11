@@ -88,6 +88,7 @@ public class CommandEnhancementTest {
         String sourceKey = "MEMORY:admin-chat:admin-user";
         File file = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "rollback-command.txt");
         SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setSessionId("session-ghp_commandrollbacksecret");
         FileUtil.writeUtf8String("v1", file);
         env.checkpointService.createCheckpoint(
                 sourceKey, session.getSessionId(), Collections.singletonList(file));
@@ -95,6 +96,9 @@ public class CommandEnhancementTest {
 
         GatewayReply listReply = env.send("admin-chat", "admin-user", "/rollback");
         assertThat(listReply.getContent()).contains("1.").contains("created=");
+        assertThat(listReply.getContent())
+                .contains("session=session-ghp_***")
+                .doesNotContain("ghp_commandrollbacksecret");
 
         GatewayReply statusReply = env.send("admin-chat", "admin-user", "/rollback status");
         assertThat(statusReply.getContent()).contains("checkpoint_count=1").contains("total_size=");
