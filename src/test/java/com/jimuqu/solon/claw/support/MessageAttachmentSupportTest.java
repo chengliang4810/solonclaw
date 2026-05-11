@@ -48,4 +48,26 @@ public class MessageAttachmentSupportTest {
                 .doesNotContain("token=")
                 .doesNotContain("secret.txt");
     }
+
+    @Test
+    void shouldUsePathReferenceForAttachmentContext() {
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind("file");
+        attachment.setOriginalName("report.pdf");
+        attachment.setMimeType("application/pdf");
+        attachment.setLocalPath("D:/runtime/cache/media/report.pdf");
+        com.jimuqu.solon.claw.core.model.GatewayMessage message =
+                new com.jimuqu.solon.claw.core.model.GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "room",
+                        "user",
+                        "看附件");
+        message.getAttachments().add(attachment);
+
+        String text = MessageAttachmentSupport.composeEffectiveUserText(message);
+
+        assertThat(text)
+                .contains("localPath=path://report.pdf")
+                .doesNotContain("D:/runtime/cache/media");
+    }
 }

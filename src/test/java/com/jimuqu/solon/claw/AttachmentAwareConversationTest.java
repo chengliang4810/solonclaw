@@ -66,7 +66,7 @@ public class AttachmentAwareConversationTest {
         assertThat(llmGateway.lastUserMessage).contains("[attachments]");
         assertThat(llmGateway.lastUserMessage).contains("kind=image");
         assertThat(llmGateway.lastUserMessage).contains("originalName=diagram.png");
-        assertThat(llmGateway.lastUserMessage).contains("localPath=diagram.png");
+        assertThat(llmGateway.lastUserMessage).contains("localPath=path://diagram.png");
         assertThat(llmGateway.lastUserMessage).doesNotContain("D:\\temp");
         assertThat(llmGateway.lastUserMessage).contains("fromQuote=true");
         assertThat(llmGateway.lastUserMessage).contains("transcribedText=客户说先别发版");
@@ -242,7 +242,7 @@ public class AttachmentAwareConversationTest {
 
         env.conversationOrchestrator.handleIncoming(message);
 
-        assertThat(llmGateway.lastUserMessage).contains("localPath=safe-report.pdf");
+        assertThat(llmGateway.lastUserMessage).contains("localPath=path://safe-report.pdf");
         assertThat(llmGateway.lastUserMessage).contains("[redacted-sensitive-name]");
         assertThat(llmGateway.lastUserMessage).contains("[redacted-sensitive-path]");
         assertThat(llmGateway.lastUserMessage).doesNotContain(env.appConfig.getRuntime().getHome());

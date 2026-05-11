@@ -31,7 +31,7 @@ public final class MessageAttachmentSupport {
             buffer.append(", mimeType=")
                     .append(safeInline(attachment.getMimeType()));
             buffer.append(", localPath=")
-                    .append(safeAttachmentPath(attachment.getLocalPath()));
+                    .append(safeAttachmentPath(attachment.getLocalPath(), true));
             buffer.append(", fromQuote=").append(attachment.isFromQuote());
             if (StrUtil.isNotBlank(attachment.getTranscribedText())) {
                 buffer.append(", transcribedText=")
@@ -62,7 +62,7 @@ public final class MessageAttachmentSupport {
         if (StrUtil.isNotBlank(safeName)) {
             message.append(": ").append(safeName);
         }
-        String safePath = safeAttachmentPath(path);
+        String safePath = safeAttachmentPath(path, false);
         if (StrUtil.isNotBlank(safePath) && !StrUtil.equals(safePath, safeName)) {
             message.append(" (path=").append(safePath).append(")");
         }
@@ -82,7 +82,7 @@ public final class MessageAttachmentSupport {
         return value;
     }
 
-    private static String safeAttachmentPath(String localPath) {
+    private static String safeAttachmentPath(String localPath, boolean asReference) {
         String value = safeInline(localPath);
         if (value.length() == 0) {
             return "";
@@ -106,7 +106,7 @@ public final class MessageAttachmentSupport {
         if (isSensitiveFileName(name)) {
             return "[redacted-sensitive-path]";
         }
-        return name;
+        return asReference ? "path://" + SecretRedactor.redact(name, 200) : name;
     }
 
     private static boolean containsSensitivePath(String value) {
