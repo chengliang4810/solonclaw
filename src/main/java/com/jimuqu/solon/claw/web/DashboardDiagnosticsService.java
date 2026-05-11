@@ -2066,8 +2066,9 @@ public class DashboardDiagnosticsService {
                 StrUtil.blankToDefault(session.getTitle(), session.getSessionId()), 240));
         item.put("branch_name", safeAuditPreview(session.getBranchName(), 160));
         item.put("updated_at", Long.valueOf(session.getUpdatedAt()));
-        item.put("approval_id", safeAuditPreview(pending.getApprovalId(), 160));
-        item.put("selector", DangerousCommandApprovalService.approvalSelector(pending));
+        String selector = DangerousCommandApprovalService.approvalSelector(pending);
+        item.put("approval_id", selector);
+        item.put("selector", selector);
         item.put("tool_name", safeAuditPreview(pending.getToolName(), 160));
         item.put("description", safeAuditPreview(pending.getDescription(), 1000));
         item.put("pattern_key", safeAuditPreview(pending.getPatternKey(), 400));

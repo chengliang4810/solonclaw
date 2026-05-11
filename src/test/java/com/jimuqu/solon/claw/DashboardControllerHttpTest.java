@@ -1819,6 +1819,48 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeSafeSelectorForUnsafeDashboardApprovalId() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        seedPendingApproval(
+                "dashboard-unsafe-approval-chat",
+                "MEMORY:dashboard-unsafe-approval-chat:dashboard-user",
+                "Dashboard unsafe approval session",
+                "rm -rf runtime/cache");
+        SessionRepository repository = bean(SessionRepository.class);
+        SessionRecord record = repository.findById("dashboard-unsafe-approval-chat");
+        SqliteAgentSession agentSession = new SqliteAgentSession(record, repository);
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        HttpResult pending =
+                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        assertThat(pending.status).isEqualTo(200);
+        ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
+        String selector = pendingData.get("selector").getString();
+        String approvalId = pendingData.get("approval_id").getString();
+
+        assertThat(selector).startsWith("key_");
+        assertThat(approvalId).isEqualTo(selector);
+        assertThat(pending.body).doesNotContain("approval-unsafe always");
+
+        HttpResult resolve =
+                request(
+                        "POST",
+                        "/api/diagnostics/approvals/resolve",
+                        "{\"sessionId\":\"dashboard-unsafe-approval-chat\",\"approvalId\":\""
+                                + jsonEscape(approvalId)
+                                + "\",\"action\":\"deny\",\"resume\":false}",
+                        token);
+        assertThat(resolve.status).isEqualTo(200);
+        assertThat(resolve.body).contains("\"success\":true").contains("\"action\":\"deny\"");
+    }
+
+    @Test
     void shouldListAndRevokeAlwaysDashboardApprovals() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         seedPendingApproval(
