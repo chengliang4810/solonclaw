@@ -94,6 +94,19 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldMaskRepeatedlyEncodedSensitiveUrlQueryNames() {
+        String result =
+                SecretRedactor.maskUrl(
+                        "https://example.com/callback?api%25255Fkey=deep-secret&client%25255Fsecret=client-deep-secret&ok=value");
+
+        assertThat(result)
+                .isEqualTo(
+                        "https://example.com/callback?api%25255Fkey=***&client%25255Fsecret=***&ok=value")
+                .doesNotContain("deep-secret")
+                .doesNotContain("client-deep-secret");
+    }
+
+    @Test
     void shouldRedactEncodedSensitiveUrlQueryNamesInGeneralText() {
         String result =
                 SecretRedactor.redact(
