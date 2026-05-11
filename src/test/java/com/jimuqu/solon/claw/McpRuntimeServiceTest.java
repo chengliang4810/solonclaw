@@ -70,6 +70,8 @@ public class McpRuntimeServiceTest {
         assertThat(summary.get("remoteToolTimeoutMillisDefault")).isEqualTo(Long.valueOf(120000L));
         assertThat(summary.get("connectTimeoutMillisDefault")).isEqualTo(Long.valueOf(60000L));
         assertThat(summary.get("toolCallExecutorBounded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("accessTokenHeaderOnlyForRemote")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("authorizationHeaderCaseInsensitive")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary))
                 .contains("streamable_stateless")
                 .contains("file_path")

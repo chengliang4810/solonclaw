@@ -155,6 +155,7 @@ public class McpRuntimeService implements Closeable {
         summary.put("toolCallExecutorMaxThreads", Integer.valueOf(4));
         summary.put("toolCallExecutorQueueCapacity", Integer.valueOf(64));
         summary.put("accessTokenHeaderOnlyForRemote", Boolean.TRUE);
+        summary.put("authorizationHeaderCaseInsensitive", Boolean.TRUE);
         return summary;
     }
 

@@ -1282,6 +1282,9 @@ public class ToolRegistryExposureTest {
         assertThat(mcpRuntimePolicy.get("toolsChangeNotificationPersisted").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("oauthFailureStructuredReauth").getBoolean()).isTrue();
         assertThat(mcpRuntimePolicy.get("recoverableTransportRetry").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("accessTokenHeaderOnlyForRemote").getBoolean()).isTrue();
+        assertThat(mcpRuntimePolicy.get("authorizationHeaderCaseInsensitive").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(mcpRuntimePolicy))
                 .contains("streamable_stateless")
                 .contains("file_path")
