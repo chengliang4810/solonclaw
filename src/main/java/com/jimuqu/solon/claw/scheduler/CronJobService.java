@@ -575,6 +575,7 @@ public class CronJobService {
                         "inspect",
                         "list",
                         "next"));
+        policy.put("action_syntax", cronGuideActionSyntax());
         policy.put("sourceScopedList", Boolean.TRUE);
         policy.put("freshSessionRuns", Boolean.TRUE);
         policy.put("selfContainedPromptRequired", Boolean.TRUE);
@@ -644,6 +645,9 @@ public class CronJobService {
         delivery.put("multiTargetDeliverySupported", Boolean.TRUE);
         delivery.put("threadTargetSupported", Boolean.TRUE);
         delivery.put("wrapResponseSupported", Boolean.TRUE);
+        delivery.put("clearFlags", Arrays.asList("--clear-deliver-chat-id", "--clear-deliver-thread-id"));
+        delivery.put("wrapFlags", Arrays.asList("--wrap-response", "--no-wrap-response", "--wrap", "--raw", "--no-wrap"));
+        delivery.put("wrapResponsePolicy", "--wrap-response wraps job output; --raw, --no-wrap, and --no-wrap-response deliver raw output.");
         delivery.put(
                 "supportedPlatforms",
                 Arrays.asList("MEMORY", "FEISHU", "DINGTALK", "WECOM", "WEIXIN", "QQBOT", "YUANBAO"));
@@ -656,14 +660,33 @@ public class CronJobService {
                         "platform:chat_id",
                         "platform:chat_id:thread_id",
                         "target1,target2"));
+        delivery.put(
+                "targetModes",
+                Arrays.asList(
+                        "origin returns to the job source conversation",
+                        "local stores the result in run history only",
+                        "platform uses the configured default target",
+                        "platform:chat_id:thread_id targets a specific conversation thread",
+                        "target1,target2 delivers one run result to multiple targets"));
         policy.put("delivery", delivery);
 
         Map<String, Object> skillBinding = new LinkedHashMap<String, Object>();
         skillBinding.put("singleSkillSupported", Boolean.TRUE);
         skillBinding.put("multipleSkillsSupported", Boolean.TRUE);
         skillBinding.put("skillRewriteSupported", Boolean.TRUE);
+        skillBinding.put("replaceFlags", Arrays.asList("--skill name", "--skills a,b"));
+        skillBinding.put("appendFlags", Arrays.asList("--add-skill name", "--add-skills a,b"));
+        skillBinding.put("removeFlags", Arrays.asList("--remove-skill name", "--remove-skills a,b"));
+        skillBinding.put("clearFlags", Arrays.asList("--clear-skills"));
         skillBinding.put("contextFromSupported", Boolean.TRUE);
         skillBinding.put("dependsOnAliasSupported", Boolean.TRUE);
+        skillBinding.put(
+                "dependencyFlags",
+                Arrays.asList(
+                        "--context-from job-id",
+                        "--depends-on job-id",
+                        "--clear-context-from",
+                        "--clear-depends-on"));
         skillBinding.put("enabledToolsetsSupported", Boolean.TRUE);
         skillBinding.put("dedupeApplied", Boolean.TRUE);
         policy.put("skill_binding", skillBinding);

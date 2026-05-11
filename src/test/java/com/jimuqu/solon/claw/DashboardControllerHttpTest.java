@@ -2016,6 +2016,8 @@ public class DashboardControllerHttpTest {
                 .contains("run")
                 .contains("remove")
                 .contains("history");
+        assertThat(dashboardPolicyData.get("action_syntax").get("edit").getString()).contains("--add-skill name");
+        assertThat(dashboardPolicyData.get("action_syntax").get("run").getString()).contains("retry");
         assertThat(dashboardPolicyData.get("delivery").get("supportedPlatforms").toJson())
                 .contains("FEISHU")
                 .contains("DINGTALK")
@@ -2023,7 +2025,10 @@ public class DashboardControllerHttpTest {
                 .contains("YUANBAO");
         assertThat(dashboardPolicyData.get("delivery").get("targetForms").toJson())
                 .contains("platform:chat_id:thread_id");
+        assertThat(dashboardPolicyData.get("delivery").get("wrapFlags").toJson()).contains("--no-wrap-response");
+        assertThat(dashboardPolicyData.get("delivery").get("targetModes").toJson()).contains("multiple targets");
         assertThat(dashboardPolicyData.get("skill_binding").get("skillRewriteSupported").getBoolean()).isTrue();
+        assertThat(dashboardPolicyData.get("skill_binding").get("dependencyFlags").toJson()).contains("--depends-on job-id");
         assertThat(dashboardPolicyData.get("execution").get("historySupported").getBoolean()).isTrue();
         assertThat(dashboardPolicyData.get("execution").get("dangerousCommandApprovalApplied").getBoolean()).isTrue();
 

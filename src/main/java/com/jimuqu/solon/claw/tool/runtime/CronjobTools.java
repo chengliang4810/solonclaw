@@ -112,6 +112,7 @@ public class CronjobTools {
             return ToolResultEnvelope.ok("Cronjob tool policy")
                     .data("policy", policy)
                     .data("actions", policy.get("actions"))
+                    .data("action_syntax", policy.get("action_syntax"))
                     .data("update_fields", policy.get("update_fields"))
                     .data("clear_fields", policy.get("clear_fields"))
                     .data("status_fields", policy.get("status_fields"))

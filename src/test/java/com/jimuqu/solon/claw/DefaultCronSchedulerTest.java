@@ -2941,6 +2941,7 @@ public class DefaultCronSchedulerTest {
                 .contains("delivery")
                 .contains("wrap_response");
         assertThat(String.valueOf(payload.get("update_fields"))).contains("wrap_response");
+        assertThat(String.valueOf(payload.get("action_syntax"))).contains("/cron run|trigger|retry|rerun <job-id>");
         assertThat(String.valueOf(payload.get("clear_fields"))).contains("deliver_thread_id");
         assertThat(String.valueOf(payload.get("status_fields"))).contains("recent_failures");
         assertThat(String.valueOf(payload.get("history_fields"))).contains("delivery_result");
@@ -2961,6 +2962,10 @@ public class DefaultCronSchedulerTest {
                 .contains("rerun")
                 .contains("remove")
                 .contains("history");
+        assertThat(String.valueOf(policy.get("action_syntax")))
+                .contains("--add-skill name")
+                .contains("--deliver target")
+                .contains("pause|disable|stop");
         assertThat(policy.get("sourceScopedList")).isEqualTo(Boolean.TRUE);
         assertThat(policy.get("freshSessionRuns")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(policy.get("update_fields")))
@@ -2983,14 +2988,25 @@ public class DefaultCronSchedulerTest {
         assertThat(delivery.get("threadTargetSupported")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("multiTargetDeliverySupported")).isEqualTo(Boolean.TRUE);
         assertThat(delivery.get("wrapResponseSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(delivery.get("clearFlags"))).contains("--clear-deliver-thread-id");
+        assertThat(String.valueOf(delivery.get("wrapFlags"))).contains("--raw").contains("--no-wrap-response");
+        assertThat(String.valueOf(delivery.get("wrapResponsePolicy"))).contains("raw output");
         assertThat(String.valueOf(delivery.get("supportedPlatforms")))
                 .contains("FEISHU")
                 .contains("DINGTALK")
                 .contains("WEIXIN")
                 .contains("YUANBAO");
+        assertThat(String.valueOf(delivery.get("targetModes")))
+                .contains("platform:chat_id:thread_id")
+                .contains("multiple targets");
         assertThat(skillBinding.get("singleSkillSupported")).isEqualTo(Boolean.TRUE);
         assertThat(skillBinding.get("multipleSkillsSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(skillBinding.get("replaceFlags"))).contains("--skills a,b");
+        assertThat(String.valueOf(skillBinding.get("appendFlags"))).contains("--add-skill name");
+        assertThat(String.valueOf(skillBinding.get("removeFlags"))).contains("--remove-skills a,b");
+        assertThat(String.valueOf(skillBinding.get("clearFlags"))).contains("--clear-skills");
         assertThat(skillBinding.get("contextFromSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(skillBinding.get("dependencyFlags"))).contains("--depends-on job-id");
         assertThat(skillBinding.get("enabledToolsetsSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("manualRunSupported")).isEqualTo(Boolean.TRUE);
         assertThat(execution.get("retryAliasSupported")).isEqualTo(Boolean.TRUE);
