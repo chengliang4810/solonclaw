@@ -1983,6 +1983,7 @@ public class DangerousCommandApprovalService {
                         "sensitive_file_clipboard_export",
                         "network_credential_file_send",
                         "remote_credential_file_transfer"));
+        summary.put("networkCredentialFieldAliasDetection", Boolean.TRUE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));

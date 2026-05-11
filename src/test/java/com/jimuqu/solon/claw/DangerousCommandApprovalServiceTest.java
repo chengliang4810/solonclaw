@@ -93,6 +93,7 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("sensitive_file_clipboard_export")
                 .contains("network_credential_file_send")
                 .contains("remote_credential_file_transfer");
+        assertThat(summary.get("networkCredentialFieldAliasDetection")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
                 .contains("hardline_windows")
