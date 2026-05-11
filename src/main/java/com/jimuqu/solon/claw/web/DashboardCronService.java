@@ -59,6 +59,10 @@ public class DashboardCronService {
         return cronJobService.guide();
     }
 
+    public Map<String, Object> policy() {
+        return cronJobService.policy();
+    }
+
     public List<Map<String, Object>> nextJobs(int limit) throws Exception {
         return nextJobs(limit, true);
     }

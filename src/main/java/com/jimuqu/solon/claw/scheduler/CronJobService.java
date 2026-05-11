@@ -548,6 +548,100 @@ public class CronJobService {
         return result;
     }
 
+    public Map<String, Object> policy() {
+        Map<String, Object> policy = new LinkedHashMap<String, Object>();
+        policy.put(
+                "actions",
+                Arrays.asList(
+                        "create",
+                        "add",
+                        "update",
+                        "edit",
+                        "pause",
+                        "disable",
+                        "stop",
+                        "resume",
+                        "enable",
+                        "start",
+                        "run",
+                        "run_now",
+                        "trigger",
+                        "retry",
+                        "rerun",
+                        "remove",
+                        "delete",
+                        "history",
+                        "inspect",
+                        "list",
+                        "next"));
+        policy.put("sourceScopedList", Boolean.TRUE);
+        policy.put("freshSessionRuns", Boolean.TRUE);
+        policy.put("selfContainedPromptRequired", Boolean.TRUE);
+        policy.put("recursiveCronCreationDiscouraged", Boolean.TRUE);
+
+        Map<String, Object> schedule = new LinkedHashMap<String, Object>();
+        schedule.put("cronExpressionSupported", Boolean.TRUE);
+        schedule.put("intervalSupported", Boolean.TRUE);
+        schedule.put("onceSupported", Boolean.TRUE);
+        schedule.put("nextRunPreview", Boolean.TRUE);
+        schedule.put("repeatLimitSupported", Boolean.TRUE);
+        policy.put("schedule", schedule);
+
+        Map<String, Object> delivery = new LinkedHashMap<String, Object>();
+        delivery.put("originDefaultOnCreate", Boolean.TRUE);
+        delivery.put("dashboardDefaultLocal", Boolean.TRUE);
+        delivery.put("localDeliverySupported", Boolean.TRUE);
+        delivery.put("originDeliverySupported", Boolean.TRUE);
+        delivery.put("explicitPlatformTargetsSupported", Boolean.TRUE);
+        delivery.put("explicitChatTargetSupported", Boolean.TRUE);
+        delivery.put("multiTargetDeliverySupported", Boolean.TRUE);
+        delivery.put("threadTargetSupported", Boolean.TRUE);
+        delivery.put("wrapResponseSupported", Boolean.TRUE);
+        delivery.put(
+                "supportedPlatforms",
+                Arrays.asList("MEMORY", "FEISHU", "DINGTALK", "WECOM", "WEIXIN", "QQBOT", "YUANBAO"));
+        delivery.put(
+                "targetForms",
+                Arrays.asList(
+                        "origin",
+                        "local",
+                        "platform",
+                        "platform:chat_id",
+                        "platform:chat_id:thread_id",
+                        "target1,target2"));
+        policy.put("delivery", delivery);
+
+        Map<String, Object> skillBinding = new LinkedHashMap<String, Object>();
+        skillBinding.put("singleSkillSupported", Boolean.TRUE);
+        skillBinding.put("multipleSkillsSupported", Boolean.TRUE);
+        skillBinding.put("skillRewriteSupported", Boolean.TRUE);
+        skillBinding.put("contextFromSupported", Boolean.TRUE);
+        skillBinding.put("dependsOnAliasSupported", Boolean.TRUE);
+        skillBinding.put("enabledToolsetsSupported", Boolean.TRUE);
+        skillBinding.put("dedupeApplied", Boolean.TRUE);
+        policy.put("skill_binding", skillBinding);
+
+        Map<String, Object> execution = new LinkedHashMap<String, Object>();
+        execution.put("manualRunSupported", Boolean.TRUE);
+        execution.put("retryAliasSupported", Boolean.TRUE);
+        execution.put("pauseResumeSupported", Boolean.TRUE);
+        execution.put("stateEditSupported", Boolean.TRUE);
+        execution.put("pausedReasonEditSupported", Boolean.TRUE);
+        execution.put("historySupported", Boolean.TRUE);
+        execution.put("statusOverviewSupported", Boolean.TRUE);
+        execution.put("noAgentScriptSupported", Boolean.TRUE);
+        execution.put("scriptMustStayInRuntimeScripts", Boolean.TRUE);
+        execution.put("workdirSecurityChecked", Boolean.TRUE);
+        execution.put("modelPinSupported", Boolean.TRUE);
+        execution.put("providerPinSupported", Boolean.TRUE);
+        execution.put("baseUrlPinSupported", Boolean.TRUE);
+        execution.put("dangerousCommandApprovalApplied", Boolean.TRUE);
+        execution.put("promptThreatScanApplied", Boolean.TRUE);
+        execution.put("secretRedactionApplied", Boolean.TRUE);
+        policy.put("execution", execution);
+        return policy;
+    }
+
     private Map<String, Object> cronGuideActions() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("list", "查看当前会话或全部任务");

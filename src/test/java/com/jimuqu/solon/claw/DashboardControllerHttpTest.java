@@ -2001,6 +2001,35 @@ public class DashboardControllerHttpTest {
         assertThat(apiGuideData.get("delivery").get("target_forms").toJson()).contains("platform:chat_id:thread_id");
         assertThat(apiGuideData.get("delivery").get("wrap_flags").toJson()).contains("--raw");
 
+        HttpResult dashboardPolicy = request("GET", "/api/cron/jobs/policy", null, token);
+        assertThat(dashboardPolicy.status).isEqualTo(200);
+        ONode dashboardPolicyData = ONode.ofJson(dashboardPolicy.body).get("data");
+        assertThat(dashboardPolicyData.get("actions").toJson())
+                .contains("add")
+                .contains("edit")
+                .contains("pause")
+                .contains("resume")
+                .contains("run")
+                .contains("remove")
+                .contains("history");
+        assertThat(dashboardPolicyData.get("delivery").get("supportedPlatforms").toJson())
+                .contains("FEISHU")
+                .contains("DINGTALK")
+                .contains("WEIXIN")
+                .contains("YUANBAO");
+        assertThat(dashboardPolicyData.get("delivery").get("targetForms").toJson())
+                .contains("platform:chat_id:thread_id");
+        assertThat(dashboardPolicyData.get("skill_binding").get("skillRewriteSupported").getBoolean()).isTrue();
+        assertThat(dashboardPolicyData.get("execution").get("historySupported").getBoolean()).isTrue();
+        assertThat(dashboardPolicyData.get("execution").get("dangerousCommandApprovalApplied").getBoolean()).isTrue();
+
+        HttpResult apiPolicy = request("GET", "/api/jobs/policy", null, token);
+        assertThat(apiPolicy.status).isEqualTo(200);
+        ONode apiPolicyData = ONode.ofJson(apiPolicy.body);
+        assertThat(apiPolicyData.get("delivery").get("originDefaultOnCreate").getBoolean()).isTrue();
+        assertThat(apiPolicyData.get("delivery").get("dashboardDefaultLocal").getBoolean()).isTrue();
+        assertThat(apiPolicyData.get("execution").get("manualRunSupported").getBoolean()).isTrue();
+
         HttpResult get = request("GET", "/api/jobs/" + jobId, null, token);
         assertThat(get.status).isEqualTo(200);
         assertThat(get.body).contains("\"job\"").contains("compat prompt");
