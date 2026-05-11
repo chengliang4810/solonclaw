@@ -151,6 +151,7 @@ public final class SecretRedactor {
         result = redactUrlUserinfo(result);
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
+        result = redactEncodedSensitiveQuery(result);
         return PREFIX_SECRET.matcher(result).replaceAll("***");
     }
 
@@ -186,5 +187,72 @@ public final class SecretRedactor {
         }
         matcher.appendTail(buffer);
         return buffer.toString();
+    }
+
+    private static String redactEncodedSensitiveQuery(String value) {
+        StringBuilder buffer = new StringBuilder(value.length());
+        int start = 0;
+        while (start < value.length()) {
+            int question = value.indexOf('?', start);
+            int amp = value.indexOf('&', start);
+            int separator = minPositive(question, amp);
+            if (separator < 0 || separator + 1 >= value.length()) {
+                buffer.append(value.substring(start));
+                break;
+            }
+            buffer.append(value, start, separator + 1);
+            int end = nextParameterEnd(value, separator + 1);
+            String parameter = value.substring(separator + 1, end);
+            buffer.append(redactEncodedSensitiveParameter(parameter));
+            start = end;
+        }
+        return buffer.toString();
+    }
+
+    private static int minPositive(int first, int second) {
+        if (first < 0) {
+            return second;
+        }
+        if (second < 0) {
+            return first;
+        }
+        return Math.min(first, second);
+    }
+
+    private static int nextParameterEnd(String value, int start) {
+        int amp = value.indexOf('&', start);
+        int hash = value.indexOf('#', start);
+        int end = minPositive(amp, hash);
+        return end < 0 ? value.length() : end;
+    }
+
+    private static String redactEncodedSensitiveParameter(String parameter) {
+        int equals = parameter.indexOf('=');
+        if (equals <= 0 || equals + 1 >= parameter.length()) {
+            return parameter;
+        }
+        String name = parameter.substring(0, equals);
+        String decodedName = decodeRepeated(name).toLowerCase();
+        if (!decodedName.matches("(?i)(?:" + SENSITIVE_QUERY_NAMES + ")")) {
+            return parameter;
+        }
+        return name + "=***";
+    }
+
+    private static String decodeRepeated(String raw) {
+        String value = StrUtil.nullToEmpty(raw);
+        for (int i = 0; i < 4; i++) {
+            String decoded;
+            try {
+                decoded = URLDecoder.decode(value, "UTF-8");
+            } catch (Exception ignored) {
+                return value;
+            }
+            if (decoded.equals(value)) {
+                return decoded;
+            }
+            value = decoded;
+        }
+        return value;
     }
 }

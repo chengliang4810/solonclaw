@@ -9082,6 +9082,36 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactEncodedSensitiveUrlValuesInPolicyMessages()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
+        urlArgs.put(
+                "url",
+                "https://example.com/callback?api%255Fkey=secret-value-123&ok=value");
+        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
+        gatewayArgs.put("tool_name", "web_extract");
+        gatewayArgs.put("tool_args", urlArgs);
+        TestTrace trace = new TestTrace();
+
+        service.buildInterceptor().onAction(trace, "call_tool", gatewayArgs);
+
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("api%255Fkey=***")
+                .contains("ok=value")
+                .doesNotContain("secret-value-123");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
+    }
+
+    @Test
     void shouldBlockSecretLikeTokenUrlsThroughApprovalGatewaySecurityPolicy()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
