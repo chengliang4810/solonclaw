@@ -49,6 +49,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -74,6 +75,15 @@ public class ToolConfiguration {
     @Bean
     public ToolResultTransformService toolResultTransformService() {
         return new ToolResultTransformService();
+    }
+
+    @Bean
+    public ToolResultStorageService toolResultStorageService(AppConfig appConfig) {
+        return new ToolResultStorageService(
+                appConfig.getRuntime().getCacheDir(),
+                appConfig.getTask().getToolOutputInlineLimit(),
+                appConfig.getTask().getToolOutputTurnBudget(),
+                appConfig.getTrace().getToolPreviewLength());
     }
 
     @Bean

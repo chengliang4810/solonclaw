@@ -37,6 +37,7 @@ import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardAuthFilter;
@@ -140,7 +141,8 @@ public class DashboardConfiguration {
             CommandService commandService,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             SecurityPolicyService securityPolicyService,
-            TirithSecurityService tirithSecurityService) {
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService) {
         return new DashboardDiagnosticsService(
                 appConfig,
                 deliveryService,
@@ -153,7 +155,8 @@ public class DashboardConfiguration {
                 commandService,
                 dangerousCommandApprovalService,
                 securityPolicyService,
-                tirithSecurityService);
+                tirithSecurityService,
+                toolResultStorageService);
     }
 
     @Bean

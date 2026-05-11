@@ -24,7 +24,9 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
+import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +49,7 @@ public class DashboardDiagnosticsService {
     private final DangerousCommandApprovalService approvalService;
     private final SecurityPolicyService securityPolicyService;
     private final TirithSecurityService tirithSecurityService;
+    private final ToolResultStorageService toolResultStorageService;
 
     public DashboardDiagnosticsService(
             AppConfig appConfig,
@@ -61,6 +64,36 @@ public class DashboardDiagnosticsService {
             DangerousCommandApprovalService approvalService,
             SecurityPolicyService securityPolicyService,
             TirithSecurityService tirithSecurityService) {
+        this(
+                appConfig,
+                deliveryService,
+                llmProviderService,
+                toolRegistry,
+                sessionRepository,
+                conversationOrchestrator,
+                approvalAuditRepository,
+                slashConfirmService,
+                commandService,
+                approvalService,
+                securityPolicyService,
+                tirithSecurityService,
+                null);
+    }
+
+    public DashboardDiagnosticsService(
+            AppConfig appConfig,
+            DeliveryService deliveryService,
+            LlmProviderService llmProviderService,
+            ToolRegistry toolRegistry,
+            SessionRepository sessionRepository,
+            ConversationOrchestrator conversationOrchestrator,
+            ApprovalAuditRepository approvalAuditRepository,
+            SlashConfirmService slashConfirmService,
+            CommandService commandService,
+            DangerousCommandApprovalService approvalService,
+            SecurityPolicyService securityPolicyService,
+            TirithSecurityService tirithSecurityService,
+            ToolResultStorageService toolResultStorageService) {
         this.appConfig = appConfig;
         this.deliveryService = deliveryService;
         this.llmProviderService = llmProviderService;
@@ -73,6 +106,7 @@ public class DashboardDiagnosticsService {
         this.approvalService = approvalService;
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
+        this.toolResultStorageService = toolResultStorageService;
     }
 
     public Map<String, Object> diagnostics() {
@@ -413,6 +447,12 @@ public class DashboardDiagnosticsService {
                 "credential_file_policy",
                 safeCredentialFilePolicySummary());
         terminal.put(
+                "terminal_output_policy",
+                safeTerminalOutputPolicySummary());
+        terminal.put(
+                "tool_result_storage_policy",
+                safeToolResultStoragePolicySummary());
+        terminal.put(
                 "max_foreground_timeout_seconds",
                 Integer.valueOf(appConfig.getTerminal().getMaxForegroundTimeoutSeconds()));
         terminal.put(
@@ -456,6 +496,64 @@ public class DashboardDiagnosticsService {
                             StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
                             1000));
             return fallback;
+        }
+    }
+
+    private Map<String, Object> safeTerminalOutputPolicySummary() {
+        try {
+            Map<String, Object> summary = SolonClawShellSkill.terminalOutputPolicySummary(appConfig);
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "ansiStripped");
+            copyPolicyValue(summary, safe, "secretRedactionApplied");
+            copyPolicyValue(summary, safe, "maxInlineChars");
+            copyPolicyValue(summary, safe, "headTailTruncation");
+            copyPolicyValue(summary, safe, "truncationNoticeIncluded");
+            copyPolicyValue(summary, safe, "timeoutNoticeAppended");
+            copyPolicyValue(summary, safe, "sudoFailureHintAppended");
+            copyPolicyValue(summary, safe, "outputTransformersSupported");
+            copyPolicyValue(summary, safe, "transformerFailureIsolated");
+            copyPolicyValue(summary, safe, "exitCodeSemanticsAvailable");
+            copyPolicyValue(summary, safe, "foregroundRetryErrorsInterpreted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeToolResultStoragePolicySummary() {
+        try {
+            ToolResultStorageService service =
+                    toolResultStorageService == null
+                            ? new ToolResultStorageService(
+                                    appConfig.getRuntime().getCacheDir(),
+                                    appConfig.getTask().getToolOutputInlineLimit(),
+                                    appConfig.getTask().getToolOutputTurnBudget(),
+                                    appConfig.getTrace().getToolPreviewLength())
+                            : toolResultStorageService;
+            Map<String, Object> summary = service.policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "interceptorBacked");
+            copyPolicyValue(summary, safe, "inlineLimitBytes");
+            copyPolicyValue(summary, safe, "turnBudgetBytes");
+            copyPolicyValue(summary, safe, "previewLength");
+            copyPolicyValue(summary, safe, "oversizedResultsPersisted");
+            copyPolicyValue(summary, safe, "turnBudgetOverflowPersisted");
+            copyPolicyValue(summary, safe, "persistedOutputBlock");
+            copyPolicyValue(summary, safe, "resultRefReturned");
+            copyPolicyValue(summary, safe, "readBackGuidanceIncluded");
+            copyPolicyValue(summary, safe, "previewRedacted");
+            copyPolicyValue(summary, safe, "persistedOutputRedacted");
+            copyPolicyValue(summary, safe, "fullOutputSavedRaw");
+            copyPolicyValue(summary, safe, "pathSegmentsSanitized");
+            copyPolicyValue(summary, safe, "canonicalChildPathCheck");
+            copyPolicyValue(summary, safe, "workspaceRelativeRefsPreferred");
+            copyPolicyValue(summary, safe, "storageBase");
+            copyPolicyValue(summary, safe, "describePersistedObservation");
+            copyPolicyValue(summary, safe, "storageFailureFallsBackToPreviewOnly");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
         }
     }
 
