@@ -45,4 +45,36 @@ public class HutoolHttpErrorFormatterTest {
                 .doesNotContain("ghp_hutoolline12345")
                 .doesNotContain("sk-hutool-line");
     }
+
+    @Test
+    void shouldOmitPreviewWhenFailureBodyIsEmpty() {
+        String message =
+                HutoolHttpErrorFormatter.failure(
+                        "Weixin CDN upload",
+                        503,
+                        new ByteArrayInputStream(new byte[0]));
+
+        assertThat(message).isEqualTo("Weixin CDN upload failed: HTTP 503");
+    }
+
+    @Test
+    void shouldLimitLargeFailurePreview() {
+        StringBuilder body = new StringBuilder("token=ghp_hutoollarge12345 ");
+        for (int i = 0; i < 5000; i++) {
+            body.append('x');
+        }
+
+        String message =
+                HutoolHttpErrorFormatter.failure(
+                        "Channel request",
+                        500,
+                        new ByteArrayInputStream(
+                                body.toString().getBytes(StandardCharsets.UTF_8)));
+
+        assertThat(message)
+                .contains("Channel request failed: HTTP 500")
+                .contains("token=***")
+                .contains("...[truncated, totalLength=")
+                .doesNotContain("ghp_hutoollarge12345");
+    }
 }

@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -455,7 +456,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             if (response.getStatus() != 200) {
                 throw new IllegalStateException(
-                        "Weixin CDN upload failed: " + response.getStatus());
+                        HutoolHttpErrorFormatter.failure("Weixin CDN upload", response));
             }
             String encryptedParam = response.header("x-encrypted-param");
             if (StrUtil.isBlank(encryptedParam)) {
