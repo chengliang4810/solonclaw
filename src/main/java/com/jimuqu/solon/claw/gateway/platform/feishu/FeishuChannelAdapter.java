@@ -1152,7 +1152,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         "Feishu whole comment fallback failed");
             } else if (code != 0) {
                 throw new IllegalStateException(
-                        "Feishu comment reply failed: " + response.get("msg").getString());
+                        "Feishu comment reply failed: "
+                                + safePlatformMessage(response.get("msg").getString()));
             }
         }
     }
@@ -1436,11 +1437,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
-    private ONode ensureOk(String response, String defaultMessage) {
+    protected ONode ensureOk(String response, String defaultMessage) {
         ONode node = ONode.ofJson(response);
         int code = node.get("code").getInt(0);
         if (code != 0) {
-            throw new IllegalStateException(defaultMessage + ": " + node.get("msg").getString());
+            throw new IllegalStateException(
+                    defaultMessage + ": " + safePlatformMessage(node.get("msg").getString()));
         }
         return node;
     }
@@ -1473,7 +1475,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         int code = node.get("code").getInt(0);
         if (code != 0) {
             throw new IllegalStateException(
-                    "Fetch tenant token failed: " + node.get("msg").getString());
+                    "Fetch tenant token failed: "
+                            + safePlatformMessage(node.get("msg").getString()));
         }
         tenantAccessToken = node.get("tenant_access_token").getString();
         long expire = node.get("expire").getLong(7200L);
@@ -1539,6 +1542,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                             + "，"
                             + verdict.getMessage());
         }
+    }
+
+    protected String safePlatformMessage(String value) {
+        return SecretRedactor.redact(value, 1000);
     }
 
     @RequiredArgsConstructor

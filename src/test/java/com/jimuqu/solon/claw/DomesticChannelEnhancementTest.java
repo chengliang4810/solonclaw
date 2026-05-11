@@ -510,6 +510,38 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRedactFeishuPlatformErrorMessages() {
+        TestFeishuAdapter adapter = new TestFeishuAdapter(new AppConfig());
+
+        String safe =
+                adapter.exposePlatformMessage(
+                        "invalid token=ghp_feishuplatform12345 api_key=sk-feishu-platform");
+
+        assertThat(safe)
+                .contains("token=***")
+                .contains("api_key=***")
+                .doesNotContain("ghp_feishuplatform12345")
+                .doesNotContain("sk-feishu-platform");
+    }
+
+    @Test
+    void shouldRedactFeishuEnsureOkFailureMessages() {
+        TestFeishuAdapter adapter = new TestFeishuAdapter(new AppConfig());
+
+        assertThatThrownBy(
+                        () ->
+                                adapter.exposeEnsureOk(
+                                        "{\"code\":999,\"msg\":\"bad token=ghp_feishuensure12345 api_key=sk-feishu-ensure\"}",
+                                        "Feishu API failed"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Feishu API failed")
+                .hasMessageContaining("token=***")
+                .hasMessageContaining("api_key=***")
+                .hasMessageNotContaining("ghp_feishuensure12345")
+                .hasMessageNotContaining("sk-feishu-ensure");
+    }
+
+    @Test
     void shouldRejectJimuquStyleWeakCredentialAliasesCaseInsensitively() {
         AppConfig config = new AppConfig();
         config.getChannels().getFeishu().setEnabled(true);
@@ -931,6 +963,14 @@ public class DomesticChannelEnhancementTest {
 
         private String exposeSafeError(Throwable throwable) {
             return safeError(throwable);
+        }
+
+        private String exposePlatformMessage(String value) {
+            return safePlatformMessage(value);
+        }
+
+        private ONode exposeEnsureOk(String response, String defaultMessage) {
+            return ensureOk(response, defaultMessage);
         }
     }
 
