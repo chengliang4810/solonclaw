@@ -6613,6 +6613,27 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldInspectGitRenamePatchTargetsForCredentialFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("operation", "apply_patch");
+        args.put(
+                "diff",
+                "diff --git a/example.env b/.env\n"
+                        + "similarity index 100%\n"
+                        + "rename from example.env\n"
+                        + "rename to .env\n");
+
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs("tool_gateway", args);
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getMessage()).contains("凭据");
+        assertThat(verdict.getPath()).isEqualTo(".env");
+    }
+
+    @Test
     void shouldBlockCredentialPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);

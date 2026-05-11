@@ -2063,6 +2063,12 @@ public class SecurityPolicyService {
             addPathValue(paths, gitDiffMatcher.group(1));
             addPathValue(paths, gitDiffMatcher.group(2));
         }
+        Matcher gitRenameMatcher =
+                Pattern.compile("^rename\\s+(?:from|to)\\s+(.+)$", Pattern.MULTILINE)
+                        .matcher(text);
+        while (gitRenameMatcher.find()) {
+            addPathValue(paths, gitRenameMatcher.group(1));
+        }
         Matcher unifiedHeaderMatcher =
                 Pattern.compile("^(?:---|\\+\\+\\+)\\s+(?:a/|b/)?([^\\s]+).*$", Pattern.MULTILINE)
                         .matcher(text);
