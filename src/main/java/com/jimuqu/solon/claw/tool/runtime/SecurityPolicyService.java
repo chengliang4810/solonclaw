@@ -619,6 +619,7 @@ public class SecurityPolicyService {
         summary.put("schemelessHostChecked", Boolean.TRUE);
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
+        summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
         summary.put("schemelessSensitiveQueryBlocked", Boolean.TRUE);
@@ -1426,7 +1427,9 @@ public class SecurityPolicyService {
             } else if (isJavaProxyOptionsAssignment(token)) {
                 addJavaProxyHostsFromOptions(token.substring(token.indexOf('=') + 1), urls);
             } else if (isProxyEnvironmentAssignment(token)) {
-                value = token.substring(token.indexOf('=') + 1);
+                String name = token.substring(0, token.indexOf('='));
+                addProxyEnvironmentValue(name, token.substring(token.indexOf('=') + 1), urls);
+                value = null;
             }
             addProxyHost(value, urls);
         }
@@ -1491,7 +1494,7 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(value)) {
                 value = matcher.group(2);
             }
-            addProxyHost(stripOptionalQuote(value), urls);
+            addProxyEnvironmentValue(matcher.group(), stripOptionalQuote(value), urls);
         }
     }
 
@@ -1527,6 +1530,48 @@ public class SecurityPolicyService {
                 || "pnpm_config_https_proxy".equals(name)
                 || "pip_proxy".equals(name)
                 || "all_proxy".equals(name);
+    }
+
+    private boolean isNoProxyEnvironmentName(String name) {
+        String normalized = StrUtil.nullToEmpty(name).toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("$env:")) {
+            normalized = normalized.substring("$env:".length());
+        } else if (normalized.startsWith("env:")) {
+            normalized = normalized.substring("env:".length());
+        }
+        return "no_proxy".equals(normalized);
+    }
+
+    private void addProxyEnvironmentValue(String rawName, String rawValue, List<String> urls) {
+        if (isNoProxyEnvironmentName(rawName)) {
+            addNoProxyHosts(rawValue, urls);
+        } else {
+            addProxyHost(rawValue, urls);
+        }
+    }
+
+    private void addNoProxyHosts(String raw, List<String> urls) {
+        String value = stripOptionalQuote(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        for (String part : value.split(",")) {
+            String token = cleanUrlToken(part);
+            if (StrUtil.isBlank(token) || "*".equals(token)) {
+                continue;
+            }
+            while (token.startsWith(".")) {
+                token = token.substring(1);
+            }
+            int slash = token.indexOf('/');
+            if (slash > 0) {
+                token = token.substring(0, slash);
+            }
+            String host = token.contains("://") ? extractUrlishHost(token) : extractSchemelessHost(token);
+            if (StrUtil.isNotBlank(host) && shouldCheckBareHost(host)) {
+                urls.add(token);
+            }
+        }
     }
 
     private void addProxyHost(String raw, List<String> urls) {

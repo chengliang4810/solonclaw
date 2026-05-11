@@ -487,6 +487,44 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckProxyBypassEnvironmentAssignments() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict shellNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "NO_PROXY=internal.example,example.com curl https://example.com");
+        SecurityPolicyService.UrlVerdict shellMetadataBypass =
+                metadataPolicy.checkCommandUrls(
+                        "no_proxy=169.254.169.254 curl https://example.com");
+        SecurityPolicyService.UrlVerdict powershellNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "$env:NO_PROXY='.internal.example,example.com'; iwr https://example.com");
+        SecurityPolicyService.UrlVerdict powershellSetEnvironmentVariable =
+                metadataPolicy.checkCommandUrls(
+                        "[Environment]::SetEnvironmentVariable('NO_PROXY','metadata.google.internal')");
+        SecurityPolicyService.UrlVerdict publicBypass =
+                publicPolicy.checkCommandUrls(
+                        "NO_PROXY=api.example.com curl https://example.com");
+
+        assertThat(shellNoProxy.isAllowed()).isFalse();
+        assertThat(shellNoProxy.getMessage()).contains("内网");
+        assertThat(shellMetadataBypass.isAllowed()).isFalse();
+        assertThat(shellMetadataBypass.getMessage()).contains("元数据");
+        assertThat(powershellNoProxy.isAllowed()).isFalse();
+        assertThat(powershellNoProxy.getMessage()).contains("内网");
+        assertThat(powershellSetEnvironmentVariable.isAllowed()).isFalse();
+        assertThat(powershellSetEnvironmentVariable.getMessage()).contains("元数据");
+        assertThat(publicBypass.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -771,6 +809,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("schemelessHostChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("schemelessSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
