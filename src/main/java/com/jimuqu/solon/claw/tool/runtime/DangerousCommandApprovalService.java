@@ -485,6 +485,18 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_environment_load",
+                                    "load credential file into command environment",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:source|\\.)\\s+"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|(?:^|[;&|\\n`])\\s*(?:dotenv|dotenvx|env-cmd)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + "|(?:^|[;&|\\n`])\\s*direnv\\s+(?:allow|exec|export)\\b[^\\n|;&]*"
+                                                    + REMOTE_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_environment_inline_assignment",
                                     "set sensitive environment variable inline with a command",
                                     pattern(

@@ -3575,6 +3575,42 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileEnvironmentLoadCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "source .env",
+                        ". .env.production",
+                        "source credentials.json",
+                        "dotenv -e .env -- npm run deploy",
+                        "dotenvx run --env-file token.json -- node app.js",
+                        "env-cmd -f client_secret.json node app.js",
+                        "direnv exec .envrc npm test");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_environment_load");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "source scripts/setup.sh"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "dotenv -e config.sample -- npm test"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "env-cmd -f report.json node app.js"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileHashOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
