@@ -28,7 +28,7 @@ public final class LocalTerminalHelp {
                 + "/queue <提示> - 将新输入排到当前任务之后执行\n"
                 + "/steer <提示> - 向运行中的任务注入修正或引导\n"
                 + "/busy [status|queue|steer|interrupt|reject] - 查看或切换运行中输入策略\n"
-                + "/cron guide|capabilities [--json] - 查看自动化字段、别名、技能绑定和投递策略\n"
+                + "/cron guide|capabilities|policy [--json] - 查看自动化字段、别名、技能绑定、执行和投递策略\n"
                 + "/kanban guide|drawer|pipeline|retry|history|dispatch - 查看或操作看板任务抽屉、流水和派发\n"
                 + "/security audit|policy|approvals|urls|paths|credentials|tool-args - 查看安全审计、审批、URL、路径、凭据和工具参数策略摘要\n"
                 + "/reload-mcp [now|always] - 重载 MCP 工具并刷新下一轮工具 schema\n"

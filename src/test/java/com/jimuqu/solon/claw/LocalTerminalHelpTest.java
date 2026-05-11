@@ -35,7 +35,7 @@ public class LocalTerminalHelpTest {
                 .contains("/queue")
                 .contains("/steer")
                 .contains("/busy [status|queue|steer|interrupt|reject]")
-                .contains("/cron guide|capabilities [--json]")
+                .contains("/cron guide|capabilities|policy [--json]")
                 .contains("/kanban guide|drawer|pipeline|retry|history|dispatch")
                 .contains("/security audit|policy|approvals|urls|paths|credentials|tool-args")
                 .contains("/approve [确认编号|all] [session|always]")
