@@ -525,6 +525,46 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckPackageManagerProxyBypassEnvironmentAssignments() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict npmNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "NPM_CONFIG_NO_PROXY=internal.example npm install");
+        SecurityPolicyService.UrlVerdict yarnNoProxy =
+                privatePolicy.checkCommandUrls(
+                        "YARN_NOPROXY=.internal.example yarn install");
+        SecurityPolicyService.UrlVerdict pnpmNoProxy =
+                metadataPolicy.checkCommandUrls(
+                        "PNPM_CONFIG_NOPROXY=metadata.google.internal pnpm install");
+        SecurityPolicyService.UrlVerdict powershellNpmNoProxy =
+                metadataPolicy.checkCommandUrls(
+                        "$env:NPM_CONFIG_NO_PROXY='169.254.169.254'; npm install");
+        SecurityPolicyService.UrlVerdict publicNoProxy =
+                publicPolicy.checkCommandUrls(
+                        "NPM_CONFIG_NOPROXY=registry.npmjs.org npm install");
+
+        assertThat(privatePolicy.extractUrlishValues("NPM_CONFIG_NO_PROXY=internal.example npm install"))
+                .contains("http://internal.example");
+        assertThat(npmNoProxy.isAllowed()).isFalse();
+        assertThat(npmNoProxy.getMessage()).contains("内网");
+        assertThat(yarnNoProxy.isAllowed()).isFalse();
+        assertThat(yarnNoProxy.getMessage()).contains("内网");
+        assertThat(pnpmNoProxy.isAllowed()).isFalse();
+        assertThat(pnpmNoProxy.getMessage()).contains("元数据");
+        assertThat(powershellNpmNoProxy.isAllowed()).isFalse();
+        assertThat(powershellNpmNoProxy.getMessage()).contains("元数据");
+        assertThat(publicNoProxy.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
         SecurityPolicyService policy =
                 new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
@@ -810,6 +850,8 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("dnsResolutionRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("userinfoBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("schemelessSensitiveQueryBlocked")).isEqualTo(Boolean.TRUE);

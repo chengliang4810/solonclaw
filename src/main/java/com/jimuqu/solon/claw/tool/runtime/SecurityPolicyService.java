@@ -285,7 +285,7 @@ public class SecurityPolicyService {
                     "(?i)(?:^|\\s)(?:JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS|MAVEN_OPTS|GRADLE_OPTS)=((?:\"[^\"]*\")|(?:'[^']*')|\\S+)");
     private static final Pattern POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN =
             Pattern.compile(
-                    "(?i)(?:\\$env:|Env:)(?:HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|YARN_PROXY|YARN_HTTPS_PROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PIP_PROXY)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](?:HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|YARN_PROXY|YARN_HTTPS_PROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PIP_PROXY)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
+                    "(?i)(?:\\$env:|Env:)(?:HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](?:HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
     private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
             Arrays.asList(
                     "access_token",
@@ -620,6 +620,7 @@ public class SecurityPolicyService {
         summary.put("dnsResolutionRequired", Boolean.TRUE);
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
+        summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("userinfoBlocked", Boolean.TRUE);
         summary.put("sensitiveQueryBlocked", Boolean.TRUE);
         summary.put("schemelessSensitiveQueryBlocked", Boolean.TRUE);
@@ -1524,10 +1525,16 @@ public class SecurityPolicyService {
                 || "ftp_proxy".equals(name)
                 || "npm_config_proxy".equals(name)
                 || "npm_config_https_proxy".equals(name)
+                || "npm_config_no_proxy".equals(name)
+                || "npm_config_noproxy".equals(name)
                 || "yarn_proxy".equals(name)
                 || "yarn_https_proxy".equals(name)
+                || "yarn_no_proxy".equals(name)
+                || "yarn_noproxy".equals(name)
                 || "pnpm_config_proxy".equals(name)
                 || "pnpm_config_https_proxy".equals(name)
+                || "pnpm_config_no_proxy".equals(name)
+                || "pnpm_config_noproxy".equals(name)
                 || "pip_proxy".equals(name)
                 || "all_proxy".equals(name);
     }
@@ -1539,7 +1546,13 @@ public class SecurityPolicyService {
         } else if (normalized.startsWith("env:")) {
             normalized = normalized.substring("env:".length());
         }
-        return "no_proxy".equals(normalized);
+        return "no_proxy".equals(normalized)
+                || "npm_config_no_proxy".equals(normalized)
+                || "npm_config_noproxy".equals(normalized)
+                || "yarn_no_proxy".equals(normalized)
+                || "yarn_noproxy".equals(normalized)
+                || "pnpm_config_no_proxy".equals(normalized)
+                || "pnpm_config_noproxy".equals(normalized);
     }
 
     private void addProxyEnvironmentValue(String rawName, String rawValue, List<String> urls) {
@@ -1568,8 +1581,8 @@ public class SecurityPolicyService {
                 token = token.substring(0, slash);
             }
             String host = token.contains("://") ? extractUrlishHost(token) : extractSchemelessHost(token);
-            if (StrUtil.isNotBlank(host) && shouldCheckBareHost(host)) {
-                urls.add(token);
+            if (StrUtil.isNotBlank(host)) {
+                urls.add(token.contains("://") ? token : "http://" + token);
             }
         }
     }
