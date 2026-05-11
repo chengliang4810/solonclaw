@@ -4666,6 +4666,53 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCodeCredentialFileDebugArtifactWriteCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> pythonCommands =
+                Arrays.asList(
+                        "open('debug.log', 'w').write(open('.env').read())",
+                        "Path('trace.txt').write_text(Path('credentials.json').read_text())",
+                        "payload = Path('token.json').read_text()\nopen('junit.xml', 'w').write(payload)");
+        for (String command : pythonCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_credential_file_debug_artifact_write");
+        }
+
+        List<String> jsCommands =
+                Arrays.asList(
+                        "fs.writeFileSync('debug.log', fs.readFileSync('.env', 'utf8'))",
+                        "fs.appendFileSync('trace.txt', await fs.promises.readFile('credentials.json', 'utf8'))",
+                        "const token = fs.readFileSync('token.json', 'utf8');\nfs.writeFileSync('junit.xml', token);");
+        for (String command : jsCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_credential_file_debug_artifact_write");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "open('debug.log', 'w').write(open('report.txt').read())"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js",
+                                "fs.writeFileSync('debug.log', fs.readFileSync('report.txt', 'utf8'))"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "open('notes.md', 'w').write(open('.env').read())"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeHttpCredentialFileVariableDisclosureCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
