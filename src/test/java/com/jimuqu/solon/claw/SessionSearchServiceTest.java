@@ -11,6 +11,9 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SessionSearchTools;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -227,6 +230,44 @@ public class SessionSearchServiceTest {
     }
 
     @Test
+    void shouldRedactResultRefsFromToolResultSearchIndex() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:tool-room:user");
+        session.setTitle("tool backed session");
+        env.sessionRepository.save(session);
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-tool-redact-1");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey("MEMORY:tool-room:user");
+        run.setStatus("success");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        env.agentRunRepository.saveRun(run);
+        ToolCallRecord toolCall = new ToolCallRecord();
+        toolCall.setToolCallId(IdSupport.newId());
+        toolCall.setRunId(run.getRunId());
+        toolCall.setSessionId(session.getSessionId());
+        toolCall.setSourceKey("MEMORY:tool-room:user");
+        toolCall.setToolName("execute_shell");
+        toolCall.setStatus("completed");
+        toolCall.setArgsPreview("git status");
+        toolCall.setResultPreview("clean");
+        toolCall.setResultRef("/tmp/output-token=secret123-ghp_1234567890abcdef.txt");
+        toolCall.setResultIndexable(true);
+        toolCall.setStartedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveToolCall(toolCall);
+
+        String metadata = readToolResultMetadata(env, run.getRunId());
+
+        assertThat(metadata).contains("\"result_ref\":\"[REDACTED_PATH]\"");
+        assertThat(metadata)
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef")
+                .doesNotContain("output-token");
+    }
+
+    @Test
     void shouldRedactSecretsFromSessionSearchToolErrors() throws Exception {
         SessionSearchTools tools =
                 new SessionSearchTools(
@@ -254,6 +295,26 @@ public class SessionSearchServiceTest {
         List<Map> rawCalls = new ArrayList<Map>();
         rawCalls.add(raw);
         return new AssistantMessage("", false, rawCalls);
+    }
+
+    private String readToolResultMetadata(TestEnvironment env, String runId) throws Exception {
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select metadata_json from agent_run_events_fts where run_id = ? and event_type = 'tool.result'");
+            statement.setString(1, runId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                assertThat(resultSet.next()).isTrue();
+                return resultSet.getString("metadata_json");
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
     }
 
     private static class FailingSessionSearchService implements SessionSearchService {

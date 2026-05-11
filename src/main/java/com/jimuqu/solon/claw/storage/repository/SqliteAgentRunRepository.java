@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -1024,7 +1025,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                             + "\",\"args_preview\":\""
                             + escapeJson(record.getArgsPreview())
                             + "\",\"result_ref\":\""
-                            + escapeJson(record.getResultRef())
+                            + escapeJson(SecretRedactor.redact(record.getResultRef(), 1000))
                             + "\"}");
             statement.executeUpdate();
             statement.close();
