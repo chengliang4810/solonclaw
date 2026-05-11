@@ -3556,6 +3556,41 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromFileWriteListAndDeleteResultsOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawFileReadWriteSkill fileSkill =
+                new SolonClawFileReadWriteSkill(
+                        env.appConfig.getRuntime().getHome(),
+                        new SecurityPolicyService(env.appConfig));
+
+        String write =
+                fileSkill.write(
+                        "logs/token-ghp_filewrite12345.txt",
+                        "Authorization: Bearer ghp_filecontent12345");
+        String list = fileSkill.list("logs");
+        assertThat(
+                        new String(
+                                Files.readAllBytes(
+                                        new java.io.File(env.appConfig.getRuntime().getHome())
+                                                .toPath()
+                                                .resolve("logs/token-ghp_filewrite12345.txt")),
+                                StandardCharsets.UTF_8))
+                .contains("ghp_filecontent12345");
+        String delete = fileSkill.delete("logs/token-ghp_filewrite12345.txt");
+
+        assertThat(write)
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filewrite12345")
+                .doesNotContain("ghp_filecontent12345");
+        assertThat(list)
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filewrite12345");
+        assertThat(delete)
+                .contains("token-ghp_***")
+                .doesNotContain("ghp_filewrite12345");
+    }
+
+    @Test
     void shouldRejectJarInternalFileToolPathsBeforeDelegating() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawFileReadWriteSkill fileSkill =
