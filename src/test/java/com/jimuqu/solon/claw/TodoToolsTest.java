@@ -2,8 +2,10 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.TodoTools;
+import java.io.File;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -80,11 +82,45 @@ public class TodoToolsTest {
                 .isEqualTo("(no description)");
     }
 
+    @Test
+    void shouldRedactSecretsFromTodoToolResultOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TodoTools tools = new TodoTools(env.appConfig, "MEMORY:secret-room:user");
+
+        String result =
+                tools.todo(
+                        Arrays.asList(
+                                item(
+                                        "todo-ghp_todoid12345",
+                                        "检查 Authorization: Bearer ghp_todocontent12345",
+                                        "pending")),
+                        false);
+
+        assertThat(result)
+                .contains("todo-ghp_***")
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_todoid12345")
+                .doesNotContain("ghp_todocontent12345");
+        String cache = todoCache(env);
+        assertThat(cache).contains("ghp_todoid12345").contains("ghp_todocontent12345");
+    }
+
     private static TodoTools.TodoItem item(String id, String content, String status) {
         TodoTools.TodoItem item = new TodoTools.TodoItem();
         item.setId(id);
         item.setContent(content);
         item.setStatus(status);
         return item;
+    }
+
+    private static String todoCache(TestEnvironment env) {
+        File[] files = new File(env.appConfig.getRuntime().getCacheDir()).listFiles();
+        assertThat(files).isNotNull();
+        for (File file : files) {
+            if (file.getName().startsWith("todo-") && file.getName().endsWith(".json")) {
+                return FileUtil.readUtf8String(file);
+            }
+        }
+        return "";
     }
 }
