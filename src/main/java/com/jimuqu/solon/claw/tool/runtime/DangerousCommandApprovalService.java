@@ -3894,14 +3894,15 @@ public class DangerousCommandApprovalService {
 
         if (raw instanceof Collection) {
             for (Object item : (Collection<?>) raw) {
-                if (item != null && StrUtil.isNotBlank(String.valueOf(item))) {
-                    values.add(String.valueOf(item).trim());
+                String value = cleanApprovalValue(item);
+                if (StrUtil.isNotBlank(value)) {
+                    values.add(value);
                 }
             }
             return values;
         }
 
-        String text = String.valueOf(raw).trim();
+        String text = cleanApprovalValue(raw);
         if (text.length() == 0) {
             return values;
         }
@@ -3910,8 +3911,9 @@ public class DangerousCommandApprovalService {
                 Object parsed = ONode.deserialize(text, Object.class);
                 if (parsed instanceof Collection) {
                     for (Object item : (Collection<?>) parsed) {
-                        if (item != null && StrUtil.isNotBlank(String.valueOf(item))) {
-                            values.add(String.valueOf(item).trim());
+                        String value = cleanApprovalValue(item);
+                        if (StrUtil.isNotBlank(value)) {
+                            values.add(value);
                         }
                     }
                     return values;
@@ -3923,6 +3925,13 @@ public class DangerousCommandApprovalService {
 
         values.add(text);
         return values;
+    }
+
+    private String cleanApprovalValue(Object raw) {
+        if (raw == null) {
+            return "";
+        }
+        return SecretRedactor.stripDisplayControls(String.valueOf(raw)).trim();
     }
 
     private boolean containsPattern(Set<String> approvals, String patternKey) {

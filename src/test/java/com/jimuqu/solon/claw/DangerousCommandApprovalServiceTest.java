@@ -7419,21 +7419,27 @@ public class DangerousCommandApprovalServiceTest {
         trace.session.getContext()
                 .put(
                         "_dangerous_command_session_approvals_",
-                        Collections.singletonList("execute_shell:recursive delete"));
+                        Arrays.asList(
+                                "execute_shell:recursive delete",
+                                "execute_shell:find -exec\u202E rm"));
         env.globalSettingRepository.set(
                 com.jimuqu.solon.claw.support.constants.AgentSettingConstants
                         .DANGEROUS_COMMAND_ALWAYS_PATTERNS,
                 ONode.serialize(
-                        Collections.singletonList("execute_shell:git reset --hard (destroys uncommitted changes)")));
+                        Arrays.asList(
+                                "execute_shell:git reset --hard (destroys uncommitted changes)",
+                                "execute_shell:find -\u202Edelete")));
 
         assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "recursive_delete"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "find_exec_rm"))
                 .isTrue();
         assertThat(
                         env.dangerousCommandApprovalService.isAlwaysApproved(
                                 "git_reset_hard"))
                 .isTrue();
-        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "find_delete"))
-                .isFalse();
+        assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("find_delete"))
+                .isTrue();
         assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("git_force_push"))
                 .isFalse();
 
