@@ -926,6 +926,26 @@ public class DashboardControllerHttpTest {
             assertThat(authenticatedStatus.body).contains("\"has_access_token\":true");
             assertThat(authenticatedStatus.body).doesNotContain("token-secret-1");
 
+            tokenEndpoint.failNextTokenResponse();
+            HttpResult refreshTokenEndpointError =
+                    request(
+                            "POST",
+                            "/api/jimuqu/mcp/oauth-docs/oauth/refresh",
+                            "{}",
+                            token);
+            assertThat(refreshTokenEndpointError.status).isEqualTo(400);
+            assertThat(refreshTokenEndpointError.body)
+                    .contains("MCP_BAD_REQUEST")
+                    .contains("api%255Fkey=***")
+                    .contains("token=***")
+                    .contains("refresh_token=***")
+                    .contains("client_secret=***")
+                    .doesNotContain("ghp_tokenerror12345")
+                    .doesNotContain("token-error-encoded")
+                    .doesNotContain("token-error-secret")
+                    .doesNotContain("token-error-client")
+                    .doesNotContain("token-error-fragment");
+
             HttpResult refreshOAuth =
                     request(
                             "POST",
