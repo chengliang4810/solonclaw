@@ -12,10 +12,14 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -552,8 +556,8 @@ public class SecurityAuditTools {
                 return result;
             }
         }
-        String command = commandLikeArgument(args);
-        if (StrUtil.isNotBlank(command)) {
+        List<String> commands = commandLikeArguments(args);
+        for (String command : commands) {
             applyCommandPolicies(result, effectiveTool, command);
         }
         if (securityPolicyService != null) {
@@ -610,28 +614,45 @@ public class SecurityAuditTools {
         result.escalate(commandResult.decision);
     }
 
-    private String commandLikeArgument(Map<String, Object> args) {
-        String value = stringArg(args, "command");
-        if (StrUtil.isNotBlank(value)) {
-            return value;
-        }
-        value = stringArg(args, "cmd");
-        if (StrUtil.isNotBlank(value)) {
-            return value;
-        }
-        value = stringArg(args, "code");
-        if (StrUtil.isNotBlank(value)) {
-            return value;
-        }
-        return stringArg(args, "script");
+    private List<String> commandLikeArguments(Map<String, Object> args) {
+        List<String> commands = new ArrayList<String>();
+        collectCommandLikeArguments(args, commands, false);
+        return commands;
     }
 
-    private String stringArg(Map<String, Object> args, String key) {
-        if (args == null || !args.containsKey(key)) {
-            return "";
+    @SuppressWarnings("unchecked")
+    private void collectCommandLikeArguments(Object value, List<String> commands, boolean commandValue) {
+        if (value == null) {
+            return;
         }
-        Object value = args.get(key);
-        return value == null ? "" : StrUtil.nullToEmpty(String.valueOf(value)).trim();
+        if (value instanceof Map) {
+            Map<Object, Object> map = (Map<Object, Object>) value;
+            for (Map.Entry<Object, Object> entry : map.entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
+                collectCommandLikeArguments(
+                        entry.getValue(), commands, COMMAND_ARGUMENT_KEYS.contains(key));
+            }
+            return;
+        }
+        if (value instanceof Iterable) {
+            for (Object item : (Iterable<?>) value) {
+                collectCommandLikeArguments(item, commands, commandValue);
+            }
+            return;
+        }
+        if (value.getClass().isArray()) {
+            Object[] items = (Object[]) value;
+            for (Object item : items) {
+                collectCommandLikeArguments(item, commands, commandValue);
+            }
+            return;
+        }
+        if (commandValue) {
+            String text = StrUtil.nullToEmpty(String.valueOf(value)).trim();
+            if (StrUtil.isNotBlank(text)) {
+                commands.add(text);
+            }
+        }
     }
 
     private String canonicalCommandAuditTool(String toolName) {
@@ -824,6 +845,18 @@ public class SecurityAuditTools {
         policy.put("supportsActions", "command,url,path,tool_args,policy,status");
         return policy;
     }
+
+    private static final Set<String> COMMAND_ARGUMENT_KEYS =
+            Collections.unmodifiableSet(
+                    new HashSet<String>(
+                            Arrays.asList(
+                                    "code",
+                                    "command",
+                                    "commands",
+                                    "cmd",
+                                    "script",
+                                    "shell",
+                                    "shell_command")));
 
     private static String normalizeApprovalMode(String value) {
         String mode = StrUtil.blankToDefault(value, "on").trim().toLowerCase(Locale.ROOT);

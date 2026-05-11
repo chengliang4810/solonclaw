@@ -1489,6 +1489,59 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldAuditNestedAndArrayCommandToolArgs() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        SecurityAuditTools tools =
+                new SecurityAuditTools(
+                        policy,
+                        new DangerousCommandApprovalService(
+                                env.globalSettingRepository, env.appConfig, policy, null),
+                        null,
+                        env.appConfig);
+
+        ONode nested =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "run_shell",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"payload\":{\"shell_command\":\"git reset --hard\"}}"));
+        ONode array =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "exec_command",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"commands\":[\"echo ready\",\"terraform destroy -auto-approve\"]}"));
+        ONode safeNote =
+                ONode.ofJson(
+                        tools.audit(
+                                "tool_args",
+                                "terminal",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "{\"note\":\"git reset --hard appears in docs, not a command key\"}"));
+
+        assertThat(nested.get("decision").getString()).isEqualTo("warn");
+        assertThat(nested.get("approval_required").getBoolean()).isTrue();
+        assertThat(nested.toJson()).contains("git_reset_hard");
+        assertThat(array.get("decision").getString()).isEqualTo("warn");
+        assertThat(array.get("approval_required").getBoolean()).isTrue();
+        assertThat(array.toJson()).contains("terraform_destroy");
+        assertThat(safeNote.get("decision").getString()).isEqualTo("allow");
+        assertThat(safeNote.toJson()).doesNotContain("git_reset_hard");
+    }
+
+    @Test
     void shouldRedactSecurityAuditArgsJsonParseErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
