@@ -34,6 +34,9 @@ public class CliShellTipsTest {
                         "/security terminal-guardrails",
                         "/security tirith",
                         "/security tirith-approval",
+                        "/security cron-approvals",
+                        "/security subagent-approvals",
+                        "/security smart-approval",
                         "/security urls",
                         "/security private-urls",
                         "/security website",
@@ -95,6 +98,9 @@ public class CliShellTipsTest {
                 .contains("/security hardline")
                 .contains("/security terminal-guardrails")
                 .contains("/security tirith")
+                .contains("/security cron-approvals")
+                .contains("/security subagent-approvals")
+                .contains("/security smart-approval")
                 .contains("/security code-execution")
                 .contains("/security process");
         assertThat(TerminalSecurityPolicyView.render(null, "/security urls"))
@@ -158,6 +164,18 @@ public class CliShellTipsTest {
                 .contains("Tirith 审批策略摘要")
                 .contains("permanentAllowed=false")
                 .contains("alwaysDowngraded=true");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security cron-approvals"))
+                .contains("Cron 审批策略摘要")
+                .contains("hardlineBlocked=true")
+                .contains("scriptChecked=true");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security subagent-approvals"))
+                .contains("子 Agent 审批策略摘要")
+                .contains("humanPromptSuppressed=true")
+                .contains("pendingCreated=false");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security smart-approval"))
+                .contains("智能审批策略摘要")
+                .contains("escalateHuman=true")
+                .contains("tirithFindings=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security mcp"))
                 .contains("MCP 安全策略摘要")
                 .contains("structuredReauth");

@@ -59,6 +59,15 @@ public final class TerminalSecurityPolicyView {
         if ("tirith-approval".equals(mode)) {
             return renderTirithApprovalPolicy(approvalService.tirithApprovalPolicySummary());
         }
+        if ("cron-approvals".equals(mode)) {
+            return renderCronApprovalPolicy(approvalService.cronApprovalPolicySummary());
+        }
+        if ("subagent-approvals".equals(mode)) {
+            return renderSubagentApprovalPolicy(approvalService.subagentApprovalPolicySummary());
+        }
+        if ("smart-approval".equals(mode)) {
+            return renderSmartApprovalPolicy(approvalService.smartApprovalPolicySummary());
+        }
         if ("paths".equals(mode)) {
             return renderPathPolicy(securityPolicyService.pathPolicySummary());
         }
@@ -139,6 +148,15 @@ public final class TerminalSecurityPolicyView {
         }
         if (rest.startsWith("tirith-approval")) {
             return "tirith-approval";
+        }
+        if (rest.startsWith("cron-approval") || rest.startsWith("cron-approve")) {
+            return "cron-approvals";
+        }
+        if (rest.startsWith("subagent-approval") || rest.startsWith("subagent-approve")) {
+            return "subagent-approvals";
+        }
+        if (rest.startsWith("smart-approval") || rest.startsWith("smart-approve")) {
+            return "smart-approval";
         }
         if (rest.startsWith("tirith")) {
             return "tirith";
@@ -253,7 +271,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security tool-args、/security mcp、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -469,6 +487,95 @@ public final class TerminalSecurityPolicyView {
                 .append(value(tirith, "alwaysScopeDowngradedToSession"))
                 .append(" descriptionRedacted=")
                 .append(value(tirith, "descriptionRedacted"));
+        return buffer.toString();
+    }
+
+    private static String renderCronApprovalPolicy(Map<String, Object> cron) {
+        StringBuilder buffer = new StringBuilder("Cron 审批策略摘要：");
+        buffer.append('\n')
+                .append("- 决策：mode=")
+                .append(value(cron, "mode"))
+                .append(" default=")
+                .append(value(cron, "defaultDecision"))
+                .append(" autoApproveDangerous=")
+                .append(value(cron, "autoApproveDangerousCommands"));
+        buffer.append('\n')
+                .append("- 预检：dangerousChecked=")
+                .append(value(cron, "dangerousPatternCheckedBeforeRun"))
+                .append(" hardlineBlocked=")
+                .append(value(cron, "hardlineAlwaysBlocked"))
+                .append(" scriptChecked=")
+                .append(value(cron, "scriptContentChecked"));
+        buffer.append('\n')
+                .append("- 配置：keys=")
+                .append(value(cron, "configKeys"))
+                .append(" approveAliases=")
+                .append(value(cron, "approveAliases"))
+                .append(" denyAliases=")
+                .append(value(cron, "denyAliases"));
+        return buffer.toString();
+    }
+
+    private static String renderSubagentApprovalPolicy(Map<String, Object> subagent) {
+        StringBuilder buffer = new StringBuilder("子 Agent 审批策略摘要：");
+        buffer.append('\n')
+                .append("- 决策：default=")
+                .append(value(subagent, "defaultDecision"))
+                .append(" autoApproveDangerous=")
+                .append(value(subagent, "autoApproveDangerousCommands"))
+                .append(" config=")
+                .append(value(subagent, "configKey"));
+        buffer.append('\n')
+                .append("- 预检：hardline=")
+                .append(value(subagent, "hardlinePrechecked"))
+                .append(" file=")
+                .append(value(subagent, "filePolicyPrechecked"))
+                .append(" url=")
+                .append(value(subagent, "urlPolicyPrechecked"))
+                .append(" terminal=")
+                .append(value(subagent, "terminalGuardrailPrechecked"));
+        buffer.append('\n')
+                .append("- 行为：humanPromptSuppressed=")
+                .append(value(subagent, "humanApprovalPromptSuppressed"))
+                .append(" pendingCreated=")
+                .append(value(subagent, "pendingApprovalCreatedWhenDenied"))
+                .append(" smartBefore=")
+                .append(value(subagent, "smartApprovalRunsBeforeSubagentPolicy"));
+        return buffer.toString();
+    }
+
+    private static String renderSmartApprovalPolicy(Map<String, Object> smart) {
+        StringBuilder buffer = new StringBuilder("智能审批策略摘要：");
+        buffer.append('\n')
+                .append("- 状态：mode=")
+                .append(value(smart, "mode"))
+                .append(" judgeConfigured=")
+                .append(value(smart, "judgeConfigured"))
+                .append(" active=")
+                .append(value(smart, "active"));
+        buffer.append('\n')
+                .append("- 决策：types=")
+                .append(value(smart, "decisionTypes"))
+                .append(" escalateHuman=")
+                .append(value(smart, "escalateFallsBackToHumanApproval"))
+                .append(" denyBlocks=")
+                .append(value(smart, "denyBlocksExecution"));
+        buffer.append('\n')
+                .append("- 预检：hardline=")
+                .append(value(smart, "hardlinePrechecked"))
+                .append(" file=")
+                .append(value(smart, "filePolicyPrechecked"))
+                .append(" url=")
+                .append(value(smart, "urlPolicyPrechecked"))
+                .append(" terminal=")
+                .append(value(smart, "terminalGuardrailPrechecked"));
+        buffer.append('\n')
+                .append("- 输出：tirithFindings=")
+                .append(value(smart, "tirithFindingsIncluded"))
+                .append(" sessionApproval=")
+                .append(value(smart, "approveWritesSessionApproval"))
+                .append(" commandRedacted=")
+                .append(value(smart, "commandPreviewRedacted"));
         return buffer.toString();
     }
 
