@@ -922,6 +922,30 @@ public class AcpStdioServerTest {
     }
 
     @Test
+    void shouldRedactEncodedSecretsFromAcpPermissionResponse() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
+
+        String sessionId = extractSessionId(newAcpSession(server, 127));
+        String responded =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":128,\"method\":\"permissions/respond\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"id\":\"url_policy?api%255Fkey=acp-response-secret\",\"outcome\":\"deny\"}}");
+
+        assertThat(responded)
+                .contains("\"id\":128")
+                .contains("\"ok\":false")
+                .contains("api%255Fkey=***")
+                .doesNotContain("acp-response-secret");
+    }
+
+    @Test
     void shouldDenyDangerousApprovalThroughAcpPermissionsBridge() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         AcpStdioServer server =

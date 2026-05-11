@@ -758,9 +758,9 @@ public class AcpStdioServer {
         result.put("ok", reply != null && !reply.isError());
         result.put("session_id", state.getSessionId());
         result.put("sessionId", state.getSessionId());
-        result.put("id", selector);
+        result.put("id", safeAcpText(selector));
         result.put("outcome", normalizedPermissionOutcome(outcome));
-        result.put("message", reply == null ? "" : StrUtil.nullToEmpty(reply.getContent()));
+        result.put("message", safeAcpText(reply == null ? "" : StrUtil.nullToEmpty(reply.getContent())));
         result.put("content", contentBlocks(reply == null ? "" : reply.getContent()));
         return result;
     }
@@ -2078,7 +2078,7 @@ public class AcpStdioServer {
     private Map<String, Object> textBlock(String text) {
         Map<String, Object> block = new LinkedHashMap<String, Object>();
         block.put("type", "text");
-        block.put("text", StrUtil.nullToEmpty(text));
+        block.put("text", safeAcpText(text));
         return block;
     }
 
