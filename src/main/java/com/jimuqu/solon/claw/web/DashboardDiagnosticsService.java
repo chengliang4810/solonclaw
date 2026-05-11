@@ -1677,72 +1677,19 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(approvals, safe, "mcpReloadConfirmationDefault");
         copyPolicyValue(approvals, safe, "alwaysApprovalCount");
         if (approvals.get("approvalPolicy") instanceof Map) {
-            safe.put(
-                    "approvalPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("approvalPolicy"),
-                            "mode",
-                            "cronMode",
-                            "subagentAutoApprove",
-                            "smartJudgeConfigured",
-                            "dangerousRuleCount",
-                            "hardlineRuleCount",
-                            "secretStoreRuleSamples",
-                            "urlPolicyPrechecked",
-                            "privateUrlPolicyPrechecked",
-                            "credentialUrlPolicyPrechecked",
-                            "websitePolicyPrechecked",
-                            "unsafeUrlBlockedBeforeApproval",
-                            "unsafeUrlApprovalBypassAllowed",
-                            "approvalTimeoutSeconds",
-                            "gatewayTimeoutSeconds",
-                            "alwaysApprovalCount"));
+            safe.put("approvalPolicy", safeApprovalPolicySummary());
         }
         if (approvals.get("cronApprovalPolicy") instanceof Map) {
-            safe.put(
-                    "cronApprovalPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("cronApprovalPolicy"),
-                            "mode",
-                            "autoApprove",
-                            "defaultDecision",
-                            "dangerousCommandPrecheck",
-                            "hardlineAlwaysBlocked"));
+            safe.put("cronApprovalPolicy", safeCronApprovalPolicySummary());
         }
         if (approvals.get("subagentApprovalPolicy") instanceof Map) {
-            safe.put(
-                    "subagentApprovalPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("subagentApprovalPolicy"),
-                            "autoApprove",
-                            "defaultDecision",
-                            "sessionScoped",
-                            "dangerousCommandPrecheck",
-                            "hardlineAlwaysBlocked"));
+            safe.put("subagentApprovalPolicy", safeSubagentApprovalPolicySummary());
         }
         if (approvals.get("smartApprovalPolicy") instanceof Map) {
-            safe.put(
-                    "smartApprovalPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("smartApprovalPolicy"),
-                            "enabled",
-                            "judgeConfigured",
-                            "approvalBypassAllowed",
-                            "humanApprovalPromptSuppressed",
-                            "judgeFailureFallsBackToHumanApproval",
-                            "commandPreviewRedacted"));
+            safe.put("smartApprovalPolicy", safeSmartApprovalPolicySummary());
         }
         if (approvals.get("tirithApprovalPolicy") instanceof Map) {
-            safe.put(
-                    "tirithApprovalPolicy",
-                    filterPolicyMap(
-                            (Map<String, Object>) approvals.get("tirithApprovalPolicy"),
-                            "enabled",
-                            "smartJudgeConfigured",
-                            "warnRequiresApproval",
-                            "blockRequiresApproval",
-                            "alwaysScopeDowngradedToSession",
-                            "commandPreviewRedacted"));
+            safe.put("tirithApprovalPolicy", safeTirithApprovalPolicySummary());
         }
         if (approvals.get("slashConfirmPolicy") instanceof Map) {
             safe.put(

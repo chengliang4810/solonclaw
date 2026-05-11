@@ -348,6 +348,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(approvalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
+        Map<String, Object> approvalsCronPolicy =
+                (Map<String, Object>) approvals.get("cronApprovalPolicy");
+        assertThat(approvalsCronPolicy.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsSubagentPolicy =
+                (Map<String, Object>) approvals.get("subagentApprovalPolicy");
+        assertThat(approvalsSubagentPolicy.get("terminalGuardrailPrechecked")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsSmartPolicy =
+                (Map<String, Object>) approvals.get("smartApprovalPolicy");
+        assertThat(approvalsSmartPolicy.get("tirithFindingsIncluded")).isEqualTo(Boolean.TRUE);
+        Map<String, Object> approvalsScanPolicy =
+                (Map<String, Object>) approvals.get("tirithApprovalPolicy");
+        assertThat(approvalsScanPolicy.get("descriptionRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
         Map<String, Object> coverageApprovalPolicy =
                 (Map<String, Object>) coverage.get("dangerousCommandApprovalPolicy");
