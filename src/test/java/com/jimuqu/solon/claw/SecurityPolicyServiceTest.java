@@ -320,6 +320,32 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldBlockRepeatedlyEncodedUserInfoUrlsBeforeNetworkAccess() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("url", "https://user%253Apassword@example.com/private");
+
+        SecurityPolicyService.UrlVerdict direct =
+                policy.checkUrl("https://user%253Apassword@example.com/private");
+        SecurityPolicyService.UrlVerdict command =
+                policy.checkCommandUrls("curl https://user%253Apassword@example.com/private");
+        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("webfetch", args);
+
+        assertThat(direct.isAllowed()).isFalse();
+        assertThat(direct.getMessage()).contains("userinfo");
+        assertThat(command.isAllowed()).isFalse();
+        assertThat(command.getMessage()).contains("userinfo");
+        assertThat(toolArg.isAllowed()).isFalse();
+        assertThat(toolArg.getMessage()).contains("userinfo");
+        assertThat(
+                        com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
+                                direct.getUrl()))
+                .contains("user%253A***@")
+                .doesNotContain("password");
+    }
+
+    @Test
     void shouldCheckProtocolRelativeUrlsInCommandsAndArguments() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
