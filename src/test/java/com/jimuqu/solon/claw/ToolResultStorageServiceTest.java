@@ -143,18 +143,25 @@ public class ToolResultStorageServiceTest {
                 new ToolResultStorageService(tempDir.getAbsolutePath(), 40, 200000, 300);
         String large =
                 "first line\nOPENAI_API_KEY=sk-proj-secretvalue1234567890\n"
+                        + "callback https://example.test/callback?api%255Fkey=tool-result-encoded-secret\n"
                         + repeat("tail\n", 80);
 
         ToolResultStorageService.StoredResult result =
                 service.observe("execute_shell", large, "run-secret", "call-secret");
 
         assertThat(result.getPreview()).contains("OPENAI_API_KEY=***");
+        assertThat(result.getPreview()).contains("api%255Fkey=***");
         assertThat(result.getPreview()).doesNotContain("sk-proj-secretvalue1234567890");
+        assertThat(result.getPreview()).doesNotContain("tool-result-encoded-secret");
         assertThat(result.getObservation()).contains("OPENAI_API_KEY=***");
+        assertThat(result.getObservation()).contains("api%255Fkey=***");
         assertThat(result.getObservation()).doesNotContain("sk-proj-secretvalue1234567890");
+        assertThat(result.getObservation()).doesNotContain("tool-result-encoded-secret");
         assertThat(new String(Files.readAllBytes(runtimeRefFile(result.getResultRef()).toPath()), StandardCharsets.UTF_8))
                 .contains("OPENAI_API_KEY=***")
-                .doesNotContain("sk-proj-secretvalue1234567890");
+                .contains("api%255Fkey=***")
+                .doesNotContain("sk-proj-secretvalue1234567890")
+                .doesNotContain("tool-result-encoded-secret");
     }
 
     @Test
