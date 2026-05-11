@@ -714,6 +714,60 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldRedactQqbotGetErrorBody() throws Throwable {
+        HttpServer server = secretErrorServer("{\"message\":\"token=ghp_qqbotget12345\"}");
+        try {
+            AppConfig config = new AppConfig();
+            config.getSecurity().setAllowPrivateUrls(true);
+            config.getChannels().getQqbot().setApiDomain(localUrl(server));
+            QQBotChannelAdapter adapter =
+                    new QQBotChannelAdapter(
+                            config.getChannels().getQqbot(),
+                            new AttachmentCacheService(config),
+                            new SecurityPolicyService(config));
+            setField(adapter, "accessToken", "cached-token");
+            setField(
+                    adapter,
+                    "accessTokenExpireAt",
+                    Long.valueOf(System.currentTimeMillis() + 120000L));
+            Method getJson = QQBotChannelAdapter.class.getDeclaredMethod("getJson", String.class);
+            getJson.setAccessible(true);
+
+            assertThatThrownBy(() -> invoke(getJson, adapter, "/gateway"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("QQBot HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageNotContaining("ghp_qqbotget12345");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactQqbotFailureJson() throws Throwable {
+        AppConfig config = new AppConfig();
+        QQBotChannelAdapter adapter =
+                new QQBotChannelAdapter(
+                        config.getChannels().getQqbot(),
+                        new AttachmentCacheService(config),
+                        new SecurityPolicyService(config));
+        Method safeJson = QQBotChannelAdapter.class.getDeclaredMethod("safeJson", ONode.class);
+        safeJson.setAccessible(true);
+        ONode failure =
+                new ONode()
+                        .set("message", "missing token=ghp_qqbotjson12345")
+                        .set("data", new ONode().set("api_key", "sk-qqbot-json-secret"));
+
+        String message = String.valueOf(invoke(safeJson, adapter, failure));
+
+        assertThat(message)
+                .contains("token=***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_qqbotjson12345")
+                .doesNotContain("sk-qqbot-json-secret");
+    }
+
+    @Test
     void shouldBlockUnsafeWeComConfiguredWebsocketBeforeNetworkAccess() {
         AppConfig config = new AppConfig();
         config.getChannels().getWecom().setEnabled(true);

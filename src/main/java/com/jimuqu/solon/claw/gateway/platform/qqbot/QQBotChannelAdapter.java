@@ -330,7 +330,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         if (StrUtil.isBlank(fileInfo)) {
             throw new IllegalStateException(
-                    "QQBot media upload missing file_info: " + uploaded.toJson());
+                    "QQBot media upload missing file_info: " + safeJson(uploaded));
         }
         ONode body =
                 new ONode()
@@ -392,7 +392,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                             node.get("data").get("access_token").getString());
             if (StrUtil.isBlank(accessToken)) {
                 throw new IllegalStateException(
-                        "QQBot token response missing access_token: " + node.toJson());
+                        "QQBot token response missing access_token: " + safeJson(node));
             }
             long expires = Math.max(60L, node.get("expires_in").getLong(7200L));
             accessTokenExpireAt = now + expires * 1000L;
@@ -426,8 +426,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         Response response = client.newCall(request).execute();
         try {
             if (!response.isSuccessful()) {
+                String raw = safeBody(response);
                 throw new IllegalStateException(
-                        "QQBot HTTP " + response.code() + ": " + safeBody(response));
+                        "QQBot HTTP " + response.code() + ": " + safeHttpErrorBody(raw));
             }
             return ONode.ofJson(safeBody(response));
         } finally {
@@ -485,6 +486,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private String safeHttpErrorBody(String raw) {
         return SecretRedactor.redact(raw, 1000);
+    }
+
+    private String safeJson(ONode value) {
+        return safeHttpErrorBody(value == null ? "" : value.toJson());
     }
 
     private void assertSafeUrl(String url, String purpose) {
