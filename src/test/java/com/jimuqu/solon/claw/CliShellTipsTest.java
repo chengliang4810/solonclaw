@@ -108,7 +108,8 @@ public class CliShellTipsTest {
                 .contains("pathSafe");
         assertThat(TerminalSecurityPolicyView.render(null, "/security paths"))
                 .contains("路径安全策略摘要")
-                .contains("devicePath");
+                .contains("devicePath")
+                .contains("windowsPrefixDenied");
         assertThat(TerminalSecurityPolicyView.render(null, "/security credentials"))
                 .contains("凭据文件策略摘要")
                 .contains(".env");

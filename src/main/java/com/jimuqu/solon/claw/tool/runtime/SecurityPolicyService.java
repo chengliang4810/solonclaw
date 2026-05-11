@@ -698,12 +698,14 @@ public class SecurityPolicyService {
         summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
         summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
+        summary.put("writeDeniedWindowsPrefixCount", Integer.valueOf(WRITE_DENIED_WINDOWS_PREFIXES.size()));
         summary.put("writeDeniedHomeFileCount", Integer.valueOf(WRITE_DENIED_HOME_FILE_NAMES.size()));
         summary.put("blockedDevicePathCount", Integer.valueOf(BLOCKED_DEVICE_PATHS.size()));
         summary.put("localManagementSocketPathCount", Integer.valueOf(LOCAL_MANAGEMENT_SOCKET_PATHS.size()));
         summary.put("localManagementPipePathCount", Integer.valueOf(LOCAL_MANAGEMENT_PIPE_PATHS.size()));
         summary.put("writeDeniedExactPathSamples", sample(WRITE_DENIED_EXACT_PATHS, 6));
         summary.put("writeDeniedPrefixSamples", sample(WRITE_DENIED_PREFIXES, 6));
+        summary.put("writeDeniedWindowsPrefixSamples", sample(WRITE_DENIED_WINDOWS_PREFIXES, 6));
         summary.put("writeDeniedHomeFileSamples", sample(WRITE_DENIED_HOME_FILE_NAMES, 6));
         summary.put("blockedDevicePathSamples", sample(BLOCKED_DEVICE_PATHS, 6));
         summary.put("localManagementSocketPathSamples", sample(LOCAL_MANAGEMENT_SOCKET_PATHS, 4));

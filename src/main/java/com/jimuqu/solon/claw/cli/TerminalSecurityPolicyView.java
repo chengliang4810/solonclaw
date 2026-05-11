@@ -548,7 +548,9 @@ public final class TerminalSecurityPolicyView {
                 .append(" exactDenied=")
                 .append(value(path, "writeDeniedExactPathCount"))
                 .append(" prefixDenied=")
-                .append(value(path, "writeDeniedPrefixCount"));
+                .append(value(path, "writeDeniedPrefixCount"))
+                .append(" windowsPrefixDenied=")
+                .append(value(path, "writeDeniedWindowsPrefixCount"));
         buffer.append('\n')
                 .append("- 本地管理端点：socket=")
                 .append(value(path, "localManagementSocketAccessBlocked"))

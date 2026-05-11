@@ -6538,10 +6538,14 @@ public class DangerousCommandApprovalServiceTest {
                 .isGreaterThan(0);
         assertThat(((Integer) summary.get("localManagementPipePathCount")).intValue())
                 .isGreaterThan(0);
+        assertThat(((Integer) summary.get("writeDeniedWindowsPrefixCount")).intValue())
+                .isGreaterThan(0);
         assertThat(String.valueOf(summary.get("localManagementSocketPathSamples")))
                 .contains("docker.sock");
         assertThat(String.valueOf(summary.get("localManagementPipePathSamples")))
                 .contains("docker_engine");
+        assertThat(String.valueOf(summary.get("writeDeniedWindowsPrefixSamples")))
+                .contains("c:/windows/");
         assertThat(String.valueOf(summary.get("description"))).contains("local management endpoints");
     }
 
