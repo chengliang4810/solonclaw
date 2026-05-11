@@ -50,7 +50,7 @@ public class DelegateTools {
             if ("batch".equalsIgnoreCase(mode)) {
                 List<DelegationTask> items = parseTasks(tasks);
                 List<DelegationResult> results = delegationService.delegateBatch(sourceKey, items);
-                return ONode.serialize(results);
+                return SecretRedactor.redact(ONode.serialize(results), 20000);
             }
 
             DelegationTask task = new DelegationTask();
@@ -62,7 +62,7 @@ public class DelegateTools {
             task.setExpectedOutput(expectedOutput);
             task.setWriteScope(writeScope);
             DelegationResult result = delegationService.delegateSingle(sourceKey, task);
-            return result.getContent();
+            return SecretRedactor.redact(result == null ? null : result.getContent(), 20000);
         } catch (Exception e) {
             return error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
