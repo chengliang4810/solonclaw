@@ -44,6 +44,41 @@ public class ApprovalAuditObserverTest {
     }
 
     @Test
+    void shouldRedactEncodedSecretsFromApprovalAuditEvent() throws Exception {
+        CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        service.addApprovalObserver(new ApprovalAuditObserver(repository));
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("session-encoded-audit");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+
+        service.storePendingApproval(
+                session,
+                "execute_shell",
+                "url_policy?api%255Fkey=audit-encoded-secret",
+                "encoded audit https://example.test/callback?api%255Fkey=audit-encoded-secret",
+                "curl https://example.test/callback?api%255Fkey=audit-encoded-secret");
+
+        assertThat(repository.events).hasSize(1);
+        ApprovalAuditEvent event = repository.events.get(0);
+        assertThat(event.getCommandPreview())
+                .contains("api%255Fkey=***")
+                .doesNotContain("audit-encoded-secret");
+        assertThat(event.getDescription())
+                .contains("api%255Fkey=***")
+                .doesNotContain("audit-encoded-secret");
+        assertThat(event.getPatternKeysJson())
+                .contains("api%255Fkey=***")
+                .doesNotContain("audit-encoded-secret");
+        assertThat(event.getApprovalKey())
+                .contains("api%255Fkey=***")
+                .doesNotContain("audit-encoded-secret");
+    }
+
+    @Test
     void shouldRedactSecretsFromApprovalAuditApprover() throws Exception {
         CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
         AppConfig config = new AppConfig();
