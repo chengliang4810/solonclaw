@@ -7681,6 +7681,46 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactEncodedApprovalObserverMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> observed = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        DangerousCommandApprovalService.PendingApproval pending =
+                                event.getPendingApproval();
+                        observed.add(pending.getCommand());
+                        observed.add(pending.getPatternKey());
+                        observed.add(String.valueOf(pending.getPatternKeys()));
+                        observed.add(pending.getApprovalKey());
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {}
+                });
+        TestTrace trace = new TestTrace();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                trace.session,
+                "execute_shell",
+                "url_policy?api%255Fkey=observer-secret",
+                "encoded observer metadata",
+                "curl https://example.test/callback?api%255Fkey=observer-secret");
+
+        assertThat(observed).hasSize(4);
+        for (String value : observed) {
+            assertThat(value)
+                    .contains("api%255Fkey=***")
+                    .doesNotContain("observer-secret");
+        }
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session).getCommand())
+                .contains("observer-secret");
+    }
+
+    @Test
     void shouldNotifyApprovalObserversForDenyResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         final List<String> choices = new java.util.ArrayList<String>();
