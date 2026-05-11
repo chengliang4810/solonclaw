@@ -157,7 +157,13 @@ public class CommandEnhancementTest {
                 .contains("busy_policy=interrupt")
                 .contains("source_running=false")
                 .contains("active_run_id=-")
-                .contains("queue_pending=0");
+                .contains("queue_pending=0")
+                .contains("current_policy=interrupt：")
+                .contains("policy_options:")
+                .contains("queue：")
+                .contains("steer：")
+                .contains("interrupt：")
+                .contains("reject：");
 
         GatewayReply steer = env.send("admin-chat", "admin-user", "/busy steer");
         assertThat(steer.getContent()).contains("已切换运行中输入策略为 steer");
@@ -167,7 +173,12 @@ public class CommandEnhancementTest {
                 .isEqualTo("steer");
 
         GatewayReply after = env.send("admin-chat", "admin-user", "/busy status");
-        assertThat(after.getContent()).contains("busy_policy=steer").contains("steer：");
+        assertThat(after.getContent())
+                .contains("busy_policy=steer")
+                .contains("current_policy=steer：")
+                .contains("policy_options:")
+                .contains("interrupt：")
+                .contains("reject：");
 
         GatewayReply invalid = env.send("admin-chat", "admin-user", "/busy drop");
         assertThat(invalid.isError()).isTrue();

@@ -3591,7 +3591,8 @@ public class DefaultCommandService implements CommandService {
         buffer.append("queue_pending=")
                 .append(countQueuedMessagesQuietly(sourceKey, session))
                 .append('\n');
-        buffer.append(formatBusyPolicyDescription(policy)).append('\n');
+        buffer.append("current_policy=").append(formatBusyPolicyDescription(policy)).append('\n');
+        buffer.append("policy_options:\n").append(formatBusyPolicyOptions()).append('\n');
         buffer.append("用法：")
                 .append(GatewayCommandConstants.SLASH_BUSY)
                 .append(" [status|queue|steer|interrupt|reject]");
@@ -3633,6 +3634,13 @@ public class DefaultCommandService implements CommandService {
             return "reject：运行中收到的新消息会被拒绝，需等待或手动停止当前 run。";
         }
         return "queue：运行中收到的新消息会进入队列，当前 run 结束后自动执行。";
+    }
+
+    private String formatBusyPolicyOptions() {
+        return "queue：运行中收到的新消息会进入队列，当前 run 结束后自动执行。\n"
+                + "steer：运行中收到的新消息会作为 steer 指令注入当前 run。\n"
+                + "interrupt：运行中收到的新消息会打断当前 run，并立即启动新 run。\n"
+                + "reject：运行中收到的新消息会被拒绝，需等待或手动停止当前 run。";
     }
 
     private String cleanApprovalCommandArgs(String args) {
