@@ -463,6 +463,9 @@ public class DashboardDiagnosticsService {
         policy.put("url_policy", safeUrlPolicySummary());
         policy.put("private_url_policy", safePrivateUrlPolicySummary());
         policy.put("website_policy", safeWebsitePolicySummary());
+        policy.put("path_policy", safePathPolicySummary());
+        policy.put("credential_policy", safeCredentialPolicySummary());
+        policy.put("tool_args_policy", safeToolArgsPolicySummary());
         map.put("policy", policy);
 
         Map<String, Object> terminal = new LinkedHashMap<String, Object>();
@@ -1170,6 +1173,86 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "schemeAndPathIgnoredForRules");
             copyPolicyValue(summary, safe, "wwwPrefixIgnored");
             copyPolicyValue(summary, safe, "sharedFilePathSafetyChecked");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safePathPolicySummary() {
+        if (securityPolicyService == null) {
+            return unavailablePolicy("security policy service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.pathPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "traversalBlocked");
+            copyPolicyValue(summary, safe, "controlCharactersBlocked");
+            copyPolicyValue(summary, safe, "rawControlCharactersBlocked");
+            copyPolicyValue(summary, safe, "normalizedControlCharactersBlocked");
+            copyPolicyValue(summary, safe, "devicePathBlocked");
+            copyPolicyValue(summary, safe, "rawBlockDeviceWriteBlocked");
+            copyPolicyValue(summary, safe, "skillsHubInternalReadBlocked");
+            copyPolicyValue(summary, safe, "skillsHubInternalWriteBlocked");
+            copyPolicyValue(summary, safe, "localManagementSocketReadBlocked");
+            copyPolicyValue(summary, safe, "localManagementSocketWriteBlocked");
+            copyPolicyValue(summary, safe, "localManagementSocketAccessBlocked");
+            copyPolicyValue(summary, safe, "localManagementPipeReadBlocked");
+            copyPolicyValue(summary, safe, "localManagementPipeWriteBlocked");
+            copyPolicyValue(summary, safe, "localManagementPipeAccessBlocked");
+            copyPolicyValue(summary, safe, "writeSafeRootConfigured");
+            copyPolicyValue(summary, safe, "writeDeniedExactPathCount");
+            copyPolicyValue(summary, safe, "writeDeniedPrefixCount");
+            copyPolicyValue(summary, safe, "writeDeniedHomeFileCount");
+            copyPolicyValue(summary, safe, "blockedDevicePathCount");
+            copyPolicyValue(summary, safe, "localManagementSocketPathCount");
+            copyPolicyValue(summary, safe, "localManagementPipePathCount");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeCredentialPolicySummary() {
+        if (securityPolicyService == null) {
+            return unavailablePolicy("security policy service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.credentialPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "directorySegmentCount");
+            copyPolicyValue(summary, safe, "fileNameCount");
+            copyPolicyValue(summary, safe, "pathSuffixCount");
+            copyPolicyValue(summary, safe, "keyFileExtensionCount");
+            copyPolicyValue(summary, safe, "keyFileMarkerCount");
+            copyPolicyValue(summary, safe, "configuredCredentialFileCount");
+            copyPolicyValue(summary, safe, "envExampleFilesAllowed");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeToolArgsPolicySummary() {
+        if (securityPolicyService == null) {
+            return unavailablePolicy("security policy service is unavailable");
+        }
+        try {
+            Map<String, Object> summary = securityPolicyService.toolArgsPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "recursiveUrlExtraction");
+            copyPolicyValue(summary, safe, "returnedContentUrlExtraction");
+            copyPolicyValue(summary, safe, "returnedDocumentContentChecked");
+            copyPolicyValue(summary, safe, "recursivePathExtraction");
+            copyPolicyValue(summary, safe, "encodedUrlParameterPolicyInherited");
+            copyPolicyValue(summary, safe, "rawPathControlCharacterPolicyInherited");
+            copyPolicyValue(summary, safe, "writeIntentDetection");
+            copyPolicyValue(summary, safe, "patchTargetExtraction");
+            copyPolicyValue(summary, safe, "downloadOutputPathOptionChecked");
+            copyPolicyValue(summary, safe, "downloadOutputDetachedOptionChecked");
+            copyPolicyValue(summary, safe, "proxyOptionUrlChecked");
+            copyPolicyValue(summary, safe, "preproxyOptionUrlChecked");
+            copyPolicyValue(summary, safe, "unsupportedNetworkSchemeChecked");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);

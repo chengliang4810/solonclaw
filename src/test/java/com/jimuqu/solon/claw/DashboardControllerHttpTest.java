@@ -376,6 +376,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"url_policy\"")
                 .contains("\"private_url_policy\"")
                 .contains("\"website_policy\"")
+                .contains("\"path_policy\"")
+                .contains("\"credential_policy\"")
+                .contains("\"tool_args_policy\"")
                 .contains("\"userinfoBlocked\":true")
                 .contains("\"encodedSensitiveQueryBlocked\":true")
                 .contains("\"repeatedEncodedSensitiveQueryBlocked\":true")
@@ -385,6 +388,18 @@ public class DashboardControllerHttpTest {
                 .contains("\"dnsResolutionRequired\":true")
                 .contains("\"loopbackBlocked\":true")
                 .contains("\"sharedFilePathSafetyChecked\":true")
+                .contains("\"traversalBlocked\":true")
+                .contains("\"rawControlCharactersBlocked\":true")
+                .contains("\"devicePathBlocked\":true")
+                .contains("\"localManagementSocketAccessBlocked\":true")
+                .contains("\"localManagementPipeAccessBlocked\":true")
+                .contains("\"directorySegmentCount\"")
+                .contains("\"fileNameCount\"")
+                .contains("\"envExampleFilesAllowed\":true")
+                .contains("\"recursiveUrlExtraction\":true")
+                .contains("\"returnedDocumentContentChecked\":true")
+                .contains("\"downloadOutputPathOptionChecked\":true")
+                .contains("\"proxyOptionUrlChecked\":true")
                 .contains("\"credential_file_count\"")
                 .contains("\"credential_file_policy\"")
                 .contains("\"runtimeRelativeOnly\":true")
@@ -448,6 +463,15 @@ public class DashboardControllerHttpTest {
         assertThat(terminalDiagnostics.toJson())
                 .doesNotContain("\"envKey\"")
                 .doesNotContain("\"stdinWrapperFamilies\"");
+        ONode policyDiagnostics =
+                ONode.ofJson(diagnostics.body).get("data").get("security").get("policy");
+        assertThat(policyDiagnostics.toJson())
+                .doesNotContain("\"writeSafeRoot\"")
+                .doesNotContain("\"workdirSafePattern\"")
+                .doesNotContain("\"directorySegmentSamples\"")
+                .doesNotContain("\"configuredCredentialFileSamples\"")
+                .doesNotContain("\"urlKeySamples\"")
+                .doesNotContain("\"pathKeySamples\"");
 
         HttpResult commandAudit =
                 request(
