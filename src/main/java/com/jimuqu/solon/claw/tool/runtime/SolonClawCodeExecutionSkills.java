@@ -577,7 +577,7 @@ public class SolonClawCodeExecutionSkills {
             assertSearchPathSafe(relativePath);
             Path base = resolveContainedPath(relativePath);
             if (!Files.exists(base)) {
-                return errorMap("path does not exist: " + relativePath);
+                return errorMap("path does not exist: " + safePath(relativePath));
             }
             List<Map<String, Object>> matches = new ArrayList<Map<String, Object>>();
             List<Path> files = listFiles(base);
@@ -760,9 +760,22 @@ public class SolonClawCodeExecutionSkills {
                             ? resolved.toRealPath()
                             : resolved.toAbsolutePath().normalize();
             if (!real.startsWith(realRoot)) {
-                throw new IllegalArgumentException("path escapes workspace: " + path);
+                throw new IllegalArgumentException("path escapes workspace: " + safePath(path));
             }
             return resolved;
+        }
+
+        private String safePath(String path) {
+            String value = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).replace('\\', '/').trim();
+            if (value.length() == 0) {
+                return "[unknown]";
+            }
+            int slash = value.lastIndexOf('/');
+            String name = slash >= 0 ? value.substring(slash + 1) : value;
+            if (StrUtil.isBlank(name)) {
+                name = "[path]";
+            }
+            return SecretRedactor.redact(name, 400);
         }
 
         private List<Path> listFiles(Path base) throws Exception {

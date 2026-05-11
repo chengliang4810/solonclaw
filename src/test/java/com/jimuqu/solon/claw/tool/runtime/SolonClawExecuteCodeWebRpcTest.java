@@ -197,6 +197,38 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
+    void shouldRedactExecuteCodeRpcSearchPathErrors() throws Exception {
+        assumeTrue(commandExists("python"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        java.io.File runtimeHome = new java.io.File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        env.appConfig.getRuntime().getHome(),
+                        "python",
+                        new SecurityPolicyService(env.appConfig),
+                        env.appConfig,
+                        new FakeWebsearchTool(),
+                        new FakeWebfetchTool());
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "from solonclaw_tools import search_files\n"
+                                        + "missing = search_files('x', path='missing-token-ghp_' + 'rpcpath12345')\n"
+                                        + "escape = search_files('x', path='../escape-token-ghp_' + 'rpcescape12345')\n"
+                                        + "print(missing['error'])\n"
+                                        + "print(escape['error'])\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("output").getString())
+                .contains("path escapes workspace")
+                .doesNotContain(runtimeHome.getParent())
+                .doesNotContain("ghp_rpcpath12345")
+                .doesNotContain("ghp_rpcescape12345");
+    }
+
+    @Test
     void shouldRedactExecuteCodeRpcToolSuccessResults() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
