@@ -2151,6 +2151,34 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldWrapSessionMutationErrors() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult missingSession =
+                request(
+                        "PUT",
+                        "/api/sessions/missing-token=ghp_sessiondashboard12345",
+                        "{\"title\":\"bad\"}",
+                        token);
+        assertThat(missingSession.status).isEqualTo(400);
+        assertThat(missingSession.body)
+                .contains("SESSION_BAD_REQUEST")
+                .contains("token=***")
+                .doesNotContain("ghp_sessiondashboard12345");
+
+        HttpResult missingCheckpoint =
+                request(
+                        "POST",
+                        "/api/checkpoints/missing-token=ghp_checkpointdashboard12345/rollback",
+                        null,
+                        token);
+        assertThat(missingCheckpoint.status).isEqualTo(400);
+        assertThat(missingCheckpoint.body)
+                .contains("SESSION_BAD_REQUEST")
+                .doesNotContain("ghp_checkpointdashboard12345");
+    }
+
+    @Test
     void shouldHideMediaCacheHostPaths() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");

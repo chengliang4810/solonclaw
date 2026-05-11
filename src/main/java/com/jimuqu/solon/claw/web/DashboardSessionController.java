@@ -29,7 +29,14 @@ public class DashboardSessionController {
 
     @Mapping(value = "/api/sessions/{id}/messages", method = MethodType.GET)
     public Map<String, Object> messages(String id) throws Exception {
-        return DashboardResponse.ok(sessionService.getSessionMessages(id));
+        return safeSession(
+                Context.current(),
+                new SessionAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return sessionService.getSessionMessages(id);
+                    }
+                });
     }
 
     @Mapping(value = "/api/sessions/{id}/recap", method = MethodType.GET)
@@ -69,22 +76,50 @@ public class DashboardSessionController {
 
     @Mapping(value = "/api/sessions/{id}", method = MethodType.PUT)
     public Map<String, Object> update(String id, Context context) throws Exception {
-        return DashboardResponse.ok(sessionService.updateSession(id, body(context)));
+        return safeSession(
+                context,
+                new SessionAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return sessionService.updateSession(id, body(context));
+                    }
+                });
     }
 
     @Mapping(value = "/api/sessions/{id}/checkpoints", method = MethodType.GET)
     public Map<String, Object> checkpoints(String id) throws Exception {
-        return DashboardResponse.ok(sessionService.checkpoints(id));
+        return safeSession(
+                Context.current(),
+                new SessionAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return sessionService.checkpoints(id);
+                    }
+                });
     }
 
     @Mapping(value = "/api/checkpoints/{id}/preview", method = MethodType.GET)
     public Map<String, Object> checkpointPreview(String id) throws Exception {
-        return DashboardResponse.ok(sessionService.checkpointPreview(id));
+        return safeSession(
+                Context.current(),
+                new SessionAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return sessionService.checkpointPreview(id);
+                    }
+                });
     }
 
     @Mapping(value = "/api/checkpoints/{id}/rollback", method = MethodType.POST)
     public Map<String, Object> rollbackCheckpoint(String id) throws Exception {
-        return DashboardResponse.ok(sessionService.rollbackCheckpoint(id));
+        return safeSession(
+                Context.current(),
+                new SessionAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return sessionService.rollbackCheckpoint(id);
+                    }
+                });
     }
 
     @Mapping(value = "/api/sessions/{id}", method = MethodType.DELETE)
@@ -103,5 +138,26 @@ public class DashboardSessionController {
         } catch (Exception e) {
             return java.util.Collections.emptyMap();
         }
+    }
+
+    private Map<String, Object> safeSession(Context context, SessionAction action)
+            throws Exception {
+        try {
+            return DashboardResponse.ok(action.run());
+        } catch (IllegalArgumentException e) {
+            if (context != null) {
+                context.status(400);
+            }
+            return DashboardResponse.error("SESSION_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            if (context != null) {
+                context.status(400);
+            }
+            return DashboardResponse.error("SESSION_BAD_REQUEST", e.getMessage());
+        }
+    }
+
+    private interface SessionAction {
+        Map<String, Object> run() throws Exception;
     }
 }
