@@ -1347,6 +1347,13 @@ public class SecurityPolicyServiceTest {
                 "*** Begin Patch\n"
                         + "*** Move File: .env.local\n"
                         + "*** End Patch\n");
+        Map<String, Object> unifiedCredentialArgs = new LinkedHashMap<String, Object>();
+        unifiedCredentialArgs.put(
+                "patch",
+                "--- /dev/null\n"
+                        + "+++ b/.env\n"
+                        + "@@ -0,0 +1 @@\n"
+                        + "+TOKEN=secret\n");
 
         SecurityPolicyService.FileVerdict addFileVerdict =
                 policy.checkFileToolArgs("patch", addFileArgs);
@@ -1354,6 +1361,8 @@ public class SecurityPolicyServiceTest {
                 policy.checkFileToolArgs("patch", unifiedArgs);
         SecurityPolicyService.FileVerdict moveSourceVerdict =
                 policy.checkFileToolArgs("patch", moveSourceArgs);
+        SecurityPolicyService.FileVerdict unifiedCredentialVerdict =
+                policy.checkFileToolArgs("patch", unifiedCredentialArgs);
 
         assertThat(addFileVerdict.isAllowed()).isFalse();
         assertThat(addFileVerdict.getPath()).isEqualTo(".env");
@@ -1363,6 +1372,9 @@ public class SecurityPolicyServiceTest {
         assertThat(moveSourceVerdict.isAllowed()).isFalse();
         assertThat(moveSourceVerdict.getPath()).isEqualTo(".env.local");
         assertThat(moveSourceVerdict.getMessage()).contains("凭据");
+        assertThat(unifiedCredentialVerdict.isAllowed()).isFalse();
+        assertThat(unifiedCredentialVerdict.getPath()).isEqualTo(".env");
+        assertThat(unifiedCredentialVerdict.getMessage()).contains("凭据");
         assertThat(policy.checkFileToolArgs("patch", safeArgs).isAllowed()).isTrue();
     }
 
