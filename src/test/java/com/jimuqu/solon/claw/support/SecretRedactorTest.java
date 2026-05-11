@@ -93,6 +93,20 @@ class SecretRedactorTest {
     }
 
     @Test
+    void shouldRedactEncodedSensitiveUrlQueryNamesInGeneralText() {
+        String result =
+                SecretRedactor.redact(
+                        "blocked URL https://example.com/callback?api%255Fkey=secret-value-123&client%5Fsecret=client-secret&ok=value");
+
+        assertThat(result)
+                .contains("api%255Fkey=***")
+                .contains("client%5Fsecret=***")
+                .contains("ok=value")
+                .doesNotContain("secret-value-123")
+                .doesNotContain("client-secret");
+    }
+
+    @Test
     void shouldRedactSensitivePathFragments() {
         String result =
                 SecretRedactor.redact(

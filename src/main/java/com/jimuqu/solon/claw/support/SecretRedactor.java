@@ -110,6 +110,7 @@ public final class SecretRedactor {
         result = SENSITIVE_URL_USERINFO.matcher(result).replaceAll("[REDACTED_PATH]");
         result = redactUrlUserinfo(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
+        result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {
