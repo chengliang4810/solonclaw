@@ -85,7 +85,7 @@ public class RuntimePathGuard {
         }
         throw new IllegalArgumentException(
                 "Path is outside allowed roots: "
-                        + file.getAbsolutePath()
+                        + safePath(file)
                         + ". Allowed roots: "
                         + allowedRoots(roots));
     }
@@ -93,7 +93,10 @@ public class RuntimePathGuard {
     private void requireUnder(File file, File root) {
         if (!isUnder(file, root)) {
             throw new IllegalArgumentException(
-                    "Path is outside allowed root: " + file.getAbsolutePath());
+                    "Path is outside allowed root: "
+                            + safePath(file)
+                            + ". Allowed root: "
+                            + safePath(root));
         }
     }
 
@@ -129,8 +132,19 @@ public class RuntimePathGuard {
             if (buffer.length() > 0) {
                 buffer.append(", ");
             }
-            buffer.append(root.getAbsolutePath());
+            buffer.append(safePath(root));
         }
         return buffer.toString();
+    }
+
+    private String safePath(File file) {
+        if (file == null) {
+            return "";
+        }
+        String name = file.getName();
+        if (StrUtil.isBlank(name)) {
+            name = file.getPath();
+        }
+        return SecretRedactor.redact(name, 400);
     }
 }
