@@ -3466,6 +3466,42 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileBinaryDumpCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "strings .env",
+                        "xxd credentials.json",
+                        "hexdump -C token.json",
+                        "od -An -tx1 client_secret.json",
+                        "Format-Hex .anthropic_oauth.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey()).as(command).isEqualTo("credential_file_binary_dump");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "strings report.bin"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "xxd report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "hexdump -C report.bin"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Format-Hex report.bin"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileEncodedOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

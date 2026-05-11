@@ -463,6 +463,16 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_binary_dump",
+                                    "dump credential file bytes",
+                                    pattern(
+                                            "(?:\\b(?:strings|xxd|hexdump|od)\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "|\\bFormat-Hex\\b[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_visual_encode",
                                     "encode credential file into image",
                                     pattern(
