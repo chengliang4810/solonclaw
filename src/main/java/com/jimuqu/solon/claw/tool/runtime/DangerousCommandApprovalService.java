@@ -514,7 +514,7 @@ public class DangerousCommandApprovalService {
                                     "cloud_cli_credential_config_read",
                                     "read cloud CLI credential configuration",
                                     pattern(
-                                            "\\b(?:aws\\s+configure\\s+get\\s+(?:aws_secret_access_key|aws_session_token|credential_process|sso_start_url|sso_role_name|sso_account_id)\\b|gcloud\\s+config\\s+get(?:-value)?\\s+(?:auth/credential_file_override|account)\\b|az\\s+account\\s+show\\b(?=[^\\n]*--query\\s+[^\\n]*(?:accessToken|refreshToken|password|secret|credential|tenantId)))"),
+                                            "\\b(?:aws\\s+configure\\s+get\\s+(?:(?:profile\\.[A-Za-z0-9_.-]+\\.)?(?:aws_secret_access_key|aws_session_token|credential_process|sso_start_url|sso_role_name|sso_account_id))\\b|gcloud\\s+config\\s+get(?:-value)?\\s+(?:auth/credential_file_override|account)\\b|az\\s+account\\s+show\\b(?=[^\\n]*--query\\s+[^\\n]*(?:accessToken|refreshToken|password|secret|credential|tenantId)))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "secret_store_read",

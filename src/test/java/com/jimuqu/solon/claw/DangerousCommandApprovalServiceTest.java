@@ -2278,6 +2278,9 @@ public class DangerousCommandApprovalServiceTest {
                         "aws configure get aws_secret_access_key",
                         "aws configure get aws_session_token",
                         "aws configure get credential_process",
+                        "aws configure get profile.dev.aws_secret_access_key",
+                        "aws configure get profile.dev.aws_session_token",
+                        "aws configure get profile.dev.credential_process",
                         "gcloud config get-value auth/credential_file_override",
                         "az account show --query accessToken");
         for (String command : cloudCredentialConfigReads) {
@@ -2294,6 +2297,7 @@ public class DangerousCommandApprovalServiceTest {
                         "aws sts get-caller-identity",
                         "aws configure list",
                         "aws configure get region",
+                        "aws configure get profile.dev.region",
                         "gcloud config get-value project",
                         "az account show --query name",
                         "az acr login --name registry",
