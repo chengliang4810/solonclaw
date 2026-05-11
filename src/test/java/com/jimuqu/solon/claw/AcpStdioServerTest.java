@@ -1211,9 +1211,9 @@ public class AcpStdioServerTest {
                 MessageSupport.toNdjson(
                         java.util.Arrays.asList(
                                 ChatMessage.ofUser(
-                                        "user api_key=sk-test-acpuserhistory12345"),
+                                        "user api_key=sk-test-acpuserhistory12345 https://example.test/callback?api%255Fkey=acp-history-encoded-secret"),
                                 ChatMessage.ofAssistant(
-                                        "assistant bearer ghp_acpassistanthistory12345"))));
+                                        "assistant bearer ghp_acpassistanthistory12345 https://example.test/callback?api%255Fkey=acp-history-encoded-secret"))));
         env.sessionRepository.save(record);
 
         AcpStdioServer server =
@@ -1233,9 +1233,11 @@ public class AcpStdioServerTest {
                 .contains("\"user_message_chunk\"")
                 .contains("\"agent_message_chunk\"")
                 .contains("api_key=***")
+                .contains("api%255Fkey=***")
                 .contains("bearer ***")
                 .doesNotContain("sk-test-acpuserhistory12345")
-                .doesNotContain("ghp_acpassistanthistory12345");
+                .doesNotContain("ghp_acpassistanthistory12345")
+                .doesNotContain("acp-history-encoded-secret");
     }
 
     @Test
