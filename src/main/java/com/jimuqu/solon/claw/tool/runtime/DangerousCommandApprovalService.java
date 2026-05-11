@@ -98,7 +98,7 @@ public class DangerousCommandApprovalService {
     private static final String SENSITIVE_ENV_NAME =
             "(?:[A-Za-z_][A-Za-z0-9_]*(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)[A-Za-z0-9_]*)";
     private static final String SENSITIVE_HTTP_HEADER_NAME =
-            "(?:authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|x-access-token)";
+            "(?:authorization|proxy[_.-]?authorization|cookie|x[_.-]?api[_.-]?key|api[_.-]?key|apikey|x[_.-]?auth[_.-]?token|x[_.-]?access[_.-]?token)";
     private static final String SENSITIVE_REQUEST_FIELD_NAME =
             "(?:access[_.\\s-]?token|refresh[_.\\s-]?token|id[_.\\s-]?token|auth[_.\\s-]?token|api[_.\\s-]?key|token|secret|client[_.\\s-]?secret|password|passwd|credential|authorization)";
     private static final String COMMAND_TAIL = "(?:\\s*(?:(?:&&|\\|\\||;).*)?$|\\s*$)";
