@@ -4943,7 +4943,7 @@ public class DangerousCommandApprovalService {
         private ApprovalResponseEvent(
                 String sessionId, PendingApproval pendingApproval, String choice, String approver) {
             super(sessionId, pendingApproval);
-            this.choice = StrUtil.nullToEmpty(choice);
+            this.choice = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(choice)).trim();
             this.approver = redactedApprover(approver);
         }
 

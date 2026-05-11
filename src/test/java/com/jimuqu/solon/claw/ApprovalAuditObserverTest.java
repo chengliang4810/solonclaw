@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalAuditObserver;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -109,6 +110,34 @@ public class ApprovalAuditObserverTest {
                 .contains("rm -rf runtime/cache --token ***")
                 .doesNotContain("\u202E")
                 .doesNotContain("ghp_commandsecret123");
+    }
+
+    @Test
+    void shouldStripDisplayControlsFromApprovalAuditChoice() throws Exception {
+        CapturingApprovalAuditRepository repository = new CapturingApprovalAuditRepository();
+        ApprovalAuditObserver observer = new ApprovalAuditObserver(repository);
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setApprovalId("approval-choice");
+        pending.setToolName("execute_shell");
+        pending.setPatternKey("recursive_delete");
+        pending.setDescription("recursive delete");
+        pending.setCommand("rm -rf runtime/cache");
+
+        Constructor<DangerousCommandApprovalService.ApprovalResponseEvent> constructor =
+                DangerousCommandApprovalService.ApprovalResponseEvent.class.getDeclaredConstructor(
+                        String.class,
+                        DangerousCommandApprovalService.PendingApproval.class,
+                        String.class,
+                        String.class);
+        constructor.setAccessible(true);
+        DangerousCommandApprovalService.ApprovalResponseEvent event =
+                constructor.newInstance("session-choice", pending, "on\u202Ece", "ops");
+
+        observer.onApprovalResponse(event);
+
+        assertThat(repository.events).hasSize(1);
+        assertThat(repository.events.get(0).getChoice()).isEqualTo("once");
     }
 
     private static class CapturingApprovalAuditRepository implements ApprovalAuditRepository {
