@@ -1323,6 +1323,9 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "processRegistryBacked");
             copyPolicyValue(summary, safe, "sudoRewriteConfigured");
             copyPolicyValue(summary, safe, "sudoPasswordRedacted");
+            copyPolicyValue(summary, safe, "powershellStartProcessRequiresWait");
+            copyPolicyValue(summary, safe, "powershellStartProcessNoNewWindowNotEnough");
+            copyPolicyValue(summary, safe, "powershellStartProcessPassThruNotEnough");
             copyPolicyValue(summary, safe, "foregroundMaxTimeoutSeconds");
             copyPolicyValue(summary, safe, "foregroundMaxRetries");
             copyPolicyValue(summary, safe, "foregroundRetryBaseDelaySeconds");

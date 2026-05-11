@@ -371,6 +371,11 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("Start-Process")
                 .contains("Start-Job")
                 .contains("Start-ThreadJob");
+        assertThat(summary.get("powershellStartProcessRequiresWait")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("powershellStartProcessNoNewWindowNotEnough"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("powershellStartProcessPassThruNotEnough"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(summary.get("inlineAmpersandBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("trailingAmpersandBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("longLivedForegroundBlocked")).isEqualTo(Boolean.TRUE);
@@ -6051,6 +6056,14 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell",
                         "Start-Process npm -ArgumentList 'run dev' -WindowStyle Hidden");
+        String noNewWindowStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell",
+                        "Start-Process npm -ArgumentList 'run dev' -NoNewWindow");
+        String passThruStartProcess =
+                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
+                        "execute_shell",
+                        "Start-Process npm -ArgumentList 'run dev' -PassThru");
         String waitedStartProcess =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait");
@@ -6101,6 +6114,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(amp).contains("&");
         assertThat(startProcess).contains("PowerShell").contains("Start-Process");
         assertThat(hiddenStartProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(noNewWindowStartProcess).contains("PowerShell").contains("Start-Process");
+        assertThat(passThruStartProcess).contains("PowerShell").contains("Start-Process");
         assertThat(waitedStartProcess).isNull();
         assertThat(waitedTrueStartProcess).isNull();
         assertThat(waitFalseStartProcess).contains("PowerShell").contains("Start-Process");

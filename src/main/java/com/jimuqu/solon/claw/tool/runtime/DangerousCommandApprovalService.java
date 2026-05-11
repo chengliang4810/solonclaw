@@ -2780,6 +2780,9 @@ public class DangerousCommandApprovalService {
         summary.put(
                 "powershellBackgroundCommandsBlocked",
                 Arrays.asList("Start-Process", "Start-Job", "Start-ThreadJob"));
+        summary.put("powershellStartProcessRequiresWait", Boolean.TRUE);
+        summary.put("powershellStartProcessNoNewWindowNotEnough", Boolean.TRUE);
+        summary.put("powershellStartProcessPassThruNotEnough", Boolean.TRUE);
         summary.put("inlineAmpersandBlocked", Boolean.TRUE);
         summary.put("trailingAmpersandBlocked", Boolean.TRUE);
         summary.put("longLivedForegroundBlocked", Boolean.TRUE);
