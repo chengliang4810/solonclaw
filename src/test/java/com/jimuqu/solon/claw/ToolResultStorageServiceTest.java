@@ -100,10 +100,10 @@ public class ToolResultStorageServiceTest {
         assertThat(result.getObservation()).contains("Use the file_read/read_file tool with offset and limit");
         assertThat(result.getObservation()).contains("Tool: execute_shell");
         String ref = result.getResultRef();
-        assertThat(ref).isNotBlank();
-        assertThat(new File(ref).getCanonicalPath())
-                .startsWith(new File(tempDir, "tool-results").getCanonicalPath());
-        assertThat(new String(Files.readAllBytes(new File(ref).toPath()), StandardCharsets.UTF_8))
+        assertThat(ref)
+                .startsWith("runtime://tool-results/run-1/")
+                .doesNotContain(tempDir.getAbsolutePath());
+        assertThat(new String(Files.readAllBytes(runtimeRefFile(ref).toPath()), StandardCharsets.UTF_8))
                 .isEqualTo(large);
 
         ToolResultStorageService.StoredResult described =
@@ -152,7 +152,7 @@ public class ToolResultStorageServiceTest {
         assertThat(result.getPreview()).doesNotContain("sk-proj-secretvalue1234567890");
         assertThat(result.getObservation()).contains("OPENAI_API_KEY=***");
         assertThat(result.getObservation()).doesNotContain("sk-proj-secretvalue1234567890");
-        assertThat(new String(Files.readAllBytes(new File(result.getResultRef()).toPath()), StandardCharsets.UTF_8))
+        assertThat(new String(Files.readAllBytes(runtimeRefFile(result.getResultRef()).toPath()), StandardCharsets.UTF_8))
                 .contains("OPENAI_API_KEY=***")
                 .doesNotContain("sk-proj-secretvalue1234567890");
     }
@@ -207,8 +207,11 @@ public class ToolResultStorageServiceTest {
                 service.observe("shell", repeat("x", 400), "..\\evil/../run", "..\\call");
         String ref = result.getResultRef();
 
-        assertThat(ref).isNotBlank();
-        assertThat(new File(ref).getCanonicalPath())
+        assertThat(ref)
+                .startsWith("runtime://tool-results/")
+                .contains("evil")
+                .doesNotContain(tempDir.getAbsolutePath());
+        assertThat(runtimeRefFile(ref).getCanonicalPath())
                 .startsWith(new File(tempDir, "tool-results").getCanonicalPath());
     }
 
@@ -348,5 +351,11 @@ public class ToolResultStorageServiceTest {
             sb.append(value);
         }
         return sb.toString();
+    }
+
+    private File runtimeRefFile(String ref) {
+        String prefix = "runtime://tool-results/";
+        assertThat(ref).startsWith(prefix);
+        return new File(new File(tempDir, "tool-results"), ref.substring(prefix.length()));
     }
 }

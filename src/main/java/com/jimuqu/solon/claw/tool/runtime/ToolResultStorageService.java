@@ -336,20 +336,30 @@ public class ToolResultStorageService {
         if (file == null) {
             return null;
         }
-        if (StrUtil.isBlank(workspaceDir)) {
-            return file.getAbsolutePath();
-        }
         try {
-            File workspace = new File(workspaceDir).getCanonicalFile();
             File canonicalFile = file.getCanonicalFile();
-            if (!isChild(workspace, canonicalFile)) {
-                return canonicalFile.getAbsolutePath();
+            if (StrUtil.isNotBlank(workspaceDir)) {
+                File workspace = new File(workspaceDir).getCanonicalFile();
+                if (!isChild(workspace, canonicalFile)) {
+                    return runtimeResultRef(canonicalFile);
+                }
+                String relative = workspace.toPath().relativize(canonicalFile.toPath()).toString();
+                return relative.replace(File.separatorChar, '/');
             }
-            String relative = workspace.toPath().relativize(canonicalFile.toPath()).toString();
-            return relative.replace(File.separatorChar, '/');
+            File cacheBase = new File(new File(cacheDir), TOOL_RESULTS_DIR).getCanonicalFile();
+            if (isChild(cacheBase, canonicalFile)) {
+                String relative = cacheBase.toPath().relativize(canonicalFile.toPath()).toString();
+                return "runtime://" + TOOL_RESULTS_DIR + "/" + relative.replace(File.separatorChar, '/');
+            }
+            return runtimeResultRef(canonicalFile);
         } catch (Exception ignored) {
-            return file.getAbsolutePath();
+            return runtimeResultRef(file);
         }
+    }
+
+    private String runtimeResultRef(File file) {
+        String name = file == null ? "unknown.txt" : file.getName();
+        return "runtime://" + TOOL_RESULTS_DIR + "/" + SecretRedactor.redact(name, 200);
     }
 
     private boolean isChild(File base, File candidate) {
