@@ -147,6 +147,26 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldReturnStructuredErrorForInvalidDiagnosticsJson() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+
+        HttpResult result =
+                request(
+                        "POST",
+                        "/api/diagnostics/security-audit",
+                        "{\"action\":\"policy\",\"token\":\"ghp_invaliddiagnostics12345\"",
+                        token);
+
+        assertThat(result.status).isEqualTo(200);
+        assertThat(result.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"DIAGNOSTICS_BAD_REQUEST\"")
+                .contains("请求体 JSON 解析失败")
+                .doesNotContain("ghp_invaliddiagnostics12345")
+                .doesNotContain("\"action\":\"policy\"");
+    }
+
+    @Test
     void shouldPersistConfigAndExposeDashboardResources() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
