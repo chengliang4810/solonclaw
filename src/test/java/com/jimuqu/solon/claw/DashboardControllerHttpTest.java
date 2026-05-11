@@ -304,6 +304,26 @@ public class DashboardControllerHttpTest {
         assertThat(diagnostics.body)
                 .contains("\"providers\"")
                 .contains("\"channels\"")
+                .contains("\"mcp\"")
+                .contains("\"runtime_policy\"")
+                .contains("\"oauth_policy\"")
+                .contains("\"remoteEndpointUrlSafety\":true")
+                .contains("\"remoteToolArgumentUrlSafety\":true")
+                .contains("\"remoteToolArgumentPathSafety\":true")
+                .contains("\"resourceUriUrlSafety\":true")
+                .contains("\"blockedUrlsMasked\":true")
+                .contains("\"blockedPathsRedacted\":true")
+                .contains("\"toolsChangeNotificationPersisted\":true")
+                .contains("\"oauthFailureStructuredReauth\":true")
+                .contains("\"oauthSecretsRedacted\":true")
+                .contains("\"authorizationEndpointUrlSafety\":true")
+                .contains("\"tokenEndpointUrlSafety\":true")
+                .contains("\"tokenEndpointRedirectUrlSafety\":true")
+                .contains("\"stateValidationRequired\":true")
+                .contains("\"pkceS256Required\":true")
+                .contains("\"accessTokenRedacted\":true")
+                .contains("\"refreshTokenRedacted\":true")
+                .contains("\"clientSecretRedacted\":true")
                 .contains("\"security\"")
                 .contains("\"approvals\"")
                 .contains("\"approval_lifecycle_policy\"")
@@ -366,6 +386,10 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"legacyPendingContextKey\"")
                 .doesNotContain("\"onceScopeStoresContextKey\"")
                 .doesNotContain("\"sessionScopeStoresContextKey\"");
+        ONode mcpDiagnostics = ONode.ofJson(diagnostics.body).get("data").get("mcp");
+        assertThat(mcpDiagnostics.toJson())
+                .doesNotContain("\"oauthFailureMarkers\"")
+                .doesNotContain("\"pathishArgumentKeys\"");
 
         HttpResult commandAudit =
                 request(

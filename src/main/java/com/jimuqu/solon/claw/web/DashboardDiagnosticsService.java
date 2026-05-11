@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
+import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -374,6 +375,8 @@ public class DashboardDiagnosticsService {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("enabled", appConfig.getMcp().isEnabled());
         map.put("status", appConfig.getMcp().isEnabled() ? "enabled" : "disabled");
+        map.put("runtime_policy", safeMcpRuntimePolicySummary());
+        map.put("oauth_policy", safeMcpOAuthPolicySummary());
         return map;
     }
 
@@ -634,6 +637,74 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "oauthUrlSafetyCovered");
             copyPolicyValue(summary, safe, "encodedUrlParameterRedacted");
             copyPolicyValue(summary, safe, "reloadHistoryNoticeRedacted");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeMcpRuntimePolicySummary() {
+        try {
+            Map<String, Object> summary = McpRuntimeService.policySummary(appConfig);
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabled");
+            copyPolicyValue(summary, safe, "supportedTransports");
+            copyPolicyValue(summary, safe, "remoteEndpointUrlSafety");
+            copyPolicyValue(summary, safe, "remoteEndpointAllowsPrivateByPolicy");
+            copyPolicyValue(summary, safe, "stdioEndpointSkipped");
+            copyPolicyValue(summary, safe, "remoteToolArgumentUrlSafety");
+            copyPolicyValue(summary, safe, "remoteToolArgumentPathSafety");
+            copyPolicyValue(summary, safe, "resourceUriUrlSafety");
+            copyPolicyValue(summary, safe, "resourceUriPathSafety");
+            copyPolicyValue(summary, safe, "nestedUrlExtraction");
+            copyPolicyValue(summary, safe, "blockedUrlsMasked");
+            copyPolicyValue(summary, safe, "blockedPathsRedacted");
+            copyPolicyValue(summary, safe, "inputSchemaSanitized");
+            copyPolicyValue(summary, safe, "toolNamesPrefixed");
+            copyPolicyValue(summary, safe, "toolIncludeExcludeFilter");
+            copyPolicyValue(summary, safe, "resourceUtilityToolsCapabilityGated");
+            copyPolicyValue(summary, safe, "promptUtilityToolsCapabilityGated");
+            copyPolicyValue(summary, safe, "blockedServersSuppressed");
+            copyPolicyValue(summary, safe, "toolsChangeNotificationPersisted");
+            copyPolicyValue(summary, safe, "toolChangeHashTracked");
+            copyPolicyValue(summary, safe, "toolsChangeClearsProviderCache");
+            copyPolicyValue(summary, safe, "oauthFailureStructuredReauth");
+            copyPolicyValue(summary, safe, "oauthSecretsRedacted");
+            copyPolicyValue(summary, safe, "recoverableTransportRetry");
+            copyPolicyValue(summary, safe, "remoteToolTimeoutMillisDefault");
+            copyPolicyValue(summary, safe, "connectTimeoutMillisDefault");
+            copyPolicyValue(summary, safe, "toolCallExecutorBounded");
+            copyPolicyValue(summary, safe, "toolCallExecutorMaxThreads");
+            copyPolicyValue(summary, safe, "toolCallExecutorQueueCapacity");
+            copyPolicyValue(summary, safe, "accessTokenHeaderOnlyForRemote");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeMcpOAuthPolicySummary() {
+        try {
+            Map<String, Object> summary = DashboardMcpService.oauthPolicySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "authorizationEndpointUrlSafety");
+            copyPolicyValue(summary, safe, "tokenEndpointUrlSafety");
+            copyPolicyValue(summary, safe, "tokenEndpointRedirectUrlSafety");
+            copyPolicyValue(summary, safe, "tokenEndpointRedirectLimit");
+            copyPolicyValue(summary, safe, "crossOriginRedirectBodyForwardingBlocked");
+            copyPolicyValue(summary, safe, "stateValidationRequired");
+            copyPolicyValue(summary, safe, "pkceS256Required");
+            copyPolicyValue(summary, safe, "codeVerifierHiddenFromStatus");
+            copyPolicyValue(summary, safe, "accessTokenRedacted");
+            copyPolicyValue(summary, safe, "refreshTokenRedacted");
+            copyPolicyValue(summary, safe, "clientSecretRedacted");
+            copyPolicyValue(summary, safe, "refreshRequiresRefreshToken");
+            copyPolicyValue(summary, safe, "handle401RefreshThenReauth");
+            copyPolicyValue(summary, safe, "clearRemovesSecretPresenceFlags");
+            copyPolicyValue(summary, safe, "statusPresenceFields");
+            copyPolicyValue(summary, safe, "callbackErrorsRedacted");
+            copyPolicyValue(summary, safe, "tokenErrorsRedacted");
+            copyPolicyValue(summary, safe, "tokenResponseRequiresAccessToken");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
