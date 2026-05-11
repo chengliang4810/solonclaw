@@ -138,6 +138,8 @@ public class SecurityPolicyService {
                     ".terraform.d/credentials.tfrc.json");
     private static final List<String> WRITE_DENIED_EXACT_PATHS =
             Arrays.asList(
+                    "/etc/hosts",
+                    "/etc/resolv.conf",
                     "/etc/sudoers",
                     "/etc/passwd",
                     "/etc/shadow",

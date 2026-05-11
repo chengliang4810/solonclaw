@@ -7994,6 +7994,8 @@ public class DangerousCommandApprovalServiceTest {
 
         assertWriteDenied(securityPolicyService, "/etc/shadow");
         assertWriteDenied(securityPolicyService, "/etc/passwd");
+        assertWriteDenied(securityPolicyService, "/etc/hosts");
+        assertWriteDenied(securityPolicyService, "/etc/resolv.conf");
         assertWriteDenied(securityPolicyService, "/etc/sudoers");
         assertWriteDenied(securityPolicyService, "/etc/sudoers.d/custom");
         assertWriteDenied(securityPolicyService, "/etc/systemd/system/evil.service");
@@ -8683,6 +8685,10 @@ public class DangerousCommandApprovalServiceTest {
 
         SecurityPolicyService.FileVerdict shadow =
                 securityPolicyService.checkCommandPaths("echo bad > /etc/shadow");
+        SecurityPolicyService.FileVerdict hosts =
+                securityPolicyService.checkCommandPaths("echo bad >> /etc/hosts");
+        SecurityPolicyService.FileVerdict resolv =
+                securityPolicyService.checkCommandPaths("printf nameserver | tee /etc/resolv.conf");
         SecurityPolicyService.FileVerdict profile =
                 securityPolicyService.checkCommandPaths("Set-Content ~/.bashrc bad");
         SecurityPolicyService.FileVerdict envHomeProfile =
@@ -8708,6 +8714,10 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(shadow.isAllowed()).isFalse();
         assertThat(shadow.getMessage()).contains("系统文件");
+        assertThat(hosts.isAllowed()).isFalse();
+        assertThat(hosts.getMessage()).contains("系统文件");
+        assertThat(resolv.isAllowed()).isFalse();
+        assertThat(resolv.getMessage()).contains("系统文件");
         assertThat(profile.isAllowed()).isFalse();
         assertThat(envHomeProfile.isAllowed()).isFalse();
         assertThat(envHomeProfile.getPath()).isEqualTo("$env:HOME/.bash_profile");

@@ -1345,6 +1345,8 @@ public class SecurityPolicyServiceTest {
 
         assertWriteDenied(policy, "/etc/shadow");
         assertWriteDenied(policy, "/etc/passwd");
+        assertWriteDenied(policy, "/etc/hosts");
+        assertWriteDenied(policy, "/etc/resolv.conf");
         assertWriteDenied(policy, "/etc/sudoers");
         assertWriteDenied(policy, "/etc/sudoers.d/custom");
         assertWriteDenied(policy, "/etc/systemd/system/evil.service");
@@ -1659,6 +1661,7 @@ public class SecurityPolicyServiceTest {
         assertThat(((Integer) summary.get("writeDeniedHomeFileCount")).intValue()).isGreaterThan(0);
         assertThat(((Integer) summary.get("blockedDevicePathCount")).intValue()).isGreaterThan(0);
         assertThat(String.valueOf(summary.get("writeDeniedExactPathSamples"))).contains("/etc/passwd");
+        assertThat(String.valueOf(summary.get("writeDeniedExactPathSamples"))).contains("/etc/hosts");
         assertThat(String.valueOf(summary.get("writeDeniedWindowsPrefixSamples")))
                 .contains("c:/windows/");
         assertThat(String.valueOf(summary.get("blockedDevicePathSamples"))).contains("/dev/zero");
