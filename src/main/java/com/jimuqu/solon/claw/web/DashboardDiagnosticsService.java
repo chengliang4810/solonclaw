@@ -698,6 +698,8 @@ public class DashboardDiagnosticsService {
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
             copyPolicyValue(summary, safe, "pendingListPrunedBeforeRead");
             copyPolicyValue(summary, safe, "selectorSupported");
+            copyPolicyValue(summary, safe, "selectorTokenPattern");
+            copyPolicyValue(summary, safe, "unsafeSelectorRejected");
             copyPolicyValue(summary, safe, "listSupported");
             copyPolicyValue(summary, safe, "statusAliasSupported");
             copyPolicyValue(summary, safe, "approveAllSupported");
@@ -734,6 +736,8 @@ public class DashboardDiagnosticsService {
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
             copyPolicyValue(summary, safe, "commands");
             copyPolicyValue(summary, safe, "selectorSupported");
+            copyPolicyValue(summary, safe, "selectorTokenPattern");
+            copyPolicyValue(summary, safe, "unsafeSelectorRejected");
             copyPolicyValue(summary, safe, "listSupported");
             copyPolicyValue(summary, safe, "statusAliasSupported");
             copyPolicyValue(summary, safe, "approveAllSupported");
@@ -784,6 +788,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "scopeOptions");
             copyPolicyValue(summary, safe, "defaultScope");
             copyPolicyValue(summary, safe, "approvalIdSelectorSupported");
+            copyPolicyValue(summary, safe, "selectorTokenPattern");
+            copyPolicyValue(summary, safe, "unsafeSelectorRejected");
             copyPolicyValue(summary, safe, "approveCommandGenerated");
             copyPolicyValue(summary, safe, "denyCommandGenerated");
             copyPolicyValue(summary, safe, "alwaysScopeCommandGenerated");

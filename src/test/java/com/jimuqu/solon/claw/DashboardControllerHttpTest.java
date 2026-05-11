@@ -381,6 +381,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"approvalRequestObserved\":true")
                 .contains("\"approvalResponseObserved\":true")
                 .contains("\"scopeOptions\":[\"once\",\"session\",\"always\"]")
+                .contains("\"selectorTokenPattern\":\"[A-Za-z0-9_.-]{1,128}\"")
+                .contains("\"unsafeSelectorRejected\":true")
                 .contains("\"encodedUrlParameterRedacted\":true")
                 .contains("\"toolChangeNoticeInjected\":true")
                 .contains("\"oauthUrlSafetyCovered\":true")
