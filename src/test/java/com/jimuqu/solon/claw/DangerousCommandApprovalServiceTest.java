@@ -3263,6 +3263,41 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileCopyToSharedLocationCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "cp .env /tmp/.env",
+                        "mv credentials.json /var/tmp/credentials.json",
+                        "install -m 0644 client_secret.json public/client_secret.json",
+                        "cp ~/.config/gcloud/application_default_credentials.json shared/",
+                        "mv private-prod.pem downloads/private-prod.pem",
+                        "cp service-account.json /srv/app/uploads/service-account.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_copy_to_shared_location");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cp report.txt /tmp/report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cp config.sample.yml runtime/config.sample.yml"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "mv report.txt runtime/report.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileArchiveCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

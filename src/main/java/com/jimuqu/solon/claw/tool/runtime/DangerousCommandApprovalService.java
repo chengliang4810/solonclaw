@@ -627,6 +627,14 @@ public class DangerousCommandApprovalService {
                                                     + ")"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_copy_to_shared_location",
+                                    "copy credential file to shared or public location",
+                                    pattern(
+                                            "\\b(?:cp|mv|install)\\b(?=[^\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")(?=[^\\n]*(?:\\s(?:/tmp|/var/tmp|/private/tmp|/dev/shm|public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)|[/\\\\](?:public|share|shared|uploads?|downloads?)(?:[/\\\\\\s]|$)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "sensitive_http_header_send",
                                     "send credential through HTTP header",
                                     pattern(
