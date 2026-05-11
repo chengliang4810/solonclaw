@@ -2880,7 +2880,10 @@ public class SecurityPolicyService {
                 || ch == '|'
                 || ch == '&'
                 || ch == ';'
-                || ch == ',';
+                || ch == ','
+                || ch == '@'
+                || ch == '='
+                || ch == ':';
     }
 
     private boolean matchesConfiguredCredentialPath(
