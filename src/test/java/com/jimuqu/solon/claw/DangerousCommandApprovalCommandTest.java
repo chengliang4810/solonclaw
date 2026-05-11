@@ -219,6 +219,38 @@ public class DangerousCommandApprovalCommandTest {
     }
 
     @Test
+    void shouldRedactApproveListEncodedSensitiveText() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-redact-encoded-list", "user-redact-encoded-list", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message(
+                        "room-redact-encoded-list",
+                        "user-redact-encoded-list",
+                        "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-redact-encoded-list:user-redact-encoded-list");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "url_policy?api%255Fkey=list-secret",
+                "encoded list https://example.test/callback?api%255Fkey=list-secret",
+                "curl https://example.test/callback?api%255Fkey=list-secret");
+
+        GatewayReply list =
+                env.send("room-redact-encoded-list", "user-redact-encoded-list", "/approve list");
+
+        assertThat(list.getContent())
+                .contains("pattern=url_policy?api%255Fkey=***")
+                .contains("reason=encoded list https://example.test/callback?api%255Fkey=***")
+                .contains("command_preview=curl https://example.test/callback?api%255Fkey=***")
+                .doesNotContain("list-secret");
+    }
+
+    @Test
     void shouldStripDisplayControlsFromApprovalListAndSelector() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-control-list", "user-control-list", "hello"));
