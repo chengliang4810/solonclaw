@@ -2258,8 +2258,7 @@ public class DangerousCommandApprovalService {
         List<PendingApproval> pendingApprovals = listPendingApprovals(session);
         int rejected = 0;
         for (PendingApproval pending : pendingApprovals) {
-            String selector =
-                    StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
+            String selector = approvalSelector(pending);
             if (reject(session, selector, approver)) {
                 rejected++;
             }
@@ -2625,6 +2624,7 @@ public class DangerousCommandApprovalService {
         summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
         summary.put("legacyPendingContextKey", CONTEXT_PENDING_APPROVAL);
         summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
+        summary.put("pendingListUsesSafeSelector", Boolean.TRUE);
         summary.put("pendingListShowsPatternKey", Boolean.TRUE);
         summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
         summary.put("alwaysApprovalListShowsCountOnly", Boolean.TRUE);
@@ -2751,6 +2751,7 @@ public class DangerousCommandApprovalService {
         summary.put("currentThreadApprovalEnabled", Boolean.TRUE);
         summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
+        summary.put("bulkRejectUsesSafeSelector", Boolean.TRUE);
         summary.put("approveRemovesPendingApproval", Boolean.TRUE);
         summary.put("rejectRemovesPendingApproval", Boolean.TRUE);
         summary.put("sessionSnapshotUpdated", Boolean.TRUE);

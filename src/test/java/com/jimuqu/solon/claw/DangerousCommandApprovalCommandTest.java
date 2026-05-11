@@ -291,6 +291,48 @@ public class DangerousCommandApprovalCommandTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldShowSafeSelectorForUnsafeApprovalIdInApprovalList() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(
+                env.message("room-list-selector", "user-list-selector", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-list-selector", "user-list-selector", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-list-selector:user-list-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf runtime/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe always");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        SqliteAgentSession restoredAgentSession =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession(
+                                "MEMORY:room-list-selector:user-list-selector"),
+                        env.sessionRepository);
+        String safeSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService.getPendingApproval(
+                                restoredAgentSession));
+        GatewayReply list =
+                env.send("room-list-selector", "user-list-selector", "/approve list");
+
+        assertThat(safeSelector).startsWith("key_");
+        assertThat(list.getContent()).contains("#1 " + safeSelector);
+        assertThat(list.getContent()).doesNotContain("approval-unsafe always");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldApproveUnsafeApprovalIdThroughSafeKeySelector() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-key-selector", "user-key-selector", "hello"));

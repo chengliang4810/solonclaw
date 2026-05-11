@@ -3267,7 +3267,7 @@ public class DefaultCommandService implements CommandService {
                     .append(i + 1)
                     .append(' ')
                     .append(safeApprovalPreview(
-                            StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey()),
+                            DangerousCommandApprovalService.approvalSelector(pending),
                             120))
                     .append(" tool=")
                     .append(safeApprovalPreview(pending.getToolName(), 120))
