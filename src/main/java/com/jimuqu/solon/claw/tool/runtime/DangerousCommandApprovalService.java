@@ -1632,6 +1632,12 @@ public class DangerousCommandApprovalService {
                                     pattern("\\bos\\.system\\s*\\("),
                                     ToolNameConstants.EXECUTE_PYTHON),
                             new DangerRule(
+                                    "python_subprocess_credential_file_output",
+                                    "Python subprocess reads credential file content",
+                                    pattern(
+                                            "\\bsubprocess\\.(?:run|Popen|call|check_call|check_output)\\s*\\([^\\n]*(?:cat|type|Get-Content|gc)[^\\n)]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)"),
+                                    ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
                                     "python_subprocess",
                                     "Python subprocess execution",
                                     pattern(
@@ -1701,6 +1707,12 @@ public class DangerousCommandApprovalService {
                                     pattern(
                                             "\\b(?:requests|httpx)\\.(?:request|post|put|patch)\\s*\\([^\\n]*(?:files|data|content)\\s*=\\s*(?:\\{[^\\n}]*open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|open\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']|Path\\s*\\(\\s*[\"'][^\"'\\n]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)[^\"'\\n]*[\"']\\s*\\)\\.read_(?:text|bytes)\\s*\\()"),
                                     ToolNameConstants.EXECUTE_PYTHON),
+                            new DangerRule(
+                                    "js_child_process_credential_file_output",
+                                    "Node child_process reads credential file content",
+                                    pattern(
+                                            "(?:\\bchild_process\\.(?:exec|execSync|spawn|spawnSync|execFile|execFileSync)|\\brequire\\s*\\(\\s*['\"]child_process['\"]\\s*\\)\\s*\\.(?:exec|execSync|spawn|spawnSync|execFile|execFileSync))\\s*\\([^\\n]*(?:cat|type|Get-Content|gc)[^\\n)]*(?:\\.env|credentials|credential|secret|token|oauth|service[_-]account|api-?key|\\.netrc|\\.npmrc|\\.pypirc|\\.curlrc)"),
+                                    ToolNameConstants.EXECUTE_JS),
                             new DangerRule(
                                     "js_child_process",
                                     "Node child_process execution",

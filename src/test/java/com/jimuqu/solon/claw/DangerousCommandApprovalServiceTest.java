@@ -4580,6 +4580,50 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCodeSubprocessCredentialFileOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> pythonCommands =
+                Arrays.asList(
+                        "subprocess.check_output(['cat', '.env'])",
+                        "subprocess.run(['type', 'credentials.json'], shell=True)",
+                        "subprocess.Popen(['Get-Content', 'token.json'])");
+        for (String command : pythonCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_python", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("python_subprocess_credential_file_output");
+        }
+
+        List<String> jsCommands =
+                Arrays.asList(
+                        "child_process.execSync('cat .env')",
+                        "child_process.spawn('type', ['credentials.json'])",
+                        "require('child_process').exec('Get-Content token.json')");
+        for (String command : jsCommands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_js", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("js_child_process_credential_file_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_python", "subprocess.check_output(['cat', 'report.txt'])"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("python_subprocess");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_js", "child_process.execSync('cat report.txt')"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("js_child_process");
+    }
+
+    @Test
     void shouldDetectCodeHttpCredentialFileVariableDisclosureCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
