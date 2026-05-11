@@ -460,6 +460,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"powershellProxyEnvironmentChecked\":true")
                 .contains("\"setxProxyEnvironmentChecked\":true")
                 .contains("\"systemProxyCommandChecked\":true")
+                .contains("\"windowsRegistryProxyCommandChecked\":true")
                 .contains("\"proxyBypassEnvironmentChecked\":true")
                 .contains("\"gitPersistentProxyConfigChecked\":true")
                 .contains("\"packageManagerProxyBypassEnvironmentChecked\":true")

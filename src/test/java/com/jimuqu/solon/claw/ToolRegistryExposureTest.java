@@ -1135,6 +1135,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("systemProxyCommandChecked").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("windowsRegistryProxyCommandChecked").getBoolean())
+                .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("gitPersistentProxyConfigChecked").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsPolicy").get("unsupportedNetworkSchemeChecked").getBoolean())

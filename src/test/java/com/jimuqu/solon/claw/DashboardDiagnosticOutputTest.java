@@ -350,6 +350,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsPolicy.get("windowsRegistryProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsPolicy.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
     }
 

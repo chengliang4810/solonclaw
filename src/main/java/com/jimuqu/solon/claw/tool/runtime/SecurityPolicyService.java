@@ -290,6 +290,10 @@ public class SecurityPolicyService {
     private static final Pattern POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN =
             Pattern.compile(
                     "(?i)(?:\\$env:|Env:)(HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
+    private static final Pattern POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN =
+            Pattern.compile("(?i)^-(?:Name|PropertyName|Property)$|^-n$");
+    private static final Pattern POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN =
+            Pattern.compile("(?i)^-(?:Value|PropertyValue)$");
     private static final Pattern POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN =
             Pattern.compile(
                     "(?i)(?:\\$env:|Env:)(DOCKER_HOST|CONTAINER_HOST|PODMAN_HOST)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](DOCKER_HOST|CONTAINER_HOST|PODMAN_HOST)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
@@ -645,6 +649,7 @@ public class SecurityPolicyService {
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("systemProxyCommandChecked", Boolean.TRUE);
+        summary.put("windowsRegistryProxyCommandChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -778,6 +783,7 @@ public class SecurityPolicyService {
         summary.put("powershellProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("setxProxyEnvironmentChecked", Boolean.TRUE);
         summary.put("systemProxyCommandChecked", Boolean.TRUE);
+        summary.put("windowsRegistryProxyCommandChecked", Boolean.TRUE);
         summary.put("proxyBypassEnvironmentChecked", Boolean.TRUE);
         summary.put("gitPersistentProxyConfigChecked", Boolean.TRUE);
         summary.put("packageManagerProxyBypassEnvironmentChecked", Boolean.TRUE);
@@ -1501,6 +1507,7 @@ public class SecurityPolicyService {
         extractPowerShellProxyEnvironmentAssignments(text, urls);
         extractSetxProxyEnvironmentAssignments(text, urls);
         extractSystemProxyCommands(text, urls);
+        extractWindowsRegistryProxyCommands(text, urls);
         extractGitProxyConfigAssignments(text, urls);
         extractPackageManagerProxyConfigAssignments(text, urls);
         extractProxyHosts(text, urls);
@@ -1688,6 +1695,101 @@ public class SecurityPolicyService {
             } else if ("networksetup".equalsIgnoreCase(token)) {
                 i = extractNetworksetupProxy(tokens, i, urls);
             }
+        }
+    }
+
+    private void extractWindowsRegistryProxyCommands(String text, List<String> urls) {
+        List<String> tokens = shellLikeTokens(text, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String command = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if ("Set-ItemProperty".equalsIgnoreCase(command) || "New-ItemProperty".equalsIgnoreCase(command)) {
+                extractWindowsRegistryProxyCommand(tokens, i + 1, urls);
+            }
+        }
+    }
+
+    private void extractWindowsRegistryProxyCommand(List<String> tokens, int start, List<String> urls) {
+        String propertyName = "";
+        String propertyValue = "";
+        boolean internetSettings = false;
+        for (int i = start; i < tokens.size(); i++) {
+            String token = StrUtil.nullToEmpty(tokens.get(i)).trim();
+            if (isShellCommandSeparator(token)) {
+                break;
+            }
+            if (token.toLowerCase(Locale.ROOT).contains("internet settings")) {
+                internetSettings = true;
+            }
+            String inlineName = optionInlineValue(token, "-Name");
+            if (StrUtil.isBlank(inlineName)) {
+                inlineName = optionInlineValue(token, "-Property");
+            }
+            if (StrUtil.isBlank(inlineName)) {
+                inlineName = optionInlineValue(token, "-PropertyName");
+            }
+            if (StrUtil.isNotBlank(inlineName)) {
+                propertyName = inlineName;
+                continue;
+            }
+            String inlineValue = optionInlineValue(token, "-Value");
+            if (StrUtil.isBlank(inlineValue)) {
+                inlineValue = optionInlineValue(token, "-PropertyValue");
+            }
+            if (StrUtil.isNotBlank(inlineValue)) {
+                propertyValue = inlineValue;
+                continue;
+            }
+            if (POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN.matcher(token).matches() && i + 1 < tokens.size()) {
+                propertyName = tokens.get(++i);
+                continue;
+            }
+            if (POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN.matcher(token).matches() && i + 1 < tokens.size()) {
+                propertyValue = tokens.get(++i);
+            }
+        }
+        if (!internetSettings || StrUtil.isBlank(propertyName) || StrUtil.isBlank(propertyValue)) {
+            return;
+        }
+        addWindowsRegistryProxyValue(propertyName, propertyValue, urls);
+    }
+
+    private String optionInlineValue(String token, String option) {
+        if (StrUtil.isBlank(token) || token.length() <= option.length() + 1) {
+            return "";
+        }
+        if (!token.regionMatches(true, 0, option, 0, option.length())) {
+            return "";
+        }
+        char separator = token.charAt(option.length());
+        return separator == ':' || separator == '=' ? token.substring(option.length() + 1) : "";
+    }
+
+    private void addWindowsRegistryProxyValue(String propertyName, String propertyValue, List<String> urls) {
+        String name = StrUtil.nullToEmpty(propertyName).trim();
+        String value = stripOptionalQuote(propertyValue);
+        if ("ProxyServer".equalsIgnoreCase(name)) {
+            addWindowsRegistryProxyServers(value, urls);
+        } else if ("ProxyOverride".equalsIgnoreCase(name)) {
+            addNoProxyHosts(value.replace(';', ','), urls);
+        }
+    }
+
+    private void addWindowsRegistryProxyServers(String raw, List<String> urls) {
+        String value = stripOptionalQuote(raw);
+        if (StrUtil.isBlank(value)) {
+            return;
+        }
+        String normalized = value.replace(';', ',');
+        for (String part : normalized.split(",")) {
+            String token = cleanUrlToken(part);
+            if (StrUtil.isBlank(token)) {
+                continue;
+            }
+            int equals = token.indexOf('=');
+            if (equals > 0 && equals + 1 < token.length()) {
+                token = token.substring(equals + 1);
+            }
+            addSystemProxyHost(token, urls);
         }
     }
 

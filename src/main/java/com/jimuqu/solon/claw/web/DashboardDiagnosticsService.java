@@ -1384,6 +1384,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "setxProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "systemProxyCommandChecked");
+            copyPolicyValue(summary, safe, "windowsRegistryProxyCommandChecked");
             copyPolicyValue(summary, safe, "proxyBypassEnvironmentChecked");
             copyPolicyValue(summary, safe, "gitPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "packageManagerProxyBypassEnvironmentChecked");
@@ -1534,6 +1535,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "setxProxyEnvironmentChecked");
             copyPolicyValue(summary, safe, "systemProxyCommandChecked");
+            copyPolicyValue(summary, safe, "windowsRegistryProxyCommandChecked");
             copyPolicyValue(summary, safe, "proxyBypassEnvironmentChecked");
             copyPolicyValue(summary, safe, "gitPersistentProxyConfigChecked");
             copyPolicyValue(summary, safe, "packageManagerProxyBypassEnvironmentChecked");

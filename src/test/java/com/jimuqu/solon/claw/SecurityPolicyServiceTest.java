@@ -833,6 +833,47 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldCheckWindowsRegistryProxyCommands() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(false);
+        SecurityPolicyService privatePolicy =
+                new FixedDnsSecurityPolicyService(config, "10.0.0.5");
+        SecurityPolicyService metadataPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
+        SecurityPolicyService publicPolicy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+
+        SecurityPolicyService.UrlVerdict proxyServer =
+                privatePolicy.checkCommandUrls(
+                        "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name ProxyServer -Value 10.0.0.5:8080");
+        SecurityPolicyService.UrlVerdict splitProxyServer =
+                metadataPolicy.checkCommandUrls(
+                        "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name ProxyServer -Value 'http=proxy.example:8080;https=metadata.google.internal:8443'");
+        SecurityPolicyService.UrlVerdict proxyOverride =
+                privatePolicy.checkCommandUrls(
+                        "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name ProxyOverride -Value 'localhost;internal.example'");
+        SecurityPolicyService.UrlVerdict inlineProxyServer =
+                privatePolicy.checkCommandUrls(
+                        "New-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name:ProxyServer -Value:internal.example:8080");
+        SecurityPolicyService.UrlVerdict publicProxy =
+                publicPolicy.checkCommandUrls(
+                        "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name ProxyServer -Value proxy.example:8080");
+
+        assertThat(privatePolicy.extractUrlishValues(
+                        "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name ProxyServer -Value 10.0.0.5:8080"))
+                .contains("http://10.0.0.5:8080");
+        assertThat(proxyServer.isAllowed()).isFalse();
+        assertThat(proxyServer.getMessage()).contains("内网");
+        assertThat(splitProxyServer.isAllowed()).isFalse();
+        assertThat(splitProxyServer.getMessage()).contains("元数据");
+        assertThat(proxyOverride.isAllowed()).isFalse();
+        assertThat(proxyOverride.getMessage()).contains("内网");
+        assertThat(inlineProxyServer.isAllowed()).isFalse();
+        assertThat(inlineProxyServer.getMessage()).contains("内网");
+        assertThat(publicProxy.isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldCheckGitPersistentProxyConfigAssignments() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
@@ -1222,6 +1263,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("windowsRegistryProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
@@ -1662,6 +1704,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("powershellProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("setxProxyEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("systemProxyCommandChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("windowsRegistryProxyCommandChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("proxyBypassEnvironmentChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("gitPersistentProxyConfigChecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("packageManagerProxyBypassEnvironmentChecked"))
