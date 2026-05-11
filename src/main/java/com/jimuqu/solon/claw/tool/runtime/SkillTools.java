@@ -90,7 +90,7 @@ public class SkillTools {
                     visible.add(descriptor);
                 }
             }
-            return ONode.serialize(visible);
+            return safeResult(ONode.serialize(visible), 20000);
         } catch (Exception e) {
             return toolError(e.getMessage());
         }
@@ -106,7 +106,7 @@ public class SkillTools {
         try {
             SkillView view = localSkillService.viewSkill(name, filePath, agentScope);
             registerSkillEnvironmentPassthrough(filePath, view);
-            return ONode.serialize(view);
+            return safeResult(ONode.serialize(view), 20000);
         } catch (Exception e) {
             return toolError(e.getMessage());
         }
@@ -142,28 +142,30 @@ public class SkillTools {
                 checkpoint(
                         Collections.singletonList(
                                 localSkillService.resolveSkillMainFile(name, category)));
-                return ONode.serialize(localSkillService.createSkill(name, category, content));
+                return safeResult(
+                        ONode.serialize(localSkillService.createSkill(name, category, content)),
+                        20000);
             }
             if (SkillConstants.ACTION_EDIT.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return ONode.serialize(localSkillService.editSkill(name, content));
+                return safeResult(ONode.serialize(localSkillService.editSkill(name, content)), 20000);
             }
             if (SkillConstants.ACTION_PATCH.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.patchSkill(name, oldText, newText, filePath);
+                return safeResult(localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
                 String result = localSkillService.deleteSkill(name);
-                return result + rewriteCronSkillRefsAfterDelete(name, absorbedInto);
+                return safeResult(result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.writeSkillFile(name, filePath, fileContent);
+                return safeResult(localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
             }
             if (SkillConstants.ACTION_REMOVE_FILE.equalsIgnoreCase(action)) {
                 checkpoint(skillFiles(name));
-                return localSkillService.removeSkillFile(name, filePath);
+                return safeResult(localSkillService.removeSkillFile(name, filePath), 1000);
             }
             return toolError("Unsupported skill_manage action");
         } catch (Exception e) {
@@ -229,6 +231,10 @@ public class SkillTools {
 
     private String safeError(String message) {
         return SecretRedactor.redact(StrUtil.nullToDefault(message, "unknown error"), 1000);
+    }
+
+    private String safeResult(String message, int maxLength) {
+        return SecretRedactor.redact(StrUtil.nullToDefault(message, ""), maxLength);
     }
 
     /** `skills_list` 单工具暴露对象。 */

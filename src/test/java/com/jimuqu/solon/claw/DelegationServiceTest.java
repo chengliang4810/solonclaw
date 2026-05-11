@@ -175,6 +175,44 @@ public class DelegationServiceTest {
                 .doesNotContain("ghp_1234567890abcdef");
     }
 
+    @Test
+    void delegateToolShouldRedactSuccessResultsOnly() throws Exception {
+        RecordingDelegationService service = new RecordingDelegationService();
+        service.singleContent = "single Authorization: Bearer ghp_delegatesingle12345";
+        service.batchContent = "batch token=ghp_delegatebatch12345";
+        DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
+
+        String single =
+                tools.delegateTask(
+                        "single",
+                        "prompt token=ghp_delegateprompt12345",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+        String batch =
+                tools.delegateTask(
+                        "batch",
+                        null,
+                        "[{\"prompt\":\"batch token=ghp_delegateprompt12345\"}]",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        assertThat(single)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_delegatesingle12345");
+        assertThat(batch)
+                .contains("batch token=***")
+                .doesNotContain("ghp_delegatebatch12345");
+        assertThat(service.singleTask.getPrompt()).contains("ghp_delegateprompt12345");
+        assertThat(service.batchTasks.get(0).getPrompt()).contains("ghp_delegateprompt12345");
+    }
+
     private static class RecordingToolGateway extends FakeLlmGateway {
         private List<Object> lastToolObjects = new ArrayList<Object>();
 
@@ -193,11 +231,13 @@ public class DelegationServiceTest {
     private static class RecordingDelegationService implements DelegationService {
         private DelegationTask singleTask;
         private List<DelegationTask> batchTasks = new ArrayList<DelegationTask>();
+        private String singleContent = "ok";
+        private String batchContent = "ok";
 
         @Override
         public DelegationResult delegateSingle(String sourceKey, String prompt, String context) {
             DelegationResult result = new DelegationResult();
-            result.setContent("ok");
+            result.setContent(singleContent);
             return result;
         }
 
@@ -205,7 +245,7 @@ public class DelegationServiceTest {
         public DelegationResult delegateSingle(String sourceKey, DelegationTask task) {
             this.singleTask = task;
             DelegationResult result = new DelegationResult();
-            result.setContent("ok");
+            result.setContent(singleContent);
             return result;
         }
 
@@ -213,7 +253,7 @@ public class DelegationServiceTest {
         public List<DelegationResult> delegateBatch(String sourceKey, List<DelegationTask> tasks) {
             this.batchTasks = tasks;
             DelegationResult result = new DelegationResult();
-            result.setContent("ok");
+            result.setContent(batchContent);
             return Arrays.asList(result);
         }
 

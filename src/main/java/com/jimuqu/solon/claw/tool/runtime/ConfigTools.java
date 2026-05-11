@@ -23,8 +23,8 @@ public class ConfigTools {
             Object value = runtimeSettingsService.getConfigValue(key);
             Object safeValue = safeValue(key, value);
             String preview = safePreview(key, value);
-            return ToolResultEnvelope.ok("读取运行时配置：" + key)
-                    .data("key", key)
+            return ToolResultEnvelope.ok("读取运行时配置：" + safeText(key, 400))
+                    .data("key", safeText(key, 400))
                     .data("value", safeValue)
                     .data("redacted", Boolean.valueOf(runtimeSettingsService.isSecretConfigKey(key)))
                     .preview(preview)
@@ -45,11 +45,11 @@ public class ConfigTools {
         try {
             runtimeSettingsService.setConfigValue(key, value);
             Object current = runtimeSettingsService.getConfigValue(key);
-            return ToolResultEnvelope.ok("已更新运行时配置：" + key)
-                    .data("key", key)
+            return ToolResultEnvelope.ok("已更新运行时配置：" + safeText(key, 400))
+                    .data("key", safeText(key, 400))
                     .data("value", safeValue(key, current))
                     .data("note", "takes effect on the next message")
-                    .preview(key + "=" + safePreview(key, current))
+                    .preview(safeText(key, 400) + "=" + safePreview(key, current))
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -78,9 +78,9 @@ public class ConfigTools {
             return envelope
                     .data("refreshed", Boolean.valueOf(result.isRefreshed()))
                     .data("reconnectedChannels", Boolean.valueOf(result.isReconnectedChannels()))
-                    .data("configFile", result.getConfigFile())
-                    .data("message", result.getMessage())
-                    .preview(result.getMessage())
+                    .data("configFile", safeText(result.getConfigFile(), 400))
+                    .data("message", safeText(result.getMessage(), 1000))
+                    .preview(safeText(result.getMessage(), 1000))
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -96,10 +96,10 @@ public class ConfigTools {
             @Param(name = "value", description = "新的密钥值") String value) {
         try {
             runtimeSettingsService.setSecretValue(key, value);
-            return ToolResultEnvelope.ok("已更新运行时密钥：" + key)
-                    .data("key", key)
+            return ToolResultEnvelope.ok("已更新运行时密钥：" + safeText(key, 400))
+                    .data("key", safeText(key, 400))
                     .data("note", "takes effect on the next message")
-                    .preview(key + "=***")
+                    .preview(safeText(key, 400) + "=***")
                     .toJson();
         } catch (Exception e) {
             return error(e);
@@ -129,9 +129,13 @@ public class ConfigTools {
             return "";
         }
         if (runtimeSettingsService.isSecretConfigKey(key)) {
-            return key + "=***";
+            return safeText(key, 400) + "=***";
         }
         return SecretRedactor.redact(String.valueOf(value), 1000);
+    }
+
+    private String safeText(String value, int maxLength) {
+        return SecretRedactor.redact(value, maxLength);
     }
 
     @RequiredArgsConstructor

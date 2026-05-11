@@ -277,6 +277,58 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldRedactSecretsFromSkillToolSuccessResultsOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:room:user");
+
+        String content =
+                "---\n"
+                        + "name: secret-skill\n"
+                        + "description: Uses token ghp_skilldesc12345\n"
+                        + "---\n\n"
+                        + "# Secret Skill\n"
+                        + "Authorization: Bearer ghp_skillcontent12345\n";
+        String created = tools.skillManage("create", "secret-skill", null, content, null, null, null, null);
+        String viewed = tools.skillView("secret-skill", null);
+        String written =
+                tools.skillManage(
+                        "write_file",
+                        "secret-skill",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "references/notes-token-ghp_skillpath12345.md",
+                        "note token=ghp_skillfile12345");
+        String viewedFile = tools.skillView("secret-skill", "references/notes-token-ghp_skillpath12345.md");
+
+        assertThat(created)
+                .contains("Uses token ***")
+                .doesNotContain("ghp_skilldesc12345")
+                .doesNotContain("ghp_skillcontent12345");
+        assertThat(viewed)
+                .contains("Authorization: Bearer ***")
+                .doesNotContain("ghp_skillcontent12345");
+        assertThat(written)
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("ghp_skillpath12345");
+        assertThat(viewedFile)
+                .contains("note token=***")
+                .contains("notes-token-ghp_***")
+                .doesNotContain("ghp_skillfile12345")
+                .doesNotContain("ghp_skillpath12345");
+        assertThat(env.localSkillService.viewSkill("secret-skill", null).getContent())
+                .contains("ghp_skillcontent12345");
+        assertThat(env.localSkillService.viewSkill("secret-skill", "references/notes-token-ghp_skillpath12345.md").getContent())
+                .contains("ghp_skillfile12345");
+    }
+
+    @Test
     void shouldBlockSkillViewSymlinkEscapesWithoutLeakingContent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("link-skill", null, skill("link-skill", "demo"));
@@ -1005,6 +1057,21 @@ public class MemoryAndSkillsTest {
         assertThat(readResult).contains("长期偏好：输出中文");
         assertThat(todayResult).contains("\"success\":true");
         assertThat(env.memoryService.read("today")).contains("今日完成记忆写入验证");
+    }
+
+    @Test
+    void shouldRedactSecretsFromMemoryToolReadResultOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MemoryTools tools = new MemoryTools(env.memoryService);
+
+        String addResult = tools.memory("add", "memory", "长期偏好 token=ghp_memorytool12345", null);
+        String readResult = tools.memory("read", "memory", null, null);
+
+        assertThat(addResult).contains("\"success\":true").doesNotContain("ghp_memorytool12345");
+        assertThat(readResult)
+                .contains("长期偏好 token=***")
+                .doesNotContain("ghp_memorytool12345");
+        assertThat(env.memoryService.read("memory")).contains("ghp_memorytool12345");
     }
 
     @Test
