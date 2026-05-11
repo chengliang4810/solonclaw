@@ -3263,6 +3263,42 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileTerminalOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "cat .env",
+                        "head -n 5 credentials.json",
+                        "tail token.json",
+                        "grep token .npmrc",
+                        "sed -n '1,5p' client_secret.json",
+                        "Get-Content .anthropic_oauth.json");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_terminal_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat report.txt"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat .env | pbcopy"))
+                .extracting(DangerousCommandApprovalService.DetectionResult::getPatternKey)
+                .isEqualTo("sensitive_file_clipboard_export");
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "cat .env > backup.txt"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileVisualEncodeCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

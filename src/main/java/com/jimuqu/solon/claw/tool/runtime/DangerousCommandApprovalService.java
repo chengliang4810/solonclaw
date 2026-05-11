@@ -754,6 +754,14 @@ public class DangerousCommandApprovalService {
                                                     + "\\S*[\"']?"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_terminal_output",
+                                    "print credential file content to terminal",
+                                    pattern(
+                                            "(?:\\b(?:cat|type|head|tail|less|more|sed|awk|grep|Get-Content|gc)\\b(?![^\\n|;&]*(?:\\||>|>>))[^\\n|;&]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + ")"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "remote_credential_file_transfer",
                                     "transfer credential file with remote copy tool",
                                     pattern(
