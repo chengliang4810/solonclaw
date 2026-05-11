@@ -302,6 +302,25 @@ public class CompressionStabilityTest {
     }
 
     @Test
+    void shouldRejectNonObjectJsonToolCallArguments() {
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                assistantWithRawToolCall("call_1", "read_file", "[\"path\",\".env\"]"),
+                                ChatMessage.ofTool("ok", "read_file", "call_1")));
+
+        int repaired = ToolCallArgumentSanitizer.sanitize(messages);
+
+        AssistantMessage assistant = (AssistantMessage) messages.get(0);
+        Map raw = assistant.getToolCallsRaw().get(0);
+        Map function = (Map) raw.get("function");
+        assertThat(repaired).isEqualTo(1);
+        assertThat(function.get("arguments")).isEqualTo("{}");
+        assertThat(messages.get(1).getContent())
+                .startsWith(ToolCallArgumentSanitizer.CORRUPTION_MARKER);
+    }
+
+    @Test
     void shouldInsertMarkerToolMessageWhenCorruptedToolResultIsMissing() {
         List<ChatMessage> messages =
                 new ArrayList<ChatMessage>(
