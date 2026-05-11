@@ -345,6 +345,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalPolicy.get("websitePolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("unsafeUrlBlockedBeforeApproval")).isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        Map<String, Object> toolArgsPolicy = (Map<String, Object>) policy.get("tool_args_policy");
+        assertThat(toolArgsPolicy.get("networkUploadSourcePathChecked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsPolicy.get("networkUploadCredentialOnlyBlocked")).isEqualTo(Boolean.TRUE);
     }
 
     @Test

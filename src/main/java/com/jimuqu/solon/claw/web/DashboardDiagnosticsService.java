@@ -1523,6 +1523,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "patchTargetExtraction");
             copyPolicyValue(summary, safe, "downloadOutputPathOptionChecked");
             copyPolicyValue(summary, safe, "downloadOutputDetachedOptionChecked");
+            copyPolicyValue(summary, safe, "networkUploadSourcePathChecked");
+            copyPolicyValue(summary, safe, "networkUploadCredentialOnlyBlocked");
             copyPolicyValue(summary, safe, "proxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "preproxyOptionUrlChecked");
             copyPolicyValue(summary, safe, "powershellProxyEnvironmentChecked");
