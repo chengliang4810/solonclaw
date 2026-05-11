@@ -506,6 +506,11 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"legacyPendingContextKey\"")
                 .doesNotContain("\"onceScopeStoresContextKey\"")
                 .doesNotContain("\"sessionScopeStoresContextKey\"");
+        ONode approvalCardDiagnostics = approvalDiagnostics.get("approval_card_policy");
+        assertThat(approvalCardDiagnostics.get("outboundApprovalIdSanitized").getBoolean())
+                .isTrue();
+        assertThat(approvalCardDiagnostics.get("unsafeApprovalIdFallsBackToKeySelector").getBoolean())
+                .isTrue();
         ONode mcpDiagnostics = ONode.ofJson(diagnostics.body).get("data").get("mcp");
         assertThat(mcpDiagnostics.toJson())
                 .doesNotContain("\"oauthFailureMarkers\"")

@@ -802,6 +802,8 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "approvalIdSelectorSupported");
             copyPolicyValue(summary, safe, "selectorTokenPattern");
             copyPolicyValue(summary, safe, "unsafeSelectorRejected");
+            copyPolicyValue(summary, safe, "outboundApprovalIdSanitized");
+            copyPolicyValue(summary, safe, "unsafeApprovalIdFallsBackToKeySelector");
             copyPolicyValue(summary, safe, "approveCommandGenerated");
             copyPolicyValue(summary, safe, "denyCommandGenerated");
             copyPolicyValue(summary, safe, "alwaysScopeCommandGenerated");
