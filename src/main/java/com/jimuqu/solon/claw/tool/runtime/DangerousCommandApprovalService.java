@@ -768,7 +768,8 @@ public class DangerousCommandApprovalService {
                             new DangerRule(
                                     "git_credential_store_change",
                                     "Git credential helper store changed",
-                                    pattern("\\bgit\\s+credential\\s+(?:approve|reject|store|erase)\\b"),
+                                    pattern(
+                                            "\\bgit\\s+credential\\s+(?:approve|reject|store|erase)\\b|\\bgit\\s+config\\s+(?:--global\\s+|--system\\s+|--local\\s+)?credential\\.helper\\s+['\"]?store\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "ssh_tunnel_network_exposure",

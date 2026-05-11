@@ -4041,7 +4041,9 @@ public class DangerousCommandApprovalServiceTest {
                         "printf 'protocol=https\\nhost=example.com\\nusername=user\\npassword=token\\n' | git credential approve",
                         "git credential reject",
                         "git credential store",
-                        "git credential erase");
+                        "git credential erase",
+                        "git config --global credential.helper store",
+                        "git config credential.helper 'store --file ~/.git-credentials'");
         for (String command : gitCredentialStoreChanges) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detect("execute_shell", command);
@@ -4078,6 +4080,10 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(
                         env.dangerousCommandApprovalService.detect(
                                 "execute_shell", "git remote set-url origin https://example.com/repo.git"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "git config credential.helper cache"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
