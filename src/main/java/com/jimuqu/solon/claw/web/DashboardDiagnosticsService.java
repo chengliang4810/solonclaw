@@ -1431,6 +1431,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "localManagementSocketReadBlocked");
             copyPolicyValue(summary, safe, "localManagementSocketWriteBlocked");
             copyPolicyValue(summary, safe, "localManagementSocketAccessBlocked");
+            copyPolicyValue(summary, safe, "localManagementSocketEnvironmentBlocked");
             copyPolicyValue(summary, safe, "localManagementPipeReadBlocked");
             copyPolicyValue(summary, safe, "localManagementPipeWriteBlocked");
             copyPolicyValue(summary, safe, "localManagementPipeAccessBlocked");

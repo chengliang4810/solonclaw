@@ -722,6 +722,7 @@ public class SecurityPolicyService {
         summary.put("localManagementSocketReadBlocked", Boolean.TRUE);
         summary.put("localManagementSocketWriteBlocked", Boolean.TRUE);
         summary.put("localManagementSocketAccessBlocked", Boolean.TRUE);
+        summary.put("localManagementSocketEnvironmentBlocked", Boolean.TRUE);
         summary.put("localManagementPipeReadBlocked", Boolean.TRUE);
         summary.put("localManagementPipeWriteBlocked", Boolean.TRUE);
         summary.put("localManagementPipeAccessBlocked", Boolean.TRUE);

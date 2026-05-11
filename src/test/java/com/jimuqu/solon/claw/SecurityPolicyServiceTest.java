@@ -1417,6 +1417,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("rawBlockDeviceWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalWriteBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("localManagementSocketEnvironmentBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("writeSafeRootConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("writeSafeRoot")))
                 .contains("workspace-sk-***")

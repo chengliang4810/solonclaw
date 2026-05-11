@@ -438,6 +438,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"rawControlCharactersBlocked\":true")
                 .contains("\"devicePathBlocked\":true")
                 .contains("\"localManagementSocketAccessBlocked\":true")
+                .contains("\"localManagementSocketEnvironmentBlocked\":true")
                 .contains("\"localManagementPipeAccessBlocked\":true")
                 .contains("\"directorySegmentCount\"")
                 .contains("\"fileNameCount\"")
