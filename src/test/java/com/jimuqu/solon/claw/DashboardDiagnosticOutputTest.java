@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
@@ -289,6 +290,41 @@ public class DashboardDiagnosticOutputTest {
                         "\"command_preview\":\"curl https://example.test/callback?api%255Fkey=***\"")
                 .doesNotContain("\"approval_key\":")
                 .doesNotContain("diagnostic-secret");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRedactEncodedSlashConfirmDiagnosticOutput() {
+        AppConfig config = new AppConfig();
+        SlashConfirmService slashConfirmService = new SlashConfirmService(null);
+        slashConfirmService.register(
+                "source-slash-confirm",
+                "/reload-mcp https://example.test/callback?api%255Fkey=slash-secret",
+                "确认执行 https://example.test/callback?api%255Fkey=slash-secret",
+                true);
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        slashConfirmService,
+                        null,
+                        null,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingSlashConfirms(10);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+        String json = ONode.serialize(items.get(0));
+
+        assertThat(json)
+                .contains("\"command_preview\":\"/reload-mcp https://example.test/callback?api%255Fkey=***\"")
+                .contains("\"prompt_preview\":\"确认执行 https://example.test/callback?api%255Fkey=***\"")
+                .doesNotContain("slash-secret");
     }
 
     @Test
