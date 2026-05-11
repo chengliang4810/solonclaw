@@ -163,6 +163,8 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("approvalIdSelectorSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("selectorTokenPattern")).isEqualTo("[A-Za-z0-9_.-]{1,128}");
         assertThat(summary.get("unsafeSelectorRejected")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("outboundApprovalIdSanitized")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("unsafeApprovalIdFallsBackToKeySelector")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approveCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("denyCommandGenerated")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("alwaysScopeCommandGenerated")).isEqualTo(Boolean.TRUE);
@@ -8853,6 +8855,63 @@ public class DangerousCommandApprovalServiceTest {
                 "approval\u001B[31m-ansi\nalways");
         assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
                 .isNull();
+    }
+
+    @Test
+    void shouldSanitizeOutboundApprovalCardSelectorAndFallbackToKeySelector()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalService.PendingApproval pending =
+                new DangerousCommandApprovalService.PendingApproval();
+        pending.setToolName("execute_shell");
+        pending.setPatternKey("recursive_delete");
+        pending.setDescription("recursive delete");
+        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommandHash("hash-card-selector");
+        pending.setApprovalKey("execute_shell:recursive_delete:hash-card-selector");
+        pending.setApprovalId("approval-unsafe always");
+        pending.setCreatedAt(System.currentTimeMillis());
+        pending.setExpiresAt(System.currentTimeMillis() + 60000L);
+
+        Map<String, Object> extras =
+                env.dangerousCommandApprovalService.buildDeliveryExtras(
+                        PlatformType.FEISHU, pending);
+        String outboundSelector = String.valueOf(extras.get("approvalId"));
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "session");
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, outboundSelector);
+
+        assertThat(outboundSelector).startsWith("key_");
+        assertThat(outboundSelector).doesNotContain("always");
+        assertThat(DangerousCommandApprovalService.commandFromCardActionPayload(payload))
+                .isEqualTo("/approve " + outboundSelector + " session");
+
+        TestTrace trace = new TestTrace();
+        Map<String, Object> pendingMap = new LinkedHashMap<String, Object>();
+        pendingMap.put("approvalId", pending.getApprovalId());
+        pendingMap.put("toolName", pending.getToolName());
+        pendingMap.put("patternKey", pending.getPatternKey());
+        pendingMap.put("patternKeys", Collections.singletonList(pending.getPatternKey()));
+        pendingMap.put("description", pending.getDescription());
+        pendingMap.put("command", pending.getCommand());
+        pendingMap.put("commandHash", pending.getCommandHash());
+        pendingMap.put("approvalKey", pending.getApprovalKey());
+        pendingMap.put("createdAt", pending.getCreatedAt());
+        pendingMap.put("expiresAt", pending.getExpiresAt());
+        trace.session.getContext().put("_dangerous_command_pending_", pendingMap);
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                trace.session,
+                                outboundSelector,
+                                DangerousCommandApprovalService.ApprovalScope.SESSION,
+                                "card"))
+                .isTrue();
+        assertThat(env.dangerousCommandApprovalService.isSessionApproved(trace.session, "recursive_delete"))
+                .isTrue();
     }
 
     @Test

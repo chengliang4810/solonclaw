@@ -1917,6 +1917,8 @@ public class DashboardDiagnosticsService {
                 "approvalIdSelectorSupported",
                 "selectorTokenPattern",
                 "unsafeSelectorRejected",
+                "outboundApprovalIdSanitized",
+                "unsafeApprovalIdFallsBackToKeySelector",
                 "approveCommandGenerated",
                 "denyCommandGenerated",
                 "alwaysScopeCommandGenerated",

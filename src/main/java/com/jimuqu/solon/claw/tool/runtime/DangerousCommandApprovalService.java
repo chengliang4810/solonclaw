@@ -2661,6 +2661,8 @@ public class DangerousCommandApprovalService {
         summary.put("approvalIdSelectorSupported", Boolean.TRUE);
         summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
+        summary.put("outboundApprovalIdSanitized", Boolean.TRUE);
+        summary.put("unsafeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
         summary.put("approveCommandGenerated", Boolean.TRUE);
         summary.put("denyCommandGenerated", Boolean.TRUE);
         summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
@@ -2673,7 +2675,7 @@ public class DangerousCommandApprovalService {
         summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
         summary.put("semicolonUrlParameterRedacted", Boolean.TRUE);
         summary.put("fragmentUrlParameterRedacted", Boolean.TRUE);
-        summary.put("description", "Approval card extras are only emitted for supported domestic card platforms and map card actions back to /approve or /deny commands with redacted previews.");
+        summary.put("description", "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, and map card actions back to /approve or /deny commands with redacted previews.");
         return summary;
     }
 
@@ -2807,7 +2809,7 @@ public class DangerousCommandApprovalService {
 
         Map<String, Object> extras = new LinkedHashMap<String, Object>();
         extras.put("mode", DELIVERY_MODE_APPROVAL_CARD);
-        extras.put("approvalId", pending.getApprovalId());
+        extras.put("approvalId", safeApprovalSelector(pending));
         extras.put("approvalCommand", redactApprovalDisplay(pending.getCommand(), 3000));
         extras.put("approvalDescription", redactApprovalDisplay(pending.getDescription(), 1000));
         extras.put("approvalToolName", redactApprovalDisplay(pending.getToolName(), 200));
@@ -4159,10 +4161,15 @@ public class DangerousCommandApprovalService {
         if (pending == null) {
             return "";
         }
-        if (StrUtil.isNotBlank(pending.getApprovalId())) {
-            return pending.getApprovalId().trim();
+        String safeApprovalId = safeApprovalSelectorToken(pending.getApprovalId());
+        if (StrUtil.isNotBlank(safeApprovalId)) {
+            return safeApprovalId;
         }
         return approvalSelectorFromKey(pending.approvalKey());
+    }
+
+    private static String safeApprovalSelector(PendingApproval pending) {
+        return approvalSelector(pending);
     }
 
     public static String approvalSelectorFromKey(String approvalKey) {

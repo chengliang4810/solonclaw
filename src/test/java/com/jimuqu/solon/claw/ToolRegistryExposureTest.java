@@ -845,6 +845,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(approvalCardPolicy.get("approvalIdSelectorSupported").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("unsafeSelectorRejected").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("outboundApprovalIdSanitized").getBoolean()).isTrue();
+        assertThat(approvalCardPolicy.get("unsafeApprovalIdFallsBackToKeySelector").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("approveCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("denyCommandGenerated").getBoolean()).isTrue();
         assertThat(approvalCardPolicy.get("alwaysScopeCommandGenerated").getBoolean()).isTrue();
