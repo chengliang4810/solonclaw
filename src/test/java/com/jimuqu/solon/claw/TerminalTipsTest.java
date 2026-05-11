@@ -25,6 +25,8 @@ public class TerminalTipsTest {
                 .contains("/trajectory save")
                 .contains("/reload-mcp now")
                 .contains("/acp status")
+                .contains("/cron guide")
+                .contains("/kanban guide")
                 .contains("/compact")
                 .contains("/attachments")
                 .contains("/approve")

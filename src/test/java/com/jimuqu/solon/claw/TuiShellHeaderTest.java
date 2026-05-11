@@ -103,6 +103,8 @@ public class TuiShellHeaderTest {
                 .contains("tip: ")
                 .contains("/tips")
                 .contains("/goal")
+                .contains("/cron")
+                .contains("/kanban")
                 .contains("/recap")
                 .contains("/reload-mcp")
                 .contains("/acp");
