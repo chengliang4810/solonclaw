@@ -169,7 +169,7 @@ public class SolonClawWebTools {
             check(securityPolicyService, ToolNameConstants.WEBFETCH, args);
             Document document = delegate.webfetch(url, format, timeoutSeconds);
             checkReturnedUrls(securityPolicyService, document);
-            return document;
+            return safeDocument(document);
         }
     }
 
@@ -209,17 +209,17 @@ public class SolonClawWebTools {
             if (BRAVE_FREE_BACKEND.equals(normalizedSearchBackend())) {
                 Document document = braveSearch(query, numResults);
                 checkReturnedUrls(securityPolicyService, document);
-                return document;
+                return safeDocument(document);
             }
             if (DDGS_BACKEND.equals(normalizedSearchBackend())) {
                 Document document = ddgsSearch(query, numResults);
                 checkReturnedUrls(securityPolicyService, document);
-                return document;
+                return safeDocument(document);
             }
             Document document =
                     delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
             checkReturnedUrls(securityPolicyService, document);
-            return document;
+            return safeDocument(document);
         }
 
         private String normalizedSearchBackend() {
@@ -439,8 +439,69 @@ public class SolonClawWebTools {
             check(securityPolicyService, ToolNameConstants.CODESEARCH, args);
             Object result = delegate.handle(query, tokensNum);
             checkReturnedUrls(securityPolicyService, result);
-            return result;
+            return safeValue(result);
         }
+    }
+
+    private static Document safeDocument(Document document) {
+        if (document == null) {
+            return null;
+        }
+        Document safe =
+                new Document(
+                                SecretRedactor.redact(document.getId(), 400),
+                                SecretRedactor.redact(document.getContent()),
+                                safeMetadata(document.getMetadata()),
+                                document.getScore())
+                        .embedding(document.getEmbedding());
+        return safe;
+    }
+
+    private static Map<String, Object> safeMetadata(Map<String, Object> metadata) {
+        Map<String, Object> safe = new LinkedHashMap<String, Object>();
+        if (metadata == null || metadata.isEmpty()) {
+            return safe;
+        }
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            safe.put(SecretRedactor.redact(String.valueOf(entry.getKey()), 200), safeValue(entry.getValue()));
+        }
+        return safe;
+    }
+
+    private static Object safeValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Document) {
+            return safeDocument((Document) value);
+        }
+        if (value instanceof CharSequence) {
+            return SecretRedactor.redact(String.valueOf(value));
+        }
+        if (value instanceof Map) {
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                safe.put(SecretRedactor.redact(String.valueOf(entry.getKey()), 200), safeValue(entry.getValue()));
+            }
+            return safe;
+        }
+        if (value instanceof Collection) {
+            List<Object> safe = new ArrayList<Object>();
+            for (Object item : (Collection<?>) value) {
+                safe.add(safeValue(item));
+            }
+            return safe;
+        }
+        Class<?> valueClass = value.getClass();
+        if (valueClass.isArray()) {
+            int length = Array.getLength(value);
+            List<Object> safe = new ArrayList<Object>();
+            for (int i = 0; i < length; i++) {
+                safe.add(safeValue(Array.get(value, i)));
+            }
+            return safe;
+        }
+        return value;
     }
 }
 

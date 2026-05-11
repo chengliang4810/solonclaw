@@ -2521,6 +2521,40 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromWebfetchSuccessDocument() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawWebTools.SafeWebfetchTool webfetch =
+                new SolonClawWebTools.SafeWebfetchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        new WebfetchTool() {
+                            @Override
+                            public Document webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                return new Document(
+                                                "Fetched api_key=sk-webfetch-secret token=ghp_webfetchcontent12345")
+                                        .id("doc-ghp_webfetchid12345")
+                                        .title("title ghp_webfetchtitle12345")
+                                        .url("https://example.com/docs")
+                                        .metadata("note", "api_key=sk-webfetch-meta");
+                            }
+                        });
+
+        Document document =
+                webfetch.webfetch("https://example.com/docs", "markdown", Integer.valueOf(1));
+        String text = document.toString();
+
+        assertThat(text)
+                .contains("api_key=***")
+                .contains("token=***")
+                .contains("ghp_***")
+                .doesNotContain("sk-webfetch-secret")
+                .doesNotContain("ghp_webfetchcontent12345")
+                .doesNotContain("ghp_webfetchid12345")
+                .doesNotContain("ghp_webfetchtitle12345")
+                .doesNotContain("sk-webfetch-meta");
+    }
+
+    @Test
     void shouldGuardWebsearchReturnedDocumentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -2571,6 +2605,45 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRedactSecretsFromWebsearchSuccessDocument() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        new WebsearchTool() {
+                            @Override
+                            public Document websearch(
+                                    String query,
+                                    Integer numResults,
+                                    String livecrawl,
+                                    String type,
+                                    Integer contextMaxCharacters) {
+                                return new Document(
+                                                "Search api_key=sk-websearch-secret token=ghp_websearchcontent12345")
+                                        .id("doc-ghp_websearchid12345")
+                                        .title("title ghp_websearchtitle12345")
+                                        .url("https://example.com/search")
+                                        .metadata("note", "api_key=sk-websearch-meta");
+                            }
+                        });
+
+        Document document =
+                websearch.websearch(
+                        "allowed search", Integer.valueOf(1), "fallback", "auto", Integer.valueOf(1000));
+        String text = document.toString();
+
+        assertThat(text)
+                .contains("api_key=***")
+                .contains("token=***")
+                .contains("ghp_***")
+                .doesNotContain("sk-websearch-secret")
+                .doesNotContain("ghp_websearchcontent12345")
+                .doesNotContain("ghp_websearchid12345")
+                .doesNotContain("ghp_websearchtitle12345")
+                .doesNotContain("sk-websearch-meta");
+    }
+
+    @Test
     void shouldGuardWebsearchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
@@ -2615,6 +2688,42 @@ public class ToolRegistryExposureTest {
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageContaining("blocked.example")
                 .hasMessageNotContaining("secret123");
+    }
+
+    @Test
+    void shouldRedactSecretsFromCodesearchSuccessContainers() throws Throwable {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawWebTools.SafeCodeSearchTool codesearch =
+                new SolonClawWebTools.SafeCodeSearchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        new CodeSearchTool() {
+                            @Override
+                            public Object handle(String query, Integer tokensNum) {
+                                Map<String, Object> hit = new java.util.LinkedHashMap<String, Object>();
+                                hit.put("title", "code ghp_codesearchtitle12345");
+                                hit.put(
+                                        "document",
+                                        new Document("code api_key=sk-codesearch-secret")
+                                                .id("doc-ghp_codesearchid12345")
+                                                .metadata("note", "token=ghp_codesearchnote12345"));
+                                Map<String, Object> result =
+                                        new java.util.LinkedHashMap<String, Object>();
+                                result.put("results", Arrays.asList(hit));
+                                return result;
+                            }
+                        });
+
+        Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
+        String text = String.valueOf(result);
+
+        assertThat(text)
+                .contains("api_key=***")
+                .contains("token=***")
+                .contains("ghp_***")
+                .doesNotContain("sk-codesearch-secret")
+                .doesNotContain("ghp_codesearchtitle12345")
+                .doesNotContain("ghp_codesearchid12345")
+                .doesNotContain("ghp_codesearchnote12345");
     }
 
     @Test
