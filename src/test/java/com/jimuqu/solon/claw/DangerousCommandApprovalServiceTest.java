@@ -1121,9 +1121,18 @@ public class DangerousCommandApprovalServiceTest {
         DangerousCommandApprovalService.DetectionResult obsPublicPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "obsutil setpolicy obs://prod-data public-readwrite");
+        DangerousCommandApprovalService.DetectionResult awsPublicAcl =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws s3api put-bucket-acl --bucket prod-data --acl public-read");
+        DangerousCommandApprovalService.DetectionResult awsPublicPolicy =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws s3api put-bucket-policy --bucket prod-data --policy '{\"Principal\":\"*\"}'");
         DangerousCommandApprovalService.DetectionResult objectStoragePlainUpload =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "ossutil cp permissions-read-write.md oss://prod-data/docs/");
+        DangerousCommandApprovalService.DetectionResult awsPrivateAcl =
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "aws s3api put-bucket-acl --bucket prod-data --acl private");
         DangerousCommandApprovalService.DetectionResult awsAttachPolicy =
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "aws iam attach-user-policy --user-name bot --policy-arn arn");
@@ -1463,7 +1472,12 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cosPublicAcl.getPatternKey()).isEqualTo("object_storage_exposure_change");
         assertThat(obsPublicPolicy).isNotNull();
         assertThat(obsPublicPolicy.getPatternKey()).isEqualTo("object_storage_exposure_change");
+        assertThat(awsPublicAcl).isNotNull();
+        assertThat(awsPublicAcl.getPatternKey()).isEqualTo("object_storage_exposure_change");
+        assertThat(awsPublicPolicy).isNotNull();
+        assertThat(awsPublicPolicy.getPatternKey()).isEqualTo("object_storage_exposure_change");
         assertThat(objectStoragePlainUpload).isNull();
+        assertThat(awsPrivateAcl).isNull();
         assertThat(awsAttachPolicy).isNotNull();
         assertThat(awsAttachPolicy.getPatternKey()).isEqualTo("cloud_iam_permission_change");
         assertThat(awsSecurityGroupIngress).isNotNull();

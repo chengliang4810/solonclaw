@@ -987,7 +987,7 @@ public class DangerousCommandApprovalService {
                                     "object_storage_exposure_change",
                                     "object storage ACL or policy made public",
                                     pattern(
-                                            "\\b(?:ossutil|coscli|obsutil)\\b(?=[^\\n]*(?:acl|policy|permission))(?=[^\\n]*(?:public-read(?:-write)?|public-readwrite|read-write|everyone|all-users|anonymous))"),
+                                            "\\b(?:ossutil|coscli|obsutil)\\b(?=[^\\n]*(?:acl|policy|permission))(?=[^\\n]*(?:public-read(?:-write)?|public-readwrite|read-write|everyone|all-users|anonymous))|\\baws\\s+s3(?:api)?\\b(?=[^\\n]*(?:acl|policy))(?=[^\\n]*(?:public-read(?:-write)?|everyone|all-users|Principal\\s*['\"]?\\s*:\\s*['\"]?\\*))"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "cloud_iam_permission_change",
