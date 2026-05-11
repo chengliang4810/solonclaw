@@ -8647,6 +8647,48 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldBlockCredentialBearingUrlsThroughApprovalGatewaySecurityPolicy()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+
+        Map<String, Object> userinfoArgs = new LinkedHashMap<String, Object>();
+        userinfoArgs.put("url", "https://user:password@example.com/private");
+        Map<String, Object> gatewayUserinfo = new LinkedHashMap<String, Object>();
+        gatewayUserinfo.put("tool_name", "web_extract");
+        gatewayUserinfo.put("tool_args", userinfoArgs);
+        TestTrace userinfoTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(userinfoTrace, "call_tool", gatewayUserinfo);
+
+        assertThat(userinfoTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(userinfoTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("userinfo");
+        assertThat(service.getPendingApproval(userinfoTrace.session)).isNull();
+
+        Map<String, Object> queryArgs = new LinkedHashMap<String, Object>();
+        queryArgs.put("url", "https://example.com/callback?access_token=short");
+        Map<String, Object> gatewayQuery = new LinkedHashMap<String, Object>();
+        gatewayQuery.put("tool_name", "http_get");
+        gatewayQuery.put("tool_args", queryArgs);
+        TestTrace queryTrace = new TestTrace();
+
+        service.buildInterceptor().onAction(queryTrace, "call_tool", gatewayQuery);
+
+        assertThat(queryTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(queryTrace.getFinalAnswer())
+                .contains("URL 安全策略")
+                .contains("敏感凭据参数");
+        assertThat(service.getPendingApproval(queryTrace.session)).isNull();
+    }
+
+    @Test
     void shouldBlockHostTargetArgumentsThroughApprovalGatewaySecurityPolicy() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(false);
