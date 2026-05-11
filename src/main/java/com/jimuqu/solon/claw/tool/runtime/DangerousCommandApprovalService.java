@@ -3797,7 +3797,7 @@ public class DangerousCommandApprovalService {
         buffer.append("。该命令属于不可通过 Agent 执行的高危操作，不能通过 /approve、/approve always 或会话审批绕过。");
         buffer.append("\n工具：").append(toolLabel(toolName)).append("\n\n");
         buffer.append("```").append(codeFence(toolName)).append('\n');
-        buffer.append(trimPreview(code));
+        buffer.append(redactApprovalDisplay(trimPreview(code), 2000));
         buffer.append("\n```");
         return buffer.toString();
     }

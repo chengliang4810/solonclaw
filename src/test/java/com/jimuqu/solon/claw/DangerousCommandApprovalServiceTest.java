@@ -8198,7 +8198,9 @@ public class DangerousCommandApprovalServiceTest {
                         env.appConfig,
                         new SecurityPolicyService(env.appConfig));
         Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
-        shellArgs.put("command", "curl http://169.254.169.254/latest/meta-data/");
+        shellArgs.put(
+                "command",
+                "curl http://169.254.169.254/latest/meta-data/?api%255Fkey=hardline-secret");
         Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
         gatewayShell.put("tool_name", "execute_shell_command");
         gatewayShell.put("tool_args", shellArgs);
@@ -8207,7 +8209,11 @@ public class DangerousCommandApprovalServiceTest {
         service.buildInterceptor().onAction(trace, "call_tool", gatewayShell);
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("元数据");
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED (hardline)")
+                .contains("元数据")
+                .contains("api%255Fkey=***")
+                .doesNotContain("hardline-secret");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
