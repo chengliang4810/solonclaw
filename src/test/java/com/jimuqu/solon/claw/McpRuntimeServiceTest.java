@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
@@ -828,6 +829,42 @@ public class McpRuntimeServiceTest {
                 .hasMessageContaining("不支持的 MCP transport");
     }
 
+    @Test
+    void shouldOnlyAttachMcpAccessTokenHeaderForRemoteTransports() throws Exception {
+        McpRuntimeService.McpServerConfig stdio = new McpRuntimeService.McpServerConfig();
+        stdio.setServerId("stdio-docs");
+        stdio.setTransport("stdio");
+        stdio.setCommand("docs-mcp");
+        stdio.setAccessToken("stdio-token-for-header-test");
+
+        McpRuntimeService.McpServerConfig remote = new McpRuntimeService.McpServerConfig();
+        remote.setServerId("remote-docs");
+        remote.setTransport("streamable");
+        remote.setEndpoint("https://example.com/mcp");
+        remote.setAccessToken("remote-token-for-header-test");
+
+        McpClientProvider stdioProvider = null;
+        McpClientProvider remoteProvider = null;
+        try {
+            SolonAiMcpClientProviderFactory factory = new SolonAiMcpClientProviderFactory(null);
+            stdioProvider = factory.create(stdio);
+            remoteProvider = factory.create(remote);
+
+            assertThat(clientProps(stdioProvider).getChannel()).isEqualTo(McpChannel.STDIO);
+            assertThat(clientProps(stdioProvider).getHeaders()).doesNotContainKey("Authorization");
+            assertThat(clientProps(remoteProvider).getChannel()).isEqualTo(McpChannel.STREAMABLE);
+            assertThat(clientProps(remoteProvider).getHeaders())
+                    .containsEntry("Authorization", "Bearer remote-token-for-header-test");
+        } finally {
+            if (stdioProvider != null) {
+                stdioProvider.close();
+            }
+            if (remoteProvider != null) {
+                remoteProvider.close();
+            }
+        }
+    }
+
     private String readToolsJson(SqliteDatabase database) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -864,6 +901,12 @@ public class McpRuntimeServiceTest {
         } finally {
             connection.close();
         }
+    }
+
+    private McpClientProperties clientProps(McpClientProvider provider) throws Exception {
+        Field field = McpClientProvider.class.getDeclaredField("clientProps");
+        field.setAccessible(true);
+        return (McpClientProperties) field.get(provider);
     }
 
     private void updateServerStatus(SqliteDatabase database, String status) throws Exception {
