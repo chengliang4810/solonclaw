@@ -7399,6 +7399,61 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldRedactTimeoutApprovalObserverMetadata() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        final List<String> observed = new java.util.ArrayList<String>();
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {}
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {
+                        DangerousCommandApprovalService.PendingApproval pending =
+                                event.getPendingApproval();
+                        observed.add(event.getChoice());
+                        observed.add(event.getApprover());
+                        observed.add(pending.getCommand());
+                        observed.add(pending.getPatternKey());
+                        observed.add(String.valueOf(pending.getPatternKeys()));
+                        observed.add(pending.getDescription());
+                        observed.add(pending.getApprovalKey());
+                    }
+                });
+        TestTrace trace = new TestTrace();
+        Map<String, Object> expired = new LinkedHashMap<String, Object>();
+        expired.put("toolName", "execute_shell");
+        expired.put("patternKey", "url_policy?api%255Fkey=timeout-secret");
+        expired.put(
+                "patternKeys",
+                Collections.singletonList("url_policy?api%255Fkey=timeout-secret"));
+        expired.put(
+                "description",
+                "encoded timeout https://example.test/callback?api%255Fkey=timeout-secret");
+        expired.put("command", "curl https://example.test/callback?api%255Fkey=timeout-secret");
+        expired.put("commandHash", "hash-timeout");
+        expired.put(
+                "approvalKey",
+                "execute_shell:url_policy?api%255Fkey=timeout-secret:hash-timeout");
+        expired.put("createdAt", System.currentTimeMillis() - 10_000L);
+        expired.put("expiresAt", System.currentTimeMillis() - 1_000L);
+        trace.session.getContext().put("_dangerous_command_pending_", expired);
+
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+
+        assertThat(observed).hasSize(7);
+        assertThat(observed.get(0)).isEqualTo("timeout");
+        assertThat(observed.get(1)).isEmpty();
+        for (int i = 2; i < observed.size(); i++) {
+            assertThat(observed.get(i))
+                    .contains("api%255Fkey=***")
+                    .doesNotContain("timeout-secret");
+        }
+    }
+
+    @Test
     void shouldKeepMultiplePendingApprovalsLikeJimuquGatewayQueue() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TestTrace trace = new TestTrace();
