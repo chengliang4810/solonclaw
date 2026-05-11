@@ -109,6 +109,75 @@ public class DefaultSkillHubHttpClientTest {
         }
     }
 
+    @Test
+    void shouldRedactFailedGetTextUrl() throws Exception {
+        HttpServer server = failedServer();
+        try {
+            server.start();
+            String url =
+                    "http://127.0.0.1:"
+                            + server.getAddress().getPort()
+                            + "/index?token=ghp_skillhubtext12345&api_key=sk-skillhub-text";
+            DefaultSkillHubHttpClient client = new DefaultSkillHubHttpClient();
+
+            assertThatThrownBy(() -> client.getText(url, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageNotContaining("ghp_skillhubtext12345")
+                    .hasMessageNotContaining("sk-skillhub-text");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactFailedGetBytesUrl() throws Exception {
+        HttpServer server = failedServer();
+        try {
+            server.start();
+            String url =
+                    "http://127.0.0.1:"
+                            + server.getAddress().getPort()
+                            + "/archive.zip?token=ghp_skillhubbytes12345&api_key=sk-skillhub-bytes";
+            DefaultSkillHubHttpClient client = new DefaultSkillHubHttpClient();
+
+            assertThatThrownBy(() -> client.getBytes(url, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageNotContaining("ghp_skillhubbytes12345")
+                    .hasMessageNotContaining("sk-skillhub-bytes");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldRedactFailedPostJsonUrl() throws Exception {
+        HttpServer server = failedServer();
+        try {
+            server.start();
+            String url =
+                    "http://127.0.0.1:"
+                            + server.getAddress().getPort()
+                            + "/query?token=ghp_skillhubpost12345&api_key=sk-skillhub-post";
+            DefaultSkillHubHttpClient client = new DefaultSkillHubHttpClient();
+
+            assertThatThrownBy(() -> client.postJson(url, null, "{}"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("HTTP 500")
+                    .hasMessageContaining("token=***")
+                    .hasMessageContaining("api_key=***")
+                    .hasMessageNotContaining("ghp_skillhubpost12345")
+                    .hasMessageNotContaining("sk-skillhub-post");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer redirectServer() throws Exception {
         return redirectServer("http://169.254.169.254/latest/meta-data/?token=secret");
     }
@@ -120,6 +189,19 @@ public class DefaultSkillHubHttpClientTest {
                 exchange -> {
                     exchange.getResponseHeaders().add("Location", location);
                     exchange.sendResponseHeaders(302, -1);
+                    exchange.close();
+                });
+        return server;
+    }
+
+    private static HttpServer failedServer() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/",
+                exchange -> {
+                    byte[] body = "failed".getBytes("UTF-8");
+                    exchange.sendResponseHeaders(500, body.length);
+                    exchange.getResponseBody().write(body);
                     exchange.close();
                 });
         return server;

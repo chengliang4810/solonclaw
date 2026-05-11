@@ -42,7 +42,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         Response response = executeGet(url, headers);
         try {
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("HTTP " + response.code() + " for " + url);
+                throw new IllegalStateException(httpFailure(response.code(), url));
             }
             return response.body() == null ? "" : response.body().string();
         } finally {
@@ -55,7 +55,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         Response response = executeGet(url, headers);
         try {
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("HTTP " + response.code() + " for " + url);
+                throw new IllegalStateException(httpFailure(response.code(), url));
             }
             return response.body() == null ? new byte[0] : response.body().bytes();
         } finally {
@@ -75,7 +75,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
         Response response = executeWithRedirectGuard(builder.build(), url, 0);
         try {
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("HTTP " + response.code() + " for " + url);
+                throw new IllegalStateException(httpFailure(response.code(), url));
             }
             return response.body() == null ? "" : response.body().string();
         } finally {
@@ -181,6 +181,10 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
 
     private Map<String, String> safeHeaders(Map<String, String> headers) {
         return headers == null ? Collections.<String, String>emptyMap() : headers;
+    }
+
+    private String httpFailure(int status, String url) {
+        return "HTTP " + status + " for " + SecretRedactor.maskUrl(url);
     }
 
     private void assertSafeUrl(String url) {
