@@ -870,6 +870,18 @@ public class DangerousCommandApprovalService {
                                                     + "[^\\n|;&]*\\|\\s*(?:head|tail|less|more|bat|batcat|most|pg|Out-Host|Select-Object|select)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "credential_file_substitution_output",
+                                    "print credential file content through command substitution",
+                                    pattern(
+                                            "(?:(?:^|[;&|\\n`])\\s*(?:echo|printf|Write-Output|Write-Host)\\b[^\\n|;&]*(?:\\$\\([^\\n)]*\\b(?:cat|type|Get-Content|gc)\\b[^\\n)]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n)]*\\)|`[^`\\n]*(?:cat|type|Get-Content|gc)\\b[^`\\n]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^`\\n]*`|\\(\\s*(?:Get-Content|gc)\\b[^\\n)]*"
+                                                    + NETWORK_CREDENTIAL_FILE_TARGET
+                                                    + "[^\\n)]*\\)))"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "credential_file_terminal_output",
                                     "print credential file content to terminal",
                                     pattern(

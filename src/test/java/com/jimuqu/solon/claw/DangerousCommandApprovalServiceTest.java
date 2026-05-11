@@ -3467,6 +3467,39 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectCredentialFileSubstitutionOutputCommands() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "echo \"$(cat .env)\"",
+                        "printf '%s' `cat credentials.json`",
+                        "Write-Output (Get-Content .anthropic_oauth.json)",
+                        "Write-Host (gc .npmrc)");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("credential_file_substitution_output");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "echo \"$(cat report.txt)\""))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "Write-Output (Get-Content report.txt)"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "echo ready"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCredentialFileCompareOutputCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
