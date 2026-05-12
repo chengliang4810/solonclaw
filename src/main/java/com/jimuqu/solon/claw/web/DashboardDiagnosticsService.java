@@ -2189,6 +2189,7 @@ public class DashboardDiagnosticsService {
 
     private void copyAuditCoverageBooleans(Map<String, Object> source, Map<String, Object> target) {
         copyPolicyValue(source, target, "dangerousCommandApproval");
+        copyPolicyValue(source, target, "configuredCredentialCommandPathApproval");
         copyPolicyValue(source, target, "slashApprovalConfirm");
         copyPolicyValue(source, target, "smartApproval");
         copyPolicyValue(source, target, "tirithSmartApproval");

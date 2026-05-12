@@ -254,6 +254,7 @@ public class SecurityAuditTools {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
         }
         coverage.put("dangerousCommandApproval", Boolean.TRUE);
+        coverage.put("configuredCredentialCommandPathApproval", Boolean.valueOf(approvalService != null));
         coverage.put("slashApprovalConfirm", Boolean.valueOf(approvalService != null));
         if (approvalService != null) {
             coverage.put("dangerousCommandApprovalPolicy", approvalService.approvalPolicySummary());
@@ -332,6 +333,7 @@ public class SecurityAuditTools {
 
         List<String> activeSurfaces = new ArrayList<String>();
         addSurface(activeSurfaces, "approval", approvalService != null);
+        addSurface(activeSurfaces, "configuredCredentialCommandPathApproval", approvalService != null);
         addSurface(activeSurfaces, "approvalLifecycle", approvalService != null);
         addSurface(activeSurfaces, "approvalAuditLog", approvalService != null);
         addSurface(activeSurfaces, "slashConfirm", approvalService != null);

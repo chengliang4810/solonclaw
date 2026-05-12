@@ -3379,6 +3379,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalsMcpReloadPolicy.get("persistentDisableSupported")).isEqualTo(Boolean.TRUE);
         assertThat(approvalsMcpReloadPolicy.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         Map<String, Object> coverage = (Map<String, Object>) policy.get("coverage");
+        assertThat(coverage.get("configuredCredentialCommandPathApproval"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(policy.get("activeSurfaces")))
+                .contains("configuredCredentialCommandPathApproval");
         Map<String, Object> coverageApprovalPolicy =
                 (Map<String, Object>) coverage.get("dangerousCommandApprovalPolicy");
         assertThat(coverageApprovalPolicy.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
