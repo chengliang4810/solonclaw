@@ -3035,6 +3035,11 @@ public class DashboardDiagnosticsService {
                         "Set-Content ${programfiles}/Probe/probe.txt probe"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_windows_percent_program_files_x86_write",
+                        "命令 Windows 百分号兼容程序目录写入检查",
+                        "echo probe > %ProgramFiles(x86)%/Probe/probe.txt"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_device_path_read",
                         "命令设备文件读取检查",
                         "cat /dev/zero"));

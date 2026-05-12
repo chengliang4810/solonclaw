@@ -1418,6 +1418,18 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldDenyCommandWritesToPercentWindowsVariablesWithParenthesizedNames() {
+        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+
+        SecurityPolicyService.FileVerdict verdict =
+                policy.checkCommandPaths("echo probe > %ProgramFiles(x86)%/Probe/probe.txt");
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getPath()).isEqualTo("%ProgramFiles(x86)%/Probe/probe.txt");
+        assertThat(verdict.getMessage()).contains("敏感");
+    }
+
+    @Test
     void shouldDenyCredentialPathsWithDisplayControlsAndEntities() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         Map<String, Object> args = new LinkedHashMap<String, Object>();

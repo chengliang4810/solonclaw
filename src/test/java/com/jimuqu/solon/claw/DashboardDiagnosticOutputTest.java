@@ -541,6 +541,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_windows_braced_windir_write");
         Map<String, Object> commandWindowsBracedProgramFilesWrite =
                 findProbe(items, "command_windows_braced_program_files_write");
+        Map<String, Object> commandWindowsPercentProgramFilesX86Write =
+                findProbe(items, "command_windows_percent_program_files_x86_write");
         Map<String, Object> commandDevicePathRead =
                 findProbe(items, "command_device_path_read");
         Map<String, Object> commandRawBlockDeviceWrite =
@@ -1398,6 +1400,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandWindowsBracedProgramFilesWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("${programfiles}/Probe/probe.txt");
+        assertThat(commandWindowsPercentProgramFilesX86Write.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsPercentProgramFilesX86Write.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandWindowsPercentProgramFilesX86Write.get("skipped")).isNull();
+        assertThat(String.valueOf(commandWindowsPercentProgramFilesX86Write.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("%ProgramFiles(x86)%/Probe/probe.txt");
         assertThat(commandDevicePathRead.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandDevicePathRead.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandDevicePathRead.get("skipped")).isNull();
