@@ -586,6 +586,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> attachmentTerminalPaste = findProbe(items, "attachment_terminal_paste");
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
+        Map<String, Object> powershellNetworkCredentialFileSend =
+                findProbe(items, "powershell_network_credential_file_send");
+        Map<String, Object> powershellWebclientCredentialFileSend =
+                findProbe(items, "powershell_webclient_credential_file_send");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
         Map<String, Object> credentialFilePermissiveChmod =
                 findProbe(items, "credential_file_permissive_chmod");
@@ -597,6 +601,11 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "sensitive_environment_http_header_send");
         Map<String, Object> sensitiveEnvironmentRead =
                 findProbe(items, "sensitive_environment_read");
+        Map<String, Object> environmentDump = findProbe(items, "environment_dump");
+        Map<String, Object> sensitiveClipboardExport =
+                findProbe(items, "sensitive_clipboard_export");
+        Map<String, Object> sensitiveHttpHeaderSend =
+                findProbe(items, "sensitive_http_header_send");
         Map<String, Object> cliAccessTokenRead = findProbe(items, "cli_access_token_read");
         Map<String, Object> kubernetesCredentialConfigRead =
                 findProbe(items, "kubernetes_credential_config_read");
@@ -669,6 +678,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "git_credential_store_change");
         Map<String, Object> sshHostKeyCheckDisabled =
                 findProbe(items, "ssh_host_key_check_disabled");
+        Map<String, Object> sshConfigTrustWeaken =
+                findProbe(items, "ssh_config_trust_weaken");
         Map<String, Object> tlsCertificateCheckDisabled =
                 findProbe(items, "tls_certificate_check_disabled");
         Map<String, Object> gitTlsCertificateCheckDisabled =
@@ -677,11 +688,18 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "system_trust_store_change");
         Map<String, Object> systemPackageSourceTrustChange =
                 findProbe(items, "system_package_source_trust_change");
+        Map<String, Object> persistentProxyConfigurationChange =
+                findProbe(items, "persistent_proxy_configuration_change");
+        Map<String, Object> sudoersPolicyChange = findProbe(items, "sudoers_policy_change");
         Map<String, Object> auditLogErasure = findProbe(items, "audit_log_erasure");
         Map<String, Object> linuxAuditPolicyDisabled =
                 findProbe(items, "linux_audit_policy_disabled");
         Map<String, Object> macosSecurityPolicyWeaken =
                 findProbe(items, "macos_security_policy_weaken");
+        Map<String, Object> macosKeychainPasswordRead =
+                findProbe(items, "macos_keychain_password_read");
+        Map<String, Object> macosKeychainPasswordChange =
+                findProbe(items, "macos_keychain_password_change");
         Map<String, Object> linuxCredentialMaterialDump =
                 findProbe(items, "linux_credential_material_dump");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -758,6 +776,9 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> hostForceProcessKill = findProbe(items, "host_force_process_kill");
         Map<String, Object> hostForkBomb = findProbe(items, "host_fork_bomb");
         Map<String, Object> gatewayDetachedRun = findProbe(items, "gateway_detached_run");
+        Map<String, Object> gatewayStopRestart = findProbe(items, "gateway_stop_restart");
+        Map<String, Object> appUpdateRestart = findProbe(items, "app_update_restart");
+        Map<String, Object> killAgentProcess = findProbe(items, "kill_agent_process");
         Map<String, Object> processLookupKill = findProbe(items, "process_lookup_kill");
         Map<String, Object> servicePersistenceRegistration =
                 findProbe(items, "service_persistence_registration");
@@ -812,7 +833,9 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "encoded_payload_execute");
         Map<String, Object> projectSensitiveRedirection =
                 findProbe(items, "project_sensitive_redirection");
+        Map<String, Object> overwriteEtcRedirection = findProbe(items, "overwrite_etc_redirection");
         Map<String, Object> projectSensitiveTee = findProbe(items, "project_sensitive_tee");
+        Map<String, Object> overwriteEtcTee = findProbe(items, "overwrite_etc_tee");
         Map<String, Object> copyIntoProjectSensitive =
                 findProbe(items, "copy_into_project_sensitive");
         Map<String, Object> chmodSetuidSetgid = findProbe(items, "chmod_setuid_setgid");
@@ -1913,6 +1936,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(patchParserPath.get("skipped")).isNull();
         assertThat(credentialUpload.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(powershellNetworkCredentialFileSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(powershellNetworkCredentialFileSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(powershellNetworkCredentialFileSend.get("skipped")).isNull();
+        assertThat(String.valueOf(powershellNetworkCredentialFileSend))
+                .contains("Invoke-WebRequest");
+        assertThat(powershellWebclientCredentialFileSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(powershellWebclientCredentialFileSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(powershellWebclientCredentialFileSend.get("skipped")).isNull();
+        assertThat(String.valueOf(powershellWebclientCredentialFileSend)).contains("UploadFile");
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFilePermissiveChmod.get("passed")).isEqualTo(Boolean.TRUE);
@@ -1935,6 +1967,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(sensitiveEnvironmentRead.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitiveEnvironmentRead.get("skipped")).isNull();
         assertThat(String.valueOf(sensitiveEnvironmentRead)).contains("printenv");
+        assertThat(environmentDump.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(environmentDump.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(environmentDump.get("skipped")).isNull();
+        assertThat(String.valueOf(environmentDump)).contains("target=env");
+        assertThat(sensitiveClipboardExport.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveClipboardExport.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveClipboardExport.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveClipboardExport)).contains("pbcopy");
+        assertThat(sensitiveHttpHeaderSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveHttpHeaderSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveHttpHeaderSend.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveHttpHeaderSend)).contains("Authorization");
         assertThat(cliAccessTokenRead.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(cliAccessTokenRead.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(cliAccessTokenRead.get("skipped")).isNull();
@@ -2100,6 +2144,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(sshHostKeyCheckDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sshHostKeyCheckDisabled.get("skipped")).isNull();
         assertThat(String.valueOf(sshHostKeyCheckDisabled)).contains("StrictHostKeyChecking");
+        assertThat(sshConfigTrustWeaken.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sshConfigTrustWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sshConfigTrustWeaken.get("skipped")).isNull();
+        assertThat(String.valueOf(sshConfigTrustWeaken)).contains("StrictHostKeyChecking");
         assertThat(tlsCertificateCheckDisabled.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(tlsCertificateCheckDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(tlsCertificateCheckDisabled.get("skipped")).isNull();
@@ -2116,6 +2164,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(systemPackageSourceTrustChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(systemPackageSourceTrustChange.get("skipped")).isNull();
         assertThat(String.valueOf(systemPackageSourceTrustChange)).contains("apt-key add");
+        assertThat(persistentProxyConfigurationChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(persistentProxyConfigurationChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(persistentProxyConfigurationChange.get("skipped")).isNull();
+        assertThat(String.valueOf(persistentProxyConfigurationChange)).contains("http.proxy");
+        assertThat(sudoersPolicyChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoersPolicyChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sudoersPolicyChange.get("skipped")).isNull();
+        assertThat(String.valueOf(sudoersPolicyChange)).contains("visudo");
         assertThat(auditLogErasure.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(auditLogErasure.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(auditLogErasure.get("skipped")).isNull();
@@ -2128,6 +2184,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(macosSecurityPolicyWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(macosSecurityPolicyWeaken.get("skipped")).isNull();
         assertThat(String.valueOf(macosSecurityPolicyWeaken)).contains("spctl");
+        assertThat(macosKeychainPasswordRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(macosKeychainPasswordRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(macosKeychainPasswordRead.get("skipped")).isNull();
+        assertThat(String.valueOf(macosKeychainPasswordRead)).contains("find-generic-password");
+        assertThat(macosKeychainPasswordChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(macosKeychainPasswordChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(macosKeychainPasswordChange.get("skipped")).isNull();
+        assertThat(String.valueOf(macosKeychainPasswordChange)).contains("add-generic-password");
         assertThat(linuxCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("skipped")).isNull();
@@ -2308,6 +2372,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(gatewayDetachedRun.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(gatewayDetachedRun.get("skipped")).isNull();
         assertThat(String.valueOf(gatewayDetachedRun)).contains("nohup gateway run");
+        assertThat(gatewayStopRestart.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gatewayStopRestart.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gatewayStopRestart.get("skipped")).isNull();
+        assertThat(String.valueOf(gatewayStopRestart)).contains("gateway restart");
+        assertThat(appUpdateRestart.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(appUpdateRestart.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(appUpdateRestart.get("skipped")).isNull();
+        assertThat(String.valueOf(appUpdateRestart)).contains("update");
+        assertThat(killAgentProcess.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(killAgentProcess.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(killAgentProcess.get("skipped")).isNull();
+        assertThat(String.valueOf(killAgentProcess)).contains("pkill");
         assertThat(processLookupKill.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(processLookupKill.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(processLookupKill.get("skipped")).isNull();
@@ -2448,12 +2524,24 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(projectSensitiveRedirection))
                 .contains("echo TOKEN=***")
                 .contains("[REDACTED_PATH]");
+        assertThat(overwriteEtcRedirection.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(overwriteEtcRedirection.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(overwriteEtcRedirection.get("skipped")).isNull();
+        assertThat(String.valueOf(overwriteEtcRedirection))
+                .contains("echo token")
+                .contains("/etc/app.conf");
         assertThat(projectSensitiveTee.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveTee.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(projectSensitiveTee.get("skipped")).isNull();
         assertThat(String.valueOf(projectSensitiveTee))
                 .contains("tee")
                 .contains("[REDACTED_PATH]");
+        assertThat(overwriteEtcTee.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(overwriteEtcTee.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(overwriteEtcTee.get("skipped")).isNull();
+        assertThat(String.valueOf(overwriteEtcTee))
+                .contains("tee")
+                .contains("/etc/app.conf");
         assertThat(copyIntoProjectSensitive.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("skipped")).isNull();
