@@ -2995,6 +2995,16 @@ public class DashboardDiagnosticsService {
                         "Set-Content C:/Windows/System32/drivers/etc/hosts '127.0.0.1 blocked.example'"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_windows_program_files_write",
+                        "命令 Windows 程序目录写入检查",
+                        "Set-Content 'C:/Program Files/Probe/probe.txt' probe"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_windows_program_files_x86_write",
+                        "命令 Windows 兼容程序目录写入检查",
+                        "Set-Content 'C:/Program Files (x86)/Probe/probe.txt' probe"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_device_path_read",
                         "命令设备文件读取检查",
                         "cat /dev/zero"));
