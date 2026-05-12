@@ -157,12 +157,16 @@ async function handleResume() {
 
 async function handleRun() {
   try {
-    await jobsStore.runJob(jobId.value)
+    if (canRetry.value) {
+      await jobsStore.retryJob(jobId.value)
+    } else {
+      await jobsStore.runJob(jobId.value)
+    }
     if (showRuns.value) {
       await refreshRuns()
     }
     emit('changed')
-    message.info(t('jobs.jobTriggered'))
+    message.info(canRetry.value ? t('jobs.jobRetried') : t('jobs.jobTriggered'))
   } catch (e: any) {
     message.error(e.message)
   }

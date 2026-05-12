@@ -251,6 +251,7 @@ export default {
     jobPaused: '任务已暂停',
     jobResumed: '任务已恢复',
     jobTriggered: '任务已触发',
+    jobRetried: '任务已重试',
     jobDeleted: '任务已删除',
     pauseTitle: '暂停任务',
     pauseReason: '暂停原因',

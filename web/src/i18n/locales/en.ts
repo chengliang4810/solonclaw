@@ -248,6 +248,7 @@ export default {
     jobPaused: 'Job paused',
     jobResumed: 'Job resumed',
     jobTriggered: 'Job triggered',
+    jobRetried: 'Job retried',
     jobDeleted: 'Job deleted',
     pauseTitle: 'Pause Job',
     pauseReason: 'Pause reason',

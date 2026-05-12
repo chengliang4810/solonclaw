@@ -84,6 +84,12 @@ export const useJobsStore = defineStore('jobs', () => {
     if (idx !== -1) jobs.value[idx] = job
   }
 
+  async function retryJob(jobId: string) {
+    const job = await jobsApi.retryJob(jobId)
+    const idx = jobs.value.findIndex(j => matchId(j, jobId))
+    if (idx !== -1) jobs.value[idx] = job
+  }
+
   async function fetchJobRuns(jobId: string, limit = 20) {
     return jobsApi.fetchJobRuns(jobId, limit)
   }
@@ -109,6 +115,7 @@ export const useJobsStore = defineStore('jobs', () => {
     pauseJob,
     resumeJob,
     runJob,
+    retryJob,
     fetchJobRuns,
   }
 })

@@ -429,6 +429,11 @@ export async function runJob(jobId: string): Promise<Job> {
   return getJob(jobId)
 }
 
+export async function retryJob(jobId: string): Promise<Job> {
+  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/retry`, { method: 'POST' })
+  return getJob(jobId)
+}
+
 export async function fetchJobRuns(jobId: string, limit = 20): Promise<JobRun[]> {
   const result = await request<{ job_id: string; runs: JobRun[]; count: number }>(
     `/api/cron/jobs/${jobId}/runs?limit=${encodeURIComponent(String(limit))}`,
