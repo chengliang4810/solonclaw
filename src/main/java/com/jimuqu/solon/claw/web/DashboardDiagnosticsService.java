@@ -2317,6 +2317,10 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.FILE_READ,
                         ".env"));
         items.add(
+                schemaSanitizerProbe(
+                        "schema_sanitizer",
+                        "工具 Schema 安全清洗"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2595,6 +2599,53 @@ public class DashboardDiagnosticsService {
                 verdict.isAllowed(),
                 safeAuditPreview(path, 400),
                 verdict.getMessage());
+    }
+
+    private Map<String, Object> schemaSanitizerProbe(String key, String label) {
+        String schema =
+                "{"
+                        + "\"type\":\"object\","
+                        + "\"properties\":{"
+                        + "\"email\":{\"type\":\"string\",\"format\":\"email\",\"pattern\":\"^.+$\"},"
+                        + "\"payload\":{\"$ref\":\"#/$defs/Payload\"}"
+                        + "},"
+                        + "\"required\":[\"email\",\"missing\"],"
+                        + "\"$defs\":{\"Payload\":{\"type\":\"object\"}},"
+                        + "\"allOf\":[{\"required\":[\"payload\"]}]"
+                        + "}";
+        try {
+            ONode sanitized =
+                    ONode.ofJson(SolonClawToolSchemaSanitizer.sanitizeSchemaJson(schema));
+            boolean allowed =
+                    sanitized.isObject()
+                            && "object".equals(sanitized.get("type").getString())
+                            && sanitized.get("properties").isObject()
+                            && !sanitized.hasKey("$defs")
+                            && !sanitized.hasKey("allOf")
+                            && !sanitized.get("properties").get("email").hasKey("format")
+                            && !sanitized.get("properties").get("email").hasKey("pattern")
+                            && !sanitized.get("properties").get("payload").hasKey("$ref")
+                            && sanitized.get("required").size() == 1
+                            && "email".equals(sanitized.get("required").get(0).getString());
+            return policyProbeItem(
+                    key,
+                    label,
+                    "schema_sanitizer",
+                    true,
+                    allowed,
+                    "pattern, format, $ref, $defs, allOf",
+                    allowed ? "工具 Schema 已清洗不兼容关键字并裁剪未知 required 项。" : "工具 Schema 清洗结果不完整。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "schema_sanitizer",
+                    true,
+                    false,
+                    "pattern, format, $ref, $defs, allOf",
+                    "工具 Schema 清洗探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
     }
 
     private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
