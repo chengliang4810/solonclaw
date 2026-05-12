@@ -176,6 +176,43 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldRedactRunPreviewAndErrorFieldsBeforeStorage() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-main-redaction-1");
+        run.setSessionId("session-main-redaction-1");
+        run.setSourceKey("MEMORY:main-redaction:user");
+        run.setStatus("failed");
+        run.setInputPreview("prompt api_key=sk-runinput-secret12345");
+        run.setFinalReplyPreview("reply token=ghp_runreply12345");
+        run.setRecoveryHint("retry password=run-recovery-secret");
+        run.setError("failed Authorization: Bearer ghp_runerror12345");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+
+        fixture.agentRunRepository.saveRun(run);
+
+        AgentRunRecord stored = fixture.agentRunRepository.findRun(run.getRunId());
+        String payload =
+                stored.getInputPreview()
+                        + "\n"
+                        + stored.getFinalReplyPreview()
+                        + "\n"
+                        + stored.getRecoveryHint()
+                        + "\n"
+                        + stored.getError();
+        assertThat(payload)
+                .contains("api_key=***")
+                .contains("token=***")
+                .contains("password=***")
+                .contains("Bearer ***")
+                .doesNotContain("sk-runinput-secret12345")
+                .doesNotContain("ghp_runreply12345")
+                .doesNotContain("run-recovery-secret")
+                .doesNotContain("ghp_runerror12345");
+    }
+
+    @Test
     void shouldRedactRunFailureEventsAndRecords() throws Exception {
         Fixture fixture = fixture();
         String leakedToken = "sk-supervisor12345";

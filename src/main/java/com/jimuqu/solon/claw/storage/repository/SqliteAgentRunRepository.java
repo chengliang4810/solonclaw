@@ -39,8 +39,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(9, record.getPhase());
             statement.setString(10, record.getBusyPolicy());
             statement.setInt(11, record.isBackgrounded() ? 1 : 0);
-            statement.setString(12, record.getInputPreview());
-            statement.setString(13, record.getFinalReplyPreview());
+            statement.setString(12, redact(record.getInputPreview(), 8000));
+            statement.setString(13, redact(record.getFinalReplyPreview(), 8000));
             statement.setString(14, record.getProvider());
             statement.setString(15, record.getModel());
             statement.setInt(16, record.getAttempts());
@@ -60,8 +60,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(30, record.getFinishedAt());
             statement.setString(31, record.getExitReason());
             statement.setInt(32, record.isRecoverable() ? 1 : 0);
-            statement.setString(33, record.getRecoveryHint());
-            statement.setString(34, record.getError());
+            statement.setString(33, redact(record.getRecoveryHint(), 2000));
+            statement.setString(34, redact(record.getError(), 2000));
             statement.executeUpdate();
             statement.close();
         } finally {
