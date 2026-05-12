@@ -360,6 +360,12 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_system_dns_policy");
         Map<String, Object> commandRegistryProxyPolicy =
                 findProbe(items, "command_registry_proxy_policy");
+        Map<String, Object> commandRegistrySplitProxyPolicy =
+                findProbe(items, "command_registry_split_proxy_policy");
+        Map<String, Object> commandRegistryProxyOverridePolicy =
+                findProbe(items, "command_registry_proxy_override_policy");
+        Map<String, Object> commandRegistryInlineProxyPolicy =
+                findProbe(items, "command_registry_inline_proxy_policy");
         Map<String, Object> commandLocalManagementSocket =
                 findProbe(items, "command_local_management_socket");
         Map<String, Object> commandLocalManagementPipe =
@@ -662,6 +668,24 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandRegistryProxyPolicy))
                 .contains("ProxyServer")
                 .contains("169.254.169.254");
+        assertThat(commandRegistrySplitProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistrySplitProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistrySplitProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRegistrySplitProxyPolicy))
+                .contains("ProxyServer")
+                .contains("metadata.google.internal");
+        assertThat(commandRegistryProxyOverridePolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistryProxyOverridePolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistryProxyOverridePolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRegistryProxyOverridePolicy))
+                .contains("ProxyOverride")
+                .contains("metadata.google.internal");
+        assertThat(commandRegistryInlineProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistryInlineProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistryInlineProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRegistryInlineProxyPolicy))
+                .contains("New-ItemProperty")
+                .contains("169.254.169.254:8080");
         assertThat(commandLocalManagementSocket.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandLocalManagementSocket.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandLocalManagementSocket.get("skipped")).isNull();
