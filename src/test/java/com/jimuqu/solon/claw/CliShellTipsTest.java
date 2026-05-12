@@ -163,6 +163,8 @@ public class CliShellTipsTest {
                 .contains("pkce=true")
                 .contains("MCP 包安全")
                 .contains("malwareBlocks=true")
+                .contains("npxPackageOption=true")
+                .contains("pypiSourceOption=true")
                 .contains("审计工具")
                 .contains("executesCommand=false")
                 .contains("技能凭据")

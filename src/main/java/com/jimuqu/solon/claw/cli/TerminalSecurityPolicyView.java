@@ -420,6 +420,10 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcpPackage, "checkedLaunchers"))
                 .append(" malwareBlocks=")
                 .append(value(mcpPackage, "malwareBlocksSaveAndCheck"))
+                .append(" npxPackageOption=")
+                .append(value(mcpPackage, "npxPackageOptionParsed"))
+                .append(" pypiSourceOption=")
+                .append(value(mcpPackage, "pypiSourceOptionParsed"))
                 .append(" failOpen=")
                 .append(value(mcpPackage, "requestFailureFailsOpen"));
         Map<String, Object> auditTool = SecurityAuditTools.readOnlyAuditPolicySummary();
