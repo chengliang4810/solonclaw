@@ -3342,6 +3342,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalPolicy.get("websitePolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("unsafeUrlBlockedBeforeApproval")).isEqualTo(Boolean.TRUE);
         assertThat(approvalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(approvalPolicy.get("configuredCredentialCommandPathDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(approvalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");
@@ -3382,6 +3384,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(coverageApprovalPolicy.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(coverageApprovalPolicy.get("privateUrlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(coverageApprovalPolicy.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(coverageApprovalPolicy.get("configuredCredentialCommandPathDetection"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(coverageApprovalPolicy.get("secretStoreRuleSamples")))
                 .contains("secret_store_read")
                 .contains("secret_store_destroy");

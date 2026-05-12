@@ -553,6 +553,9 @@ public final class TerminalSecurityPolicyView {
                 .append("- 凭据处理：")
                 .append(value(approval, "credentialHandlingRuleSamples"));
         buffer.append('\n')
+                .append("- 配置凭据路径：commandApproval=")
+                .append(value(approval, "configuredCredentialCommandPathDetection"));
+        buffer.append('\n')
                 .append("- 剪贴板凭据：shell=")
                 .append(value(approval, "sensitiveClipboardExportDetection"))
                 .append(" file=")

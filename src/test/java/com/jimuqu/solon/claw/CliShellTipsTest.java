@@ -226,6 +226,9 @@ public class CliShellTipsTest {
                 .contains("managedRequired")
                 .contains("工具输出")
                 .contains("persistOversize");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security approvals"))
+                .contains("配置凭据路径")
+                .contains("commandApproval=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security slash-confirm"))
                 .contains("Slash 确认策略摘要")
                 .contains("approveAll")
