@@ -18,6 +18,10 @@ final class QQBotKeyboardSupport {
     private QQBotKeyboardSupport() {}
 
     static ONode buildApprovalKeyboard(String approvalId) {
+        return buildApprovalKeyboard(approvalId, true);
+    }
+
+    static ONode buildApprovalKeyboard(String approvalId, boolean allowAlways) {
         String safeApprovalId = DangerousCommandApprovalService.safeApprovalSelectorToken(approvalId);
         if (safeApprovalId == null) {
             safeApprovalId = "";
@@ -31,14 +35,16 @@ final class QQBotKeyboardSupport {
                         "approve:" + safeApprovalId + ":allow-once",
                         1,
                         "approval"));
-        buttons.add(
-                button(
-                        "always",
-                        "⭐ 始终允许",
-                        "已始终允许",
-                        "approve:" + safeApprovalId + ":allow-always",
-                        1,
-                        "approval"));
+        if (allowAlways) {
+            buttons.add(
+                    button(
+                            "always",
+                            "⭐ 始终允许",
+                            "已始终允许",
+                            "approve:" + safeApprovalId + ":allow-always",
+                            1,
+                            "approval"));
+        }
         buttons.add(
                 button(
                         "deny",

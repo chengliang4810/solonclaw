@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import com.lark.oapi.Client;
 import com.lark.oapi.core.request.EventReq;
 import com.lark.oapi.event.CustomEventHandler;
@@ -1232,14 +1233,25 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     private void sendDangerousApprovalCard(DeliveryRequest request) {
+        ONode card = buildDangerousApprovalCard(request);
+
+        String body =
+                new ONode()
+                        .set("receive_id", request.getChatId())
+                        .set("msg_type", "interactive")
+                        .set("content", card.toJson())
+                        .toJson();
+        ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
+    }
+
+    protected ONode buildDangerousApprovalCard(DeliveryRequest request) {
         Map<String, Object> extras =
                 request.getChannelExtras() == null
                         ? new LinkedHashMap<String, Object>()
                         : request.getChannelExtras();
-        String command = SecretRedactor.redact(stringValue(extras.get("approvalCommand")), 3000);
-        String description =
-                SecretRedactor.redact(stringValue(extras.get("approvalDescription")), 1000);
-        String approvalId = stringValue(extras.get("approvalId"));
+        String command = approvalCardText(extras.get("approvalCommand"), 3000);
+        String description = approvalCardText(extras.get("approvalDescription"), 1000);
+        String approvalId = approvalCardSelector(extras.get("approvalId"));
         String preview = command;
         if (preview.length() > 3000) {
             preview = preview.substring(0, 3000) + "...";
@@ -1260,13 +1272,15 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         approvalId,
                         "session",
                         "default"));
-        actions.add(
-                cardButton(
-                        "✅ Always",
-                        DangerousCommandApprovalService.CARD_ACTION_APPROVE,
-                        approvalId,
-                        "always",
-                        "default"));
+        if (approvalCardAllowAlways(extras)) {
+            actions.add(
+                    cardButton(
+                            "✅ Always",
+                            DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                            approvalId,
+                            "always",
+                            "default"));
+        }
         actions.add(
                 cardButton(
                         "❌ Deny",
@@ -1288,44 +1302,42 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .toData());
         elements.add(new ONode().set("tag", "action").set("actions", actions).toData());
 
-        ONode card =
-                new ONode()
-                        .getOrNew("config")
-                        .set("wide_screen_mode", true)
-                        .parent()
-                        .getOrNew("header")
-                        .getOrNew("title")
-                        .set("content", "⚠️ Dangerous Command Approval")
-                        .set("tag", "plain_text")
-                        .parent()
-                        .set("template", "orange")
-                        .parent()
-                        .set("elements", elements);
-
-        String body =
-                new ONode()
-                        .set("receive_id", request.getChatId())
-                        .set("msg_type", "interactive")
-                        .set("content", card.toJson())
-                        .toJson();
-        ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
+        ONode card = new ONode();
+        card.getOrNew("config").set("wide_screen_mode", true);
+        ONode header = card.getOrNew("header");
+        header.getOrNew("title")
+                .set("content", "⚠️ Dangerous Command Approval")
+                .set("tag", "plain_text");
+        header.set("template", "orange");
+        card.set("elements", elements);
+        return card;
     }
 
     private Object cardButton(
             String label, String action, String approvalId, String scope, String type) {
-        return new ONode()
-                .set("tag", "button")
-                .getOrNew("text")
-                .set("tag", "plain_text")
-                .set("content", label)
-                .parent()
-                .set("type", type)
-                .getOrNew("value")
+        ONode root = new ONode();
+        root.set("tag", "button");
+        root.getOrNew("text").set("tag", "plain_text").set("content", label);
+        root.set("type", type);
+        root.getOrNew("value")
                 .set(DangerousCommandApprovalService.CARD_ACTION_KEY, action)
                 .set(DangerousCommandApprovalService.CARD_SCOPE_KEY, scope)
-                .set(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, approvalId)
-                .parent()
-                .toData();
+                .set(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, approvalId);
+        return root.toData();
+    }
+
+    private String approvalCardText(Object value, int maxLength) {
+        return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
+    }
+
+    private String approvalCardSelector(Object value) {
+        String selector = DangerousCommandApprovalService.safeApprovalSelectorToken(value);
+        return selector == null ? "" : selector;
+    }
+
+    private boolean approvalCardAllowAlways(Map<String, Object> extras) {
+        Object value = extras == null ? null : extras.get("approvalAllowAlways");
+        return value == null || Boolean.parseBoolean(stringValue(value));
     }
 
     private String uploadImage(File file) {

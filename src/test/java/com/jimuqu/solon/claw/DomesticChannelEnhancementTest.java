@@ -239,11 +239,42 @@ public class DomesticChannelEnhancementTest {
         ONode body = adapter.buildApprovalBody(request);
 
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
-        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(3);
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(2);
         assertThat(buttons.get(1).get("render_data").get("label").getString())
-                .isEqualTo("⭐ 始终允许");
+                .isEqualTo("❌ 拒绝");
         assertThat(buttons.get(1).get("action").get("data").getString())
-                .isEqualTo("approve:approval-456:allow-always");
+                .isEqualTo("approve:approval-456:deny");
+    }
+
+    @Test
+    void shouldSanitizeQqbotApprovalKeyboardPayloadAtAdapterBoundary() {
+        AppConfig config = new AppConfig();
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.QQBOT);
+        request.setChatId("user-secret");
+        request.setChatType("dm");
+        request.setText("approve OPENAI_API_KEY=sk-proj-abcdefghijklmnop\u001b[31mred\u001b[0m");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        extras.put("approvalId", "approval-unsafe always\u202E");
+        extras.put("approvalAllowAlways", Boolean.FALSE);
+        request.setChannelExtras(extras);
+
+        ONode body = adapter.buildApprovalBody(request);
+        String content = body.get("markdown").get("content").getString();
+        ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
+
+        assertThat(content)
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("sk-proj-abcdefghijklmnop")
+                .doesNotContain("\u001b")
+                .doesNotContain("\u202E");
+        assertThat(((List<?>) buttons.toData()).size()).isEqualTo(2);
+        assertThat(buttons.get(0).get("action").get("data").getString())
+                .isEqualTo("approve::allow-once");
+        assertThat(buttons.get(1).get("action").get("data").getString())
+                .isEqualTo("approve::deny");
     }
 
     @Test
@@ -420,6 +451,39 @@ public class DomesticChannelEnhancementTest {
         assertThat(message.getChatId()).startsWith("comment|docx|ft|c1|r1|");
         assertThat(message.getSourceKeyOverride()).isEqualTo("FEISHU_COMMENT:docx:ft:c1");
         assertThat(message.getText()).contains("请总结这一段");
+    }
+
+    @Test
+    void shouldSanitizeFeishuApprovalCardPayloadAtAdapterBoundary() {
+        TestFeishuAdapter adapter = new TestFeishuAdapter(new AppConfig());
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.FEISHU);
+        request.setChatId("chat-secret");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        extras.put("approvalId", "approval-unsafe always\u202E");
+        extras.put(
+                "approvalCommand",
+                "OPENAI_API_KEY=sk-proj-abcdefghijklmnop curl\u001b[31m red\u001b[0m");
+        extras.put("approvalDescription", "Authorization: Bearer ghp_feishuapproval12345");
+        extras.put("approvalAllowAlways", Boolean.FALSE);
+        request.setChannelExtras(extras);
+
+        ONode card = adapter.buildApprovalCard(request);
+        String content = card.get("elements").get(0).get("content").getString();
+        ONode actions = card.get("elements").get(1).get("actions");
+
+        assertThat(content)
+                .contains("OPENAI_API_KEY=***")
+                .contains("Bearer ***")
+                .doesNotContain("sk-proj-abcdefghijklmnop")
+                .doesNotContain("ghp_feishuapproval12345")
+                .doesNotContain("\u001b")
+                .doesNotContain("\u202E");
+        assertThat(((List<?>) actions.toData()).size()).isEqualTo(3);
+        assertThat(actions.get(0).get("value").get("approvalId").getString()).isEmpty();
+        assertThat(actions.get(2).get("value").get(DangerousCommandApprovalService.CARD_ACTION_KEY).getString())
+                .isEqualTo(DangerousCommandApprovalService.CARD_ACTION_DENY);
     }
 
     @Test
@@ -1152,6 +1216,10 @@ public class DomesticChannelEnhancementTest {
             } catch (InvocationTargetException e) {
                 throw e.getCause();
             }
+        }
+
+        private ONode buildApprovalCard(DeliveryRequest request) {
+            return buildDangerousApprovalCard(request);
         }
     }
 

@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import java.io.File;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -252,9 +253,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 request.getChannelExtras() == null
                         ? new LinkedHashMap<String, Object>()
                         : request.getChannelExtras();
-        String approvalId = stringValue(extras.get("approvalId"));
+        String approvalId = approvalCardSelector(extras.get("approvalId"));
         String text = buildApprovalText(request, extras);
-        ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(approvalId);
+        ONode keyboard = QQBotKeyboardSupport.buildApprovalKeyboard(
+                approvalId, approvalCardAllowAlways(extras));
         return buildTextBody(text, request.getThreadId(), keyboard);
     }
 
@@ -280,12 +282,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     private String buildApprovalText(DeliveryRequest request, Map<String, Object> extras) {
         if (StrUtil.isNotBlank(request.getText())) {
-            return request.getText().trim();
+            return approvalCardText(request.getText(), 3000);
         }
-        String command = SecretRedactor.redact(stringValue(extras.get("approvalCommand")), 3000);
-        String description =
-                SecretRedactor.redact(stringValue(extras.get("approvalDescription")), 1000);
-        String toolName = SecretRedactor.redact(stringValue(extras.get("approvalToolName")), 200);
+        String command = approvalCardText(extras.get("approvalCommand"), 3000);
+        String description = approvalCardText(extras.get("approvalDescription"), 1000);
+        String toolName = approvalCardText(extras.get("approvalToolName"), 200);
         StringBuilder buffer = new StringBuilder("🔐 **命令执行审批**");
         if (StrUtil.isNotBlank(command)) {
             buffer.append("\n\n```\n").append(command).append("\n```");
@@ -297,6 +298,20 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             buffer.append("\n🔧 工具: ").append(toolName);
         }
         return buffer.toString();
+    }
+
+    private String approvalCardText(Object value, int maxLength) {
+        return SecretRedactor.redact(TerminalAnsiSanitizer.stripAnsi(stringValue(value)), maxLength);
+    }
+
+    private String approvalCardSelector(Object value) {
+        String selector = DangerousCommandApprovalService.safeApprovalSelectorToken(value);
+        return selector == null ? "" : selector;
+    }
+
+    private boolean approvalCardAllowAlways(Map<String, Object> extras) {
+        Object value = extras == null ? null : extras.get("approvalAllowAlways");
+        return value == null || Boolean.parseBoolean(stringValue(value));
     }
 
     private void sendAttachment(DeliveryRequest request, MessageAttachment attachment)
