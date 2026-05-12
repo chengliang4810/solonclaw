@@ -2110,6 +2110,18 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_delete_shadow_copies");
         assertDangerPattern(
                 env,
+                "vssadmin create shadows /for=C:",
+                "windows_delete_shadow_copies");
+        assertDangerPattern(
+                env,
+                "wmic shadowcopy call create Volume=C:\\",
+                "windows_delete_shadow_copies");
+        assertDangerPattern(
+                env,
+                "wmic shadowcopy list brief",
+                "windows_delete_shadow_copies");
+        assertDangerPattern(
+                env,
                 "wbadmin delete systemstatebackup -keepVersions:0 -quiet",
                 "windows_delete_backup");
         assertDangerPattern(env, "wbadmin delete catalog -quiet", "windows_delete_backup");
