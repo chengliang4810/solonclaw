@@ -929,6 +929,58 @@ public class KanbanServiceTest {
     }
 
     @Test
+    void shouldClaimRewindAndAdvanceNotifyEvents() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService service =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        String taskId = createTask(service, "可靠通知任务", "alice", "planner");
+        Map<String, Object> subscription = new LinkedHashMap<String, Object>();
+        subscription.put("task_id", taskId);
+        subscription.put("platform", "feishu");
+        subscription.put("chat_id", "chat-claim");
+        subscription.put("thread_id", "thread-claim");
+        service.notifySubscribe(subscription);
+
+        service.status(taskId, "done", "ok", "完成", null);
+
+        Map<String, Object> claimBody = new LinkedHashMap<String, Object>();
+        claimBody.put("task_id", taskId);
+        claimBody.put("platform", "feishu");
+        claimBody.put("chat_id", "chat-claim");
+        claimBody.put("thread_id", "thread-claim");
+        claimBody.put("kinds", "completed,blocked");
+        Map<String, Object> firstClaim = service.notifyClaim(claimBody);
+        assertThat(firstClaim.get("claimed")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(firstClaim.get("events")))
+                .contains("kind=completed")
+                .doesNotContain("kind=created");
+
+        Map<String, Object> duplicateClaim = service.notifyClaim(claimBody);
+        assertThat(duplicateClaim.get("claimed")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(duplicateClaim.get("events"))).isEqualTo("[]");
+
+        Map<String, Object> rewind = new LinkedHashMap<String, Object>(claimBody);
+        rewind.put("claimed_cursor", firstClaim.get("new_cursor"));
+        rewind.put("old_cursor", firstClaim.get("old_cursor"));
+        assertThat(service.notifyRewind(rewind).get("rewound")).isEqualTo(Boolean.TRUE);
+
+        Map<String, Object> retriedClaim = service.notifyClaim(claimBody);
+        assertThat(retriedClaim.get("claimed")).isEqualTo(Boolean.TRUE);
+        assertThat(String.valueOf(retriedClaim.get("events"))).contains("completed");
+
+        Map<String, Object> advance = new LinkedHashMap<String, Object>(claimBody);
+        advance.put("new_cursor", retriedClaim.get("new_cursor"));
+        assertThat(service.notifyAdvance(advance).get("advanced")).isEqualTo(Boolean.TRUE);
+        assertThat(service.notifyClaim(claimBody).get("claimed")).isEqualTo(Boolean.FALSE);
+        assertThat(service.handleCommand(
+                        "notify-claim "
+                                + taskId
+                                + " feishu chat-claim thread-claim --kinds completed,blocked",
+                        "tester"))
+                .contains("events=0");
+    }
+
+    @Test
     void shouldSupportJimuquStyleKanbanRecoveryAndWorkerFlags() throws Exception {
         KanbanService service = service();
         String taskId = createTask(service, "运行参数任务", "alice", "planner");

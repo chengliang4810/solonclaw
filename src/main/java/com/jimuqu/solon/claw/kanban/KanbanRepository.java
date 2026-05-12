@@ -105,6 +105,23 @@ public interface KanbanRepository {
     List<KanbanNotifySubscriptionRecord> listNotifySubscriptions(String taskId)
             throws Exception;
 
+    KanbanNotifyClaim claimNotifyEvents(
+            String taskId, String platform, String chatId, String threadId, List<String> kinds)
+            throws Exception;
+
+    boolean advanceNotifyCursor(
+            String taskId, String platform, String chatId, String threadId, String newCursor)
+            throws Exception;
+
+    boolean rewindNotifyCursor(
+            String taskId,
+            String platform,
+            String chatId,
+            String threadId,
+            String claimedCursor,
+            String oldCursor)
+            throws Exception;
+
     boolean removeNotifySubscription(String taskId, String platform, String chatId, String threadId)
             throws Exception;
 

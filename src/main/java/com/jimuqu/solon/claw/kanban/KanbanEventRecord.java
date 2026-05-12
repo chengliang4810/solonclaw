@@ -6,6 +6,7 @@ public class KanbanEventRecord {
     private String taskId;
     private String kind;
     private String payloadJson;
+    private String notifyCursor;
     private long createdAt;
 
     public String getEventId() {
@@ -38,6 +39,14 @@ public class KanbanEventRecord {
 
     public void setPayloadJson(String payloadJson) {
         this.payloadJson = payloadJson;
+    }
+
+    public String getNotifyCursor() {
+        return notifyCursor;
+    }
+
+    public void setNotifyCursor(String notifyCursor) {
+        this.notifyCursor = notifyCursor;
     }
 
     public long getCreatedAt() {

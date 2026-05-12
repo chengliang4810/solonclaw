@@ -167,6 +167,18 @@ public class DashboardKanbanService {
         return kanbanService.notifySubscribe(body);
     }
 
+    public Map<String, Object> notifyClaim(Map<String, Object> body) throws Exception {
+        return kanbanService.notifyClaim(body);
+    }
+
+    public Map<String, Object> notifyAdvance(Map<String, Object> body) throws Exception {
+        return kanbanService.notifyAdvance(body);
+    }
+
+    public Map<String, Object> notifyRewind(Map<String, Object> body) throws Exception {
+        return kanbanService.notifyRewind(body);
+    }
+
     public List<Map<String, Object>> notifyList(String taskId) throws Exception {
         return kanbanService.notifyList(taskId);
     }

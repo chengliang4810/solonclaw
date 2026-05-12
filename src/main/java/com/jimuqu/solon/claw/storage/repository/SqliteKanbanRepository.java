@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.kanban.KanbanBoardRecord;
 import com.jimuqu.solon.claw.kanban.KanbanCommentRecord;
 import com.jimuqu.solon.claw.kanban.KanbanEventRecord;
+import com.jimuqu.solon.claw.kanban.KanbanNotifyClaim;
 import com.jimuqu.solon.claw.kanban.KanbanNotifySubscriptionRecord;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanRunRecord;
@@ -1644,6 +1645,101 @@ public class SqliteKanbanRepository implements KanbanRepository {
     }
 
     @Override
+    public KanbanNotifyClaim claimNotifyEvents(
+            String taskId, String platform, String chatId, String threadId, List<String> kinds)
+            throws Exception {
+        Connection connection = database.openConnection();
+        boolean autoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            KanbanNotifySubscriptionRecord subscription =
+                    findNotifySubscription(connection, taskId, platform, chatId, threadId);
+            KanbanNotifyClaim claim = new KanbanNotifyClaim();
+            if (subscription == null) {
+                claim.setOldCursor("0");
+                claim.setNewCursor("0");
+                connection.commit();
+                return claim;
+            }
+            String oldCursor = normalizeCursor(subscription.getLastEventId());
+            List<KanbanEventRecord> events = listNotifyEventsAfter(connection, taskId, oldCursor, kinds);
+            String newCursor = oldCursor;
+            for (KanbanEventRecord event : events) {
+                newCursor = maxCursor(newCursor, event.getNotifyCursor());
+            }
+            claim.setOldCursor(oldCursor);
+            claim.setNewCursor(newCursor);
+            if (!events.isEmpty()
+                    && !updateNotifyCursor(connection, taskId, platform, chatId, threadId, oldCursor, newCursor)) {
+                events = Collections.emptyList();
+                newCursor = oldCursor;
+                claim.setNewCursor(oldCursor);
+            }
+            claim.setEvents(events);
+            connection.commit();
+            return claim;
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(autoCommit);
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean advanceNotifyCursor(
+            String taskId, String platform, String chatId, String threadId, String newCursor)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_notify_subscriptions set last_event_id = ?, updated_at = ? where task_id = ? and platform = ? and chat_id = ? and coalesce(thread_id, '') = coalesce(?, '')");
+            statement.setString(1, normalizeCursor(newCursor));
+            statement.setLong(2, System.currentTimeMillis());
+            statement.setString(3, taskId);
+            statement.setString(4, platform);
+            statement.setString(5, chatId);
+            statement.setString(6, threadId);
+            int updated = statement.executeUpdate();
+            statement.close();
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public boolean rewindNotifyCursor(
+            String taskId,
+            String platform,
+            String chatId,
+            String threadId,
+            String claimedCursor,
+            String oldCursor)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update kanban_notify_subscriptions set last_event_id = ?, updated_at = ? where task_id = ? and platform = ? and chat_id = ? and coalesce(thread_id, '') = coalesce(?, '') and coalesce(last_event_id, '0') = ?");
+            statement.setString(1, normalizeCursor(oldCursor));
+            statement.setLong(2, System.currentTimeMillis());
+            statement.setString(3, taskId);
+            statement.setString(4, platform);
+            statement.setString(5, chatId);
+            statement.setString(6, threadId);
+            statement.setString(7, normalizeCursor(claimedCursor));
+            int updated = statement.executeUpdate();
+            statement.close();
+            return updated > 0;
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public boolean removeNotifySubscription(String taskId, String platform, String chatId, String threadId)
             throws Exception {
         Connection connection = database.openConnection();
@@ -1751,6 +1847,120 @@ public class SqliteKanbanRepository implements KanbanRepository {
         record.setCreatedAt(resultSet.getLong("created_at"));
         record.setUpdatedAt(resultSet.getLong("updated_at"));
         return record;
+    }
+
+    private KanbanNotifySubscriptionRecord findNotifySubscription(
+            Connection connection, String taskId, String platform, String chatId, String threadId)
+            throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select * from kanban_notify_subscriptions where task_id = ? and platform = ? and chat_id = ? and coalesce(thread_id, '') = coalesce(?, '')");
+        statement.setString(1, taskId);
+        statement.setString(2, platform);
+        statement.setString(3, chatId);
+        statement.setString(4, threadId);
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next() ? mapNotifySubscription(resultSet) : null;
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    private List<KanbanEventRecord> listNotifyEventsAfter(
+            Connection connection, String taskId, String cursor, List<String> kinds)
+            throws Exception {
+        StringBuilder sql =
+                new StringBuilder(
+                        "select rowid as notify_cursor, * from kanban_events where task_id = ? and rowid > ?");
+        List<String> normalizedKinds = normalizedKinds(kinds);
+        if (!normalizedKinds.isEmpty()) {
+            sql.append(" and kind in (");
+            for (int i = 0; i < normalizedKinds.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+            }
+            sql.append(")");
+        }
+        sql.append(" order by rowid asc");
+        PreparedStatement statement = connection.prepareStatement(sql.toString());
+        statement.setString(1, taskId);
+        statement.setLong(2, parseCursor(cursor));
+        for (int i = 0; i < normalizedKinds.size(); i++) {
+            statement.setString(i + 3, normalizedKinds.get(i));
+        }
+        ResultSet resultSet = statement.executeQuery();
+        List<KanbanEventRecord> events = new ArrayList<KanbanEventRecord>();
+        try {
+            while (resultSet.next()) {
+                KanbanEventRecord event = mapEvent(resultSet);
+                event.setNotifyCursor(String.valueOf(resultSet.getLong("notify_cursor")));
+                events.add(event);
+            }
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+        return events;
+    }
+
+    private boolean updateNotifyCursor(
+            Connection connection,
+            String taskId,
+            String platform,
+            String chatId,
+            String threadId,
+            String oldCursor,
+            String newCursor)
+            throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update kanban_notify_subscriptions set last_event_id = ?, updated_at = ? where task_id = ? and platform = ? and chat_id = ? and coalesce(thread_id, '') = coalesce(?, '') and coalesce(last_event_id, '0') = ?");
+        statement.setString(1, normalizeCursor(newCursor));
+        statement.setLong(2, System.currentTimeMillis());
+        statement.setString(3, taskId);
+        statement.setString(4, platform);
+        statement.setString(5, chatId);
+        statement.setString(6, threadId);
+        statement.setString(7, normalizeCursor(oldCursor));
+        int updated = statement.executeUpdate();
+        statement.close();
+        return updated > 0;
+    }
+
+    private List<String> normalizedKinds(List<String> kinds) {
+        if (kinds == null || kinds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> result = new ArrayList<String>();
+        for (String kind : kinds) {
+            String normalized = StrUtil.nullToEmpty(kind).trim();
+            if (StrUtil.isNotBlank(normalized) && !result.contains(normalized)) {
+                result.add(normalized);
+            }
+        }
+        return result;
+    }
+
+    private String maxCursor(String current, String candidate) {
+        long currentValue = parseCursor(current);
+        long candidateValue = parseCursor(candidate);
+        return String.valueOf(Math.max(currentValue, candidateValue));
+    }
+
+    private String normalizeCursor(String cursor) {
+        return String.valueOf(parseCursor(cursor));
+    }
+
+    private long parseCursor(String cursor) {
+        try {
+            return Long.parseLong(StrUtil.blankToDefault(cursor, "0"));
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     private KanbanTaskRecord mapTask(ResultSet resultSet) throws Exception {

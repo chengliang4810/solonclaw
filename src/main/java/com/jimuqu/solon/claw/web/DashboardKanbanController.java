@@ -291,6 +291,42 @@ public class DashboardKanbanController {
         return kanbanService.notifyList(context.param("task"));
     }
 
+    @Mapping(value = "/api/kanban/notify-subscriptions/claim", method = MethodType.POST)
+    public Map<String, Object> notifyClaim(Context context) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyClaim(body(context));
+                    }
+                });
+    }
+
+    @Mapping(value = "/api/kanban/notify-subscriptions/advance", method = MethodType.POST)
+    public Map<String, Object> notifyAdvance(Context context) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyAdvance(body(context));
+                    }
+                });
+    }
+
+    @Mapping(value = "/api/kanban/notify-subscriptions/rewind", method = MethodType.POST)
+    public Map<String, Object> notifyRewind(Context context) throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyRewind(body(context));
+                    }
+                });
+    }
+
     @Mapping(value = "/api/kanban/notify-subscriptions/remove", method = MethodType.POST)
     public Map<String, Object> notifyUnsubscribe(Context context) throws Exception {
         return safeKanban(

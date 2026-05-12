@@ -642,6 +642,50 @@ public class KanbanService {
         return notifySubscriptionView(repository.saveNotifySubscription(subscription));
     }
 
+    public Map<String, Object> notifyClaim(Map<String, Object> body) throws Exception {
+        String taskId = requireText(body, "task_id");
+        requireTask(taskId);
+        KanbanNotifyClaim claim =
+                repository.claimNotifyEvents(
+                        taskId,
+                        requireText(body, "platform"),
+                        requireText(body, "chat_id"),
+                        StrUtil.nullToEmpty(text(body, "thread_id")),
+                        splitCsv(firstNonBlank(text(body, "kinds"), text(body, "kind"))));
+        return notifyClaimView(taskId, claim);
+    }
+
+    public Map<String, Object> notifyAdvance(Map<String, Object> body) throws Exception {
+        String taskId = requireText(body, "task_id");
+        boolean advanced =
+                repository.advanceNotifyCursor(
+                        taskId,
+                        requireText(body, "platform"),
+                        requireText(body, "chat_id"),
+                        StrUtil.nullToEmpty(text(body, "thread_id")),
+                        requireText(body, "new_cursor"));
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("advanced", Boolean.valueOf(advanced));
+        result.put("task_id", taskId);
+        return result;
+    }
+
+    public Map<String, Object> notifyRewind(Map<String, Object> body) throws Exception {
+        String taskId = requireText(body, "task_id");
+        boolean rewound =
+                repository.rewindNotifyCursor(
+                        taskId,
+                        requireText(body, "platform"),
+                        requireText(body, "chat_id"),
+                        StrUtil.nullToEmpty(text(body, "thread_id")),
+                        requireText(body, "claimed_cursor"),
+                        requireText(body, "old_cursor"));
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("rewound", Boolean.valueOf(rewound));
+        result.put("task_id", taskId);
+        return result;
+    }
+
     public List<Map<String, Object>> notifyList(String taskId) throws Exception {
         if (StrUtil.isNotBlank(taskId)) {
             requireTask(taskId);
@@ -950,6 +994,10 @@ public class KanbanService {
         }
         if ("notify-list".equals(action)) {
             return notifyListCommand(rest);
+        }
+        if ("notify-claim".equals(action)) {
+            Map<String, Object> result = notifyClaim(notifyClaimBody(rest));
+            return "已领取任务通知事件：" + result.get("task_id") + ", events=" + sizeOf(result.get("events"));
         }
         if ("notify-unsubscribe".equals(action)) {
             Map<String, Object> result = notifyUnsubscribe(notifyBody(rest, false));
@@ -2568,6 +2616,20 @@ public class KanbanService {
         return item;
     }
 
+    private Map<String, Object> notifyClaimView(String taskId, KanbanNotifyClaim claim) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("task_id", taskId);
+        result.put("old_cursor", claim.getOldCursor());
+        result.put("new_cursor", claim.getNewCursor());
+        List<Map<String, Object>> events = new ArrayList<Map<String, Object>>();
+        for (KanbanEventRecord event : claim.getEvents()) {
+            events.add(eventView(event));
+        }
+        result.put("events", events);
+        result.put("claimed", Boolean.valueOf(!events.isEmpty()));
+        return result;
+    }
+
     private Map<String, Object> notifyBody(String rest, boolean subscribe) {
         ParsedKanbanOptions parsed = parseCommandOptions(rest);
         List<String> tokens = positionalTokens(parsed);
@@ -2591,6 +2653,16 @@ public class KanbanService {
         }
         if (StrUtil.isNotBlank(userId)) {
             body.put("user_id", userId);
+        }
+        return body;
+    }
+
+    private Map<String, Object> notifyClaimBody(String rest) {
+        Map<String, Object> body = notifyBody(rest, true);
+        ParsedKanbanOptions parsed = parseCommandOptions(rest);
+        String kinds = firstNonBlank(parsed.value("kinds"), parsed.value("kind"));
+        if (StrUtil.isNotBlank(kinds)) {
+            body.put("kinds", kinds);
         }
         return body;
     }
@@ -3022,6 +3094,9 @@ public class KanbanService {
         item.put("task_id", event.getTaskId());
         item.put("kind", event.getKind());
         item.put("payload", safeDisplayValue(parseJson(event.getPayloadJson())));
+        if (StrUtil.isNotBlank(event.getNotifyCursor())) {
+            item.put("cursor", event.getNotifyCursor());
+        }
         item.put("created_at", iso(event.getCreatedAt()));
         return item;
     }
