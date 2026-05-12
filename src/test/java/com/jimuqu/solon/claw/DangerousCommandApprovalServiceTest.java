@@ -1941,6 +1941,14 @@ public class DangerousCommandApprovalServiceTest {
                 "windows_persistence_registration");
         assertDangerPattern(
                 env,
+                "copy updater.cmd \"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\updater.cmd\"",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
+                "Set-Content \"$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\updater.ps1\" payload",
+                "windows_persistence_registration");
+        assertDangerPattern(
+                env,
                 "takeown /f C:\\ProgramData\\app /r /d y",
                 "windows_take_ownership");
         assertDangerPattern(
