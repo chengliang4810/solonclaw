@@ -26,6 +26,7 @@ import {
   stopKanbanDaemon,
   switchKanbanBoard,
   unsubscribeKanbanHomeNotification,
+  unsubscribeKanbanNotification,
   updateKanbanTask,
   type KanbanBoard,
   type KanbanDaemonStatus,
@@ -703,6 +704,19 @@ async function toggleHomeNotification(channel: KanbanHomeNotificationChannel) {
   }
 }
 
+async function removeNotification(notification: KanbanNotification) {
+  notificationBusy.value = notification.id || `${notification.platform}:${notification.chat_id}`
+  try {
+    await unsubscribeKanbanNotification(notification)
+    message.success('通知订阅已移除')
+    await refreshSelectedTaskDrawer()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '移除通知订阅失败')
+  } finally {
+    notificationBusy.value = ''
+  }
+}
+
 async function toggleArchivedBoards() {
   showArchivedBoards.value = !showArchivedBoards.value
   await reloadTasks()
@@ -1234,6 +1248,15 @@ function hasWarnings(task: KanbanTask): boolean {
             <div v-for="notification in selectedDrawer?.notifications || []" :key="notification.id" class="notification-row">
               <span>{{ notificationSummary(notification) }}</span>
               <span>{{ notification.created_at }}</span>
+              <NButton
+                size="tiny"
+                quaternary
+                type="error"
+                :loading="notificationBusy === notification.id"
+                @click="removeNotification(notification)"
+              >
+                移除
+              </NButton>
             </div>
           </div>
 
@@ -1908,9 +1931,14 @@ function hasWarnings(task: KanbanTask): boolean {
 .notification-row,
 .log-meta {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(0, 1fr) 180px auto;
   gap: 8px;
+  align-items: center;
   padding: 5px 0;
+}
+
+.log-meta {
+  grid-template-columns: minmax(0, 1fr) 180px;
 }
 
 .home-notification-list {

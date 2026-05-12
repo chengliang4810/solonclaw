@@ -392,6 +392,18 @@ export async function unsubscribeKanbanHomeNotification(taskId: string, platform
   })
 }
 
+export async function unsubscribeKanbanNotification(notification: KanbanNotification): Promise<{ removed: boolean }> {
+  return request<{ removed: boolean }>('/api/kanban/notify-subscriptions/remove', {
+    method: 'POST',
+    body: JSON.stringify({
+      task_id: notification.task_id,
+      platform: notification.platform,
+      chat_id: notification.chat_id,
+      thread_id: notification.thread_id || '',
+    }),
+  })
+}
+
 export async function deliverKanbanNotifications(): Promise<KanbanNotificationDeliveryResult> {
   return request<KanbanNotificationDeliveryResult>('/api/kanban/notify-subscriptions/deliver', {
     method: 'POST',
