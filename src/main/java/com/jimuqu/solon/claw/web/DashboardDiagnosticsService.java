@@ -3292,6 +3292,13 @@ public class DashboardDiagnosticsService {
                         "python_credential_file_debug_artifact_write"));
         items.add(
                 approvalDetectionProbe(
+                        "python_credential_file_archive_artifact_write",
+                        "Python 凭据归档产物写入审批",
+                        ToolNameConstants.EXECUTE_PYTHON,
+                        "zipfile.ZipFile('debug.zip').write('token.json')",
+                        "python_credential_file_archive_artifact_write"));
+        items.add(
+                approvalDetectionProbe(
                         "python_credential_file_notification_output",
                         "Python 凭据通知输出审批",
                         ToolNameConstants.EXECUTE_PYTHON,
@@ -3381,6 +3388,20 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_JS,
                         "fs.writeFileSync('debug.log', fs.readFileSync('token.json'))",
                         "js_credential_file_debug_artifact_write"));
+        items.add(
+                approvalDetectionProbe(
+                        "js_credential_file_archive_artifact_write",
+                        "JavaScript 凭据归档产物写入审批",
+                        ToolNameConstants.EXECUTE_JS,
+                        "archiver('debug.zip').append(fs.readFileSync('token.json'))",
+                        "js_credential_file_archive_artifact_write"));
+        items.add(
+                approvalDetectionProbe(
+                        "js_credential_file_clipboard_export",
+                        "JavaScript 凭据剪贴板导出审批",
+                        ToolNameConstants.EXECUTE_JS,
+                        "clipboardy.writeSync(fs.readFileSync('token.json'))",
+                        "js_credential_file_clipboard_export"));
         items.add(
                 approvalDetectionProbe(
                         "js_credential_file_notification_output",

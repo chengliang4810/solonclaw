@@ -609,6 +609,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "python_credential_file_exception_output");
         Map<String, Object> pythonCredentialFileDebugArtifactWrite =
                 findProbe(items, "python_credential_file_debug_artifact_write");
+        Map<String, Object> pythonCredentialFileArchiveArtifactWrite =
+                findProbe(items, "python_credential_file_archive_artifact_write");
         Map<String, Object> pythonCredentialFileNotificationOutput =
                 findProbe(items, "python_credential_file_notification_output");
         Map<String, Object> pythonHttpCredentialFileVariableSend =
@@ -634,6 +636,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "js_credential_file_exception_output");
         Map<String, Object> jsCredentialFileDebugArtifactWrite =
                 findProbe(items, "js_credential_file_debug_artifact_write");
+        Map<String, Object> jsCredentialFileArchiveArtifactWrite =
+                findProbe(items, "js_credential_file_archive_artifact_write");
+        Map<String, Object> jsCredentialFileClipboardExport =
+                findProbe(items, "js_credential_file_clipboard_export");
         Map<String, Object> jsCredentialFileNotificationOutput =
                 findProbe(items, "js_credential_file_notification_output");
         Map<String, Object> jsHttpCredentialFileVariableSend =
@@ -1757,6 +1763,11 @@ public class DashboardDiagnosticOutputTest {
         assertThat(pythonCredentialFileDebugArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileDebugArtifactWrite.get("skipped")).isNull();
         assertThat(String.valueOf(pythonCredentialFileDebugArtifactWrite)).contains("debug.log");
+        assertThat(pythonCredentialFileArchiveArtifactWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileArchiveArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonCredentialFileArchiveArtifactWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonCredentialFileArchiveArtifactWrite))
+                .contains("debug.zip");
         assertThat(pythonCredentialFileNotificationOutput.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileNotificationOutput.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(pythonCredentialFileNotificationOutput.get("skipped")).isNull();
@@ -1810,6 +1821,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(jsCredentialFileDebugArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(jsCredentialFileDebugArtifactWrite.get("skipped")).isNull();
         assertThat(String.valueOf(jsCredentialFileDebugArtifactWrite)).contains("debug.log");
+        assertThat(jsCredentialFileArchiveArtifactWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileArchiveArtifactWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileArchiveArtifactWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileArchiveArtifactWrite)).contains("debug.zip");
+        assertThat(jsCredentialFileClipboardExport.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileClipboardExport.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsCredentialFileClipboardExport.get("skipped")).isNull();
+        assertThat(String.valueOf(jsCredentialFileClipboardExport)).contains("clipboardy");
         assertThat(jsCredentialFileNotificationOutput.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(jsCredentialFileNotificationOutput.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(jsCredentialFileNotificationOutput.get("skipped")).isNull();
