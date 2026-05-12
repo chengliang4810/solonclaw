@@ -27,6 +27,7 @@ public class CliShellTipsTest {
                 .contains(
                         "/security",
                         "/security audit",
+                        "/security status",
                         "/security policy",
                         "/security audit-tool",
                         "/security approvals",
@@ -104,6 +105,7 @@ public class CliShellTipsTest {
                 .contains("终端护栏");
         assertThat(TerminalSecurityPolicyView.render(null, "/security audit"))
                 .contains("安全审计摘要")
+                .contains("/security status")
                 .contains("/security audit-tool")
                 .contains("/security mcp")
                 .contains("/security terminal-paste")
