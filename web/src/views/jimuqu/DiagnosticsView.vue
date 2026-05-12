@@ -675,12 +675,12 @@ onMounted(load)
                 <div class="probe-head">
                   <strong>{{ probe.label || probe.key }}</strong>
                   <NTag size="small" :type="probe.passed ? 'success' : 'error'" :bordered="false">
-                    {{ probe.passed ? '通过' : '异常' }}
+                    {{ probe.skipped ? '跳过' : probe.passed ? '通过' : '异常' }}
                   </NTag>
                 </div>
                 <div class="probe-meta">
                   <span>{{ probe.surface || '-' }}</span>
-                  <span>{{ probe.blocked ? '已阻断' : '已放行' }}</span>
+                  <span>{{ probe.skipped ? '未检查' : probe.blocked ? '已阻断' : '已放行' }}</span>
                 </div>
                 <p>{{ probe.message || '-' }}</p>
                 <code>{{ probe.target || '-' }}</code>

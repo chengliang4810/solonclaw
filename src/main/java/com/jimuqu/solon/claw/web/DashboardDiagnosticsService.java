@@ -25,6 +25,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
@@ -2283,6 +2284,16 @@ public class DashboardDiagnosticsService {
                         "tool_args_url",
                         "工具返回 URL 递归检查",
                         "http://169.254.169.254/latest/user-data"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_command",
+                        "硬阻断命令检查",
+                        "sudo reboot"));
+        items.add(
+                terminalGuardrailProbe(
+                        "terminal_guardrail",
+                        "长时间前台命令守卫",
+                        "npm run dev"));
         result.put("count", Integer.valueOf(items.size()));
         result.put("passed", Boolean.valueOf(allProbePassed(items)));
         return result;
@@ -2325,6 +2336,63 @@ public class DashboardDiagnosticsService {
                 verdict.isAllowed(),
                 SecretRedactor.maskUrl(url),
                 verdict.getMessage());
+    }
+
+    private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "hardline_command", command, "审批服务尚未启用。");
+        }
+        DangerousCommandApprovalService.DetectionResult detection =
+                approvalService.detectHardline(ToolNameConstants.EXECUTE_SHELL, command);
+        boolean blocked = detection != null;
+        String message =
+                detection == null
+                        ? ""
+                        : StrUtil.blankToDefault(detection.getDescription(), detection.getPatternKey());
+        return policyProbeItem(
+                key,
+                label,
+                "hardline_command",
+                false,
+                !blocked,
+                safeAuditPreview(command, 400),
+                message);
+    }
+
+    private Map<String, Object> terminalGuardrailProbe(String key, String label, String command) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "terminal_guardrail", command, "审批服务尚未启用。");
+        }
+        String guidance =
+                approvalService.foregroundBackgroundGuidance(
+                        ToolNameConstants.EXECUTE_SHELL, command);
+        boolean blocked = StrUtil.isNotBlank(guidance);
+        return policyProbeItem(
+                key,
+                label,
+                "terminal_guardrail",
+                false,
+                !blocked,
+                safeAuditPreview(command, 400),
+                guidance);
+    }
+
+    private Map<String, Object> skippedPolicyProbeItem(
+            String key, String label, String surface, String target, String message) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("key", key);
+        item.put("label", label);
+        item.put("surface", surface);
+        item.put("expected_allowed", Boolean.FALSE);
+        item.put("allowed", Boolean.FALSE);
+        item.put("blocked", Boolean.FALSE);
+        item.put("passed", Boolean.TRUE);
+        item.put("skipped", Boolean.TRUE);
+        item.put("target", safeAuditPreview(target, 400));
+        item.put("message", safeAuditPreview(message, 600));
+        return item;
     }
 
     private Map<String, Object> policyProbeItem(

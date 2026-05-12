@@ -247,6 +247,51 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() {
+        AppConfig config = new AppConfig();
+        File runtimeHome = new File("target/dashboard-security-probes").getAbsoluteFile();
+        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null,
+                        null);
+
+        Map<String, Object> diagnostics = diagnosticsService.diagnostics();
+
+        Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
+        Map<String, Object> probes = (Map<String, Object>) security.get("probes");
+        assertThat(probes.get("available")).isEqualTo(Boolean.TRUE);
+        assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
+        Map<String, Object> hardline = findProbe(items, "hardline_command");
+        Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
+        assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardline.get("skipped")).isNull();
+        assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(terminal.get("skipped")).isNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void shouldMatchSudoRewriteDiagnosticsForExplicitEmptyPassword() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("");
@@ -1295,6 +1340,16 @@ public class DashboardDiagnosticOutputTest {
             }
         }
         throw new AssertionError("approval item not found: " + sessionId);
+    }
+
+    private static Map<String, Object> findProbe(
+            List<Map<String, Object>> items, String key) {
+        for (Map<String, Object> item : items) {
+            if (key.equals(item.get("key"))) {
+                return item;
+            }
+        }
+        throw new AssertionError("security probe not found: " + key);
     }
 
     private static class FixedDeliveryService implements DeliveryService {

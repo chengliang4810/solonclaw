@@ -28,6 +28,7 @@ export interface SecurityPolicyProbe {
   allowed?: boolean
   blocked?: boolean
   passed?: boolean
+  skipped?: boolean
   target?: string
   message?: string
 }
