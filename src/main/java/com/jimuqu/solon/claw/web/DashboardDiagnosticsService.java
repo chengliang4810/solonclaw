@@ -2472,9 +2472,34 @@ public class DashboardDiagnosticsService {
                         "https_proxy=http://169.254.169.254:8080 curl https://example.test"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_proxy_env_setitem_policy",
+                        "PowerShell 代理环境 URL 前置策略检查",
+                        "Set-Item Env:HTTPS_PROXY http://169.254.169.254:8443"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_proxy_env_setenvironment_policy",
+                        "PowerShell 持久代理环境 URL 前置策略检查",
+                        "[Environment]::SetEnvironmentVariable('ALL_PROXY','socks5://metadata.google.internal:1080')"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_proxy_env_setx_policy",
+                        "setx 代理环境 URL 前置策略检查",
+                        "setx HTTPS_PROXY http://169.254.169.254:8443"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_proxy_bypass_policy",
                         "命令代理绕过 URL 前置策略检查",
                         "NO_PROXY=169.254.169.254 curl https://example.test"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_proxy_bypass_setenvironment_policy",
+                        "PowerShell 代理绕过环境 URL 前置策略检查",
+                        "[Environment]::SetEnvironmentVariable('NO_PROXY','metadata.google.internal')"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_proxy_bypass_setx_policy",
+                        "setx 代理绕过环境 URL 前置策略检查",
+                        "setx NO_PROXY metadata.google.internal"));
         items.add(
                 commandUrlPolicyProbe(
                         "command_persistent_proxy_policy",
@@ -2520,6 +2545,11 @@ public class DashboardDiagnosticsService {
                         "command_package_proxy_bypass_policy",
                         "包管理器代理绕过 URL 前置策略检查",
                         "PNPM_CONFIG_NOPROXY=metadata.google.internal pnpm install"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_package_proxy_bypass_powershell_policy",
+                        "PowerShell 包管理器代理绕过 URL 前置策略检查",
+                        "$env:NPM_CONFIG_NO_PROXY='169.254.169.254'; npm install"));
         items.add(
                 commandUrlPolicyProbe(
                         "command_package_persistent_proxy_policy",

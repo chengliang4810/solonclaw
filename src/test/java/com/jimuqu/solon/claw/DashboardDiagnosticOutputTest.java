@@ -340,8 +340,18 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_preproxy_url_policy");
         Map<String, Object> commandProxyEnvPolicy =
                 findProbe(items, "command_proxy_env_policy");
+        Map<String, Object> commandProxyEnvSetitemPolicy =
+                findProbe(items, "command_proxy_env_setitem_policy");
+        Map<String, Object> commandProxyEnvSetenvironmentPolicy =
+                findProbe(items, "command_proxy_env_setenvironment_policy");
+        Map<String, Object> commandProxyEnvSetxPolicy =
+                findProbe(items, "command_proxy_env_setx_policy");
         Map<String, Object> commandProxyBypassPolicy =
                 findProbe(items, "command_proxy_bypass_policy");
+        Map<String, Object> commandProxyBypassSetenvironmentPolicy =
+                findProbe(items, "command_proxy_bypass_setenvironment_policy");
+        Map<String, Object> commandProxyBypassSetxPolicy =
+                findProbe(items, "command_proxy_bypass_setx_policy");
         Map<String, Object> commandPersistentProxyPolicy =
                 findProbe(items, "command_persistent_proxy_policy");
         Map<String, Object> commandPersistentProxyAssignmentPolicy =
@@ -360,6 +370,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_macos_socks_proxy_policy");
         Map<String, Object> commandPackageProxyBypassPolicy =
                 findProbe(items, "command_package_proxy_bypass_policy");
+        Map<String, Object> commandPackageProxyBypassPowershellPolicy =
+                findProbe(items, "command_package_proxy_bypass_powershell_policy");
         Map<String, Object> commandPackagePersistentProxyPolicy =
                 findProbe(items, "command_package_persistent_proxy_policy");
         Map<String, Object> commandSystemDnsPolicy =
@@ -613,12 +625,42 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandProxyEnvPolicy))
                 .contains("https_proxy")
                 .contains("169.254.169.254");
+        assertThat(commandProxyEnvSetitemPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvSetitemPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvSetitemPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyEnvSetitemPolicy))
+                .contains("Set-Item")
+                .contains("169.254.169.254");
+        assertThat(commandProxyEnvSetenvironmentPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvSetenvironmentPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvSetenvironmentPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyEnvSetenvironmentPolicy))
+                .contains("SetEnvironmentVariable")
+                .contains("metadata.google.internal");
+        assertThat(commandProxyEnvSetxPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvSetxPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyEnvSetxPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyEnvSetxPolicy))
+                .contains("setx")
+                .contains("169.254.169.254");
         assertThat(commandProxyBypassPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandProxyBypassPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandProxyBypassPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandProxyBypassPolicy))
                 .contains("NO_PROXY")
                 .contains("169.254.169.254");
+        assertThat(commandProxyBypassSetenvironmentPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyBypassSetenvironmentPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyBypassSetenvironmentPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyBypassSetenvironmentPolicy))
+                .contains("SetEnvironmentVariable")
+                .contains("metadata.google.internal");
+        assertThat(commandProxyBypassSetxPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyBypassSetxPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandProxyBypassSetxPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandProxyBypassSetxPolicy))
+                .contains("setx")
+                .contains("metadata.google.internal");
         assertThat(commandPersistentProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandPersistentProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPersistentProxyPolicy.get("skipped")).isNull();
@@ -674,6 +716,12 @@ public class DashboardDiagnosticOutputTest {
                 .contains("PNPM_***")
                 .contains("pnpm install")
                 .contains("metadata.google.internal");
+        assertThat(commandPackageProxyBypassPowershellPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackageProxyBypassPowershellPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackageProxyBypassPowershellPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPackageProxyBypassPowershellPolicy))
+                .contains("$env:NPM_***")
+                .contains("169.254.169.254");
         assertThat(commandPackagePersistentProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandPackagePersistentProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandPackagePersistentProxyPolicy.get("skipped")).isNull();
