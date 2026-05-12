@@ -591,6 +591,15 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> hostServiceControl = findProbe(items, "host_service_control");
         Map<String, Object> hostCronChange = findProbe(items, "host_cron_change");
         Map<String, Object> hostAdminGroupChange = findProbe(items, "host_admin_group_change");
+        Map<String, Object> containerPrivilegedHostMount =
+                findProbe(items, "container_privileged_host_mount");
+        Map<String, Object> containerSecretExposure =
+                findProbe(items, "container_secret_exposure");
+        Map<String, Object> kubernetesNetworkExposure =
+                findProbe(items, "kubernetes_network_exposure");
+        Map<String, Object> helmRepositoryChange = findProbe(items, "helm_repository_change");
+        Map<String, Object> infrastructureAutoApproveApply =
+                findProbe(items, "infrastructure_auto_approve_apply");
         Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
@@ -1587,6 +1596,26 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hostAdminGroupChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hostAdminGroupChange.get("skipped")).isNull();
         assertThat(String.valueOf(hostAdminGroupChange)).contains("usermod -aG sudo deploy");
+        assertThat(containerPrivilegedHostMount.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(containerPrivilegedHostMount.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(containerPrivilegedHostMount.get("skipped")).isNull();
+        assertThat(String.valueOf(containerPrivilegedHostMount)).contains("--privileged");
+        assertThat(containerSecretExposure.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(containerSecretExposure.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(containerSecretExposure.get("skipped")).isNull();
+        assertThat(String.valueOf(containerSecretExposure)).contains("--secret");
+        assertThat(kubernetesNetworkExposure.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesNetworkExposure.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesNetworkExposure.get("skipped")).isNull();
+        assertThat(String.valueOf(kubernetesNetworkExposure)).contains("--address 0.0.0.0");
+        assertThat(helmRepositoryChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(helmRepositoryChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(helmRepositoryChange.get("skipped")).isNull();
+        assertThat(String.valueOf(helmRepositoryChange)).contains("helm repo add");
+        assertThat(infrastructureAutoApproveApply.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(infrastructureAutoApproveApply.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(infrastructureAutoApproveApply.get("skipped")).isNull();
+        assertThat(String.valueOf(infrastructureAutoApproveApply)).contains("-auto-approve");
         assertThat(codeExecutionSandbox.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("blocked")).isEqualTo(Boolean.FALSE);

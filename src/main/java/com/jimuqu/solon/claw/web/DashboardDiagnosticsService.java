@@ -3242,6 +3242,41 @@ public class DashboardDiagnosticsService {
                         "usermod -aG sudo deploy",
                         "local_admin_permission_change"));
         items.add(
+                approvalDetectionProbe(
+                        "container_privileged_host_mount",
+                        "容器特权与宿主挂载审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "docker run --privileged -v /:/host alpine",
+                        "docker_privileged_or_host_mount"));
+        items.add(
+                approvalDetectionProbe(
+                        "container_secret_exposure",
+                        "容器密钥暴露审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "docker build --secret id=api_key,src=.env .",
+                        "container_secret_exposure"));
+        items.add(
+                approvalDetectionProbe(
+                        "kubernetes_network_exposure",
+                        "集群本地代理广域监听审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kubectl proxy --address 0.0.0.0",
+                        "kubectl_network_exposure"));
+        items.add(
+                approvalDetectionProbe(
+                        "helm_repository_change",
+                        "Helm 仓库配置变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "helm repo add internal https://charts.example.test",
+                        "helm_repository_configuration_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "infrastructure_auto_approve_apply",
+                        "基础设施自动批准变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "terraform apply -auto-approve",
+                        "terraform_auto_approve_apply"));
+        items.add(
                 codeExecutionSandboxProbe(
                         "code_execution_sandbox",
                         "代码执行沙箱安全检查"));
