@@ -338,6 +338,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandLocalManagementPipe =
                 findProbe(items, "command_local_management_pipe");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
+        Map<String, Object> commandDownloadOutputPath =
+                findProbe(items, "command_download_output_path");
+        Map<String, Object> commandUploadSourcePath =
+                findProbe(items, "command_upload_source_path");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
@@ -537,6 +541,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();
+        assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandDownloadOutputPath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandDownloadOutputPath))
+                .contains("curl")
+                .contains("[REDACTED_PATH]");
+        assertThat(commandUploadSourcePath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUploadSourcePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUploadSourcePath.get("skipped")).isNull();
+        assertThat(String.valueOf(commandUploadSourcePath))
+                .contains("upload-file")
+                .contains("[REDACTED_PATH]");
         assertThat(schemaSanitizer.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);
