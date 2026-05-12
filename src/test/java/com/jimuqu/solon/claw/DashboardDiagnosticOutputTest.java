@@ -339,6 +339,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandLocalManagementPipe =
                 findProbe(items, "command_local_management_pipe");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
+        Map<String, Object> patchToolCredentialPath =
+                findProbe(items, "patch_tool_credential_path");
         Map<String, Object> commandDownloadOutputPath =
                 findProbe(items, "command_download_output_path");
         Map<String, Object> commandUploadSourcePath =
@@ -552,6 +554,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();
+        assertThat(patchToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(patchToolCredentialPath.get("skipped")).isNull();
+        assertThat(String.valueOf(patchToolCredentialPath))
+                .contains("Add File")
+                .contains("[REDACTED_PATH]");
         assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandDownloadOutputPath.get("skipped")).isNull();

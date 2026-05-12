@@ -2450,6 +2450,14 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.FILE_READ,
                         ".env"));
         items.add(
+                patchToolPolicyProbe(
+                        "patch_tool_credential_path",
+                        "补丁工具凭据路径参数检查",
+                        "*** Begin Patch\n"
+                                + "*** Add File: .env\n"
+                                + "+TOKEN=probe\n"
+                                + "*** End Patch\n"));
+        items.add(
                 commandPathPolicyProbe(
                         "command_download_output_path",
                         "命令下载输出凭据路径检查",
@@ -2855,6 +2863,21 @@ public class DashboardDiagnosticsService {
                 false,
                 verdict.isAllowed(),
                 safeAuditPreview(path, 400),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> patchToolPolicyProbe(String key, String label, String patch) {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("patch", patch);
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService.checkFileToolArgs(ToolNameConstants.PATCH, args);
+        return policyProbeItem(
+                key,
+                label,
+                "patch_tool_path_policy",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(patch, 400),
                 verdict.getMessage());
     }
 
