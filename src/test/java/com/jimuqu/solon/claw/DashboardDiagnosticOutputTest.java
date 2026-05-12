@@ -318,6 +318,8 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
+        Map<String, Object> mcpRuntimeArgumentPolicy =
+                findProbe(items, "mcp_runtime_argument_policy");
         Map<String, Object> mcpPackageSecurity = findProbe(items, "mcp_package_security");
         Map<String, Object> subprocessEnvironment = findProbe(items, "subprocess_environment");
         Map<String, Object> toolResultStorage = findProbe(items, "tool_result_storage");
@@ -464,6 +466,13 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(mcpToolChangePolicy))
                 .contains("tool_changed_notification")
                 .contains("provider_cache");
+        assertThat(mcpRuntimeArgumentPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpRuntimeArgumentPolicy.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(mcpRuntimeArgumentPolicy.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(mcpRuntimeArgumentPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(mcpRuntimeArgumentPolicy))
+                .contains("tool args")
+                .contains("resource uri");
         assertThat(mcpPackageSecurity.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackageSecurity.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackageSecurity.get("blocked")).isEqualTo(Boolean.FALSE);

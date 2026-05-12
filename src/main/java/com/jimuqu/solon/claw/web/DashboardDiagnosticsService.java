@@ -2396,6 +2396,10 @@ public class DashboardDiagnosticsService {
                         "mcp_tool_change_policy",
                         "MCP 工具变更通知策略检查"));
         items.add(
+                mcpRuntimeArgumentPolicyProbe(
+                        "mcp_runtime_argument_policy",
+                        "MCP 运行时参数安全策略检查"));
+        items.add(
                 mcpPackageSecurityProbe(
                         "mcp_package_security",
                         "MCP 包安全检查"));
@@ -2952,6 +2956,47 @@ public class DashboardDiagnosticsService {
                     false,
                     "tools_hash, tool_changed_notification",
                     "MCP 工具变更探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    private Map<String, Object> mcpRuntimeArgumentPolicyProbe(String key, String label) {
+        try {
+            Map<String, Object> summary = McpRuntimeService.policySummary(appConfig);
+            boolean endpointSafety =
+                    Boolean.TRUE.equals(summary.get("remoteEndpointUrlSafety"))
+                            && Boolean.TRUE.equals(summary.get("blockedServersSuppressed"));
+            boolean argumentSafety =
+                    Boolean.TRUE.equals(summary.get("remoteToolArgumentUrlSafety"))
+                            && Boolean.TRUE.equals(summary.get("remoteToolArgumentPathSafety"))
+                            && Boolean.TRUE.equals(summary.get("nestedUrlExtraction"));
+            boolean resourceSafety =
+                    Boolean.TRUE.equals(summary.get("resourceUriUrlSafety"))
+                            && Boolean.TRUE.equals(summary.get("resourceUriPathSafety"));
+            boolean redaction =
+                    Boolean.TRUE.equals(summary.get("blockedUrlsMasked"))
+                            && Boolean.TRUE.equals(summary.get("blockedPathsRedacted"))
+                            && Boolean.TRUE.equals(summary.get("oauthSecretsRedacted"));
+            boolean passed = endpointSafety && argumentSafety && resourceSafety && redaction;
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_runtime_argument_policy",
+                    true,
+                    passed,
+                    "remote endpoint, tool args, resource uri",
+                    passed
+                            ? "MCP 远程 endpoint、工具参数、resource URI 与脱敏策略已启用。"
+                            : "MCP 运行时参数安全策略检查未通过。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_runtime_argument_policy",
+                    true,
+                    false,
+                    "remote endpoint, tool args, resource uri",
+                    "MCP 运行时参数探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
     }
