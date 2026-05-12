@@ -290,6 +290,8 @@ export default {
     guideAutomation: '调度与执行',
     guideDelivery: '投递策略',
     guideActions: '命令动作',
+    guideAliases: '命令别名',
+    guideExamples: 'Slash 示例',
     guideTargets: '支持目标',
     guideMultiSkill: '多技能绑定',
     guideSkillRewrite: '技能追加/移除',

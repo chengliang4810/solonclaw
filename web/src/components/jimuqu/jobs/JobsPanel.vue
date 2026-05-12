@@ -33,6 +33,16 @@ const guideActions = computed(() => {
   return Object.keys(actions).map(key => `${key}: ${actions[key]}`)
 })
 
+const guideAliases = computed(() => {
+  const aliases = jobsStore.guide?.aliases || {}
+  return Object.keys(aliases).map(key => {
+    const value = aliases[key]
+    return Array.isArray(value) && value.length ? `${key}: ${value.join(', ')}` : key
+  })
+})
+
+const guideExamples = computed(() => (jobsStore.guide?.slash_examples || []).slice(0, 6))
+
 const guideDeliveries = computed(() => {
   const delivery = jobsStore.guide?.delivery || {}
   const modes = Array.isArray(delivery.modes) ? delivery.modes : []
@@ -114,6 +124,16 @@ onMounted(() => {
           <span class="guide-block-title">{{ t('jobs.guideActions') }}</span>
           <span v-for="item in guideActions" :key="item" class="guide-chip">{{ item }}</span>
           <span v-if="!guideActions.length" class="guide-muted">{{ t('common.noData') }}</span>
+        </div>
+        <div class="guide-block">
+          <span class="guide-block-title">{{ t('jobs.guideAliases') }}</span>
+          <span v-for="item in guideAliases" :key="item" class="guide-chip">{{ item }}</span>
+          <span v-if="!guideAliases.length" class="guide-muted">{{ t('common.noData') }}</span>
+        </div>
+        <div class="guide-block examples">
+          <span class="guide-block-title">{{ t('jobs.guideExamples') }}</span>
+          <code v-for="item in guideExamples" :key="item" class="guide-example">{{ item }}</code>
+          <span v-if="!guideExamples.length" class="guide-muted">{{ t('common.noData') }}</span>
         </div>
       </div>
     </section>
@@ -212,6 +232,10 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   align-content: flex-start;
+
+  &.examples {
+    grid-column: span 2;
+  }
 }
 
 .guide-block-title {
@@ -236,6 +260,20 @@ onMounted(() => {
 .guide-muted {
   color: $text-muted;
   font-size: 12px;
+}
+
+.guide-example {
+  flex-basis: 100%;
+  max-width: 100%;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  color: $text-secondary;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 4px 6px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .upcoming-meta {
@@ -341,6 +379,10 @@ onMounted(() => {
 @media (max-width: $breakpoint-mobile) {
   .guide-grid {
     grid-template-columns: 1fr;
+  }
+
+  .guide-block.examples {
+    grid-column: span 1;
   }
 
   .upcoming-item {
