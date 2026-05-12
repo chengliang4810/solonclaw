@@ -28,6 +28,7 @@ public class CliShellTipsTest {
                         "/security",
                         "/security audit",
                         "/security policy",
+                        "/security audit-tool",
                         "/security approvals",
                         "/security slash-confirm",
                         "/security approval-card",
@@ -96,6 +97,7 @@ public class CliShellTipsTest {
                 .contains("终端护栏");
         assertThat(TerminalSecurityPolicyView.render(null, "/security audit"))
                 .contains("安全审计摘要")
+                .contains("/security audit-tool")
                 .contains("/security mcp")
                 .contains("/security terminal-paste")
                 .contains("/security media-cache")
@@ -157,6 +159,8 @@ public class CliShellTipsTest {
                 .contains("toolNotice=true")
                 .contains("MCP OAuth")
                 .contains("pkce=true")
+                .contains("审计工具")
+                .contains("executesCommand=false")
                 .contains("技能凭据")
                 .contains("traversalRejected=true")
                 .contains("审批生命周期")
@@ -239,6 +243,11 @@ public class CliShellTipsTest {
                 .contains("pkceS256=true")
                 .contains("accessRedacted=true")
                 .contains("handle401=true");
+        assertThat(TerminalSecurityPolicyView.render(null, "/security audit-tool"))
+                .contains("安全审计工具策略摘要")
+                .contains("executesCommand=false")
+                .contains("writesFile=false")
+                .contains("secretRedaction=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security schema"))
                 .contains("工具 schema 安全策略摘要")
                 .contains("nullableUnionCollapsed");

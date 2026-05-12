@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
@@ -99,6 +100,9 @@ public final class TerminalSecurityPolicyView {
         }
         if ("mcp-oauth".equals(mode)) {
             return renderMcpOAuthPolicy(DashboardMcpService.oauthPolicySummary());
+        }
+        if ("audit-tool".equals(mode)) {
+            return renderAuditToolPolicy(SecurityAuditTools.readOnlyAuditPolicySummary());
         }
         if ("schema".equals(mode)) {
             return renderSchemaPolicy(SolonClawToolSchemaSanitizer.policySummary());
@@ -211,6 +215,9 @@ public final class TerminalSecurityPolicyView {
         if (rest.startsWith("mcp")) {
             return "mcp";
         }
+        if (rest.startsWith("audit-tool") || rest.startsWith("security-audit-tool")) {
+            return "audit-tool";
+        }
         if (rest.startsWith("schema")) {
             return "schema";
         }
@@ -309,7 +316,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "managedBackgroundProcessRequired"));
         buffer.append('\n')
                 .append(
-                        "可用命令：/security audit、/security policy、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
+                        "可用命令：/security audit、/security policy、/security audit-tool、/security approvals、/security slash-confirm、/security approval-card、/security approval-audit、/security mcp-reload、/security lifecycle、/security hardline、/security terminal-guardrails、/security tirith、/security tirith-approval、/security cron-approvals、/security subagent-approvals、/security smart-approval、/security urls、/security private-urls、/security website、/security paths、/security credentials、/security skill-credentials、/security tool-args、/security mcp、/security mcp-oauth、/security schema、/security attachments、/security terminal-paste、/security media-cache、/security tool-results、/security patch、/security code-execution、/security subprocess-env、/security terminal-output、/security sudo、/security process");
         return buffer.toString();
     }
 
@@ -400,6 +407,14 @@ public final class TerminalSecurityPolicyView {
                 .append(value(oauth, "pkceS256Required"))
                 .append(" tokenRedacted=")
                 .append(value(oauth, "accessTokenRedacted"));
+        Map<String, Object> auditTool = SecurityAuditTools.readOnlyAuditPolicySummary();
+        buffer.append('\n')
+                .append("- 审计工具：executesCommand=")
+                .append(value(auditTool, "executesCommand"))
+                .append(" writesFile=")
+                .append(value(auditTool, "writesFile"))
+                .append(" redacted=")
+                .append(value(auditTool, "secretRedactionApplied"));
         Map<String, Object> lifecycle = approvalService.approvalLifecyclePolicySummary();
         buffer.append('\n')
                 .append("- 审批生命周期：approveAll=")
@@ -1080,6 +1095,41 @@ public final class TerminalSecurityPolicyView {
                 .append(value(oauth, "tokenErrorsRedacted"))
                 .append(" handle401=")
                 .append(value(oauth, "handle401RefreshThenReauth"));
+        return buffer.toString();
+    }
+
+    private static String renderAuditToolPolicy(Map<String, Object> auditTool) {
+        StringBuilder buffer = new StringBuilder("安全审计工具策略摘要：");
+        buffer.append('\n')
+                .append("- 工具：name=")
+                .append(value(auditTool, "toolName"))
+                .append(" actions=")
+                .append(value(auditTool, "supportsActions"));
+        buffer.append('\n')
+                .append("- 只读：executesCommand=")
+                .append(value(auditTool, "executesCommand"))
+                .append(" network=")
+                .append(value(auditTool, "opensNetworkConnection"))
+                .append(" writesFile=")
+                .append(value(auditTool, "writesFile"))
+                .append(" storesInput=")
+                .append(value(auditTool, "storesAuditInput"));
+        buffer.append('\n')
+                .append("- 继承策略：command=")
+                .append(value(auditTool, "toolArgsCommandPolicyInherited"))
+                .append(" url=")
+                .append(value(auditTool, "toolArgsUrlPolicyInherited"))
+                .append(" path=")
+                .append(value(auditTool, "toolArgsPathPolicyInherited"));
+        buffer.append('\n')
+                .append("- 输出：secretRedaction=")
+                .append(value(auditTool, "secretRedactionApplied"))
+                .append(" parseErrorsRedacted=")
+                .append(value(auditTool, "toolArgsJsonParseErrorsRedacted"))
+                .append(" commandPreviewLimit=")
+                .append(value(auditTool, "commandPreviewLimitChars"))
+                .append(" findingLimit=")
+                .append(value(auditTool, "findingMessageLimitChars"));
         return buffer.toString();
     }
 

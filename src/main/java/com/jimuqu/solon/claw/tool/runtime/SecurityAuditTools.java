@@ -846,7 +846,7 @@ public class SecurityAuditTools {
         }
     }
 
-    private static Map<String, Object> readOnlyAuditPolicySummary() {
+    public static Map<String, Object> readOnlyAuditPolicySummary() {
         Map<String, Object> policy = new LinkedHashMap<String, Object>();
         policy.put("toolName", "security_audit");
         policy.put("executesCommand", Boolean.FALSE);

@@ -18,7 +18,7 @@ public final class TerminalCommandCatalog {
                 "/approve all always", "/approve session", "/approve always",
                 "/approve clear session", "/approve clear always", "/approve clear all",
                 "/deny list", "/deny status", "/deny all", "/always", "/cancel",
-                "/security audit", "/security policy", "/security approvals", "/security urls",
+                "/security audit", "/security policy", "/security audit-tool", "/security approvals", "/security urls",
                 "/security private-urls", "/security website", "/security slash-confirm",
                 "/security approval-card", "/security approval-audit", "/security mcp-reload",
                 "/security lifecycle", "/security hardline", "/security terminal-guardrails", "/security tirith",
