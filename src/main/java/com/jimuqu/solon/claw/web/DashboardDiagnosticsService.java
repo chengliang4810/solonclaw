@@ -2294,6 +2294,14 @@ public class DashboardDiagnosticsService {
                         "terminal_guardrail",
                         "长时间前台命令守卫",
                         "npm run dev"));
+        items.add(
+                approvalSelectorProbe(
+                        "approval_selector",
+                        "审批选择器安全检查"));
+        items.add(
+                slashConfirmSelectorProbe(
+                        "slash_confirm_selector",
+                        "Slash 确认编号安全检查"));
         result.put("count", Integer.valueOf(items.size()));
         result.put("passed", Boolean.valueOf(allProbePassed(items)));
         return result;
@@ -2377,6 +2385,71 @@ public class DashboardDiagnosticsService {
                 !blocked,
                 safeAuditPreview(command, 400),
                 guidance);
+    }
+
+    private Map<String, Object> approvalSelectorProbe(String key, String label) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "approval_selector", "approval unsafe", "审批服务尚未启用。");
+        }
+        SessionRecord record = new SessionRecord();
+        record.setSessionId("dashboard-probe-approval-selector");
+        SqliteAgentSession session = new SqliteAgentSession(record);
+        approvalService.storePendingApproval(
+                session,
+                ToolNameConstants.EXECUTE_SHELL,
+                "recursive_delete",
+                "dashboard approval selector probe",
+                "rm -rf runtime/cache");
+        DangerousCommandApprovalService.PendingApproval pending =
+                approvalService.getPendingApproval(session);
+        if (pending != null) {
+            pending.setApprovalId("approval unsafe");
+        }
+        String selector = DangerousCommandApprovalService.approvalSelector(pending);
+        boolean unsafeTokenRejected =
+                DangerousCommandApprovalService.safeApprovalSelectorToken("approval unsafe") == null;
+        boolean shortPrefixRejected =
+                StrUtil.isNotBlank(selector)
+                        && selector.length() > 8
+                        && !approvalService.reject(session, selector.substring(0, 7), "dashboard-probe");
+        boolean blocked = unsafeTokenRejected && shortPrefixRejected;
+        return policyProbeItem(
+                key,
+                label,
+                "approval_selector",
+                false,
+                !blocked,
+                "approval unsafe",
+                blocked
+                        ? "非法选择器与过短 key 前缀均不会命中待审批项。"
+                        : "审批选择器安全检查未通过。");
+    }
+
+    private Map<String, Object> slashConfirmSelectorProbe(String key, String label) {
+        if (slashConfirmService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "slash_confirm_selector", "invalid confirm id", "Slash 确认服务尚未启用。");
+        }
+        String sourceKey = "dashboard-probe-slash-confirm-" + System.currentTimeMillis();
+        slashConfirmService.register(sourceKey, "reload-mcp", "dashboard slash confirm selector probe");
+        try {
+            SlashConfirmService.PendingConfirm resolved =
+                    slashConfirmService.resolve(sourceKey, "invalid confirm id");
+            boolean blocked = resolved == null && slashConfirmService.getPending(sourceKey) != null;
+            return policyProbeItem(
+                    key,
+                    label,
+                    "slash_confirm_selector",
+                    false,
+                    !blocked,
+                    "invalid confirm id",
+                    blocked
+                            ? "非法确认编号不会消费待确认 Slash 命令。"
+                            : "Slash 确认编号安全检查未通过。");
+        } finally {
+            slashConfirmService.clear(sourceKey);
+        }
     }
 
     private Map<String, Object> skippedPolicyProbeItem(

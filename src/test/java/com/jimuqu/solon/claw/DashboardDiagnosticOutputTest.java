@@ -266,7 +266,7 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         null,
                         null,
-                        null,
+                        new SlashConfirmService(null),
                         null,
                         approvalService,
                         new SecurityPolicyService(config),
@@ -282,12 +282,20 @@ public class DashboardDiagnosticOutputTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
+        Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
+        Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("skipped")).isNull();
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
+        assertThat(approvalSelector.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalSelector.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalSelector.get("skipped")).isNull();
+        assertThat(slashConfirmSelector.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(slashConfirmSelector.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(slashConfirmSelector.get("skipped")).isNull();
     }
 
     @Test
