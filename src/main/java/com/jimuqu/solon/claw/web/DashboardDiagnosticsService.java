@@ -2369,10 +2369,39 @@ public class DashboardDiagnosticsService {
                         false));
         items.add(
                 pathProbe(
+                        "path_control_character",
+                        "控制字符路径读取阻断",
+                        "safe\u0000readme.txt",
+                        false));
+        items.add(
+                pathProbe(
+                        "device_path_read",
+                        "设备文件读取阻断",
+                        "/dev/zero",
+                        false));
+        items.add(
+                pathProbe(
+                        "raw_block_device_write",
+                        "裸块设备写入阻断",
+                        "/dev/sda",
+                        true));
+        items.add(
+                pathProbe(
+                        "skills_hub_internal_path",
+                        "技能中心内部缓存路径阻断",
+                        "skills/.hub/index.json",
+                        false));
+        items.add(
+                pathProbe(
                         "system_write_path",
                         "系统文件写入阻断",
                         "/etc/hosts",
                         true));
+        items.add(
+                workdirTextProbe(
+                        "workdir_text_policy",
+                        "运行目录文本安全检查",
+                        "workspace|bad"));
         items.add(
                 toolArgsUrlProbe(
                         "tool_args_url",
@@ -3051,6 +3080,18 @@ public class DashboardDiagnosticsService {
                 false,
                 verdict.isAllowed(),
                 safeAuditPreview(path, 400),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> workdirTextProbe(String key, String label, String workdir) {
+        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workdir);
+        return policyProbeItem(
+                key,
+                label,
+                "workdir_text_policy",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(workdir, 400),
                 verdict.getMessage());
     }
 

@@ -312,7 +312,13 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
         Map<String, Object> encodedPathTraversal = findProbe(items, "encoded_path_traversal");
+        Map<String, Object> pathControlCharacter = findProbe(items, "path_control_character");
+        Map<String, Object> devicePathRead = findProbe(items, "device_path_read");
+        Map<String, Object> rawBlockDeviceWrite = findProbe(items, "raw_block_device_write");
+        Map<String, Object> skillsHubInternalPath =
+                findProbe(items, "skills_hub_internal_path");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
+        Map<String, Object> workdirTextPolicy = findProbe(items, "workdir_text_policy");
         Map<String, Object> toolArgsEndpointPrivateUrl =
                 findProbe(items, "tool_args_endpoint_private_url");
         Map<String, Object> toolArgsNestedEndpointPrivateUrl =
@@ -563,9 +569,31 @@ public class DashboardDiagnosticOutputTest {
         assertThat(encodedPathTraversal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(encodedPathTraversal.get("skipped")).isNull();
         assertThat(String.valueOf(encodedPathTraversal)).contains("%252e%252e");
+        assertThat(pathControlCharacter.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pathControlCharacter.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pathControlCharacter.get("skipped")).isNull();
+        assertThat(String.valueOf(pathControlCharacter)).doesNotContain("\u0000");
+        assertThat(devicePathRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(devicePathRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(devicePathRead.get("skipped")).isNull();
+        assertThat(String.valueOf(devicePathRead)).contains("/dev/zero");
+        assertThat(rawBlockDeviceWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(rawBlockDeviceWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(rawBlockDeviceWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(rawBlockDeviceWrite)).contains("/dev/sda");
+        assertThat(skillsHubInternalPath.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(skillsHubInternalPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(skillsHubInternalPath.get("skipped")).isNull();
+        assertThat(String.valueOf(skillsHubInternalPath))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("skills/.hub");
         assertThat(commandUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("skipped")).isNull();
+        assertThat(workdirTextPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(workdirTextPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(workdirTextPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(workdirTextPolicy)).contains("workspace|bad");
         assertThat(toolArgsEndpointPrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(toolArgsEndpointPrivateUrl.get("skipped")).isNull();
