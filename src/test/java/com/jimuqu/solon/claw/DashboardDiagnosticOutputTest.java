@@ -587,6 +587,27 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
+        Map<String, Object> sensitiveEnvironmentInlineAssignment =
+                findProbe(items, "sensitive_environment_inline_assignment");
+        Map<String, Object> sensitiveEnvironmentHttpHeaderSend =
+                findProbe(items, "sensitive_environment_http_header_send");
+        Map<String, Object> sensitiveEnvironmentRead =
+                findProbe(items, "sensitive_environment_read");
+        Map<String, Object> cliAccessTokenRead = findProbe(items, "cli_access_token_read");
+        Map<String, Object> kubernetesCredentialConfigRead =
+                findProbe(items, "kubernetes_credential_config_read");
+        Map<String, Object> cloudCliCredentialConfigRead =
+                findProbe(items, "cloud_cli_credential_config_read");
+        Map<String, Object> cloudCliCredentialConfigChange =
+                findProbe(items, "cloud_cli_credential_config_change");
+        Map<String, Object> sshAddPrivateKey = findProbe(items, "ssh_add_private_key");
+        Map<String, Object> privateKeyMaterialExport =
+                findProbe(items, "private_key_material_export");
+        Map<String, Object> packageManagerSecretRead =
+                findProbe(items, "package_manager_secret_read");
+        Map<String, Object> packageManagerSecretWrite =
+                findProbe(items, "package_manager_secret_write");
+        Map<String, Object> networkCredentialSend = findProbe(items, "network_credential_send");
         Map<String, Object> credentialFileEncodedOutput =
                 findProbe(items, "credential_file_encoded_output");
         Map<String, Object> credentialFileHashOutput =
@@ -1846,6 +1867,54 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentInlineAssignment.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentInlineAssignment.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentInlineAssignment.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveEnvironmentInlineAssignment)).contains("export");
+        assertThat(sensitiveEnvironmentHttpHeaderSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentHttpHeaderSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentHttpHeaderSend.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveEnvironmentHttpHeaderSend)).contains("Authorization");
+        assertThat(sensitiveEnvironmentRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sensitiveEnvironmentRead.get("skipped")).isNull();
+        assertThat(String.valueOf(sensitiveEnvironmentRead)).contains("printenv");
+        assertThat(cliAccessTokenRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cliAccessTokenRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cliAccessTokenRead.get("skipped")).isNull();
+        assertThat(String.valueOf(cliAccessTokenRead)).contains("gh auth token");
+        assertThat(kubernetesCredentialConfigRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesCredentialConfigRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesCredentialConfigRead.get("skipped")).isNull();
+        assertThat(String.valueOf(kubernetesCredentialConfigRead)).contains("kubectl config view");
+        assertThat(cloudCliCredentialConfigRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudCliCredentialConfigRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudCliCredentialConfigRead.get("skipped")).isNull();
+        assertThat(String.valueOf(cloudCliCredentialConfigRead)).contains("aws configure get");
+        assertThat(cloudCliCredentialConfigChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudCliCredentialConfigChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudCliCredentialConfigChange.get("skipped")).isNull();
+        assertThat(String.valueOf(cloudCliCredentialConfigChange)).contains("aws configure set");
+        assertThat(sshAddPrivateKey.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sshAddPrivateKey.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sshAddPrivateKey.get("skipped")).isNull();
+        assertThat(String.valueOf(sshAddPrivateKey)).contains("ssh-add");
+        assertThat(privateKeyMaterialExport.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(privateKeyMaterialExport.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(privateKeyMaterialExport.get("skipped")).isNull();
+        assertThat(String.valueOf(privateKeyMaterialExport)).contains("gpg --export-secret-keys");
+        assertThat(packageManagerSecretRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerSecretRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerSecretRead.get("skipped")).isNull();
+        assertThat(String.valueOf(packageManagerSecretRead)).contains("npm config get");
+        assertThat(packageManagerSecretWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerSecretWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(packageManagerSecretWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(packageManagerSecretWrite)).contains("npm config set");
+        assertThat(networkCredentialSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(networkCredentialSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(networkCredentialSend.get("skipped")).isNull();
+        assertThat(String.valueOf(networkCredentialSend)).contains("curl -u");
         assertThat(credentialFileEncodedOutput.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileEncodedOutput.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileEncodedOutput.get("skipped")).isNull();
