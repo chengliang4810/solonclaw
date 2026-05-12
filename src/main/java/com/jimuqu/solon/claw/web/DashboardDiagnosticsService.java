@@ -2327,6 +2327,11 @@ public class DashboardDiagnosticsService {
                         "长时间前台命令守卫",
                         "npm run dev"));
         items.add(
+                tirithSecurityProbe(
+                        "tirith_security",
+                        "Tirith 命令安全扫描",
+                        "rm -rf /tmp/dashboard-tirith-probe"));
+        items.add(
                 approvalDetectionProbe(
                         "credential_upload",
                         "凭据文件上传审批",
@@ -2631,6 +2636,82 @@ public class DashboardDiagnosticsService {
                 !blocked,
                 safeAuditPreview(command, 400),
                 guidance);
+    }
+
+    private Map<String, Object> tirithSecurityProbe(String key, String label, String command) {
+        if (tirithSecurityService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "tirith_security", command, "命令安全扫描服务尚未启用。");
+        }
+        Map<String, Object> summary;
+        try {
+            summary = tirithSecurityService.policySummary();
+        } catch (Exception e) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "tirith_security",
+                    command,
+                    "命令安全扫描策略暂不可诊断："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+        if (Boolean.FALSE.equals(summary.get("enabled"))) {
+            return skippedPolicyProbeItem(
+                    key, label, "tirith_security", command, "命令安全扫描策略未启用。");
+        }
+        if (!Boolean.TRUE.equals(summary.get("available"))) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "tirith_security",
+                    command,
+                    tirithProbeUnavailableMessage(summary));
+        }
+        try {
+            TirithSecurityService.ScanResult scan =
+                    tirithSecurityService.checkCommandSecurityForTool(
+                            ToolNameConstants.EXECUTE_SHELL, command);
+            boolean blocked = scan != null && scan.requiresApproval();
+            String message =
+                    scan == null
+                            ? "命令安全扫描未返回结果。"
+                            : StrUtil.blankToDefault(scan.getSummary(), scan.getAction());
+            return policyProbeItem(
+                    key,
+                    label,
+                    "tirith_security",
+                    false,
+                    !blocked,
+                    safeAuditPreview(command, 400),
+                    message);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "tirith_security",
+                    false,
+                    true,
+                    safeAuditPreview(command, 400),
+                    "命令安全扫描执行失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String tirithProbeUnavailableMessage(Map<String, Object> summary) {
+        String message = "";
+        Object diagnostic = summary.get("diagnostic");
+        if (diagnostic instanceof Map) {
+            Object diagnosticSummary = ((Map<String, Object>) diagnostic).get("summary");
+            if (diagnosticSummary != null) {
+                message = String.valueOf(diagnosticSummary);
+            }
+        }
+        if (StrUtil.isBlank(message) && summary.get("failOpenMode") != null) {
+            message = String.valueOf(summary.get("failOpenMode"));
+        }
+        return "命令安全扫描器不可用，跳过可执行探针。"
+                + (StrUtil.isBlank(message) ? "" : " " + message);
     }
 
     private Map<String, Object> approvalDetectionProbe(

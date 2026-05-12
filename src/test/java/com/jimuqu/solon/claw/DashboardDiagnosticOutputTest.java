@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
@@ -247,7 +248,7 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() {
+    void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() throws Exception {
         AppConfig config = new AppConfig();
         File runtimeHome = new File("target/dashboard-security-probes").getAbsoluteFile();
         config.getRuntime().setHome(runtimeHome.getAbsolutePath());
@@ -259,6 +260,9 @@ public class DashboardDiagnosticOutputTest {
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
                         null, config, new SecurityPolicyService(config));
+        TirithSecurityService tirithSecurityService =
+                new FixedTirithSecurityService(
+                        scanResult("warn", Collections.<TirithSecurityService.Finding>emptyList(), "probe warning"));
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
@@ -272,7 +276,7 @@ public class DashboardDiagnosticOutputTest {
                         null,
                         approvalService,
                         new SecurityPolicyService(config),
-                        null,
+                        tirithSecurityService,
                         null);
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
@@ -296,12 +300,17 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
         Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
+        Map<String, Object> tirithSecurity = findProbe(items, "tirith_security");
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("skipped")).isNull();
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
+        assertThat(tirithSecurity.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(tirithSecurity.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(tirithSecurity.get("skipped")).isNull();
+        assertThat(tirithSecurity.get("message")).isEqualTo("probe warning");
         assertThat(privateUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(privateUrl.get("skipped")).isNull();
@@ -1472,6 +1481,47 @@ public class DashboardDiagnosticOutputTest {
             }
         }
         throw new AssertionError("security probe not found: " + key);
+    }
+
+    private static TirithSecurityService.ScanResult scanResult(
+            String action, List<TirithSecurityService.Finding> findings, String summary)
+            throws Exception {
+        java.lang.reflect.Constructor<TirithSecurityService.ScanResult> constructor =
+                TirithSecurityService.ScanResult.class.getDeclaredConstructor(
+                        String.class, List.class, String.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(action, findings, summary);
+    }
+
+    private static class FixedTirithSecurityService extends TirithSecurityService {
+        private final TirithSecurityService.ScanResult result;
+
+        private FixedTirithSecurityService(TirithSecurityService.ScanResult result) {
+            super(enabledTirithConfig());
+            this.result = result;
+        }
+
+        @Override
+        public Map<String, Object> policySummary() {
+            Map<String, Object> summary = super.policySummary();
+            summary.put("enabled", Boolean.TRUE);
+            summary.put("configured", Boolean.TRUE);
+            summary.put("available", Boolean.TRUE);
+            return summary;
+        }
+
+        @Override
+        public TirithSecurityService.ScanResult checkCommandSecurityForTool(
+                String toolName, String command) {
+            return result;
+        }
+    }
+
+    private static AppConfig enabledTirithConfig() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setTirithEnabled(true);
+        config.getSecurity().setTirithPath("target/dashboard-tirith-probe");
+        return config;
     }
 
     private static class FixedDeliveryService implements DeliveryService {
