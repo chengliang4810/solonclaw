@@ -989,6 +989,12 @@ public class DangerousCommandApprovalService {
                                             "\\b(?:apt-key\\s+(?:add|adv)\\b|add-apt-repository\\b|rpm\\s+--import\\b|yum-config-manager\\s+--add-repo\\b|dnf\\s+config-manager\\s+--add-repo\\b|zypper\\s+(?:addrepo|ar)\\b|brew\\s+tap(?:\\s|$)|choco\\s+source\\s+(?:add|remove|disable|enable)\\b|winget\\s+source\\s+(?:add|remove|reset|update)\\b|scoop\\s+bucket\\s+(?:add|rm|remove)\\b)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
+                                    "system_package_signature_bypass",
+                                    "system package signature verification bypassed",
+                                    pattern(
+                                            "\\b(?:apt(?:-get)?\\s+(?:-[^\\s]+\\s+)*install\\b(?=[^\\n]*--allow-unauthenticated\\b)|yum\\s+[^\\n]*--nogpgcheck\\b|dnf\\s+[^\\n]*--nogpgcheck\\b|zypper\\s+[^\\n]*--no-gpg-checks\\b|rpm\\s+[^\\n]*(?:--nosignature|--nodigest)\\b)"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
                                     "plaintext_cli_password_option",
                                     "send credential through plaintext CLI password option",
                                     pattern(

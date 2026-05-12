@@ -4430,6 +4430,38 @@ public class DangerousCommandApprovalServiceTest {
     }
 
     @Test
+    void shouldDetectSystemPackageSignatureBypass() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        List<String> commands =
+                Arrays.asList(
+                        "apt-get install --allow-unauthenticated vendor-tool",
+                        "apt install vendor-tool --allow-unauthenticated",
+                        "yum install vendor-tool --nogpgcheck",
+                        "dnf --nogpgcheck install vendor-tool",
+                        "zypper install --no-gpg-checks vendor-tool",
+                        "rpm -Uvh --nosignature vendor.rpm",
+                        "rpm -i --nodigest vendor.rpm");
+        for (String command : commands) {
+            DangerousCommandApprovalService.DetectionResult result =
+                    env.dangerousCommandApprovalService.detect("execute_shell", command);
+            assertThat(result).as(command).isNotNull();
+            assertThat(result.getPatternKey())
+                    .as(command)
+                    .isEqualTo("system_package_signature_bypass");
+        }
+
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "apt install curl"))
+                .isNull();
+        assertThat(
+                        env.dangerousCommandApprovalService.detect(
+                                "execute_shell", "dnf install curl"))
+                .isNull();
+    }
+
+    @Test
     void shouldDetectCodeTlsCertificateVerificationBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
