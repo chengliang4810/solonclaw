@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,14 +16,23 @@ import org.noear.snack4.ONode;
 public class DashboardKanbanService {
     private final KanbanService kanbanService;
     private final GatewayPolicyRepository gatewayPolicyRepository;
+    private final KanbanNotificationScheduler notificationScheduler;
 
     public DashboardKanbanService(KanbanService kanbanService) {
-        this(kanbanService, null);
+        this(kanbanService, null, null);
     }
 
     public DashboardKanbanService(KanbanService kanbanService, GatewayPolicyRepository gatewayPolicyRepository) {
+        this(kanbanService, gatewayPolicyRepository, null);
+    }
+
+    public DashboardKanbanService(
+            KanbanService kanbanService,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            KanbanNotificationScheduler notificationScheduler) {
         this.kanbanService = kanbanService;
         this.gatewayPolicyRepository = gatewayPolicyRepository;
+        this.notificationScheduler = notificationScheduler;
     }
 
     public Map<String, Object> currentBoard() throws Exception {
@@ -236,6 +246,17 @@ public class DashboardKanbanService {
 
     public Map<String, Object> notifyDeliver() throws Exception {
         return kanbanService.notifyDeliver();
+    }
+
+    public Map<String, Object> notifyDeliveryStatus() {
+        if (notificationScheduler == null) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("available", Boolean.FALSE);
+            return result;
+        }
+        Map<String, Object> result = notificationScheduler.status();
+        result.put("available", Boolean.TRUE);
+        return result;
     }
 
     public List<Map<String, Object>> notifyList(String taskId) throws Exception {

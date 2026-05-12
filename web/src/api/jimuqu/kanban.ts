@@ -83,6 +83,19 @@ export interface KanbanNotificationDeliveryResult {
   errors?: string[]
 }
 
+export interface KanbanNotificationDeliveryStatus {
+  available: boolean
+  enabled: boolean
+  running: boolean
+  started_at?: number | null
+  tick_seconds?: number | null
+  last_tick_at?: number | null
+  last_success_at?: number | null
+  last_failure_at?: number | null
+  last_error?: string | null
+  last_result?: KanbanNotificationDeliveryResult | null
+}
+
 export interface KanbanTaskLog {
   task_id: string
   path: string
@@ -408,6 +421,10 @@ export async function deliverKanbanNotifications(): Promise<KanbanNotificationDe
   return request<KanbanNotificationDeliveryResult>('/api/kanban/notify-subscriptions/deliver', {
     method: 'POST',
   })
+}
+
+export async function fetchKanbanNotificationDeliveryStatus(): Promise<KanbanNotificationDeliveryStatus> {
+  return request<KanbanNotificationDeliveryStatus>('/api/kanban/notify-subscriptions/delivery-status')
 }
 
 export async function createKanbanTask(data: CreateKanbanTaskRequest): Promise<KanbanTask> {

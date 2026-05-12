@@ -370,6 +370,11 @@ public class DashboardKanbanController {
                 });
     }
 
+    @Mapping(value = "/api/kanban/notify-subscriptions/delivery-status", method = MethodType.GET)
+    public Map<String, Object> notifyDeliveryStatus() {
+        return DashboardResponse.ok(kanbanService.notifyDeliveryStatus());
+    }
+
     @Mapping(value = "/api/kanban/notify-subscriptions/remove", method = MethodType.POST)
     public Map<String, Object> notifyUnsubscribe(Context context) throws Exception {
         return safeKanban(

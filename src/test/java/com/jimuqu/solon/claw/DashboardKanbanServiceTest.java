@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteKanbanRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -50,6 +51,26 @@ public class DashboardKanbanServiceTest {
                 .isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(dashboardKanbanService.notifyHomeChannels(taskId)))
                 .contains("subscribed=false");
+    }
+
+    @Test
+    void shouldExposeNotificationDeliverySchedulerStatus() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        KanbanService kanbanService =
+                new KanbanService(new SqliteKanbanRepository(env.sqliteDatabase), env.appConfig);
+        DashboardKanbanService withoutScheduler = new DashboardKanbanService(kanbanService);
+
+        assertThat(withoutScheduler.notifyDeliveryStatus().get("available"))
+                .isEqualTo(Boolean.FALSE);
+
+        KanbanNotificationScheduler scheduler = new KanbanNotificationScheduler(env.appConfig, null);
+        DashboardKanbanService withScheduler =
+                new DashboardKanbanService(kanbanService, null, scheduler);
+
+        assertThat(withScheduler.notifyDeliveryStatus().get("available"))
+                .isEqualTo(Boolean.TRUE);
+        assertThat(withScheduler.notifyDeliveryStatus().get("enabled"))
+                .isEqualTo(Boolean.FALSE);
     }
 
     private String createTask(KanbanService kanbanService) throws Exception {

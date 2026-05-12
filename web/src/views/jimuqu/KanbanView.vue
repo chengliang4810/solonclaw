@@ -11,6 +11,7 @@ import {
   fetchKanbanDaemon,
   fetchKanbanGuide,
   fetchKanbanHomeNotificationChannels,
+  fetchKanbanNotificationDeliveryStatus,
   fetchKanbanTaskDrawer,
   fetchKanbanTasks,
   kanbanStatuses,
@@ -35,6 +36,7 @@ import {
   type KanbanHomeNotificationChannel,
   type KanbanNotification,
   type KanbanNotificationDeliveryResult,
+  type KanbanNotificationDeliveryStatus,
   type KanbanPipelineOverview,
   type KanbanRun,
   type KanbanRunSummary,
@@ -56,6 +58,7 @@ const selectedDrawer = ref<KanbanTaskDrawer | null>(null)
 const homeNotificationChannels = ref<KanbanHomeNotificationChannel[]>([])
 const notificationBusy = ref('')
 const notificationDelivering = ref(false)
+const notificationDeliveryStatus = ref<KanbanNotificationDeliveryStatus | null>(null)
 const commentText = ref('')
 const recoveryReason = ref('')
 const reassignAssignee = ref('')
@@ -164,6 +167,7 @@ async function loadKanban() {
     activeBoard.value = boards.value.find(board => board.current)?.slug || boards.value[0]?.slug || ''
     tasks.value = await fetchKanbanTasks(taskQuery())
     daemon.value = await fetchKanbanDaemon()
+    notificationDeliveryStatus.value = await fetchKanbanNotificationDeliveryStatus()
     guide.value = activeBoard.value ? await fetchKanbanGuide(activeBoard.value) : null
   } finally {
     loading.value = false
@@ -180,6 +184,7 @@ async function reloadTasks() {
   }
   tasks.value = activeBoard.value ? await fetchKanbanTasks(taskQuery()) : []
   daemon.value = await fetchKanbanDaemon()
+  notificationDeliveryStatus.value = await fetchKanbanNotificationDeliveryStatus()
   guide.value = activeBoard.value ? await fetchKanbanGuide(activeBoard.value) : null
 }
 
@@ -446,6 +451,7 @@ async function deliverNotificationsNow() {
     if (selectedTask.value) {
       await refreshSelectedTaskDrawer()
     }
+    notificationDeliveryStatus.value = await fetchKanbanNotificationDeliveryStatus()
   } catch (error) {
     message.error(error instanceof Error ? error.message : '通知投递失败')
   } finally {
@@ -686,6 +692,18 @@ function notificationDeliveryText(result: KanbanNotificationDeliveryResult): str
   return errors.length ? `${summary}；${errors.slice(0, 2).join('；')}` : summary
 }
 
+function notificationDeliveryStatusText(status?: KanbanNotificationDeliveryStatus | null): string {
+  if (!status?.available) return '通知后台不可用'
+  if (!status.enabled) return '通知后台未启用'
+  if (status.running) return '通知后台投递中'
+  const result = status.last_result
+  if (status.last_error) return `通知后台最近失败：${status.last_error}`
+  if (result) {
+    return `通知后台 ${status.tick_seconds || 0}s：成功 ${result.delivered_events || 0}，失败 ${result.failed_events || 0}`
+  }
+  return `通知后台待命 · ${status.tick_seconds || 0}s`
+}
+
 function homeNotificationSummary(channel: KanbanHomeNotificationChannel): string {
   const name = channel.chat_name ? `${channel.chat_name} · ` : ''
   const thread = channel.thread_id ? ` / ${channel.thread_id}` : ''
@@ -881,6 +899,9 @@ function hasWarnings(task: KanbanTask): boolean {
         <NButton size="small" :loading="dispatching" @click="runDispatcher(true)">预检派发</NButton>
         <NButton size="small" :loading="dispatching" @click="runDispatcher(false)">派发执行</NButton>
         <NButton size="small" :loading="notificationDelivering" @click="deliverNotificationsNow">投递通知</NButton>
+        <span class="daemon-status" :class="{ active: notificationDeliveryStatus?.enabled && !notificationDeliveryStatus?.last_error }">
+          {{ notificationDeliveryStatusText(notificationDeliveryStatus) }}
+        </span>
         <span class="daemon-status" :class="{ active: daemon?.running }">
           {{ daemon?.running ? `后台派发中 · ${daemon.tick_count || 0} 次` : '后台派发未启动' }}
         </span>

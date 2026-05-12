@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.kanban.KanbanWorkerSpawner;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.KanbanNotificationScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -269,8 +270,11 @@ public class DashboardConfiguration {
 
     @Bean
     public DashboardKanbanService dashboardKanbanService(
-            KanbanService kanbanService, GatewayPolicyRepository gatewayPolicyRepository) {
-        return new DashboardKanbanService(kanbanService, gatewayPolicyRepository);
+            KanbanService kanbanService,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            KanbanNotificationScheduler kanbanNotificationScheduler) {
+        return new DashboardKanbanService(
+                kanbanService, gatewayPolicyRepository, kanbanNotificationScheduler);
     }
 
     @Bean

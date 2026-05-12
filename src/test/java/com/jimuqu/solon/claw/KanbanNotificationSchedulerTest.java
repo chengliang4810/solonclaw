@@ -34,6 +34,8 @@ public class KanbanNotificationSchedulerTest {
         scheduler.tick();
 
         assertThat(notificationService.calls).isEqualTo(1);
+        assertThat(scheduler.status().get("last_result").toString()).contains("delivered_events=1");
+        assertThat(scheduler.status().get("last_success_at")).isNotEqualTo(Long.valueOf(0L));
     }
 
     @Test
@@ -45,9 +47,13 @@ public class KanbanNotificationSchedulerTest {
         KanbanNotificationScheduler scheduler =
                 new KanbanNotificationScheduler(config, notificationService);
         scheduler.tick();
+        assertThat(String.valueOf(scheduler.status().get("last_error"))).contains("***");
+        assertThat(scheduler.status().get("last_failure_at")).isNotEqualTo(Long.valueOf(0L));
+
         scheduler.tick();
 
         assertThat(notificationService.calls).isEqualTo(2);
+        assertThat(scheduler.status().get("last_error")).isNull();
     }
 
     @Test
