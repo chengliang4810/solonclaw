@@ -2378,6 +2378,22 @@ public class DashboardDiagnosticsService {
                         "tool_args_url",
                         "工具返回 URL 递归检查",
                         "http://169.254.169.254/latest/user-data"));
+        Map<String, Object> endpointArgs = new LinkedHashMap<String, Object>();
+        endpointArgs.put("base_url", "localhost:8080/admin");
+        items.add(
+                toolArgsPolicyProbe(
+                        "tool_args_endpoint_private_url",
+                        "工具端点参数内网 URL 检查",
+                        "remote_fetch",
+                        endpointArgs));
+        Map<String, Object> redirectArgs = new LinkedHashMap<String, Object>();
+        redirectArgs.put("content", "HTTP/1.1 302 Found\nLocation: http://localhost:8080/admin\n");
+        items.add(
+                toolArgsPolicyProbe(
+                        "tool_result_redirect_target",
+                        "工具返回重定向目标检查",
+                        "webfetch_result",
+                        redirectArgs));
         items.add(
                 commandUrlPolicyProbe(
                         "command_url_policy",
@@ -2833,6 +2849,28 @@ public class DashboardDiagnosticsService {
                 false,
                 verdict.isAllowed(),
                 SecretRedactor.maskUrl(url),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> toolArgsPolicyProbe(
+            String key, String label, String toolName, Map<String, Object> args) {
+        if (privateUrlsAllowedByPolicy()) {
+            return skippedPolicyProbeItem(
+                    key,
+                    label,
+                    "tool_args",
+                    ONode.serialize(args),
+                    "当前策略允许访问内网 URL，跳过默认阻断探针。");
+        }
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkToolArgs(toolName, args);
+        return policyProbeItem(
+                key,
+                label,
+                "tool_args",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(ONode.serialize(args), 400),
                 verdict.getMessage());
     }
 

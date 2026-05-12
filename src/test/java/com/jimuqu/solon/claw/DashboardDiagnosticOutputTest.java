@@ -313,6 +313,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
         Map<String, Object> encodedPathTraversal = findProbe(items, "encoded_path_traversal");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
+        Map<String, Object> toolArgsEndpointPrivateUrl =
+                findProbe(items, "tool_args_endpoint_private_url");
+        Map<String, Object> toolResultRedirectTarget =
+                findProbe(items, "tool_result_redirect_target");
         Map<String, Object> commandWebsocketUrlPolicy =
                 findProbe(items, "command_websocket_url_policy");
         Map<String, Object> commandUserinfoUrlPolicy =
@@ -486,6 +490,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("skipped")).isNull();
+        assertThat(toolArgsEndpointPrivateUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsEndpointPrivateUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolArgsEndpointPrivateUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(toolArgsEndpointPrivateUrl)).contains("base_url");
+        assertThat(toolResultRedirectTarget.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(toolResultRedirectTarget.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(toolResultRedirectTarget.get("skipped")).isNull();
+        assertThat(String.valueOf(toolResultRedirectTarget)).contains("Location");
         assertThat(commandWebsocketUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandWebsocketUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandWebsocketUrlPolicy.get("skipped")).isNull();
