@@ -327,6 +327,18 @@ public class DashboardKanbanController {
                 });
     }
 
+    @Mapping(value = "/api/kanban/notify-subscriptions/deliver", method = MethodType.POST)
+    public Map<String, Object> notifyDeliver() throws Exception {
+        return safeKanban(
+                Context.current(),
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyDeliver();
+                    }
+                });
+    }
+
     @Mapping(value = "/api/kanban/notify-subscriptions/remove", method = MethodType.POST)
     public Map<String, Object> notifyUnsubscribe(Context context) throws Exception {
         return safeKanban(

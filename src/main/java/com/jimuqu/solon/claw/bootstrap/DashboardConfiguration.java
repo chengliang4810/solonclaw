@@ -259,8 +259,11 @@ public class DashboardConfiguration {
 
     @Bean
     public KanbanNotificationService kanbanNotificationService(
-            KanbanRepository kanbanRepository, DeliveryService deliveryService) {
-        return new KanbanNotificationService(kanbanRepository, deliveryService);
+            KanbanRepository kanbanRepository, DeliveryService deliveryService, KanbanService kanbanService) {
+        KanbanNotificationService notificationService =
+                new KanbanNotificationService(kanbanRepository, deliveryService);
+        kanbanService.setNotificationService(notificationService);
+        return notificationService;
     }
 
     @Bean

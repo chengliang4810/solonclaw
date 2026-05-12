@@ -179,6 +179,10 @@ public class DashboardKanbanService {
         return kanbanService.notifyRewind(body);
     }
 
+    public Map<String, Object> notifyDeliver() throws Exception {
+        return kanbanService.notifyDeliver();
+    }
+
     public List<Map<String, Object>> notifyList(String taskId) throws Exception {
         return kanbanService.notifyList(taskId);
     }

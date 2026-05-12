@@ -35,6 +35,7 @@ public class KanbanService {
     private final AppConfig appConfig;
     private final AgentProfileService agentProfileService;
     private KanbanDispatcherService dispatcherService;
+    private KanbanNotificationService notificationService;
 
     public KanbanService(KanbanRepository repository) {
         this(repository, null);
@@ -55,6 +56,10 @@ public class KanbanService {
 
     public void setDispatcherService(KanbanDispatcherService dispatcherService) {
         this.dispatcherService = dispatcherService;
+    }
+
+    public void setNotificationService(KanbanNotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
     public List<Map<String, Object>> boards() throws Exception {
@@ -550,6 +555,7 @@ public class KanbanService {
                 "watch",
                 "notify-subscribe",
                 "notify-list",
+                "notify-deliver",
                 "notify-unsubscribe"));
         result.put("maintenance_actions", Arrays.asList(
                 "diagnostics",
@@ -686,6 +692,13 @@ public class KanbanService {
         result.put("rewound", Boolean.valueOf(rewound));
         result.put("task_id", taskId);
         return result;
+    }
+
+    public Map<String, Object> notifyDeliver() throws Exception {
+        if (notificationService == null) {
+            throw new IllegalStateException("Kanban notification service is not available");
+        }
+        return notifyDeliveryView(notificationService.deliverPending());
     }
 
     public List<Map<String, Object>> notifyList(String taskId) throws Exception {
@@ -1000,6 +1013,9 @@ public class KanbanService {
         if ("notify-claim".equals(action)) {
             Map<String, Object> result = notifyClaim(notifyClaimBody(rest));
             return "已领取任务通知事件：" + result.get("task_id") + ", events=" + sizeOf(result.get("events"));
+        }
+        if ("notify-deliver".equals(action)) {
+            return formatNotifyDelivery(notifyDeliver());
         }
         if ("notify-unsubscribe".equals(action)) {
             Map<String, Object> result = notifyUnsubscribe(notifyBody(rest, false));
@@ -2630,6 +2646,30 @@ public class KanbanService {
         result.put("events", events);
         result.put("claimed", Boolean.valueOf(!events.isEmpty()));
         return result;
+    }
+
+    private Map<String, Object> notifyDeliveryView(KanbanNotificationResult delivery) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("subscriptions", Integer.valueOf(delivery.getSubscriptions()));
+        result.put("claimed_events", Integer.valueOf(delivery.getClaimedEvents()));
+        result.put("delivered_events", Integer.valueOf(delivery.getDeliveredEvents()));
+        result.put("failed_events", Integer.valueOf(delivery.getFailedEvents()));
+        result.put("removed_subscriptions", Integer.valueOf(delivery.getRemovedSubscriptions()));
+        result.put("errors", delivery.getErrors());
+        return result;
+    }
+
+    private String formatNotifyDelivery(Map<String, Object> result) {
+        return "Kanban 通知投递：subscriptions="
+                + result.get("subscriptions")
+                + ", claimed="
+                + result.get("claimed_events")
+                + ", delivered="
+                + result.get("delivered_events")
+                + ", failed="
+                + result.get("failed_events")
+                + ", removed="
+                + result.get("removed_subscriptions");
     }
 
     private Map<String, Object> notifyBody(String rest, boolean subscribe) {

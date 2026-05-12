@@ -25,6 +25,7 @@ public class KanbanNotificationServiceTest {
         KanbanService service = new KanbanService(repository);
         RecordingDeliveryService deliveryService = new RecordingDeliveryService();
         KanbanNotificationService notifier = new KanbanNotificationService(repository, deliveryService);
+        service.setNotificationService(notifier);
 
         String taskId = createTask(service, "完成通知任务");
         subscribe(service, taskId);
@@ -49,6 +50,7 @@ public class KanbanNotificationServiceTest {
         KanbanService service = new KanbanService(repository);
         RecordingDeliveryService deliveryService = new RecordingDeliveryService();
         KanbanNotificationService notifier = new KanbanNotificationService(repository, deliveryService);
+        service.setNotificationService(notifier);
 
         String taskId = createTask(service, "阻塞通知任务");
         subscribe(service, taskId);
@@ -64,6 +66,9 @@ public class KanbanNotificationServiceTest {
         assertThat(deliveryService.requests).hasSize(2);
         assertThat(deliveryService.requests.get(0).getText()).contains("first block");
         assertThat(deliveryService.requests.get(1).getText()).contains("second block");
+        assertThat(service.handleCommand("notify-deliver", "tester"))
+                .contains("Kanban 通知投递")
+                .contains("delivered=0");
     }
 
     @Test
@@ -74,6 +79,7 @@ public class KanbanNotificationServiceTest {
         RecordingDeliveryService deliveryService = new RecordingDeliveryService();
         deliveryService.fail = true;
         KanbanNotificationService notifier = new KanbanNotificationService(repository, deliveryService);
+        service.setNotificationService(notifier);
 
         String taskId = createTask(service, "失败重投任务");
         subscribe(service, taskId);
