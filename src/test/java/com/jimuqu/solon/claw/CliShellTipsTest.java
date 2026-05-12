@@ -135,7 +135,12 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security website"))
                 .contains("网站策略摘要")
                 .contains("wildcard")
-                .contains("pathSafe");
+                .contains("pathSafe")
+                .contains("domainSamples=")
+                .contains("sharedFileSamples=")
+                .contains("samples=")
+                .contains("schemePathIgnored=true")
+                .contains("wwwIgnored=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security paths"))
                 .contains("路径安全策略摘要")
                 .contains("devicePath")

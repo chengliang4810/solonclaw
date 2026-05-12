@@ -969,20 +969,30 @@ public final class TerminalSecurityPolicyView {
                 .append(value(website, "enabled"))
                 .append(" domains=")
                 .append(value(website, "configuredDomainCount"))
+                .append(" domainSamples=")
+                .append(value(website, "configuredDomainSamples"))
                 .append(" sharedFiles=")
-                .append(value(website, "sharedFileCount"));
+                .append(value(website, "sharedFileCount"))
+                .append(" sharedFileSamples=")
+                .append(value(website, "sharedFileSamples"));
         buffer.append('\n')
                 .append("- 共享规则：loadedFiles=")
                 .append(value(website, "loadedSharedFileCount"))
                 .append(" skippedFiles=")
                 .append(value(website, "skippedSharedFileCount"))
                 .append(" rules=")
-                .append(value(website, "sharedRuleCount"));
+                .append(value(website, "sharedRuleCount"))
+                .append(" samples=")
+                .append(value(website, "sharedRuleSamples"));
         buffer.append('\n')
                 .append("- 匹配：normalized=")
                 .append(value(website, "hostRuleNormalization"))
                 .append(" wildcard=")
                 .append(value(website, "wildcardSubdomainSupported"))
+                .append(" schemePathIgnored=")
+                .append(value(website, "schemeAndPathIgnoredForRules"))
+                .append(" wwwIgnored=")
+                .append(value(website, "wwwPrefixIgnored"))
                 .append(" pathSafe=")
                 .append(value(website, "sharedFilePathSafetyChecked"));
         return buffer.toString();
