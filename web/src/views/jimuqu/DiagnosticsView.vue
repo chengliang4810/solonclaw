@@ -88,9 +88,53 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const pathPolicy = objectValue(policy.path_policy)
   const credentialPolicy = objectValue(policy.credential_policy)
   const toolArgsPolicy = objectValue(policy.tool_args_policy)
+  const approvalLifecyclePolicy = objectValue(securityApprovals.value.approval_lifecycle_policy)
+  const slashConfirmPolicy = objectValue(securityApprovals.value.slash_confirm_policy)
+  const approvalCardPolicy = objectValue(securityApprovals.value.approval_card_policy)
+  const approvalAuditPolicy = objectValue(securityApprovals.value.approval_audit_policy)
+  const mcpReloadPolicy = objectValue(securityApprovals.value.mcp_reload_policy)
   const terminalOutputPolicy = objectValue(terminal.terminal_output_policy)
   const backgroundProcessPolicy = objectValue(terminal.background_process_policy)
   return [
+    {
+      title: '审批生命周期',
+      items: [
+        metric('列表前清理过期项', approvalLifecyclePolicy.pendingListPrunedBeforeRead),
+        metric('选择器支持', approvalLifecyclePolicy.selectorSupported),
+        metric('拒绝不安全选择器', approvalLifecyclePolicy.unsafeSelectorRejected),
+        metric('批量拒绝安全选择器', approvalLifecyclePolicy.bulkRejectUsesSafeSelector),
+        metric('批准移除待审批', approvalLifecyclePolicy.approveRemovesPendingApproval),
+        metric('拒绝移除待审批', approvalLifecyclePolicy.rejectRemovesPendingApproval),
+        metric('会话快照更新', approvalLifecyclePolicy.sessionSnapshotUpdated),
+        metric('审批键脱敏', approvalLifecyclePolicy.approvalKeyRedacted),
+      ],
+    },
+    {
+      title: 'Slash 与审批卡',
+      items: [
+        metric('Slash 队列', slashConfirmPolicy.pendingQueueSupported),
+        metric('待确认安全选择器', slashConfirmPolicy.pendingListUsesSafeSelector),
+        metric('待确认隐藏审批键', slashConfirmPolicy.pendingListHidesApprovalKey),
+        metric('确认元数据脱敏', slashConfirmPolicy.approvalMetadataRedacted),
+        metric('审批卡选择器', approvalCardPolicy.approvalIdSelectorSupported),
+        metric('审批卡阻断不安全选择器', approvalCardPolicy.unsafeSelectorRejected),
+        metric('审批卡命令脱敏', approvalCardPolicy.commandPreviewRedacted),
+        metric('原始命令不进扩展', approvalCardPolicy.rawCommandRedactedInExtras),
+      ],
+    },
+    {
+      title: '审批审计与 MCP',
+      items: [
+        metric('请求事件', approvalAuditPolicy.requestEvents),
+        metric('响应事件', approvalAuditPolicy.responseEvents),
+        metric('观察者失败隔离', approvalAuditPolicy.observerFailureIsolated),
+        metric('审计审批键脱敏', approvalAuditPolicy.approvalKeyRedacted),
+        metric('手动撤销审计', approvalAuditPolicy.manualRevocationAudited),
+        metric('MCP 重载需确认', mcpReloadPolicy.confirmRequired),
+        metric('确认由 Slash 承载', mcpReloadPolicy.slashConfirmBacked),
+        metric('OAuth URL 安全覆盖', mcpReloadPolicy.oauthUrlSafetyCovered),
+      ],
+    },
     {
       title: 'URL 与私有地址',
       items: [
