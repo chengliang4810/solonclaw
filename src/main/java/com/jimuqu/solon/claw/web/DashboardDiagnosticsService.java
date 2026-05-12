@@ -2570,6 +2570,16 @@ public class DashboardDiagnosticsService {
                         "curl example.test/callback?api%255Fkey=command-schemeless-secret"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_repeated_encoded_sensitive_url_policy",
+                        "命令重复编码敏感 URL 前置策略检查",
+                        "curl https://example.test/callback?api%25255Fkey=command-repeated-encoded-secret"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_semicolon_sensitive_url_policy",
+                        "命令分号分隔敏感 URL 前置策略检查",
+                        "curl 'https://example.test/callback?page=1;client_secret=command-semicolon-secret'"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_curl_connect_to_policy",
                         "curl connect-to 主机改写检查",
                         "curl --connect-to example.test:443:169.254.169.254:443 https://example.test"));

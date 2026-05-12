@@ -365,6 +365,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_encoded_host_url_policy");
         Map<String, Object> commandSchemelessSensitiveUrlPolicy =
                 findProbe(items, "command_schemeless_sensitive_url_policy");
+        Map<String, Object> commandRepeatedEncodedSensitiveUrlPolicy =
+                findProbe(items, "command_repeated_encoded_sensitive_url_policy");
+        Map<String, Object> commandSemicolonSensitiveUrlPolicy =
+                findProbe(items, "command_semicolon_sensitive_url_policy");
         Map<String, Object> commandCurlConnectToPolicy =
                 findProbe(items, "command_curl_connect_to_policy");
         Map<String, Object> commandCurlResolvePolicy =
@@ -773,6 +777,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandSchemelessSensitiveUrlPolicy))
                 .contains("api%255Fkey=***")
                 .doesNotContain("command-schemeless-secret");
+        assertThat(commandRepeatedEncodedSensitiveUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRepeatedEncodedSensitiveUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRepeatedEncodedSensitiveUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRepeatedEncodedSensitiveUrlPolicy))
+                .contains("api%25255Fkey=***")
+                .doesNotContain("command-repeated-encoded-secret");
+        assertThat(commandSemicolonSensitiveUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSemicolonSensitiveUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSemicolonSensitiveUrlPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSemicolonSensitiveUrlPolicy))
+                .contains("client_secret=***")
+                .doesNotContain("command-semicolon-secret");
         assertThat(commandCurlConnectToPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandCurlConnectToPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandCurlConnectToPolicy.get("skipped")).isNull();
