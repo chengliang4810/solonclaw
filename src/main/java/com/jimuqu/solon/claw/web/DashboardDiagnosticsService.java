@@ -2799,6 +2799,21 @@ public class DashboardDiagnosticsService {
                         "命令 Podman 本地管理套接字阻断",
                         "CONTAINER_HOST=unix:///run/podman/podman.sock podman ps"));
         items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_containerd_socket",
+                        "命令 containerd 本地管理套接字阻断",
+                        "CONTAINER_HOST=unix:///run/containerd/containerd.sock ctr containers list"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_cri_dockerd_socket",
+                        "命令 cri-dockerd 本地管理套接字阻断",
+                        "CONTAINER_HOST=unix:///var/run/cri-dockerd.sock crictl ps"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_local_management_crio_socket",
+                        "命令 CRI-O 本地管理套接字阻断",
+                        "CONTAINER_HOST=unix:///var/run/crio/crio.sock crictl ps"));
+        items.add(
                 fileToolPathPolicyProbe(
                         "file_tool_credential_path",
                         "文件工具凭据路径参数检查",

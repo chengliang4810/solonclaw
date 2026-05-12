@@ -455,6 +455,12 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_local_management_powershell_socket");
         Map<String, Object> commandLocalManagementPodmanSocket =
                 findProbe(items, "command_local_management_podman_socket");
+        Map<String, Object> commandLocalManagementContainerdSocket =
+                findProbe(items, "command_local_management_containerd_socket");
+        Map<String, Object> commandLocalManagementCriDockerdSocket =
+                findProbe(items, "command_local_management_cri_dockerd_socket");
+        Map<String, Object> commandLocalManagementCrioSocket =
+                findProbe(items, "command_local_management_crio_socket");
         Map<String, Object> fileToolCredentialPath = findProbe(items, "file_tool_credential_path");
         Map<String, Object> fileToolEntityCredentialPath =
                 findProbe(items, "file_tool_entity_credential_path");
@@ -1132,6 +1138,24 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandLocalManagementPodmanSocket))
                 .contains("CONTAINER_HOST")
                 .contains("/run/podman/podman.sock");
+        assertThat(commandLocalManagementContainerdSocket.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementContainerdSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementContainerdSocket.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementContainerdSocket))
+                .contains("CONTAINER_HOST")
+                .contains("/run/containerd/containerd.sock");
+        assertThat(commandLocalManagementCriDockerdSocket.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementCriDockerdSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementCriDockerdSocket.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementCriDockerdSocket))
+                .contains("CONTAINER_HOST")
+                .contains("/var/run/cri-dockerd.sock");
+        assertThat(commandLocalManagementCrioSocket.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementCrioSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementCrioSocket.get("skipped")).isNull();
+        assertThat(String.valueOf(commandLocalManagementCrioSocket))
+                .contains("CONTAINER_HOST")
+                .contains("/var/run/crio/crio.sock");
         assertThat(fileToolCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(fileToolCredentialPath.get("skipped")).isNull();
