@@ -1417,6 +1417,12 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("pathPolicyCheckedBeforeCache").getBoolean())
                 .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("canonicalPathResolvedBeforePolicy").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("cacheWriteAfterPolicyOnly").getBoolean())
+                .isTrue();
+        assertThat(attachmentPolicy.get("terminalPaste").get("duplicatePathDeduplicated").getBoolean())
+                .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("credentialPathBlocked").getBoolean())
                 .isTrue();
         assertThat(attachmentPolicy.get("terminalPaste").get("blockedPreviewRedacted").getBoolean())

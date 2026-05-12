@@ -1180,9 +1180,14 @@ public class DashboardDiagnosticsService {
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
             copyPolicyValue(summary, safe, "pastedLocalPathDetection");
             copyPolicyValue(summary, safe, "fileUriDetection");
+            copyPolicyValue(summary, safe, "fileUriPercentDecoded");
             copyPolicyValue(summary, safe, "windowsPathDetection");
             copyPolicyValue(summary, safe, "posixPathDetection");
+            copyPolicyValue(summary, safe, "tildeHomeExpansion");
+            copyPolicyValue(summary, safe, "canonicalPathResolvedBeforePolicy");
+            copyPolicyValue(summary, safe, "duplicatePathDeduplicated");
             copyPolicyValue(summary, safe, "pathPolicyCheckedBeforeCache");
+            copyPolicyValue(summary, safe, "cacheWriteAfterPolicyOnly");
             copyPolicyValue(summary, safe, "credentialPathBlocked");
             copyPolicyValue(summary, safe, "blockedPreviewRedacted");
             copyPolicyValue(summary, safe, "missingPreviewRedacted");

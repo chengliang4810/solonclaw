@@ -1278,6 +1278,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(paste, "pastedLocalPathDetection"))
                 .append(" fileUri=")
                 .append(value(paste, "fileUriDetection"))
+                .append(" percentDecode=")
+                .append(value(paste, "fileUriPercentDecoded"))
                 .append(" windowsPath=")
                 .append(value(paste, "windowsPathDetection"))
                 .append(" posixPath=")
@@ -1285,6 +1287,10 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 安全检查：pathPolicyBeforeCache=")
                 .append(value(paste, "pathPolicyCheckedBeforeCache"))
+                .append(" canonical=")
+                .append(value(paste, "canonicalPathResolvedBeforePolicy"))
+                .append(" cacheAfterPolicy=")
+                .append(value(paste, "cacheWriteAfterPolicyOnly"))
                 .append(" credentialBlocked=")
                 .append(value(paste, "credentialPathBlocked"))
                 .append(" rawPathHidden=")
@@ -1294,6 +1300,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(paste, "maxAttachmentPaths"))
                 .append(" maxBytes=")
                 .append(value(paste, "maxAttachmentBytes"))
+                .append(" dedupe=")
+                .append(value(paste, "duplicatePathDeduplicated"))
                 .append(" previewRedacted=")
                 .append(value(paste, "blockedPreviewRedacted"));
         return buffer.toString();

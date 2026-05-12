@@ -961,7 +961,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"added_tools\"")
                 .contains("\"removed_tools\"")
                 .contains("\"schema_sanitizer\":\"snack4\"")
-                .contains("\"security\":{\"allowed\":true}");
+                .contains("\"security\":{\"allowed\":true,\"reason\":\"allow\"}");
 
         HttpResult checkMcpAgain =
                 request("POST", "/api/jimuqu/mcp/dashboard-local-docs/check", "{}", token);

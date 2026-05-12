@@ -275,6 +275,9 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-paste"))
                 .contains("终端粘贴附件安全策略摘要")
                 .contains("credentialBlocked")
+                .contains("percentDecode=true")
+                .contains("cacheAfterPolicy=true")
+                .contains("dedupe=true")
                 .contains("rawPathHidden");
         assertThat(TerminalSecurityPolicyView.render(null, "/security media-cache"))
                 .contains("媒体缓存安全策略摘要")

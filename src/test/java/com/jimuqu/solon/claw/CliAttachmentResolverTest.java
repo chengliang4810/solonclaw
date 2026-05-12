@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class CliAttachmentResolverTest {
@@ -74,6 +75,20 @@ public class CliAttachmentResolverTest {
         assertThat(resolved.getAttachments()).hasSize(1);
         assertThat(resolved.getAttachments().get(0).getKind()).isEqualTo("image");
         assertThat(resolved.getAttachments().get(0).getMimeType()).isEqualTo("image/png");
+    }
+
+    @Test
+    void shouldDeduplicateRepeatedLocalAttachmentPaths() throws Exception {
+        AppConfig config = testConfig();
+        File file = new File(config.getRuntime().getHome(), "duplicate.txt");
+        Files.write(file.toPath(), "hello".getBytes("UTF-8"));
+        CliAttachmentResolver resolver = resolver(config);
+
+        CliAttachmentResolver.ResolvedInput resolved =
+                resolver.resolve(file.getAbsolutePath() + " " + file.getAbsolutePath());
+
+        assertThat(resolved.getAttachments()).hasSize(1);
+        assertThat(resolved.getText()).doesNotContain(file.getAbsolutePath());
     }
 
     @Test
@@ -187,5 +202,16 @@ public class CliAttachmentResolverTest {
         config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         return config;
+    }
+
+    @Test
+    void shouldExposeTerminalPastePolicyBoundaries() {
+        Map<String, Object> summary = CliAttachmentResolver.policySummary();
+
+        assertThat(summary.get("fileUriPercentDecoded")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("tildeHomeExpansion")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("canonicalPathResolvedBeforePolicy")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("duplicatePathDeduplicated")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("cacheWriteAfterPolicyOnly")).isEqualTo(Boolean.TRUE);
     }
 }

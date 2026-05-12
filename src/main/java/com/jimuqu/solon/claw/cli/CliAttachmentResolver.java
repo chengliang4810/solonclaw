@@ -58,9 +58,14 @@ public class CliAttachmentResolver {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("pastedLocalPathDetection", Boolean.TRUE);
         summary.put("fileUriDetection", Boolean.TRUE);
+        summary.put("fileUriPercentDecoded", Boolean.TRUE);
         summary.put("windowsPathDetection", Boolean.TRUE);
         summary.put("posixPathDetection", Boolean.TRUE);
+        summary.put("tildeHomeExpansion", Boolean.TRUE);
+        summary.put("canonicalPathResolvedBeforePolicy", Boolean.TRUE);
+        summary.put("duplicatePathDeduplicated", Boolean.TRUE);
         summary.put("pathPolicyCheckedBeforeCache", Boolean.TRUE);
+        summary.put("cacheWriteAfterPolicyOnly", Boolean.TRUE);
         summary.put("credentialPathBlocked", Boolean.TRUE);
         summary.put("blockedPreviewRedacted", Boolean.TRUE);
         summary.put("missingPreviewRedacted", Boolean.TRUE);
