@@ -609,6 +609,15 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> systemConfigCopy = findProbe(items, "system_config_copy");
         Map<String, Object> systemConfigInplaceEdit =
                 findProbe(items, "system_config_inplace_edit");
+        Map<String, Object> sshTunnelNetworkExposure =
+                findProbe(items, "ssh_tunnel_network_exposure");
+        Map<String, Object> scriptHeredocExecution =
+                findProbe(items, "script_heredoc_execution");
+        Map<String, Object> remoteContentPipeInterpreter =
+                findProbe(items, "remote_content_pipe_interpreter");
+        Map<String, Object> remoteDownloadExecute = findProbe(items, "remote_download_execute");
+        Map<String, Object> remoteArchiveExtractExecute =
+                findProbe(items, "remote_archive_extract_execute");
         Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
@@ -1645,6 +1654,26 @@ public class DashboardDiagnosticOutputTest {
         assertThat(systemConfigInplaceEdit.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(systemConfigInplaceEdit.get("skipped")).isNull();
         assertThat(String.valueOf(systemConfigInplaceEdit)).contains("sed -i");
+        assertThat(sshTunnelNetworkExposure.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sshTunnelNetworkExposure.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sshTunnelNetworkExposure.get("skipped")).isNull();
+        assertThat(String.valueOf(sshTunnelNetworkExposure)).contains("0.0.0.0:8080");
+        assertThat(scriptHeredocExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(scriptHeredocExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(scriptHeredocExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(scriptHeredocExecution)).contains("python <<");
+        assertThat(remoteContentPipeInterpreter.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteContentPipeInterpreter.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteContentPipeInterpreter.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteContentPipeInterpreter)).contains("| python");
+        assertThat(remoteDownloadExecute.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteDownloadExecute.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteDownloadExecute.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteDownloadExecute)).contains("setup.sh");
+        assertThat(remoteArchiveExtractExecute.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteArchiveExtractExecute.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteArchiveExtractExecute.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteArchiveExtractExecute)).contains("app.tar.gz");
         assertThat(codeExecutionSandbox.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("blocked")).isEqualTo(Boolean.FALSE);
