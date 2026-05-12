@@ -521,6 +521,7 @@ public class CronJobService {
         result.put("skill_binding", cronGuideSkillBinding());
         result.put("delivery", cronGuideDelivery());
         result.put("runtime_modes", cronGuideRuntimeModes());
+        result.put("runtime_isolation", cronRuntimeIsolationPolicy());
         result.put("history_and_status", cronGuideHistoryAndStatus());
         result.put("security", cronGuideSecurity());
         result.put(
@@ -620,6 +621,7 @@ public class CronJobService {
         policy.put("freshSessionRuns", Boolean.TRUE);
         policy.put("selfContainedPromptRequired", Boolean.TRUE);
         policy.put("recursiveCronCreationDiscouraged", Boolean.TRUE);
+        policy.put("runtime_isolation", cronRuntimeIsolationPolicy());
         policy.put(
                 "update_fields",
                 Arrays.asList(
@@ -752,6 +754,34 @@ public class CronJobService {
         return policy;
     }
 
+    private Map<String, Object> cronRuntimeIsolationPolicy() {
+        Map<String, Object> isolation = new LinkedHashMap<String, Object>();
+        isolation.put("sourceBoundSessionRuns", Boolean.TRUE);
+        isolation.put("sessionBinding", "source_key");
+        isolation.put("sourceScopedLock", Boolean.TRUE);
+        isolation.put("disabledToolsets", Arrays.asList("cronjob", "messaging", "clarify"));
+        isolation.put("enabledToolsetsOverrideSupported", Boolean.TRUE);
+        isolation.put("autoDeliveryContext", Boolean.TRUE);
+        isolation.put("selfDeliveryDiscouraged", Boolean.TRUE);
+        isolation.put("localDeliveryHistoryOnly", Boolean.TRUE);
+        isolation.put("tickLockFile", "runtime/jobs/cron.tick.lock");
+        isolation.put("workdirJobsSerialized", Boolean.TRUE);
+        isolation.put("parallelBySourceWithoutWorkdir", Boolean.TRUE);
+        isolation.put("inactivityTimeoutSeconds", Integer.valueOf(cronInactivityTimeoutSeconds()));
+        isolation.put("inactivityTimeoutEnv", "JIMUQU_CRON_TIMEOUT");
+        isolation.put("missedRunCatchupWindow", "half_period_clamped_120s_to_2h");
+        isolation.put("oneShotGraceWindowSeconds", Integer.valueOf(120));
+        return isolation;
+    }
+
+    private int cronInactivityTimeoutSeconds() {
+        if (appConfig == null || appConfig.getScheduler() == null) {
+            return 600;
+        }
+        int timeout = appConfig.getScheduler().getInactivityTimeoutSeconds();
+        return timeout >= 0 ? timeout : 600;
+    }
+
     private Map<String, Object> cronGuideActions() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("list", "查看当前会话或全部任务");
@@ -850,6 +880,11 @@ public class CronJobService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("agent", "默认模式，使用 prompt 和 skills 进入 Agent 主循环。");
         result.put("no_agent", "脚本直投模式，必须提供 script，stdout 可按投递策略发送。");
+        result.put("runtime_isolation", cronRuntimeIsolationPolicy());
+        result.put("session_binding", "按 source_key 绑定运行会话；同一来源串行执行，不同来源可并行执行。");
+        result.put("disabled_toolsets", Arrays.asList("cronjob", "messaging", "clarify"));
+        result.put("local_delivery", "deliver=local 时只写入运行历史，不外投消息。");
+        result.put("inactivity_timeout", "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 JIMUQU_CRON_TIMEOUT 控制。");
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
         result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
         result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));

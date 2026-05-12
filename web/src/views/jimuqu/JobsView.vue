@@ -75,6 +75,8 @@ function policyFlags(): string[] {
   const flags: string[] = []
   if (policy.value?.sourceScopedList) flags.push('会话来源隔离')
   if (policy.value?.freshSessionRuns) flags.push('独立会话运行')
+  if (policy.value?.runtime_isolation?.sourceBoundSessionRuns) flags.push('来源绑定运行')
+  if (policy.value?.runtime_isolation?.autoDeliveryContext) flags.push('自动投递上下文')
   if (policy.value?.selfContainedPromptRequired) flags.push('提示词需自包含')
   if (policy.value?.recursiveCronCreationDiscouraged) flags.push('避免递归创建任务')
   return flags
@@ -126,6 +128,11 @@ function policyFlags(): string[] {
             <p>{{ valueText(guide.runtime_modes.no_agent) }}</p>
           </section>
           <section class="guide-block">
+            <span>运行隔离</span>
+            <strong>{{ valueText(guide.runtime_modes.session_binding) }}</strong>
+            <p>禁用工具集：{{ valueText(guide.runtime_modes.disabled_toolsets) }}</p>
+          </section>
+          <section class="guide-block">
             <span>安全策略</span>
             <strong>{{ valueText(guide.security.prompt_scan) }}</strong>
             <p>{{ valueText(guide.security.script_validation) }}</p>
@@ -150,6 +157,11 @@ function policyFlags(): string[] {
             <span>执行策略</span>
             <p>{{ valueText(policyFlags()) }}</p>
             <p>安全审批：{{ valueText(policy.execution?.dangerousCommandApprovalApplied) }} · 历史：{{ valueText(policy.execution?.historySupported) }}</p>
+          </section>
+          <section class="guide-block">
+            <span>运行隔离</span>
+            <p>禁用工具集：{{ valueText(policy.runtime_isolation?.disabledToolsets) }}</p>
+            <p>超时：{{ valueText(policy.runtime_isolation?.inactivityTimeoutSeconds) }} 秒 · 本地投递仅入历史：{{ valueText(policy.runtime_isolation?.localDeliveryHistoryOnly) }}</p>
           </section>
           <section class="guide-block">
             <span>投递能力</span>

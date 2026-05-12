@@ -95,6 +95,7 @@ export interface CronGuide {
   skill_binding: Record<string, unknown>
   delivery: Record<string, unknown>
   runtime_modes: Record<string, unknown>
+  runtime_isolation?: Record<string, unknown>
   history_and_status: Record<string, unknown>
   security: Record<string, unknown>
   slash_examples: string[]
@@ -132,6 +133,7 @@ export interface CronPolicy {
   delivery: Record<string, unknown>
   skill_binding: Record<string, unknown>
   execution: Record<string, unknown>
+  runtime_isolation: Record<string, unknown>
 }
 
 export interface CronFailure {

@@ -3089,6 +3089,7 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> delivery = (Map<?, ?>) policy.get("delivery");
         Map<?, ?> skillBinding = (Map<?, ?>) policy.get("skill_binding");
         Map<?, ?> execution = (Map<?, ?>) policy.get("execution");
+        Map<?, ?> runtimeIsolation = (Map<?, ?>) policy.get("runtime_isolation");
 
         assertThat(String.valueOf(payload.get("preview")))
                 .contains("skills")
@@ -3102,6 +3103,7 @@ public class DefaultCronSchedulerTest {
         assertThat(payload.get("delivery")).isEqualTo(delivery);
         assertThat(payload.get("skill_binding")).isEqualTo(skillBinding);
         assertThat(payload.get("execution")).isEqualTo(execution);
+        assertThat(payload.get("runtime_isolation")).isEqualTo(runtimeIsolation);
         assertThat(String.valueOf(policy.get("actions")))
                 .contains("add")
                 .contains("edit")
@@ -3122,6 +3124,17 @@ public class DefaultCronSchedulerTest {
                 .contains("pause|disable|stop");
         assertThat(policy.get("sourceScopedList")).isEqualTo(Boolean.TRUE);
         assertThat(policy.get("freshSessionRuns")).isEqualTo(Boolean.TRUE);
+        assertThat(runtimeIsolation.get("sourceBoundSessionRuns")).isEqualTo(Boolean.TRUE);
+        assertThat(runtimeIsolation.get("sessionBinding")).isEqualTo("source_key");
+        assertThat(String.valueOf(runtimeIsolation.get("disabledToolsets")))
+                .contains("cronjob")
+                .contains("messaging")
+                .contains("clarify");
+        assertThat(runtimeIsolation.get("autoDeliveryContext")).isEqualTo(Boolean.TRUE);
+        assertThat(runtimeIsolation.get("localDeliveryHistoryOnly")).isEqualTo(Boolean.TRUE);
+        assertThat(runtimeIsolation.get("tickLockFile")).isEqualTo("runtime/jobs/cron.tick.lock");
+        assertThat(runtimeIsolation.get("inactivityTimeoutSeconds")).isEqualTo(Integer.valueOf(600));
+        assertThat(runtimeIsolation.get("oneShotGraceWindowSeconds")).isEqualTo(Integer.valueOf(120));
         assertThat(String.valueOf(policy.get("update_fields")))
                 .contains("deliver_chat_id")
                 .contains("wrap_response")
@@ -3200,6 +3213,7 @@ public class DefaultCronSchedulerTest {
         assertThat(capabilities.get("execution")).isEqualTo(execution);
         assertThat(capabilities.get("delivery")).isEqualTo(delivery);
         assertThat(capabilities.get("skill_binding")).isEqualTo(skillBinding);
+        assertThat(capabilities.get("runtime_isolation")).isEqualTo(runtimeIsolation);
     }
 
     @Test
