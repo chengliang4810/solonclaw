@@ -2431,6 +2431,10 @@ public class DashboardDiagnosticsService {
                         "approval_card_selector",
                         "审批卡选择器安全检查"));
         items.add(
+                approvalCardPayloadProbe(
+                        "approval_card_payload",
+                        "审批卡载荷注入安全检查"));
+        items.add(
                 approvalAuditRedactionProbe(
                         "approval_audit_redaction",
                         "审批审计脱敏检查"));
@@ -3813,6 +3817,43 @@ public class DashboardDiagnosticsService {
                 passed
                         ? "审批卡出站编号会回退为安全 key 选择器，并生成安全确认命令。"
                         : "审批卡选择器安全检查未通过。");
+    }
+
+    private Map<String, Object> approvalCardPayloadProbe(String key, String label) {
+        if (approvalService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "approval_card_payload", "approval-json always", "审批服务尚未启用。");
+        }
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put(
+                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "always");
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-json always");
+        String injectedCommand = DangerousCommandApprovalService.commandFromCardActionPayload(payload);
+
+        payload.put(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, "approval-json");
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "session;always");
+        String injectedScopeCommand =
+                DangerousCommandApprovalService.commandFromCardActionPayload(payload);
+
+        payload.put(DangerousCommandApprovalService.CARD_SCOPE_KEY, "session");
+        String safeCommand = DangerousCommandApprovalService.commandFromCardActionPayload(payload);
+        boolean blocked =
+                injectedCommand == null
+                        && injectedScopeCommand != null
+                        && "/approve approval-json".equals(injectedScopeCommand)
+                        && "/approve approval-json session".equals(safeCommand);
+        return policyProbeItem(
+                key,
+                label,
+                "approval_card_payload",
+                false,
+                !blocked,
+                "approval-json always",
+                blocked
+                        ? "审批卡载荷中的非法编号会被拒绝，非法范围不会提升为永久审批。"
+                        : "审批卡载荷注入安全检查未通过。");
     }
 
     private Map<String, Object> slashConfirmSelectorProbe(String key, String label) {

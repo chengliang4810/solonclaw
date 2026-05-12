@@ -315,6 +315,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
         Map<String, Object> approvalCardSelector = findProbe(items, "approval_card_selector");
+        Map<String, Object> approvalCardPayload = findProbe(items, "approval_card_payload");
         Map<String, Object> approvalAuditRedaction = findProbe(items, "approval_audit_redaction");
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
         Map<String, Object> slashConfirmExpiry = findProbe(items, "slash_confirm_expiry");
@@ -438,6 +439,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalCardSelector.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(approvalCardSelector.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalCardSelector.get("skipped")).isNull();
+        assertThat(approvalCardPayload.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalCardPayload.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalCardPayload.get("skipped")).isNull();
         assertThat(approvalAuditRedaction.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(approvalAuditRedaction.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(approvalAuditRedaction.get("blocked")).isEqualTo(Boolean.FALSE);
