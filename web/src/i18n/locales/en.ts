@@ -300,6 +300,7 @@ export default {
       contextFrom: 'Upstream Jobs',
       enabledToolsets: 'Toolsets',
       model: 'Model Pin',
+      pendingTrigger: 'Pending Trigger',
       actions: 'Available Actions',
       aliases: 'Action Aliases',
       lastResult: 'Last Result',
@@ -313,6 +314,7 @@ export default {
       skills: '{count} skills',
       context: '{count} upstream',
       toolsets: '{count} toolsets',
+      pendingTrigger: 'Pending: {trigger}',
     },
     action: {
       pause: 'Pause',

@@ -27,6 +27,7 @@ export interface Job {
   actions?: JobActions
   paused_at: string | null
   paused_reason: string | null
+  pending_trigger: string | null
   created_at: string
   next_run_at: string | null
   last_run_at: string | null
@@ -241,6 +242,7 @@ interface DashboardJob {
   origin?: Job['origin']
   paused_at?: string | null
   paused_reason?: string | null
+  pending_trigger?: string | null
   last_run_at?: string | null
   next_run_at?: string | null
   last_status?: string | null
@@ -278,6 +280,7 @@ function mapJob(job: DashboardJob): Job {
     actions: job.actions,
     paused_at: job.paused_at || null,
     paused_reason: job.paused_reason || null,
+    pending_trigger: job.pending_trigger || null,
     created_at: (job as any).created_at || job.last_run_at || job.next_run_at || new Date().toISOString(),
     next_run_at: job.next_run_at || null,
     last_run_at: job.last_run_at || null,
@@ -442,12 +445,18 @@ export async function resumeJob(jobId: string): Promise<Job> {
 }
 
 export async function runJob(jobId: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/trigger`, { method: 'POST' })
+  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/trigger`, {
+    method: 'POST',
+    body: JSON.stringify({ trigger_type: 'dashboard' }),
+  })
   return getJob(jobId)
 }
 
 export async function retryJob(jobId: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/retry`, { method: 'POST' })
+  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/retry`, {
+    method: 'POST',
+    body: JSON.stringify({ trigger_type: 'dashboard_retry' }),
+  })
   return getJob(jobId)
 }
 

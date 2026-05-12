@@ -335,6 +335,7 @@ export default {
       contextFrom: '上游任务',
       enabledToolsets: '工具集',
       model: '模型固定',
+      pendingTrigger: '待执行触发',
       actions: '可用动作',
       aliases: '动作别名',
       lastResult: '上次结果',
@@ -348,6 +349,7 @@ export default {
       skills: '{count} 个技能',
       context: '{count} 个上游',
       toolsets: '{count} 个工具集',
+      pendingTrigger: '待执行：{trigger}',
     },
     action: {
       pause: '暂停',

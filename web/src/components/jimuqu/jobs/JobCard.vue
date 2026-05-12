@@ -110,6 +110,7 @@ function formatDuration(durationMs?: number | null) {
 
 const jobBadges = computed(() => {
   const badges: string[] = []
+  if (props.job.pending_trigger) badges.push(t('jobs.badge.pendingTrigger', { trigger: props.job.pending_trigger }))
   if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
   if (props.job.script) badges.push(t('jobs.badge.script'))
   if (props.job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
@@ -344,6 +345,8 @@ async function handleDelete() {
             <code>{{ listDetail(activeJob.enabled_toolsets) }}</code>
             <span>{{ t('jobs.detail.model') }}</span>
             <code>{{ modelDetail }}</code>
+            <span>{{ t('jobs.detail.pendingTrigger') }}</span>
+            <code>{{ activeJob.pending_trigger || '—' }}</code>
             <span>{{ t('jobs.detail.actions') }}</span>
             <code>{{ actionSummary }}</code>
             <span>{{ t('jobs.detail.aliases') }}</span>
