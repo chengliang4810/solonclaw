@@ -3320,9 +3320,16 @@ public class ToolRegistryExposureTest {
     void shouldUseDdgsSearchBackendWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("ddgs");
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected InetAddress[] resolveHost(String host) throws Exception {
+                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+                    }
+                };
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
-                        new SecurityPolicyService(env.appConfig),
+                        policy,
                         null,
                         env.appConfig) {
                     @Override
