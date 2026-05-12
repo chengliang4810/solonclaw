@@ -538,13 +538,19 @@ public class CronJobService {
                 "api_routes",
                 Arrays.asList(
                         "GET /api/cron/jobs/guide",
+                        "GET /api/cron/jobs/policy",
+                        "GET /api/cron/jobs/status",
+                        "GET /api/cron/jobs/next",
                         "GET /api/cron/jobs",
                         "POST /api/cron/jobs",
                         "PUT /api/cron/jobs/{id}",
+                        "GET /api/cron/jobs/{id}/inspect",
                         "POST /api/cron/jobs/{id}/pause",
                         "POST /api/cron/jobs/{id}/resume",
                         "POST /api/cron/jobs/{id}/run",
+                        "POST /api/cron/jobs/{id}/retry",
                         "GET /api/cron/jobs/{id}/runs",
+                        "GET /api/cron/jobs/{id}/history",
                         "GET /api/jobs/guide"));
         return result;
     }

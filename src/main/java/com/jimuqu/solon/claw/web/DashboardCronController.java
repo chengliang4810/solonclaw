@@ -421,6 +421,16 @@ public class DashboardCronController {
     @Mapping(value = "/api/cron/jobs/{id}/runs", method = MethodType.GET)
     public Map<String, Object> history(String id, @Param(defaultValue = "20") Integer limit, Context context)
             throws Exception {
+        return dashboardHistoryData(id, limit, context);
+    }
+
+    @Mapping(value = "/api/cron/jobs/{id}/history", method = MethodType.GET)
+    public Map<String, Object> historyAlias(String id, @Param(defaultValue = "20") Integer limit, Context context)
+            throws Exception {
+        return dashboardHistoryData(id, limit, context);
+    }
+
+    private Map<String, Object> dashboardHistoryData(String id, Integer limit, Context context) throws Exception {
         try {
             List<Map<String, Object>> runs = cronService.history(id, limit == null ? 20 : limit.intValue());
             Map<String, Object> data = new LinkedHashMap<String, Object>();

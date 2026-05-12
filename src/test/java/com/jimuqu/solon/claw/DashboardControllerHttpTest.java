@@ -797,6 +797,13 @@ public class DashboardControllerHttpTest {
         assertThat(latestCronRun.get("delivery_result").get("skipped").getString()).isEqualTo("local");
         assertThat(latestCronRun.get("delivery_result").toJson()).contains("\"targets\":[]");
 
+        HttpResult cronHistoryAlias =
+                request("GET", "/api/cron/jobs/" + dashboardCronId + "/history?limit=5", null, token);
+        assertThat(cronHistoryAlias.status).isEqualTo(200);
+        ONode cronHistoryAliasData = ONode.ofJson(cronHistoryAlias.body).get("data");
+        assertThat(cronHistoryAliasData.get("job_id").getString()).isEqualTo(dashboardCronId);
+        assertThat(cronHistoryAliasData.get("runs").get(0).get("status").getString()).isEqualTo("ok");
+
         HttpResult apiCronRuns =
                 request("GET", "/api/jobs/" + dashboardCronId + "/runs?limit=5", null, token);
         assertThat(apiCronRuns.status).isEqualTo(200);
