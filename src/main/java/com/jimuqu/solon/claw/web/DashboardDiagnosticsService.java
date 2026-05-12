@@ -3803,6 +3803,48 @@ public class DashboardDiagnosticsService {
                         "container_secret_exposure"));
         items.add(
                 approvalDetectionProbe(
+                        "container_destructive_prune",
+                        "容器资源清理审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "docker system prune -af",
+                        "docker_destructive_prune"));
+        items.add(
+                approvalDetectionProbe(
+                        "container_force_remove",
+                        "容器强制删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "docker rm -f app-db",
+                        "docker_force_remove"));
+        items.add(
+                approvalDetectionProbe(
+                        "kubernetes_resource_delete",
+                        "集群资源删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kubectl delete namespace prod",
+                        "kubectl_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "kubernetes_pod_exec",
+                        "集群 Pod 命令执行审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kubectl exec deploy/app -- id",
+                        "kubectl_exec"));
+        items.add(
+                approvalDetectionProbe(
+                        "kubernetes_remote_apply",
+                        "集群远程清单应用审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kubectl apply -f https://example.invalid/install.yaml",
+                        "kubectl_remote_apply"));
+        items.add(
+                approvalDetectionProbe(
+                        "kubernetes_context_credential_change",
+                        "集群上下文凭据变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "kubectl config set-credentials deploy --token=secret",
+                        "kubectl_context_or_credential_change"));
+        items.add(
+                approvalDetectionProbe(
                         "kubernetes_network_exposure",
                         "集群本地代理广域监听审批",
                         ToolNameConstants.EXECUTE_SHELL,
@@ -3815,6 +3857,20 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_SHELL,
                         "helm repo add internal https://charts.example.test",
                         "helm_repository_configuration_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "helm_release_uninstall",
+                        "Helm 发布卸载审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "helm uninstall payments",
+                        "helm_uninstall"));
+        items.add(
+                approvalDetectionProbe(
+                        "infrastructure_destroy",
+                        "基础设施销毁审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "terraform destroy -auto-approve",
+                        "terraform_destroy"));
         items.add(
                 approvalDetectionProbe(
                         "infrastructure_auto_approve_apply",

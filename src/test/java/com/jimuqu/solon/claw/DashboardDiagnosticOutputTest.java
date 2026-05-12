@@ -741,9 +741,21 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "container_privileged_host_mount");
         Map<String, Object> containerSecretExposure =
                 findProbe(items, "container_secret_exposure");
+        Map<String, Object> containerDestructivePrune =
+                findProbe(items, "container_destructive_prune");
+        Map<String, Object> containerForceRemove = findProbe(items, "container_force_remove");
+        Map<String, Object> kubernetesResourceDelete =
+                findProbe(items, "kubernetes_resource_delete");
+        Map<String, Object> kubernetesPodExec = findProbe(items, "kubernetes_pod_exec");
+        Map<String, Object> kubernetesRemoteApply =
+                findProbe(items, "kubernetes_remote_apply");
+        Map<String, Object> kubernetesContextCredentialChange =
+                findProbe(items, "kubernetes_context_credential_change");
         Map<String, Object> kubernetesNetworkExposure =
                 findProbe(items, "kubernetes_network_exposure");
         Map<String, Object> helmRepositoryChange = findProbe(items, "helm_repository_change");
+        Map<String, Object> helmReleaseUninstall = findProbe(items, "helm_release_uninstall");
+        Map<String, Object> infrastructureDestroy = findProbe(items, "infrastructure_destroy");
         Map<String, Object> infrastructureAutoApproveApply =
                 findProbe(items, "infrastructure_auto_approve_apply");
         Map<String, Object> packageManagerSourceChange =
@@ -2157,6 +2169,32 @@ public class DashboardDiagnosticOutputTest {
         assertThat(containerSecretExposure.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(containerSecretExposure.get("skipped")).isNull();
         assertThat(String.valueOf(containerSecretExposure)).contains("--secret");
+        assertThat(containerDestructivePrune.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(containerDestructivePrune.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(containerDestructivePrune.get("skipped")).isNull();
+        assertThat(String.valueOf(containerDestructivePrune)).contains("system prune");
+        assertThat(containerForceRemove.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(containerForceRemove.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(containerForceRemove.get("skipped")).isNull();
+        assertThat(String.valueOf(containerForceRemove)).contains("docker rm -f");
+        assertThat(kubernetesResourceDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesResourceDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesResourceDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(kubernetesResourceDelete)).contains("delete namespace");
+        assertThat(kubernetesPodExec.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesPodExec.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesPodExec.get("skipped")).isNull();
+        assertThat(String.valueOf(kubernetesPodExec)).contains("kubectl exec");
+        assertThat(kubernetesRemoteApply.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesRemoteApply.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesRemoteApply.get("skipped")).isNull();
+        assertThat(String.valueOf(kubernetesRemoteApply)).contains("https://example.invalid");
+        assertThat(kubernetesContextCredentialChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesContextCredentialChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(kubernetesContextCredentialChange.get("skipped")).isNull();
+        assertThat(String.valueOf(kubernetesContextCredentialChange))
+                .contains("set-credentials")
+                .doesNotContain("secret");
         assertThat(kubernetesNetworkExposure.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(kubernetesNetworkExposure.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(kubernetesNetworkExposure.get("skipped")).isNull();
@@ -2165,6 +2203,14 @@ public class DashboardDiagnosticOutputTest {
         assertThat(helmRepositoryChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(helmRepositoryChange.get("skipped")).isNull();
         assertThat(String.valueOf(helmRepositoryChange)).contains("helm repo add");
+        assertThat(helmReleaseUninstall.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(helmReleaseUninstall.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(helmReleaseUninstall.get("skipped")).isNull();
+        assertThat(String.valueOf(helmReleaseUninstall)).contains("helm uninstall");
+        assertThat(infrastructureDestroy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(infrastructureDestroy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(infrastructureDestroy.get("skipped")).isNull();
+        assertThat(String.valueOf(infrastructureDestroy)).contains("terraform destroy");
         assertThat(infrastructureAutoApproveApply.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(infrastructureAutoApproveApply.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(infrastructureAutoApproveApply.get("skipped")).isNull();
