@@ -66,6 +66,89 @@ const securitySurfaces = computed<string[]>(() => {
   const surfaces = policy?.activeSurfaces
   return Array.isArray(surfaces) ? surfaces.map((item) => String(item)) : []
 })
+type SecurityMetric = {
+  label: string
+  value: unknown
+  goodWhenTrue?: boolean
+  countWarning?: boolean
+}
+type SecurityDetailGroup = {
+  title: string
+  items: SecurityMetric[]
+}
+const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
+  const policy = securityPolicy.value
+  const terminal = securityTerminal.value
+  const urlPolicy = objectValue(policy.url_policy)
+  const privateUrlPolicy = objectValue(policy.private_url_policy)
+  const websitePolicy = objectValue(policy.website_policy)
+  const pathPolicy = objectValue(policy.path_policy)
+  const credentialPolicy = objectValue(policy.credential_policy)
+  const toolArgsPolicy = objectValue(policy.tool_args_policy)
+  const terminalOutputPolicy = objectValue(terminal.terminal_output_policy)
+  const backgroundProcessPolicy = objectValue(terminal.background_process_policy)
+  return [
+    {
+      title: 'URL 与私有地址',
+      items: [
+        metric('允许私有地址', firstDefined(privateUrlPolicy.allowPrivateUrls, urlPolicy.allowPrivateUrls, policy.allow_private_urls), false),
+        metric('固定阻断主机', urlPolicy.alwaysBlockedHostCount),
+        metric('固定阻断地址', urlPolicy.alwaysBlockedIpCount),
+        metric('敏感参数名', urlPolicy.sensitiveQueryNameCount),
+        metric('DNS 必检', firstDefined(privateUrlPolicy.dnsResolutionRequired, urlPolicy.dnsResolutionRequired)),
+        metric('Userinfo 阻断', urlPolicy.userinfoBlocked),
+        metric('敏感参数阻断', urlPolicy.sensitiveQueryBlocked),
+        metric('云元数据阻断', firstDefined(privateUrlPolicy.cloudMetadataAlwaysBlocked, urlPolicy.cloudMetadataBlocked)),
+        metric('Loopback 阻断', privateUrlPolicy.loopbackBlocked),
+        metric('链路本地阻断', privateUrlPolicy.linkLocalBlocked),
+        metric('站点本地阻断', privateUrlPolicy.siteLocalBlocked),
+      ],
+    },
+    {
+      title: '网站策略',
+      items: [
+        metric('策略启用', firstDefined(websitePolicy.enabled, policy.website_blocklist_enabled)),
+        metric('内置域名规则', firstDefined(websitePolicy.configuredDomainCount, policy.website_blocklist_domain_count)),
+        metric('共享规则文件', firstDefined(websitePolicy.sharedFileCount, policy.website_blocklist_shared_file_count)),
+        metric('已加载文件', websitePolicy.loadedSharedFileCount),
+        metric('跳过文件', websitePolicy.skippedSharedFileCount, true, true),
+        metric('共享规则数', websitePolicy.sharedRuleCount),
+        metric('通配子域名', websitePolicy.wildcardSubdomainSupported),
+        metric('共享文件路径检查', websitePolicy.sharedFilePathSafetyChecked),
+      ],
+    },
+    {
+      title: '路径与凭据',
+      items: [
+        metric('路径穿越阻断', pathPolicy.traversalBlocked),
+        metric('控制字符阻断', pathPolicy.controlCharactersBlocked),
+        metric('设备路径阻断', pathPolicy.devicePathBlocked),
+        metric('原始块设备写入阻断', pathPolicy.rawBlockDeviceWriteBlocked),
+        metric('写入精确拒绝', pathPolicy.writeDeniedExactPathCount),
+        metric('写入前缀拒绝', pathPolicy.writeDeniedPrefixCount),
+        metric('凭据目录段', credentialPolicy.directorySegmentCount),
+        metric('凭据文件名', credentialPolicy.fileNameCount),
+        metric('凭据后缀', credentialPolicy.pathSuffixCount),
+        metric('密钥扩展名', credentialPolicy.keyFileExtensionCount),
+      ],
+    },
+    {
+      title: '工具参数与终端',
+      items: [
+        metric('递归 URL 提取', toolArgsPolicy.recursiveUrlExtraction),
+        metric('返回内容 URL 检查', toolArgsPolicy.returnedContentUrlExtraction),
+        metric('递归路径提取', toolArgsPolicy.recursivePathExtraction),
+        metric('写入意图识别', toolArgsPolicy.writeIntentDetection),
+        metric('上传凭据阻断', toolArgsPolicy.networkUploadCredentialOnlyBlocked),
+        metric('终端密文脱敏', terminalOutputPolicy.secretRedactionApplied),
+        metric('输出截断提示', terminalOutputPolicy.truncationNoticeIncluded),
+        metric('最大内联字符', terminalOutputPolicy.maxInlineChars),
+        metric('进程登记表', backgroundProcessPolicy.processRegistryBacked),
+        metric('后台任务强制托管', backgroundProcessPolicy.managedBackgroundRequiredForLongRunningCommands),
+      ],
+    },
+  ]
+})
 const coverageItems = [
   { key: 'dangerousCommandApproval', label: '危险命令审批' },
   { key: 'slashApprovalConfirm', label: 'Slash 确认' },
@@ -123,6 +206,19 @@ function valueOf(source: Record<string, unknown>, key: string, fallback: unknown
   return value
 }
 
+function objectValue(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return value as Record<string, unknown>
+}
+
+function firstDefined(...values: unknown[]) {
+  return values.find((value) => value !== undefined && value !== null && value !== '')
+}
+
+function metric(label: string, value: unknown, goodWhenTrue = true, countWarning = false): SecurityMetric {
+  return { label, value, goodWhenTrue, countWarning }
+}
+
 function booleanTagType(value: unknown, goodWhenTrue = true) {
   const enabled = value === true
   return enabled === goodWhenTrue ? 'success' : 'warning'
@@ -130,6 +226,23 @@ function booleanTagType(value: unknown, goodWhenTrue = true) {
 
 function booleanText(value: unknown) {
   return value === true ? '是' : '否'
+}
+
+function metricText(value: unknown) {
+  if (value === true || value === false) return booleanText(value)
+  if (value === undefined || value === null || value === '') return '-'
+  if (Array.isArray(value)) return `${value.length} 项`
+  if (typeof value === 'object') return '已配置'
+  return String(value)
+}
+
+function metricTagType(item: SecurityMetric) {
+  if (item.value === true || item.value === false) return booleanTagType(item.value, item.goodWhenTrue !== false)
+  if (typeof item.value === 'number') {
+    if (item.countWarning && item.value > 0) return 'warning'
+    return item.value > 0 ? 'success' : 'default'
+  }
+  return item.value === undefined || item.value === null || item.value === '' ? 'default' : 'success'
 }
 
 function decisionType(decision: unknown) {
@@ -525,6 +638,25 @@ onMounted(load)
               <span v-if="!securitySurfaces.length" class="surface-empty">暂无覆盖面数据</span>
             </div>
           </div>
+          <div class="policy-detail-section">
+            <div class="coverage-title">
+              <h4>策略明细</h4>
+              <NTag size="small" :bordered="false">只读诊断</NTag>
+            </div>
+            <div class="policy-detail-grid">
+              <div v-for="group in securityDetailGroups" :key="group.title" class="policy-detail-group">
+                <h5>{{ group.title }}</h5>
+                <div class="metric-grid">
+                  <div v-for="item in group.items" :key="`${group.title}:${item.label}`" class="metric-item">
+                    <span>{{ item.label }}</span>
+                    <NTag size="small" :type="metricTagType(item)" :bordered="false">
+                      {{ metricText(item.value) }}
+                    </NTag>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
         <section class="panel audit-panel">
           <h3>安全审计</h3>
@@ -914,6 +1046,14 @@ onMounted(load)
   background: $bg-secondary;
 }
 
+.policy-detail-section {
+  margin-top: 12px;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  padding: 12px;
+  background: $bg-secondary;
+}
+
 .coverage-title {
   display: flex;
   justify-content: space-between;
@@ -954,6 +1094,35 @@ onMounted(load)
   color: $text-muted;
 }
 
+.policy-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.policy-detail-group {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+  padding: 10px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.metric-item {
+  min-height: 28px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
 h3 {
   margin: 0 0 12px;
   font-size: 14px;
@@ -962,6 +1131,12 @@ h3 {
 h4 {
   margin: 0 0 10px;
   font-size: 13px;
+  color: $text-primary;
+}
+
+h5 {
+  margin: 0 0 10px;
+  font-size: 12px;
   color: $text-primary;
 }
 
