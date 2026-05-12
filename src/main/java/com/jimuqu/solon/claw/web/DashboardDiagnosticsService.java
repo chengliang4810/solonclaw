@@ -177,17 +177,19 @@ public class DashboardDiagnosticsService {
         }
 
         int scannedSessions = 0;
+        boolean truncated = false;
         for (SessionRecord session : sessionRepository.listRecent(sessionScanLimit)) {
             scannedSessions++;
             List<DangerousCommandApprovalService.PendingApproval> pending =
                     approvalService.listPendingApprovals(session);
             for (DangerousCommandApprovalService.PendingApproval approval : pending) {
-                items.add(pendingApprovalItem(session, approval));
                 if (items.size() >= effectiveLimit) {
+                    truncated = true;
                     break;
                 }
+                items.add(pendingApprovalItem(session, approval));
             }
-            if (items.size() >= effectiveLimit) {
+            if (truncated) {
                 break;
             }
         }
@@ -197,7 +199,7 @@ public class DashboardDiagnosticsService {
         result.put("items", items);
         result.put("session_scan_limit", Integer.valueOf(sessionScanLimit));
         result.put("scanned_sessions", Integer.valueOf(scannedSessions));
-        result.put("truncated", Boolean.valueOf(items.size() >= effectiveLimit));
+        result.put("truncated", Boolean.valueOf(truncated));
         return result;
     }
 

@@ -508,8 +508,55 @@ public class DashboardDiagnosticOutputTest {
         assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
         assertThat(result.get("session_scan_limit")).isEqualTo(Integer.valueOf(5));
         assertThat(result.get("scanned_sessions")).isEqualTo(Integer.valueOf(4));
-        assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("truncated")).isEqualTo(Boolean.FALSE);
         assertThat(items.get(0).get("session_id")).isEqualTo("session-older-pending");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldMarkPendingApprovalsTruncatedOnlyWhenMoreItemsExist() throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        List<SessionRecord> records = new ArrayList<SessionRecord>();
+        for (int i = 0; i < 2; i++) {
+            SessionRecord record = new SessionRecord();
+            record.setSessionId("session-pending-limit-" + i);
+            record.setSourceKey("source-pending-limit-" + i);
+            record.setTitle("pending limit " + i);
+            SqliteAgentSession session = new SqliteAgentSession(record);
+            approvalService.storePendingApproval(
+                    session,
+                    "execute_shell",
+                    "recursive_delete_" + i,
+                    "需要确认",
+                    "rm -rf runtime/cache-" + i);
+            records.add(record);
+        }
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(records),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(1);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
+        assertThat(result.get("scanned_sessions")).isEqualTo(Integer.valueOf(2));
+        assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+        assertThat(items.get(0).get("session_id")).isEqualTo("session-pending-limit-0");
     }
 
     @Test
