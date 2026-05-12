@@ -88,14 +88,90 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const pathPolicy = objectValue(policy.path_policy)
   const credentialPolicy = objectValue(policy.credential_policy)
   const toolArgsPolicy = objectValue(policy.tool_args_policy)
+  const approvalPolicy = objectValue(securityApprovals.value.approval_policy)
+  const hardlinePolicy = objectValue(securityApprovals.value.hardline_policy)
+  const cronApprovalPolicy = objectValue(securityApprovals.value.cron_approval_policy)
+  const subagentApprovalPolicy = objectValue(securityApprovals.value.subagent_approval_policy)
+  const smartApprovalPolicy = objectValue(securityApprovals.value.smart_approval_policy)
+  const tirithApprovalPolicy = objectValue(securityApprovals.value.tirith_approval_policy)
   const approvalLifecyclePolicy = objectValue(securityApprovals.value.approval_lifecycle_policy)
   const slashConfirmPolicy = objectValue(securityApprovals.value.slash_confirm_policy)
   const approvalCardPolicy = objectValue(securityApprovals.value.approval_card_policy)
   const approvalAuditPolicy = objectValue(securityApprovals.value.approval_audit_policy)
   const mcpReloadPolicy = objectValue(securityApprovals.value.mcp_reload_policy)
+  const terminalCredentialFilePolicy = objectValue(terminal.credential_file_policy)
+  const terminalGuardrailPolicy = objectValue(terminal.terminal_guardrail_policy)
   const terminalOutputPolicy = objectValue(terminal.terminal_output_policy)
+  const toolResultStoragePolicy = objectValue(terminal.tool_result_storage_policy)
+  const sudoRewritePolicy = objectValue(terminal.sudo_rewrite_policy)
   const backgroundProcessPolicy = objectValue(terminal.background_process_policy)
   return [
+    {
+      title: '审批规则',
+      items: [
+        metric('命令审批模式', firstDefined(approvalPolicy.mode, securityApprovals.value.mode)),
+        metric('定时任务模式', firstDefined(approvalPolicy.cronMode, securityApprovals.value.cron_mode)),
+        metric('子代理自动审批', approvalPolicy.subagentAutoApprove),
+        metric('智能裁决已配置', approvalPolicy.smartJudgeConfigured),
+        metric('危险规则数', approvalPolicy.dangerousRuleCount),
+        metric('硬阻断规则数', approvalPolicy.hardlineRuleCount),
+        metric('终端守卫规则数', approvalPolicy.terminalGuardrailCount),
+        metric('URL 预检', approvalPolicy.urlPolicyPrechecked),
+        metric('私有地址预检', approvalPolicy.privateUrlPolicyPrechecked),
+        metric('凭据 URL 预检', approvalPolicy.credentialUrlPolicyPrechecked),
+        metric('网站策略预检', approvalPolicy.websitePolicyPrechecked),
+        metric('不安全 URL 绕过允许', approvalPolicy.unsafeUrlApprovalBypassAllowed, false),
+      ],
+    },
+    {
+      title: '硬阻断命令',
+      items: [
+        metric('规则数', hardlinePolicy.ruleCount),
+        metric('覆盖工具', hardlinePolicy.coveredTools),
+        metric('阻断类别', hardlinePolicy.blockedCategories),
+        metric('元数据地址阻断', hardlinePolicy.metadataUrlBlocked),
+        metric('代码工具 Shell 提取', hardlinePolicy.codeToolShellExtractionCovered),
+        metric('Python Shell 提取', hardlinePolicy.pythonShellExtractionCovered),
+        metric('JavaScript 子进程提取', hardlinePolicy.javascriptChildProcessExtractionCovered),
+        metric('审批绕过允许', hardlinePolicy.approvalBypassAllowed, false),
+        metric('Slash 绕过允许', hardlinePolicy.slashApproveBypassAllowed, false),
+        metric('会话授权绕过允许', hardlinePolicy.sessionApprovalBypassAllowed, false),
+        metric('长期授权绕过允许', hardlinePolicy.alwaysApprovalBypassAllowed, false),
+        metric('自动模式绕过允许', hardlinePolicy.yoloBypassAllowed, false),
+        metric('智能审批绕过允许', hardlinePolicy.smartApprovalBypassAllowed, false),
+        metric('命令预览脱敏', hardlinePolicy.commandPreviewRedacted),
+      ],
+    },
+    {
+      title: '自动化与子代理审批',
+      items: [
+        metric('定时任务默认决策', cronApprovalPolicy.defaultDecision),
+        metric('定时任务硬阻断', cronApprovalPolicy.hardlineAlwaysBlocked),
+        metric('运行前检查危险模式', cronApprovalPolicy.dangerousPatternCheckedBeforeRun),
+        metric('脚本内容检查', cronApprovalPolicy.scriptContentChecked),
+        metric('子代理默认决策', subagentApprovalPolicy.defaultDecision),
+        metric('子代理硬阻断预检', subagentApprovalPolicy.hardlinePrechecked),
+        metric('子代理文件预检', subagentApprovalPolicy.filePolicyPrechecked),
+        metric('子代理 URL 预检', subagentApprovalPolicy.urlPolicyPrechecked),
+        metric('子代理终端预检', subagentApprovalPolicy.terminalGuardrailPrechecked),
+        metric('被拒绝时创建待审批', subagentApprovalPolicy.pendingApprovalCreatedWhenDenied),
+      ],
+    },
+    {
+      title: '智能与内容扫描审批',
+      items: [
+        metric('智能模式', smartApprovalPolicy.smartMode),
+        metric('智能审批生效', smartApprovalPolicy.active),
+        metric('裁决器已配置', smartApprovalPolicy.judgeConfigured),
+        metric('升级到人工审批', smartApprovalPolicy.escalateFallsBackToHumanApproval),
+        metric('裁决失败回退人工', smartApprovalPolicy.judgeFailureFallsBackToHumanApproval),
+        metric('内容扫描纳入裁决', smartApprovalPolicy.tirithFindingsIncluded),
+        metric('内容扫描器已配置', tirithApprovalPolicy.scannerConfigured),
+        metric('审批模式执行扫描', tirithApprovalPolicy.scanRunsInApprovalMode),
+        metric('扫描结果合并本地规则', tirithApprovalPolicy.combinedWithLocalDangerRules),
+        metric('长期授权允许', tirithApprovalPolicy.permanentApprovalAllowed),
+      ],
+    },
     {
       title: '审批生命周期',
       items: [
@@ -192,6 +268,46 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
         metric('最大内联字符', terminalOutputPolicy.maxInlineChars),
         metric('进程登记表', backgroundProcessPolicy.processRegistryBacked),
         metric('后台任务强制托管', backgroundProcessPolicy.managedBackgroundRequiredForLongRunningCommands),
+      ],
+    },
+    {
+      title: '终端硬守卫',
+      items: [
+        metric('后台 Shell 包装阻断', terminalGuardrailPolicy.backgroundShellWrappersBlocked),
+        metric('脱离会话启动阻断', terminalGuardrailPolicy.detachedSessionLaunchersBlocked),
+        metric('PowerShell 后台命令阻断', terminalGuardrailPolicy.powershellBackgroundCommandsBlocked),
+        metric('行内 & 阻断', terminalGuardrailPolicy.inlineAmpersandBlocked),
+        metric('末尾 & 阻断', terminalGuardrailPolicy.trailingAmpersandBlocked),
+        metric('长驻前台阻断', terminalGuardrailPolicy.longLivedForegroundBlocked),
+        metric('命令路径预检', terminalGuardrailPolicy.commandPathPrechecked),
+        metric('凭据路径预检', terminalGuardrailPolicy.credentialPathPrechecked),
+        metric('下载输出路径预检', terminalGuardrailPolicy.downloadOutputPathPrechecked),
+        metric('代理 URL 预检', terminalGuardrailPolicy.proxyUrlPrechecked),
+        metric('系统 DNS 命令预检', terminalGuardrailPolicy.systemDnsCommandPrechecked),
+        metric('系统代理命令预检', terminalGuardrailPolicy.systemProxyCommandPrechecked),
+        metric('Hosts/解析器路径预检', terminalGuardrailPolicy.hostsAndResolverPathPrechecked),
+        metric('受管后台进程必需', terminalGuardrailPolicy.managedBackgroundProcessRequired),
+        metric('进程登记表支撑', terminalGuardrailPolicy.processRegistryBacked),
+        metric('sudo 密码脱敏', terminalGuardrailPolicy.sudoPasswordRedacted),
+      ],
+    },
+    {
+      title: '凭据文件与结果存储',
+      items: [
+        metric('配置凭据文件数', terminalCredentialFilePolicy.configCredentialFileCount),
+        metric('已配置挂载数', terminalCredentialFilePolicy.configuredMountCount),
+        metric('缺失文件未挂载', terminalCredentialFilePolicy.missingFilesNotMounted),
+        metric('宿主路径不进元数据', terminalCredentialFilePolicy.hostPathsOmittedFromMetadata),
+        metric('拒绝路径脱敏', terminalCredentialFilePolicy.rejectedPathsRedacted),
+        metric('sudo 改写已配置', sudoRewritePolicy.configured),
+        metric('sudo 密码脱敏', sudoRewritePolicy.passwordRedacted),
+        metric('sudo 密码走 stdin', sudoRewritePolicy.stdinPasswordInjection),
+        metric('结果存储已启用', toolResultStoragePolicy.enabled),
+        metric('超大结果持久化', toolResultStoragePolicy.oversizedResultsPersisted),
+        metric('结果引用返回', toolResultStoragePolicy.resultRefReturned),
+        metric('预览脱敏', toolResultStoragePolicy.previewRedacted),
+        metric('持久输出提示脱敏', toolResultStoragePolicy.persistedOutputRedacted),
+        metric('内联字节上限', toolResultStoragePolicy.inlineLimitBytes),
       ],
     },
   ]
