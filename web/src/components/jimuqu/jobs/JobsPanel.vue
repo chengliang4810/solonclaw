@@ -54,11 +54,13 @@ const guideDeliveries = computed(() => {
 })
 
 const guideAutomation = computed(() => {
-  const guide = jobsStore.guide
   const policy = jobsStore.policy
+  const skillBinding = policy?.skill_binding || {}
   return [
-    guide?.skill_binding?.multipleSkillsSupported ? t('jobs.guideMultiSkill') : '',
-    guide?.skill_binding?.skillRewriteSupported ? t('jobs.guideSkillRewrite') : '',
+    skillBinding.multipleSkillsSupported ? t('jobs.guideMultiSkill') : '',
+    skillBinding.skillRewriteSupported ? t('jobs.guideSkillRewrite') : '',
+    skillBinding.contextFromSupported ? t('jobs.guideDependencies') : '',
+    skillBinding.enabledToolsetsSupported ? t('jobs.guideToolsets') : '',
     policy?.schedule?.intervalSupported ? t('jobs.guideInterval') : '',
     policy?.schedule?.onceSupported ? t('jobs.guideOnce') : '',
     policy?.execution?.noAgentScriptSupported ? t('jobs.guideNoAgent') : '',

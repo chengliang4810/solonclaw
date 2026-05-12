@@ -295,6 +295,8 @@ export default {
     guideTargets: '支持目标',
     guideMultiSkill: '多技能绑定',
     guideSkillRewrite: '技能追加/移除',
+    guideDependencies: '任务依赖',
+    guideToolsets: '工具集绑定',
     guideInterval: '循环间隔',
     guideOnce: '单次执行',
     guideNoAgent: '脚本直投',
