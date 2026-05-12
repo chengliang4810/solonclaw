@@ -995,8 +995,14 @@ public final class TerminalSecurityPolicyView {
                 .append(value(path, "traversalBlocked"))
                 .append(" controlChars=")
                 .append(value(path, "controlCharactersBlocked"))
+                .append(" rawControl=")
+                .append(value(path, "rawControlCharactersBlocked"))
+                .append(" normalizedControl=")
+                .append(value(path, "normalizedControlCharactersBlocked"))
                 .append(" devicePath=")
-                .append(value(path, "devicePathBlocked"));
+                .append(value(path, "devicePathBlocked"))
+                .append(" rawBlockWrite=")
+                .append(value(path, "rawBlockDeviceWriteBlocked"));
         buffer.append('\n')
                 .append("- 写入边界：writeSafeRoot=")
                 .append(value(path, "writeSafeRootConfigured"))
@@ -1009,8 +1015,19 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 本地管理端点：socket=")
                 .append(value(path, "localManagementSocketAccessBlocked"))
+                .append(" socketEnv=")
+                .append(value(path, "localManagementSocketEnvironmentBlocked"))
                 .append(" pipe=")
-                .append(value(path, "localManagementPipeAccessBlocked"));
+                .append(value(path, "localManagementPipeAccessBlocked"))
+                .append(" socketPaths=")
+                .append(value(path, "localManagementSocketPathCount"))
+                .append(" pipePaths=")
+                .append(value(path, "localManagementPipePathCount"));
+        buffer.append('\n')
+                .append("- 样例：devices=")
+                .append(value(path, "blockedDevicePathSamples"))
+                .append(" homeDenied=")
+                .append(value(path, "writeDeniedHomeFileSamples"));
         return buffer.toString();
     }
 

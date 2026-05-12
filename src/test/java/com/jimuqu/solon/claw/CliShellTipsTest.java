@@ -139,7 +139,13 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security paths"))
                 .contains("路径安全策略摘要")
                 .contains("devicePath")
-                .contains("windowsPrefixDenied");
+                .contains("windowsPrefixDenied")
+                .contains("rawControl=true")
+                .contains("normalizedControl=true")
+                .contains("rawBlockWrite=true")
+                .contains("socketEnv=true")
+                .contains("pipePaths=")
+                .contains("homeDenied=");
         assertThat(TerminalSecurityPolicyView.render(null, "/security credentials"))
                 .contains("凭据文件策略摘要")
                 .contains(".env")
