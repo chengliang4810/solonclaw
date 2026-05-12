@@ -763,6 +763,15 @@ public final class TerminalSecurityPolicyView {
                 .append(" systemProxy=")
                 .append(value(guardrail, "systemProxyCommandPrechecked"));
         buffer.append('\n')
+                .append("- 系统配置：windowsRegistryProxy=")
+                .append(value(guardrail, "windowsRegistryProxyCommandPrechecked"))
+                .append(" hostsResolver=")
+                .append(value(guardrail, "hostsAndResolverPathPrechecked"))
+                .append(" downloadOutput=")
+                .append(value(guardrail, "downloadOutputPathPrechecked"))
+                .append(" uploadSource=")
+                .append(value(guardrail, "networkUploadSourcePathPrechecked"));
+        buffer.append('\n')
                 .append("- 代码工具：shellExtraction=")
                 .append(value(guardrail, "codeToolShellExtractionCovered"))
                 .append(" sources=")

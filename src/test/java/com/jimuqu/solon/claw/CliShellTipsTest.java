@@ -234,7 +234,11 @@ public class CliShellTipsTest {
                 .contains("execute_python")
                 .contains("credentialPath")
                 .contains("systemDns")
-                .contains("systemProxy");
+                .contains("systemProxy")
+                .contains("windowsRegistryProxy=true")
+                .contains("hostsResolver=true")
+                .contains("downloadOutput=true")
+                .contains("uploadSource=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security tirith"))
                 .contains("Tirith 安全策略摘要")
                 .contains("jsonMode")
