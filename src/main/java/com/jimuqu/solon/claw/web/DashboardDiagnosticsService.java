@@ -3025,6 +3025,16 @@ public class DashboardDiagnosticsService {
                         "echo probe > %ProgramFiles%/Probe/probe.txt"));
         items.add(
                 commandPathPolicyProbe(
+                        "command_windows_braced_windir_write",
+                        "命令 Windows 花括号系统目录写入检查",
+                        "Set-Content ${windir}/System32/probe.txt probe"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_windows_braced_program_files_write",
+                        "命令 Windows 花括号程序目录写入检查",
+                        "Set-Content ${programfiles}/Probe/probe.txt probe"));
+        items.add(
+                commandPathPolicyProbe(
                         "command_device_path_read",
                         "命令设备文件读取检查",
                         "cat /dev/zero"));
