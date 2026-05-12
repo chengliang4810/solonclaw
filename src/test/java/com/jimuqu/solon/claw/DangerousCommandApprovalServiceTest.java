@@ -223,6 +223,9 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("yes");
         assertThat(cronSummary.get("runsWithoutHumanApproval")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("hardlineAlwaysBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("filePolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("urlPolicyPrechecked")).isEqualTo(Boolean.TRUE);
+        assertThat(cronSummary.get("terminalGuardrailPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("dangerousPatternCheckedBeforeRun")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("requiresExplicitApproveMode")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);

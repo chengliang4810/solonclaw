@@ -2594,6 +2594,9 @@ public class DangerousCommandApprovalService {
         summary.put("denyAliases", Arrays.asList("deny", "false", "default"));
         summary.put("runsWithoutHumanApproval", Boolean.TRUE);
         summary.put("hardlineAlwaysBlocked", Boolean.TRUE);
+        summary.put("filePolicyPrechecked", Boolean.TRUE);
+        summary.put("urlPolicyPrechecked", Boolean.TRUE);
+        summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
         summary.put("dangerousPatternCheckedBeforeRun", Boolean.TRUE);
         summary.put("requiresExplicitApproveMode", Boolean.TRUE);
         summary.put("scriptContentChecked", Boolean.TRUE);
