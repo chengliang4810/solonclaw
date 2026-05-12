@@ -289,6 +289,33 @@ public class DashboardDiagnosticOutputTest {
                 .as("failed probes: %s", failedProbeKeys(items))
                 .isEqualTo(Boolean.TRUE);
         Map<String, Object> hardline = findProbe(items, "hardline_command");
+        Map<String, Object> hardlineDeleteRoot = findProbe(items, "hardline_delete_root");
+        Map<String, Object> hardlineDeleteSystemDir =
+                findProbe(items, "hardline_delete_system_dir");
+        Map<String, Object> hardlineDeleteHome = findProbe(items, "hardline_delete_home");
+        Map<String, Object> hardlineMkfs = findProbe(items, "hardline_mkfs");
+        Map<String, Object> hardlineDdDevice = findProbe(items, "hardline_dd_device");
+        Map<String, Object> hardlineDiskPartitionTableDestroy =
+                findProbe(items, "hardline_disk_partition_table_destroy");
+        Map<String, Object> hardlineRedirectDevice = findProbe(items, "hardline_redirect_device");
+        Map<String, Object> hardlineShutdown = findProbe(items, "hardline_shutdown");
+        Map<String, Object> hardlineKillAll = findProbe(items, "hardline_kill_all");
+        Map<String, Object> hardlineForkBomb = findProbe(items, "hardline_fork_bomb");
+        Map<String, Object> hardlineWindowsFormat = findProbe(items, "hardline_windows_format");
+        Map<String, Object> hardlineWindowsClearDisk =
+                findProbe(items, "hardline_windows_clear_disk");
+        Map<String, Object> hardlineWindowsRemovePartition =
+                findProbe(items, "hardline_windows_remove_partition");
+        Map<String, Object> hardlineWindowsDiskpartDestructive =
+                findProbe(items, "hardline_windows_diskpart_destructive");
+        Map<String, Object> hardlineWindowsDeleteDriveRoot =
+                findProbe(items, "hardline_windows_delete_drive_root");
+        Map<String, Object> hardlineWindowsDeleteProfile =
+                findProbe(items, "hardline_windows_delete_profile");
+        Map<String, Object> hardlineWindowsSystemDir =
+                findProbe(items, "hardline_windows_system_dir");
+        Map<String, Object> hardlineWindowsShutdown =
+                findProbe(items, "hardline_windows_shutdown");
         Map<String, Object> sudoRewrite = findProbe(items, "sudo_rewrite");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
         Map<String, Object> terminalOutput = findProbe(items, "terminal_output");
@@ -815,6 +842,9 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "package_manager_script_policy_change");
         Map<String, Object> packageManagerRemoteExecute =
                 findProbe(items, "package_manager_remote_execute");
+        Map<String, Object> deleteRoot = findProbe(items, "delete_root");
+        Map<String, Object> mkfs = findProbe(items, "mkfs");
+        Map<String, Object> ddDisk = findProbe(items, "dd_disk");
         Map<String, Object> findDelete = findProbe(items, "find_delete");
         Map<String, Object> recursiveDelete = findProbe(items, "recursive_delete");
         Map<String, Object> recursiveDeleteLongFlag =
@@ -902,6 +932,12 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> windowsTaskkill = findProbe(items, "windows_taskkill");
         Map<String, Object> windowsStopProcess = findProbe(items, "windows_stop_process");
         Map<String, Object> windowsRegDelete = findProbe(items, "windows_reg_delete");
+        Map<String, Object> windowsFormat = findProbe(items, "windows_format");
+        Map<String, Object> windowsClearDisk = findProbe(items, "windows_clear_disk");
+        Map<String, Object> windowsRemovePartition =
+                findProbe(items, "windows_remove_partition");
+        Map<String, Object> windowsFormatVolume = findProbe(items, "windows_format_volume");
+        Map<String, Object> windowsDiskpartScript = findProbe(items, "windows_diskpart_script");
         Map<String, Object> windowsSecurityRegistryWeaken =
                 findProbe(items, "windows_security_registry_weaken");
         Map<String, Object> windowsExecutionPolicyWeaken =
@@ -985,6 +1021,78 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardline.get("skipped")).isNull();
+        assertThat(hardlineDeleteRoot.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDeleteRoot.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDeleteRoot.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineDeleteRoot)).contains("rm -rf /");
+        assertThat(hardlineDeleteSystemDir.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDeleteSystemDir.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDeleteSystemDir.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineDeleteSystemDir)).contains("rm -rf /etc");
+        assertThat(hardlineDeleteHome.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDeleteHome.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDeleteHome.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineDeleteHome)).contains("$HOME");
+        assertThat(hardlineMkfs.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineMkfs.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineMkfs.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineMkfs)).contains("mkfs.ext4");
+        assertThat(hardlineDdDevice.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDdDevice.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDdDevice.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineDdDevice)).contains("of=/dev/sdb");
+        assertThat(hardlineDiskPartitionTableDestroy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDiskPartitionTableDestroy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineDiskPartitionTableDestroy.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineDiskPartitionTableDestroy)).contains("wipefs -a");
+        assertThat(hardlineRedirectDevice.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineRedirectDevice.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineRedirectDevice.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineRedirectDevice)).contains("/dev/sdb");
+        assertThat(hardlineShutdown.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineShutdown.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineShutdown)).contains("reboot");
+        assertThat(hardlineKillAll.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineKillAll.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineKillAll.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineKillAll)).contains("kill -9 -1");
+        assertThat(hardlineForkBomb.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineForkBomb.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineForkBomb.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineForkBomb)).contains(":|:");
+        assertThat(hardlineWindowsFormat.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsFormat.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsFormat.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsFormat)).contains("format c:");
+        assertThat(hardlineWindowsClearDisk.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsClearDisk.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsClearDisk.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsClearDisk)).contains("Clear-Disk");
+        assertThat(hardlineWindowsRemovePartition.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsRemovePartition.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsRemovePartition.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsRemovePartition)).contains("Remove-Partition");
+        assertThat(hardlineWindowsDiskpartDestructive.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsDiskpartDestructive.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsDiskpartDestructive.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsDiskpartDestructive)).contains("diskpart");
+        assertThat(hardlineWindowsDeleteDriveRoot.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsDeleteDriveRoot.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsDeleteDriveRoot.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsDeleteDriveRoot)).contains("C:\\*");
+        assertThat(hardlineWindowsDeleteProfile.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsDeleteProfile.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsDeleteProfile.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsDeleteProfile)).contains("$env:USERPROFILE");
+        assertThat(hardlineWindowsSystemDir.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsSystemDir.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsSystemDir.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsSystemDir)).contains("C:\\Windows\\*");
+        assertThat(hardlineWindowsShutdown.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlineWindowsShutdown.get("skipped")).isNull();
+        assertThat(String.valueOf(hardlineWindowsShutdown)).contains("shutdown.exe");
         assertThat(sudoRewrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(sudoRewrite.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(sudoRewrite.get("blocked")).isEqualTo(Boolean.FALSE);
@@ -2470,6 +2578,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(packageManagerRemoteExecute.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(packageManagerRemoteExecute.get("skipped")).isNull();
         assertThat(String.valueOf(packageManagerRemoteExecute)).contains("npx create-vite");
+        assertThat(deleteRoot.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(deleteRoot.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(deleteRoot.get("skipped")).isNull();
+        assertThat(String.valueOf(deleteRoot)).contains("rm /tmp/probe");
+        assertThat(mkfs.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(mkfs.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(mkfs.get("skipped")).isNull();
+        assertThat(String.valueOf(mkfs)).contains("mkfs /tmp/image");
+        assertThat(ddDisk.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(ddDisk.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(ddDisk.get("skipped")).isNull();
+        assertThat(String.valueOf(ddDisk)).contains("dd if=/tmp/image");
         assertThat(findDelete.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(findDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(findDelete.get("skipped")).isNull();
@@ -2714,6 +2834,26 @@ public class DashboardDiagnosticOutputTest {
         assertThat(windowsRegDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsRegDelete.get("skipped")).isNull();
         assertThat(String.valueOf(windowsRegDelete)).contains("reg delete");
+        assertThat(windowsFormat.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsFormat.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsFormat.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsFormat)).contains("format d:");
+        assertThat(windowsClearDisk.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsClearDisk.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsClearDisk.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsClearDisk)).contains("Clear-Disk");
+        assertThat(windowsRemovePartition.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsRemovePartition.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsRemovePartition.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsRemovePartition)).contains("Remove-Partition");
+        assertThat(windowsFormatVolume.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsFormatVolume.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsFormatVolume.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsFormatVolume)).contains("Format-Volume");
+        assertThat(windowsDiskpartScript.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDiskpartScript.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsDiskpartScript.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsDiskpartScript)).contains("diskpart /s");
         assertThat(windowsSecurityRegistryWeaken.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(windowsSecurityRegistryWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(windowsSecurityRegistryWeaken.get("skipped")).isNull();

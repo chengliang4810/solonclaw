@@ -3164,6 +3164,114 @@ public class DashboardDiagnosticsService {
                         "硬阻断命令检查",
                         "sudo reboot"));
         items.add(
+                hardlineCommandProbe(
+                        "hardline_delete_root",
+                        "根文件系统递归删除硬阻断",
+                        "rm -rf /",
+                        "hardline_delete_root"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_delete_system_dir",
+                        "系统目录递归删除硬阻断",
+                        "rm -rf /etc",
+                        "hardline_delete_system_dir"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_delete_home",
+                        "用户目录递归删除硬阻断",
+                        "rm -rf $HOME",
+                        "hardline_delete_home"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_mkfs",
+                        "文件系统格式化硬阻断",
+                        "mkfs.ext4 /dev/sdb1",
+                        "hardline_mkfs"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_dd_device",
+                        "dd 写入裸设备硬阻断",
+                        "dd if=/dev/zero of=/dev/sdb bs=1M",
+                        "hardline_dd_device"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_disk_partition_table_destroy",
+                        "磁盘分区表销毁硬阻断",
+                        "wipefs -a /dev/sdb",
+                        "hardline_disk_partition_table_destroy"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_redirect_device",
+                        "裸设备重定向写入硬阻断",
+                        "echo token > /dev/sdb",
+                        "hardline_redirect_device"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_shutdown",
+                        "系统关机重启硬阻断",
+                        "reboot",
+                        "hardline_shutdown"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_kill_all",
+                        "全进程终止硬阻断",
+                        "kill -9 -1",
+                        "hardline_kill_all"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_fork_bomb",
+                        "Fork bomb 硬阻断",
+                        ":(){ :|:& };:",
+                        "hardline_fork_bomb"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_format",
+                        "Windows 卷格式化硬阻断",
+                        "format c:",
+                        "hardline_windows_format"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_clear_disk",
+                        "Windows 清盘硬阻断",
+                        "Clear-Disk -Number 0 -RemoveData",
+                        "hardline_windows_clear_disk"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_remove_partition",
+                        "Windows 分区删除硬阻断",
+                        "Remove-Partition -DriveLetter C",
+                        "hardline_windows_remove_partition"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_diskpart_destructive",
+                        "Windows diskpart 破坏性操作硬阻断",
+                        "diskpart /s clean.txt\nclean",
+                        "hardline_windows_diskpart_destructive"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_delete_drive_root",
+                        "Windows 盘符根目录递归删除硬阻断",
+                        "Remove-Item -Recurse C:\\*",
+                        "hardline_windows_delete_drive_root"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_delete_profile",
+                        "Windows 用户目录递归删除硬阻断",
+                        "Remove-Item -Recurse $env:USERPROFILE",
+                        "hardline_windows_delete_profile"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_system_dir",
+                        "Windows 系统目录递归删除硬阻断",
+                        "Remove-Item -Recurse C:\\Windows\\*",
+                        "hardline_windows_system_dir"));
+        items.add(
+                hardlineCommandProbe(
+                        "hardline_windows_shutdown",
+                        "Windows 关机重启硬阻断",
+                        "shutdown.exe /r /t 0",
+                        "hardline_windows_shutdown"));
+        items.add(
                 sudoRewriteProbe(
                         "sudo_rewrite",
                         "sudo 改写安全检查"));
@@ -4111,6 +4219,27 @@ public class DashboardDiagnosticsService {
                         "package_manager_remote_execute"));
         items.add(
                 approvalDetectionProbe(
+                        "delete_root",
+                        "根路径删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "rm /tmp/probe",
+                        "delete_root"));
+        items.add(
+                approvalDetectionProbe(
+                        "mkfs",
+                        "文件系统格式化审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "mkfs /tmp/image",
+                        "mkfs"));
+        items.add(
+                approvalDetectionProbe(
+                        "dd_disk",
+                        "dd 磁盘复制审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "dd if=/tmp/image of=/tmp/copy",
+                        "dd_disk"));
+        items.add(
+                approvalDetectionProbe(
                         "find_delete",
                         "find 删除审批",
                         ToolNameConstants.EXECUTE_SHELL,
@@ -4522,6 +4651,41 @@ public class DashboardDiagnosticsService {
                         ToolNameConstants.EXECUTE_SHELL,
                         "reg delete HKCU\\Software\\Demo /f",
                         "windows_reg_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_format",
+                        "Windows format 格式化审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "format d:",
+                        "windows_format"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_clear_disk",
+                        "Windows Clear-Disk 审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Clear-Disk -Number 1",
+                        "windows_clear_disk"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_remove_partition",
+                        "Windows Remove-Partition 审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Remove-Partition -DiskNumber 1 -PartitionNumber 1",
+                        "windows_remove_partition"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_format_volume",
+                        "Windows Format-Volume 审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "Format-Volume -DriveLetter D",
+                        "windows_format_volume"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_diskpart_script",
+                        "Windows diskpart 脚本审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "diskpart /s script.txt",
+                        "windows_diskpart_script"));
         items.add(
                 approvalDetectionProbe(
                         "windows_security_registry_weaken",
@@ -5890,13 +6054,21 @@ public class DashboardDiagnosticsService {
     }
 
     private Map<String, Object> hardlineCommandProbe(String key, String label, String command) {
+        return hardlineCommandProbe(key, label, command, null);
+    }
+
+    private Map<String, Object> hardlineCommandProbe(
+            String key, String label, String command, String expectedPatternKey) {
         if (approvalService == null) {
             return skippedPolicyProbeItem(
                     key, label, "hardline_command", command, "审批服务尚未启用。");
         }
         DangerousCommandApprovalService.DetectionResult detection =
                 approvalService.detectHardline(ToolNameConstants.EXECUTE_SHELL, command);
-        boolean blocked = detection != null;
+        boolean matched =
+                detection != null
+                        && (StrUtil.isBlank(expectedPatternKey)
+                                || StrUtil.equals(expectedPatternKey, detection.getPatternKey()));
         String message =
                 detection == null
                         ? ""
@@ -5906,7 +6078,7 @@ public class DashboardDiagnosticsService {
                 label,
                 "hardline_command",
                 false,
-                !blocked,
+                !matched,
                 safeAuditPreview(command, 400),
                 message);
     }
