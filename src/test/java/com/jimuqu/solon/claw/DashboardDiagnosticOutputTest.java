@@ -309,6 +309,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "unsupported_scp_scheme");
         Map<String, Object> sensitiveFragment = findProbe(items, "sensitive_fragment");
         Map<String, Object> encodedSensitiveQuery = findProbe(items, "encoded_sensitive_query");
+        Map<String, Object> repeatedEncodedSensitiveQuery =
+                findProbe(items, "repeated_encoded_sensitive_query");
+        Map<String, Object> semicolonSensitiveQuery =
+                findProbe(items, "semicolon_sensitive_query");
         Map<String, Object> signedUrl = findProbe(items, "signed_url");
         Map<String, Object> nestedSignedUrl = findProbe(items, "nested_signed_url");
         Map<String, Object> encodedUserinfoUrl = findProbe(items, "encoded_userinfo_url");
@@ -595,6 +599,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(encodedSensitiveQuery))
                 .contains("api%255Fkey=***")
                 .doesNotContain("sk-dashboard-encoded-secret");
+        assertThat(repeatedEncodedSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(repeatedEncodedSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(repeatedEncodedSensitiveQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(repeatedEncodedSensitiveQuery))
+                .contains("api%25255Fkey=***")
+                .doesNotContain("dashboard-repeated-encoded-secret");
+        assertThat(semicolonSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(semicolonSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(semicolonSensitiveQuery.get("skipped")).isNull();
+        assertThat(String.valueOf(semicolonSensitiveQuery))
+                .contains("client_secret=***")
+                .doesNotContain("dashboard-semicolon-secret");
         assertThat(signedUrl.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(signedUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(signedUrl.get("skipped")).isNull();

@@ -2331,6 +2331,16 @@ public class DashboardDiagnosticsService {
                         "https://example.test/callback?api%255Fkey=sk-dashboard-encoded-secret"));
         items.add(
                 urlProbe(
+                        "repeated_encoded_sensitive_query",
+                        "重复编码敏感 URL 参数阻断",
+                        "https://example.test/callback?api%25255Fkey=dashboard-repeated-encoded-secret"));
+        items.add(
+                urlProbe(
+                        "semicolon_sensitive_query",
+                        "分号分隔敏感 URL 参数阻断",
+                        "https://example.test/callback?page=1;client_secret=dashboard-semicolon-secret"));
+        items.add(
+                urlProbe(
                         "signed_url",
                         "签名型 URL 凭据参数阻断",
                         "https://bucket.example.test/file?OSSAccessKeyId=ak-dashboard&Signature=dashboard-signature-secret&Expires=9999999999"));
