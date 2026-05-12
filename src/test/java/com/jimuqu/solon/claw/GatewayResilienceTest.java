@@ -14,6 +14,9 @@ import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -117,11 +120,55 @@ public class GatewayResilienceTest {
         assertThat(reply.getContent()).contains("已排队");
         assertThat(reply.getRuntimeMetadata()).containsEntry("busy_policy", "queue");
         assertThat(queued).isNotNull();
+        assertThat(queued.getMessageText()).isEqualTo("queued follow-up");
+        assertThat(queued.getMessageJson()).contains("queued follow-up");
         assertThat(queued.getBusyPolicy()).isEqualTo("queue");
         assertThat(env.agentRunRepository.findRun(queued.getRunId()).getBusyPolicy())
                 .isEqualTo("queue");
         llm.releaseFirst();
         first.join(5000L);
+    }
+
+    @Test
+    void shouldRedactQueuedRunMessageErrorsWithoutMutatingQueuedInput() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        QueuedRunMessage queued = new QueuedRunMessage();
+        queued.setQueueId("queue-secret-error");
+        queued.setRunId("run-secret-error");
+        queued.setSessionId("session-secret-error");
+        queued.setSourceKey("MEMORY:queue-secret:user");
+        queued.setMessageText("please use token=ghp_queueinput12345");
+        queued.setMessageJson("{\"text\":\"please use token=ghp_queueinput12345\"}");
+        queued.setStatus("queued");
+        queued.setBusyPolicy("queue");
+        queued.setCreatedAt(System.currentTimeMillis());
+        queued.setError("initial failure api_key=sk-queue-initial-secret12345\u202E");
+        env.agentRunRepository.saveQueuedMessage(queued);
+
+        QueuedRunMessage stored =
+                env.agentRunRepository.findNextQueuedMessage(
+                        queued.getSourceKey(), queued.getSessionId());
+        assertThat(stored).isNotNull();
+        assertThat(stored.getMessageText()).contains("ghp_queueinput12345");
+        assertThat(stored.getMessageJson()).contains("ghp_queueinput12345");
+        assertThat(stored.getError())
+                .contains("api_key=***")
+                .doesNotContain("sk-queue-initial-secret12345")
+                .doesNotContain("\u202E");
+
+        env.agentRunRepository.markQueuedMessage(
+                queued.getQueueId(),
+                "failed",
+                System.currentTimeMillis(),
+                "final failure token=ghp_queueerror12345\u202E");
+        QueuedRunMessage failed =
+                env.agentRunRepository.findNextQueuedMessage(
+                        queued.getSourceKey(), queued.getSessionId());
+        assertThat(failed).isNull();
+        assertThat(readQueuedError(env, queued.getQueueId()))
+                .contains("token=***")
+                .doesNotContain("ghp_queueerror12345")
+                .doesNotContain("\u202E");
     }
 
     @Test
@@ -281,6 +328,25 @@ public class GatewayResilienceTest {
         thread.setDaemon(true);
         thread.start();
         return thread;
+    }
+
+    private String readQueuedError(TestEnvironment env, String queueId) throws Exception {
+        Connection connection = env.sqliteDatabase.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select error from queued_run_messages where queue_id = ?");
+            statement.setString(1, queueId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? resultSet.getString("error") : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
     }
 
     private static class BlockingFirstLlmGateway extends FakeLlmGateway {

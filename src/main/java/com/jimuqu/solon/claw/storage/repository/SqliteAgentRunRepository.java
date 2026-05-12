@@ -423,7 +423,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(9, message.getCreatedAt());
             statement.setLong(10, message.getStartedAt());
             statement.setLong(11, message.getFinishedAt());
-            statement.setString(12, message.getError());
+            statement.setString(12, redact(message.getError(), 2000));
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -487,7 +487,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(3, timestamp);
             statement.setString(4, status);
             statement.setLong(5, timestamp);
-            statement.setString(6, error);
+            statement.setString(6, redact(error, 2000));
             statement.setString(7, queueId);
             statement.executeUpdate();
             statement.close();
