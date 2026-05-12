@@ -2306,6 +2306,11 @@ public class DashboardDiagnosticsService {
                         "工具返回 URL 递归检查",
                         "http://169.254.169.254/latest/user-data"));
         items.add(
+                commandUrlPolicyProbe(
+                        "command_url_policy",
+                        "命令 URL 前置策略检查",
+                        "curl http://169.254.169.254/latest/user-data"));
+        items.add(
                 hardlineCommandProbe(
                         "hardline_command",
                         "硬阻断命令检查",
@@ -2550,6 +2555,18 @@ public class DashboardDiagnosticsService {
                 false,
                 verdict.isAllowed(),
                 SecretRedactor.maskUrl(url),
+                verdict.getMessage());
+    }
+
+    private Map<String, Object> commandUrlPolicyProbe(String key, String label, String command) {
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkCommandUrls(command);
+        return policyProbeItem(
+                key,
+                label,
+                "command_url_policy",
+                false,
+                verdict.isAllowed(),
+                safeAuditPreview(command, 400),
                 verdict.getMessage());
     }
 
