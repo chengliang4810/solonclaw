@@ -502,6 +502,7 @@ public class SolonClawShellSkill extends ShellSkill {
         summary.put("transformerFailureIsolated", Boolean.TRUE);
         summary.put("exitCodeSemanticsAvailable", Boolean.TRUE);
         summary.put("exitCodeMeaningReturned", Boolean.TRUE);
+        summary.put("executeShellExitMeaningNotice", Boolean.TRUE);
         summary.put("exitCodeSemantics", TerminalExitCodeSemantics.policySummary());
         summary.put("foregroundRetryErrorsInterpreted", Boolean.TRUE);
         summary.put("description", "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail truncation notice, and enriched with timeout, sudo, and exit-code guidance before it is returned.");
@@ -689,11 +690,26 @@ public class SolonClawShellSkill extends ShellSkill {
                 return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
             }
             output = result.getError();
+            output = appendExitCodeMeaningNotice(code, output, result.getExitCode());
             return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
         }
         output = StrUtil.nullToEmpty(result.getOutput()).trim();
         output = output.length() == 0 ? "执行成功" : output;
+        output = appendExitCodeMeaningNotice(code, output, result.getExitCode());
         return transformTerminalOutput(code, output, result.getExitCode(), result.getError());
+    }
+
+    private String appendExitCodeMeaningNotice(String command, String output, Integer exitCode) {
+        String meaning = TerminalExitCodeSemantics.interpret(command, exitCode);
+        if (StrUtil.isBlank(meaning)) {
+            return output;
+        }
+        String notice = "退出码说明：" + meaning;
+        String value = StrUtil.nullToEmpty(output);
+        if (value.contains(notice)) {
+            return value;
+        }
+        return value.length() == 0 ? notice : value + "\n" + notice;
     }
 
     private String transformTerminalOutput(

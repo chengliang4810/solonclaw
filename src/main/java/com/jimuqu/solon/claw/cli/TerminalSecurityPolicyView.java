@@ -1656,6 +1656,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(output, "exitCodeSemanticsAvailable"))
                 .append(" exitMeaning=")
                 .append(value(output, "exitCodeMeaningReturned"))
+                .append(" executeNotice=")
+                .append(value(output, "executeShellExitMeaningNotice"))
                 .append(" retryErrors=")
                 .append(value(output, "foregroundRetryErrorsInterpreted"));
         return buffer.toString();

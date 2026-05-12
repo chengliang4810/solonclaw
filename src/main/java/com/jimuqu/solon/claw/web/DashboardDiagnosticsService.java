@@ -1309,6 +1309,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "transformerFailureIsolated");
             copyPolicyValue(summary, safe, "exitCodeSemanticsAvailable");
             copyPolicyValue(summary, safe, "exitCodeMeaningReturned");
+            copyPolicyValue(summary, safe, "executeShellExitMeaningNotice");
             if (summary.get("exitCodeSemantics") instanceof Map) {
                 safe.put(
                         "exitCodeSemantics",

@@ -492,6 +492,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"truncationNoticeIncluded\":true")
                 .contains("\"emptySuccessMessage\":\"执行成功\"")
                 .contains("\"exitCodeMeaningReturned\":true")
+                .contains("\"executeShellExitMeaningNotice\":true")
                 .contains("\"exitCodeSemantics\"")
                 .contains("\"grepNoMatchExitOneInformational\":true")
                 .contains("\"curlNetworkErrorsExplained\":true")

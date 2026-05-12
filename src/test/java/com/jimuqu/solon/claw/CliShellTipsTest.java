@@ -374,6 +374,7 @@ public class CliShellTipsTest {
                 .contains("bidi=true")
                 .contains("sudoHint")
                 .contains("exitMeaning=true")
+                .contains("executeNotice=true")
                 .contains("emptySuccess=执行成功");
         assertThat(TerminalSecurityPolicyView.render(null, "/security sudo"))
                 .contains("sudo 改写安全策略摘要")

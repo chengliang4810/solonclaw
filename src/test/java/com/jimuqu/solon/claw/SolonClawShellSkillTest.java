@@ -826,6 +826,7 @@ public class SolonClawShellSkillTest {
         assertThat(summary.get("displayControlCharsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("bidiControlsStripped")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("exitCodeMeaningReturned")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("executeShellExitMeaningNotice")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("exitCodeSemantics")))
                 .contains("grepNoMatchExitOneInformational")
                 .contains("gitDiffExitOneInformational")
@@ -1355,6 +1356,24 @@ public class SolonClawShellSkillTest {
         String result = skill.execute("echo plain-output", Integer.valueOf(10000));
 
         assertThat(result).isEqualTo("execute-shell-replacement");
+    }
+
+    @Test
+    void shouldAppendExitCodeMeaningToExecuteShellCompatibilityOutput()
+            throws Exception {
+        assumeTrue(!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win"));
+        AppConfig config = new AppConfig();
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        String result =
+                skill.execute(
+                        "test -f /definitely-not-a-jimuqu-file",
+                        Integer.valueOf(10000));
+
+        assertThat(result)
+                .contains("退出码说明")
+                .contains("Condition evaluated to false");
     }
 
     @Test
