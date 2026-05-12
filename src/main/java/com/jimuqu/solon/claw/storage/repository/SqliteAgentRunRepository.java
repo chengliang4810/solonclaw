@@ -284,8 +284,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setInt(8, event.getAttemptNo());
             statement.setString(9, event.getProvider());
             statement.setString(10, event.getModel());
-            statement.setString(11, event.getSummary());
-            statement.setString(12, event.getMetadataJson());
+            statement.setString(11, redact(event.getSummary(), 1000));
+            statement.setString(12, redact(event.getMetadataJson(), 4000));
             statement.setLong(13, event.getCreatedAt());
             statement.executeUpdate();
             appendEventFts(connection, event);

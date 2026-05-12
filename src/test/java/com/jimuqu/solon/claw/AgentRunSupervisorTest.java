@@ -213,6 +213,40 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldRedactAgentRunEventAuditFieldsBeforeStorage() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-event-redaction-1");
+        run.setSessionId("session-event-redaction-1");
+        run.setSourceKey("MEMORY:event-redaction:user");
+        run.setStatus("running");
+        run.setStartedAt(System.currentTimeMillis());
+        run.setLastActivityAt(run.getStartedAt());
+        fixture.agentRunRepository.saveRun(run);
+
+        AgentRunEventRecord event = new AgentRunEventRecord();
+        event.setEventId("event-redaction-1");
+        event.setRunId(run.getRunId());
+        event.setSessionId(run.getSessionId());
+        event.setSourceKey(run.getSourceKey());
+        event.setEventType("audit.secret");
+        event.setSeverity("info");
+        event.setSummary("summary Authorization: Bearer ghp_eventsummary12345");
+        event.setMetadataJson("{\"api_key\":\"sk-event-metadata-secret12345\"}");
+        event.setCreatedAt(System.currentTimeMillis());
+        fixture.agentRunRepository.appendEvent(event);
+
+        List<AgentRunEventRecord> events = fixture.agentRunRepository.listEvents(run.getRunId());
+        assertThat(events).hasSize(1);
+        String payload = events.get(0).getSummary() + "\n" + events.get(0).getMetadataJson();
+        assertThat(payload)
+                .contains("Authorization: Bearer ***")
+                .contains("\"api_key\":\"***\"")
+                .doesNotContain("ghp_eventsummary12345")
+                .doesNotContain("sk-event-metadata-secret12345");
+    }
+
+    @Test
     void shouldRedactRunFailureEventsAndRecords() throws Exception {
         Fixture fixture = fixture();
         String leakedToken = "sk-supervisor12345";
