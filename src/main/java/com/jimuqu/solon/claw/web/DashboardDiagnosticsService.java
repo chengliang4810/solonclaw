@@ -2389,6 +2389,16 @@ public class DashboardDiagnosticsService {
                         "git config --global https.proxy http://169.254.169.254:8080"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_package_proxy_bypass_policy",
+                        "包管理器代理绕过 URL 前置策略检查",
+                        "PNPM_CONFIG_NOPROXY=metadata.google.internal pnpm install"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_package_persistent_proxy_policy",
+                        "包管理器持久化代理 URL 前置策略检查",
+                        "pip config set global.proxy http://169.254.169.254:8080"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_system_dns_policy",
                         "命令系统 DNS URL 前置策略检查",
                         "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 169.254.169.254,8.8.8.8"));

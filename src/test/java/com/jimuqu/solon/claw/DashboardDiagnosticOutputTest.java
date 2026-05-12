@@ -317,6 +317,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_proxy_bypass_policy");
         Map<String, Object> commandPersistentProxyPolicy =
                 findProbe(items, "command_persistent_proxy_policy");
+        Map<String, Object> commandPackageProxyBypassPolicy =
+                findProbe(items, "command_package_proxy_bypass_policy");
+        Map<String, Object> commandPackagePersistentProxyPolicy =
+                findProbe(items, "command_package_persistent_proxy_policy");
         Map<String, Object> commandSystemDnsPolicy =
                 findProbe(items, "command_system_dns_policy");
         Map<String, Object> commandRegistryProxyPolicy =
@@ -463,6 +467,19 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandPersistentProxyPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandPersistentProxyPolicy))
                 .contains("git config")
+                .contains("169.254.169.254");
+        assertThat(commandPackageProxyBypassPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackageProxyBypassPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackageProxyBypassPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPackageProxyBypassPolicy))
+                .contains("PNPM_***")
+                .contains("pnpm install")
+                .contains("metadata.google.internal");
+        assertThat(commandPackagePersistentProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackagePersistentProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPackagePersistentProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPackagePersistentProxyPolicy))
+                .contains("pip config")
                 .contains("169.254.169.254");
         assertThat(commandSystemDnsPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandSystemDnsPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
