@@ -284,8 +284,10 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
         Map<String, Object> probes = (Map<String, Object>) security.get("probes");
         assertThat(probes.get("available")).isEqualTo(Boolean.TRUE);
-        assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
+        assertThat(probes.get("passed"))
+                .as("failed probes: %s", failedProbeKeys(items))
+                .isEqualTo(Boolean.TRUE);
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> sudoRewrite = findProbe(items, "sudo_rewrite");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
@@ -619,6 +621,22 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "credential_file_system_open");
         Map<String, Object> credentialFileMetadataOutput =
                 findProbe(items, "credential_file_metadata_output");
+        Map<String, Object> remoteCredentialFileTransfer =
+                findProbe(items, "remote_credential_file_transfer");
+        Map<String, Object> credentialPathOption = findProbe(items, "credential_path_option");
+        Map<String, Object> credentialConfigOption = findProbe(items, "credential_config_option");
+        Map<String, Object> codeTlsCertificateCheckDisabled =
+                findProbe(items, "code_tls_certificate_check_disabled");
+        Map<String, Object> plaintextCliPasswordOption =
+                findProbe(items, "plaintext_cli_password_option");
+        Map<String, Object> cliLoginCredentialOption =
+                findProbe(items, "cli_login_credential_option");
+        Map<String, Object> credentialHistoryErasure =
+                findProbe(items, "credential_history_erasure");
+        Map<String, Object> gitRemoteCredentialUrl =
+                findProbe(items, "git_remote_credential_url");
+        Map<String, Object> gitCredentialStoreChange =
+                findProbe(items, "git_credential_store_change");
         Map<String, Object> linuxCredentialMaterialDump =
                 findProbe(items, "linux_credential_material_dump");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -1819,6 +1837,47 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialFileMetadataOutput.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialFileMetadataOutput.get("skipped")).isNull();
         assertThat(String.valueOf(credentialFileMetadataOutput)).contains("stat");
+        assertThat(remoteCredentialFileTransfer.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteCredentialFileTransfer.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(remoteCredentialFileTransfer.get("skipped")).isNull();
+        assertThat(String.valueOf(remoteCredentialFileTransfer)).contains("scp");
+        assertThat(credentialPathOption.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialPathOption.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialPathOption.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialPathOption)).contains("ssh -i");
+        assertThat(credentialConfigOption.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialConfigOption.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialConfigOption.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialConfigOption)).contains("deployctl");
+        assertThat(codeTlsCertificateCheckDisabled.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(codeTlsCertificateCheckDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(codeTlsCertificateCheckDisabled.get("skipped")).isNull();
+        assertThat(String.valueOf(codeTlsCertificateCheckDisabled)).contains("verify=False");
+        assertThat(plaintextCliPasswordOption.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(plaintextCliPasswordOption.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(plaintextCliPasswordOption.get("skipped")).isNull();
+        assertThat(String.valueOf(plaintextCliPasswordOption)).contains("redis-cli");
+        assertThat(cliLoginCredentialOption.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cliLoginCredentialOption.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cliLoginCredentialOption.get("skipped")).isNull();
+        assertThat(String.valueOf(cliLoginCredentialOption)).contains("docker login");
+        assertThat(credentialHistoryErasure.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialHistoryErasure.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialHistoryErasure.get("skipped")).isNull();
+        assertThat(String.valueOf(credentialHistoryErasure)).contains("history -c");
+        assertThat(gitRemoteCredentialUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gitRemoteCredentialUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gitRemoteCredentialUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(gitRemoteCredentialUrl))
+                .contains("git remote add")
+                .doesNotContain("user:token@");
+        assertThat(gitCredentialStoreChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gitCredentialStoreChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gitCredentialStoreChange.get("skipped")).isNull();
+        assertThat(String.valueOf(gitCredentialStoreChange))
+                .contains("git config")
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("credential.helper");
         assertThat(linuxCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("skipped")).isNull();
@@ -3407,6 +3466,16 @@ public class DashboardDiagnosticOutputTest {
             }
         }
         throw new AssertionError("security probe not found: " + key);
+    }
+
+    private static List<String> failedProbeKeys(List<Map<String, Object>> items) {
+        List<String> failures = new ArrayList<String>();
+        for (Map<String, Object> item : items) {
+            if (!Boolean.TRUE.equals(item.get("passed"))) {
+                failures.add(String.valueOf(item));
+            }
+        }
+        return failures;
     }
 
     private static TirithSecurityService.ScanResult scanResult(
