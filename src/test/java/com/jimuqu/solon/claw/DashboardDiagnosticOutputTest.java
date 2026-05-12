@@ -799,6 +799,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "domestic_cloud_destructive_resource");
         Map<String, Object> objectStorageRecursiveRemove =
                 findProbe(items, "object_storage_recursive_remove");
+        Map<String, Object> domesticObjectStorageRecursiveRemove =
+                findProbe(items, "domestic_object_storage_recursive_remove");
         Map<String, Object> objectStorageExposureChange =
                 findProbe(items, "object_storage_exposure_change");
         Map<String, Object> cloudIamPermissionChange =
@@ -2319,6 +2321,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(objectStorageRecursiveRemove.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(objectStorageRecursiveRemove.get("skipped")).isNull();
         assertThat(String.valueOf(objectStorageRecursiveRemove)).contains("--recursive");
+        assertThat(domesticObjectStorageRecursiveRemove.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(domesticObjectStorageRecursiveRemove.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(domesticObjectStorageRecursiveRemove.get("skipped")).isNull();
+        assertThat(String.valueOf(domesticObjectStorageRecursiveRemove)).contains("ossutil rm -r");
         assertThat(objectStorageExposureChange.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(objectStorageExposureChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(objectStorageExposureChange.get("skipped")).isNull();

@@ -4055,6 +4055,13 @@ public class DashboardDiagnosticsService {
                         "aws_s3_recursive_remove"));
         items.add(
                 approvalDetectionProbe(
+                        "domestic_object_storage_recursive_remove",
+                        "国内对象存储递归删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "ossutil rm -r oss://prod-data/private",
+                        "domestic_object_storage_recursive_remove"));
+        items.add(
+                approvalDetectionProbe(
                         "object_storage_exposure_change",
                         "对象存储公开策略变更审批",
                         ToolNameConstants.EXECUTE_SHELL,
