@@ -308,6 +308,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialPath = findProbe(items, "credential_path");
         Map<String, Object> credentialFileName = findProbe(items, "credential_file_name");
         Map<String, Object> credentialPathSuffix = findProbe(items, "credential_path_suffix");
+        Map<String, Object> encodedPathTraversal = findProbe(items, "encoded_path_traversal");
         Map<String, Object> commandUrlPolicy = findProbe(items, "command_url_policy");
         Map<String, Object> commandWebsocketUrlPolicy =
                 findProbe(items, "command_websocket_url_policy");
@@ -346,6 +347,8 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_archive_credential_path");
         Map<String, Object> commandCredentialOptionPath =
                 findProbe(items, "command_credential_option_path");
+        Map<String, Object> commandEncodedPathTraversal =
+                findProbe(items, "command_encoded_path_traversal");
         Map<String, Object> schemaSanitizer = findProbe(items, "schema_sanitizer");
         Map<String, Object> mcpOAuthPolicy = findProbe(items, "mcp_oauth_policy");
         Map<String, Object> mcpToolChangePolicy = findProbe(items, "mcp_tool_change_policy");
@@ -459,6 +462,10 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialPathSuffix.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPathSuffix.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(credentialPathSuffix.get("skipped")).isNull();
+        assertThat(encodedPathTraversal.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedPathTraversal.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(encodedPathTraversal.get("skipped")).isNull();
+        assertThat(String.valueOf(encodedPathTraversal)).contains("%252e%252e");
         assertThat(commandUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("skipped")).isNull();
@@ -569,6 +576,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandCredentialOptionPath))
                 .contains("ssh")
                 .contains("deploy_key");
+        assertThat(commandEncodedPathTraversal.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandEncodedPathTraversal.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandEncodedPathTraversal.get("skipped")).isNull();
+        assertThat(String.valueOf(commandEncodedPathTraversal))
+                .contains("cat")
+                .contains("%252e%252e");
         assertThat(schemaSanitizer.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(schemaSanitizer.get("blocked")).isEqualTo(Boolean.FALSE);

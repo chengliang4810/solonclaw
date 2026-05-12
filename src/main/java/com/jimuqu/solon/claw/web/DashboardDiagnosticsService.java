@@ -2353,6 +2353,12 @@ public class DashboardDiagnosticsService {
                         false));
         items.add(
                 pathProbe(
+                        "encoded_path_traversal",
+                        "编码路径遍历读取阻断",
+                        "safe/%252e%252e/readme.txt",
+                        false));
+        items.add(
+                pathProbe(
                         "system_write_path",
                         "系统文件写入阻断",
                         "/etc/hosts",
@@ -2463,6 +2469,11 @@ public class DashboardDiagnosticsService {
                         "command_credential_option_path",
                         "命令凭据路径选项检查",
                         "ssh -i deploy_key host.example"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_encoded_path_traversal",
+                        "命令编码路径遍历检查",
+                        "cat safe/%252e%252e/readme.txt"));
         items.add(
                 schemaSanitizerProbe(
                         "schema_sanitizer",
