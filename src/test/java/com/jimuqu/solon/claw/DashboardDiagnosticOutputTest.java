@@ -489,6 +489,14 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> commandHostsFileWrite = findProbe(items, "command_hosts_file_write");
         Map<String, Object> commandResolverFileWrite =
                 findProbe(items, "command_resolver_file_write");
+        Map<String, Object> commandPasswdFileWrite =
+                findProbe(items, "command_passwd_file_write");
+        Map<String, Object> commandShadowFileWrite =
+                findProbe(items, "command_shadow_file_write");
+        Map<String, Object> commandDockerSocketWrite =
+                findProbe(items, "command_docker_socket_write");
+        Map<String, Object> commandHomeProfileWrite =
+                findProbe(items, "command_home_profile_write");
         Map<String, Object> commandBarePackedIpv4Metadata =
                 findProbe(items, "command_bare_packed_ipv4_metadata");
         Map<String, Object> commandBareHexIpv4Metadata =
@@ -1186,6 +1194,30 @@ public class DashboardDiagnosticOutputTest {
         assertThat(String.valueOf(commandResolverFileWrite.get("target")))
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("/etc/resolv.conf");
+        assertThat(commandPasswdFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPasswdFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandPasswdFileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandPasswdFileWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/passwd");
+        assertThat(commandShadowFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandShadowFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandShadowFileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandShadowFileWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/etc/shadow");
+        assertThat(commandDockerSocketWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandDockerSocketWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandDockerSocketWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandDockerSocketWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/var/run/docker.sock");
+        assertThat(commandHomeProfileWrite.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandHomeProfileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandHomeProfileWrite.get("skipped")).isNull();
+        assertThat(String.valueOf(commandHomeProfileWrite.get("target")))
+                .contains("[REDACTED_PATH]")
+                .doesNotContain(".bashrc");
         assertThat(commandBarePackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("skipped")).isNull();

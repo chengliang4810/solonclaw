@@ -2904,6 +2904,26 @@ public class DashboardDiagnosticsService {
                         "命令 resolver 文件写入检查",
                         "printf 'nameserver 169.254.169.254' > /etc/resolv.conf"));
         items.add(
+                commandPathPolicyProbe(
+                        "command_passwd_file_write",
+                        "命令账号文件写入检查",
+                        "printf 'blocked:x:0:0:blocked:/root:/bin/sh' >> /etc/passwd"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_shadow_file_write",
+                        "命令 shadow 文件写入检查",
+                        "printf 'blocked:*:19000:0:99999:7:::' > /etc/shadow"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_docker_socket_write",
+                        "命令容器管理套接字写入检查",
+                        "printf probe > /var/run/docker.sock"));
+        items.add(
+                commandPathPolicyProbe(
+                        "command_home_profile_write",
+                        "命令用户启动脚本写入检查",
+                        "echo 'alias ll=ls -la' >> ~/.bashrc"));
+        items.add(
                 commandAlwaysBlockedUrlProbe(
                         "command_bare_packed_ipv4_metadata",
                         "命令裸数字元数据地址阻断",
