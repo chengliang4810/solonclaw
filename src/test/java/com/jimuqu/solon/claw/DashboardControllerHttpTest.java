@@ -2012,6 +2012,66 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRejectRawAlwaysApprovalRevokeWithoutLeakingDashboardInput() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        seedPendingApproval(
+                "dashboard-raw-always-chat",
+                "MEMORY:dashboard-raw-always-chat:dashboard-user",
+                "Dashboard raw always approval session",
+                "curl https://example.test/callback?api_key=ghp_rawalwayssecret12345");
+
+        HttpResult pending =
+                request("GET", "/api/diagnostics/approvals?limit=20", null, token);
+        ONode pendingData =
+                findItemByStringField(
+                        ONode.ofJson(pending.body).get("data").get("items"),
+                        "session_id",
+                        "dashboard-raw-always-chat");
+        assertThat(pendingData).isNotNull();
+        String selector = pendingData.get("selector").getString();
+
+        HttpResult approve =
+                request(
+                        "POST",
+                        "/api/diagnostics/approvals/resolve",
+                        "{\"sessionId\":\"dashboard-raw-always-chat\",\"approvalId\":\""
+                                + jsonEscape(selector)
+                                + "\",\"action\":\"approve\",\"scope\":\"always\",\"resume\":false}",
+                        token);
+        assertThat(approve.status).isEqualTo(200);
+        assertThat(approve.body).contains("\"success\":true");
+
+        HttpResult alwaysBefore =
+                request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
+        assertThat(alwaysBefore.status).isEqualTo(200);
+        assertThat(alwaysBefore.body).doesNotContain("rawalwayssecret12345");
+
+        HttpResult rejected =
+                request(
+                        "POST",
+                        "/api/diagnostics/approvals/always/revoke",
+                        "{\"approval\":\"execute_shell:curl_url_query_api_key\","
+                                + "\"approvalId\":\"execute_shell:curl_url_query_api_key:ghp_rawalwayssecret12345\"}",
+                        token);
+        assertThat(rejected.status).isEqualTo(200);
+        assertThat(rejected.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"missing_approval\"")
+                .doesNotContain("execute_shell:curl_url_query_api_key")
+                .doesNotContain("ghp_rawalwayssecret12345")
+                .doesNotContain("\"approval\":")
+                .doesNotContain("\"approval_id\":");
+
+        HttpResult alwaysAfter =
+                request("GET", "/api/diagnostics/approvals/always?limit=20", null, token);
+        assertThat(alwaysAfter.status).isEqualTo(200);
+        assertThat(alwaysAfter.body)
+                .contains("\"tool_name\":\"execute_shell\"")
+                .doesNotContain("rawalwayssecret12345")
+                .doesNotContain("\"approval\":");
+    }
+
+    @Test
     void shouldListAndResolvePendingSlashConfirmsFromDashboard() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
 
