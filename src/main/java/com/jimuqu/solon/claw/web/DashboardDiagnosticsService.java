@@ -2330,6 +2330,16 @@ public class DashboardDiagnosticsService {
                         "URL 用户名密码阻断",
                         "https://user:dashboard-probe-password@example.test/path"));
         items.add(
+                urlProbe(
+                        "encoded_userinfo_url",
+                        "编码 URL 用户名密码阻断",
+                        "https://user%253Apassword@example.test/private"));
+        items.add(
+                urlProbe(
+                        "sensitive_path_segment_url",
+                        "敏感 URL 路径段阻断",
+                        "https://example.test/oauth/access_token/secret123"));
+        items.add(
                 websitePolicyProbe(
                         "website_policy_rule",
                         "网站访问策略规则阻断"));
