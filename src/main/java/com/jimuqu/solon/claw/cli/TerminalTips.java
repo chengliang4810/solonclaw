@@ -21,6 +21,7 @@ public final class TerminalTips {
                             "/reload-mcp now 可立即重载 MCP 工具 schema。",
                             "/acp status 可查看本地适配器能力快照。",
                             "/security audit 可查看危险命令、URL、路径和工具参数策略摘要。",
+                            "/security status 可只读查看安全策略状态，不执行命令、不访问 URL。",
                             "/cron guide 可查看自动化字段、技能绑定和投递策略。",
                             "/kanban guide 可查看任务抽屉、流水、重试和派发流程。",
                             "/compact <重点> 可压缩当前会话上下文。",

@@ -28,6 +28,7 @@ public class TerminalTipsTest {
                 .contains("/reload-mcp now")
                 .contains("/acp status")
                 .contains("/security audit")
+                .contains("/security status")
                 .contains("/cron guide")
                 .contains("/kanban guide")
                 .contains("/compact")
