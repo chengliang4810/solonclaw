@@ -509,6 +509,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(result.get("session_scan_limit")).isEqualTo(Integer.valueOf(5));
         assertThat(result.get("scanned_sessions")).isEqualTo(Integer.valueOf(4));
         assertThat(result.get("truncated")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("session_scan_truncated")).isEqualTo(Boolean.FALSE);
         assertThat(items.get(0).get("session_id")).isEqualTo("session-older-pending");
     }
 
@@ -556,7 +557,48 @@ public class DashboardDiagnosticOutputTest {
         assertThat(result.get("count")).isEqualTo(Integer.valueOf(1));
         assertThat(result.get("scanned_sessions")).isEqualTo(Integer.valueOf(2));
         assertThat(result.get("truncated")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("session_scan_truncated")).isEqualTo(Boolean.FALSE);
         assertThat(items.get(0).get("session_id")).isEqualTo("session-pending-limit-0");
+    }
+
+    @Test
+    void shouldMarkPendingApprovalSessionScanTruncatedWhenRecentWindowIsExhausted()
+            throws Exception {
+        AppConfig config = new AppConfig();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config));
+        List<SessionRecord> records = new ArrayList<SessionRecord>();
+        for (int i = 0; i < 6; i++) {
+            SessionRecord record = new SessionRecord();
+            record.setSessionId("session-scan-window-" + i);
+            record.setSourceKey("source-scan-window-" + i);
+            record.setTitle("scan window " + i);
+            records.add(record);
+        }
+
+        DashboardDiagnosticsService diagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        new FixedDeliveryService(null),
+                        new LlmProviderService(config),
+                        new FixedToolRegistry(),
+                        new FixedSessionRepository(records),
+                        null,
+                        null,
+                        null,
+                        null,
+                        approvalService,
+                        new SecurityPolicyService(config),
+                        null);
+
+        Map<String, Object> result = diagnosticsService.pendingApprovals(1);
+
+        assertThat(result.get("count")).isEqualTo(Integer.valueOf(0));
+        assertThat(result.get("session_scan_limit")).isEqualTo(Integer.valueOf(5));
+        assertThat(result.get("scanned_sessions")).isEqualTo(Integer.valueOf(5));
+        assertThat(result.get("truncated")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("session_scan_truncated")).isEqualTo(Boolean.TRUE);
     }
 
     @Test
@@ -1162,12 +1204,14 @@ public class DashboardDiagnosticOutputTest {
 
         @Override
         public List<SessionRecord> listRecent(int limit) {
-            return records;
+            return records.subList(0, Math.min(Math.max(limit, 0), records.size()));
         }
 
         @Override
         public List<SessionRecord> listRecent(int limit, int offset) {
-            return records;
+            int safeOffset = Math.min(Math.max(offset, 0), records.size());
+            int safeEnd = Math.min(safeOffset + Math.max(limit, 0), records.size());
+            return records.subList(safeOffset, safeEnd);
         }
 
         @Override

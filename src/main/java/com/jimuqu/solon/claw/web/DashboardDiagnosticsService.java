@@ -170,6 +170,7 @@ public class DashboardDiagnosticsService {
             disabled.put("session_scan_limit", Integer.valueOf(sessionScanLimit));
             disabled.put("scanned_sessions", Integer.valueOf(0));
             disabled.put("truncated", Boolean.FALSE);
+            disabled.put("session_scan_truncated", Boolean.FALSE);
             disabled.put("available", Boolean.FALSE);
             disabled.put("code", "approval_unavailable");
             disabled.put("message", "审批服务尚未启用。");
@@ -200,6 +201,10 @@ public class DashboardDiagnosticsService {
         result.put("session_scan_limit", Integer.valueOf(sessionScanLimit));
         result.put("scanned_sessions", Integer.valueOf(scannedSessions));
         result.put("truncated", Boolean.valueOf(truncated));
+        result.put(
+                "session_scan_truncated",
+                Boolean.valueOf(!truncated && scannedSessions >= sessionScanLimit
+                        && sessionRepository.countAll() > scannedSessions));
         return result;
     }
 
