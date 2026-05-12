@@ -813,19 +813,27 @@ public final class TerminalSecurityPolicyView {
                 .append(" inApprovalMode=")
                 .append(value(tirith, "scanRunsInApprovalMode"))
                 .append(" prefix=")
-                .append(value(tirith, "patternKeyPrefix"));
+                .append(value(tirith, "patternKeyPrefix"))
+                .append(" emptyKey=")
+                .append(value(tirith, "emptyFindingsPatternKey"));
         buffer.append('\n')
                 .append("- 合并：findingsAsKeys=")
                 .append(value(tirith, "findingsBecomePatternKeys"))
                 .append(" localRules=")
                 .append(value(tirith, "combinedWithLocalDangerRules"))
                 .append(" smartSessionOnly=")
-                .append(value(tirith, "smartApprovalCanApproveSessionOnly"));
+                .append(value(tirith, "smartApprovalCanApproveSessionOnly"))
+                .append(" smartDeny=")
+                .append(value(tirith, "smartApprovalCanDeny"));
         buffer.append('\n')
                 .append("- 范围：permanentAllowed=")
                 .append(value(tirith, "permanentApprovalAllowed"))
                 .append(" alwaysDowngraded=")
                 .append(value(tirith, "alwaysScopeDowngradedToSession"))
+                .append(" cardAlwaysHidden=")
+                .append(value(tirith, "approvalCardAlwaysHidden"))
+                .append(" pendingBlocksAlways=")
+                .append(value(tirith, "pendingMessageBlocksAlwaysScope"))
                 .append(" descriptionRedacted=")
                 .append(value(tirith, "descriptionRedacted"));
         return buffer.toString();

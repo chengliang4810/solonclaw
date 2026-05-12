@@ -276,7 +276,11 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security tirith-approval"))
                 .contains("Tirith 审批策略摘要")
                 .contains("permanentAllowed=false")
-                .contains("alwaysDowngraded=true");
+                .contains("alwaysDowngraded=true")
+                .contains("emptyKey=tirith:security_scan")
+                .contains("smartDeny=true")
+                .contains("cardAlwaysHidden=true")
+                .contains("pendingBlocksAlways=true");
         assertThat(TerminalSecurityPolicyView.render(null, "/security cron-approvals"))
                 .contains("Cron 审批策略摘要")
                 .contains("hardlineBlocked=true")
