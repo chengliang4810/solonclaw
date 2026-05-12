@@ -637,6 +637,21 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "git_remote_credential_url");
         Map<String, Object> gitCredentialStoreChange =
                 findProbe(items, "git_credential_store_change");
+        Map<String, Object> sshHostKeyCheckDisabled =
+                findProbe(items, "ssh_host_key_check_disabled");
+        Map<String, Object> tlsCertificateCheckDisabled =
+                findProbe(items, "tls_certificate_check_disabled");
+        Map<String, Object> gitTlsCertificateCheckDisabled =
+                findProbe(items, "git_tls_certificate_check_disabled");
+        Map<String, Object> systemTrustStoreChange =
+                findProbe(items, "system_trust_store_change");
+        Map<String, Object> systemPackageSourceTrustChange =
+                findProbe(items, "system_package_source_trust_change");
+        Map<String, Object> auditLogErasure = findProbe(items, "audit_log_erasure");
+        Map<String, Object> linuxAuditPolicyDisabled =
+                findProbe(items, "linux_audit_policy_disabled");
+        Map<String, Object> macosSecurityPolicyWeaken =
+                findProbe(items, "macos_security_policy_weaken");
         Map<String, Object> linuxCredentialMaterialDump =
                 findProbe(items, "linux_credential_material_dump");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
@@ -1878,6 +1893,38 @@ public class DashboardDiagnosticOutputTest {
                 .contains("git config")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain("credential.helper");
+        assertThat(sshHostKeyCheckDisabled.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(sshHostKeyCheckDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(sshHostKeyCheckDisabled.get("skipped")).isNull();
+        assertThat(String.valueOf(sshHostKeyCheckDisabled)).contains("StrictHostKeyChecking");
+        assertThat(tlsCertificateCheckDisabled.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(tlsCertificateCheckDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(tlsCertificateCheckDisabled.get("skipped")).isNull();
+        assertThat(String.valueOf(tlsCertificateCheckDisabled)).contains("curl --insecure");
+        assertThat(gitTlsCertificateCheckDisabled.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gitTlsCertificateCheckDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gitTlsCertificateCheckDisabled.get("skipped")).isNull();
+        assertThat(String.valueOf(gitTlsCertificateCheckDisabled)).contains("sslVerify=false");
+        assertThat(systemTrustStoreChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(systemTrustStoreChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(systemTrustStoreChange.get("skipped")).isNull();
+        assertThat(String.valueOf(systemTrustStoreChange)).contains("update-ca-certificates");
+        assertThat(systemPackageSourceTrustChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(systemPackageSourceTrustChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(systemPackageSourceTrustChange.get("skipped")).isNull();
+        assertThat(String.valueOf(systemPackageSourceTrustChange)).contains("apt-key add");
+        assertThat(auditLogErasure.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(auditLogErasure.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(auditLogErasure.get("skipped")).isNull();
+        assertThat(String.valueOf(auditLogErasure)).contains("journalctl --vacuum-time");
+        assertThat(linuxAuditPolicyDisabled.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxAuditPolicyDisabled.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(linuxAuditPolicyDisabled.get("skipped")).isNull();
+        assertThat(String.valueOf(linuxAuditPolicyDisabled)).contains("auditctl -e 0");
+        assertThat(macosSecurityPolicyWeaken.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(macosSecurityPolicyWeaken.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(macosSecurityPolicyWeaken.get("skipped")).isNull();
+        assertThat(String.valueOf(macosSecurityPolicyWeaken)).contains("spctl");
         assertThat(linuxCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(linuxCredentialMaterialDump.get("skipped")).isNull();

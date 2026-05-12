@@ -3383,6 +3383,62 @@ public class DashboardDiagnosticsService {
                         "git_credential_store_change"));
         items.add(
                 approvalDetectionProbe(
+                        "ssh_host_key_check_disabled",
+                        "SSH 主机密钥校验关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "ssh -o StrictHostKeyChecking=no user@example.test",
+                        "ssh_host_key_check_disabled"));
+        items.add(
+                approvalDetectionProbe(
+                        "tls_certificate_check_disabled",
+                        "TLS 证书校验关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "curl --insecure https://example.test",
+                        "tls_certificate_check_disabled"));
+        items.add(
+                approvalDetectionProbe(
+                        "git_tls_certificate_check_disabled",
+                        "Git TLS 证书校验关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "git -c http.sslVerify=false clone https://example.test/repo.git",
+                        "git_tls_certificate_check_disabled"));
+        items.add(
+                approvalDetectionProbe(
+                        "system_trust_store_change",
+                        "系统信任库变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "update-ca-certificates",
+                        "system_trust_store_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "system_package_source_trust_change",
+                        "系统软件源信任变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "apt-key add vendor.gpg",
+                        "system_package_source_trust_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "audit_log_erasure",
+                        "审计日志清除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "journalctl --vacuum-time=1s",
+                        "audit_log_erasure"));
+        items.add(
+                approvalDetectionProbe(
+                        "linux_audit_policy_disabled",
+                        "Linux 审计策略关闭审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "auditctl -e 0",
+                        "linux_audit_policy_disabled"));
+        items.add(
+                approvalDetectionProbe(
+                        "macos_security_policy_weaken",
+                        "macOS 安全策略削弱审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "spctl --master-disable",
+                        "macos_security_policy_weaken"));
+        items.add(
+                approvalDetectionProbe(
                         "linux_credential_material_dump",
                         "Linux 凭据材料转储审批",
                         ToolNameConstants.EXECUTE_SHELL,
