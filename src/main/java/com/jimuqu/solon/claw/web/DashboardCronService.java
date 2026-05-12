@@ -207,18 +207,36 @@ public class DashboardCronService {
         return get(id);
     }
 
+    public Map<String, Object> trigger(String id, Map<String, Object> body) throws Exception {
+        runOrTrigger(id, manualTriggerType(body));
+        return get(id);
+    }
+
     public Map<String, Object> retry(String id) throws Exception {
         runOrTrigger(id, "retry");
         return get(id);
     }
 
+    public Map<String, Object> retry(String id, Map<String, Object> body) throws Exception {
+        runOrTrigger(id, retryTriggerType(body));
+        return get(id);
+    }
+
     public Map<String, Object> apiRun(String id) throws Exception {
-        runOrTrigger(id, "manual");
+        return apiRun(id, Collections.<String, Object>emptyMap());
+    }
+
+    public Map<String, Object> apiRun(String id, Map<String, Object> body) throws Exception {
+        runOrTrigger(id, manualTriggerType(body));
         return get(id);
     }
 
     public Map<String, Object> apiRetry(String id) throws Exception {
-        runOrTrigger(id, "retry");
+        return apiRetry(id, Collections.<String, Object>emptyMap());
+    }
+
+    public Map<String, Object> apiRetry(String id, Map<String, Object> body) throws Exception {
+        runOrTrigger(id, retryTriggerType(body));
         return get(id);
     }
 
@@ -228,6 +246,62 @@ public class DashboardCronService {
             return;
         }
         cronScheduler.runNow(id, triggerType);
+    }
+
+    private String manualTriggerType(Map<String, Object> body) {
+        return customTriggerType(body, "manual");
+    }
+
+    private String retryTriggerType(Map<String, Object> body) {
+        return customTriggerType(body, "retry");
+    }
+
+    private String customTriggerType(Map<String, Object> body, String fallback) {
+        if (body == null || body.isEmpty()) {
+            return fallback;
+        }
+        Object raw = body.containsKey("trigger_type") ? body.get("trigger_type") : body.get("triggerType");
+        if (raw == null) {
+            raw = body.get("reason");
+        }
+        String normalized = normalizeTriggerType(raw, fallback);
+        if ("scheduled".equals(normalized)) {
+            return fallback;
+        }
+        if ("retry".equals(fallback) && "manual".equals(normalized)) {
+            return "retry";
+        }
+        return normalized;
+    }
+
+    private String normalizeTriggerType(Object value, String fallback) {
+        String text = value == null ? "" : String.valueOf(value).trim().toLowerCase(java.util.Locale.ROOT);
+        if (text.length() == 0) {
+            return fallback;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < text.length() && builder.length() < 40; i++) {
+            char ch = text.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                builder.append(ch);
+            } else if (ch == '_' || ch == '-' || ch == '.') {
+                builder.append(ch);
+            } else if (Character.isWhitespace(ch)) {
+                builder.append('_');
+            }
+        }
+        while (builder.length() > 0
+                && (builder.charAt(0) == '_' || builder.charAt(0) == '-' || builder.charAt(0) == '.')) {
+            builder.deleteCharAt(0);
+        }
+        while (builder.length() > 0) {
+            char ch = builder.charAt(builder.length() - 1);
+            if (ch != '_' && ch != '-' && ch != '.') {
+                break;
+            }
+            builder.deleteCharAt(builder.length() - 1);
+        }
+        return builder.length() == 0 ? fallback : builder.toString();
     }
 
     public Map<String, Object> delete(String id) throws Exception {

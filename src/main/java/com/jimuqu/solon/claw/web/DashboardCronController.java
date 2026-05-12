@@ -375,7 +375,11 @@ public class DashboardCronController {
 
     private Map<String, Object> dashboardRunJob(String id, Context context, boolean retry) throws Exception {
         try {
-            return DashboardResponse.ok(retry ? cronService.retry(id) : cronService.trigger(id));
+            Map<String, Object> requestBody = body(context);
+            return DashboardResponse.ok(retry ? cronService.retry(id, requestBody) : cronService.trigger(id, requestBody));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -408,7 +412,11 @@ public class DashboardCronController {
     private Map<String, Object> apiRunJob(String id, Context context, boolean retry) throws Exception {
         try {
             validateApiJobId(id);
-            return apiJobResponse(retry ? cronService.apiRetry(id) : cronService.apiRun(id));
+            Map<String, Object> requestBody = body(context);
+            return apiJobResponse(retry ? cronService.apiRetry(id, requestBody) : cronService.apiRun(id, requestBody));
+        } catch (BodyParseException e) {
+            context.status(400);
+            return apiError(e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return apiError(e.getMessage());

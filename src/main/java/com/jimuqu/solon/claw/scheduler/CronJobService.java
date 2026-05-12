@@ -668,6 +668,9 @@ public class CronJobService {
         policy.put(
                 "history_fields",
                 Arrays.asList("run_id", "trigger", "attempt", "status", "output", "error", "delivery_result", "summary"));
+        policy.put("trigger_type_fields", Arrays.asList("trigger_type", "triggerType", "reason"));
+        policy.put("custom_manual_trigger_supported", Boolean.TRUE);
+        policy.put("custom_retry_trigger_supported", Boolean.TRUE);
 
         Map<String, Object> schedule = new LinkedHashMap<String, Object>();
         schedule.put("cronExpressionSupported", Boolean.TRUE);
@@ -736,6 +739,7 @@ public class CronJobService {
         Map<String, Object> execution = new LinkedHashMap<String, Object>();
         execution.put("manualRunSupported", Boolean.TRUE);
         execution.put("retryAliasSupported", Boolean.TRUE);
+        execution.put("customTriggerTypeSupported", Boolean.TRUE);
         execution.put("pauseResumeSupported", Boolean.TRUE);
         execution.put("stateEditSupported", Boolean.TRUE);
         execution.put("pausedReasonEditSupported", Boolean.TRUE);
@@ -805,7 +809,7 @@ public class CronJobService {
         result.put("edit", "/cron edit <job-id> [--schedule expr] [--prompt text] [--add-skill name] [--remove-skill name]");
         result.put("pause", "/cron pause|disable|stop <job-id> [--reason reason]");
         result.put("resume", "/cron resume|enable|start <job-id>");
-        result.put("run", "/cron run|trigger|retry|rerun <job-id>");
+        result.put("run", "/cron run|trigger|retry|rerun <job-id> [--trigger-type name|--reason name]");
         result.put("remove", "/cron remove|delete|rm <job-id>");
         result.put("history", "/cron history <job-id> [--limit 20]");
         result.put("status", "/cron status [--all]");
@@ -907,6 +911,8 @@ public class CronJobService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("status_fields", Arrays.asList("total", "active", "paused", "completed", "due", "next", "recent_failures"));
         result.put("run_fields", Arrays.asList("run_id", "trigger", "attempt", "status", "output", "error", "delivery_result", "summary"));
+        result.put("trigger_type_fields", Arrays.asList("trigger_type", "triggerType", "reason"));
+        result.put("trigger_type_policy", "手动 run/retry 可记录短触发来源；空格会规范化为下划线，scheduled 会回退为 manual/retry。");
         result.put("action_flags", Arrays.asList("can_inspect", "can_edit", "can_pause", "can_resume", "can_run", "can_retry", "can_history"));
         result.put("limits", "status、next、history 和 inspect 的 limit 会限制到安全范围。");
         return result;

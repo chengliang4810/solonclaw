@@ -18,9 +18,11 @@ import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -29,6 +31,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
@@ -4410,17 +4413,94 @@ public class DefaultCronSchedulerTest {
 
         dashboardCronService.trigger(runJob.getJobId());
         dashboardCronService.retry(retryJob.getJobId());
-        dashboardCronService.apiRun(apiRunJob.getJobId());
-        dashboardCronService.apiRetry(apiRetryJob.getJobId());
+        Map<String, Object> apiRunBody = new LinkedHashMap<String, Object>();
+        apiRunBody.put("trigger_type", "dashboard button");
+        Map<String, Object> apiRetryBody = new LinkedHashMap<String, Object>();
+        apiRetryBody.put("reason", "failed delivery retry");
+        dashboardCronService.apiRun(apiRunJob.getJobId(), apiRunBody);
+        dashboardCronService.apiRetry(apiRetryJob.getJobId(), apiRetryBody);
 
         assertThat(env.cronJobRepository.listRuns(runJob.getJobId(), 1).get(0).getTriggerType())
                 .isEqualTo("manual");
         assertThat(env.cronJobRepository.listRuns(retryJob.getJobId(), 1).get(0).getTriggerType())
                 .isEqualTo("retry");
         assertThat(env.cronJobRepository.listRuns(apiRunJob.getJobId(), 1).get(0).getTriggerType())
-                .isEqualTo("manual");
+                .isEqualTo("dashboard_button");
         assertThat(env.cronJobRepository.listRuns(apiRetryJob.getJobId(), 1).get(0).getTriggerType())
-                .isEqualTo("retry");
+                .isEqualTo("failed_delivery_retry");
+    }
+
+    @Test
+    void shouldRecordSlashCronRunTriggerReason() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronJobRecord customRun = createNoAgentScriptJob(env, service, "slash-trigger-type", "30m");
+        CronJobRecord customRetry = createNoAgentScriptJob(env, service, "slash-retry-reason", "30m");
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        CommandService commandService =
+                new DefaultCommandService(
+                        env.sessionRepository,
+                        env.toolRegistry,
+                        env.localSkillService,
+                        env.cronJobRepository,
+                        env.conversationOrchestrator,
+                        null,
+                        env.contextCompressionService,
+                        env.deliveryService,
+                        env.gatewayAuthorizationService,
+                        env.checkpointService,
+                        env.skillHubService,
+                        env.appConfig,
+                        env.globalSettingRepository,
+                        env.processRegistry,
+                        null,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        env.agentRunControlService,
+                        env.agentProfileService,
+                        env.agentRunRepository,
+                        env.kanbanService,
+                        null,
+                        null,
+                        new SessionArtifactService(env.appConfig),
+                        scheduler);
+
+        GatewayReply runReply =
+                commandService.handle(
+                        env.message(
+                                "cron-room",
+                                "cron-user",
+                                "private",
+                                "Cron",
+                                "User",
+                                "/cron run " + customRun.getJobId() + " --trigger-type operator button"),
+                        "/cron run " + customRun.getJobId() + " --trigger-type operator button");
+        GatewayReply retryReply =
+                commandService.handle(
+                        env.message(
+                                "cron-room",
+                                "cron-user",
+                                "private",
+                                "Cron",
+                                "User",
+                                "/cron retry " + customRetry.getJobId() + " --reason failed delivery"),
+                        "/cron retry " + customRetry.getJobId() + " --reason failed delivery");
+
+        assertThat(runReply.getContent()).contains("已执行定时任务");
+        assertThat(retryReply.getContent()).contains("已执行定时任务");
+        assertThat(env.cronJobRepository.listRuns(customRun.getJobId(), 1).get(0).getTriggerType())
+                .isEqualTo("operator");
+        assertThat(env.cronJobRepository.listRuns(customRetry.getJobId(), 1).get(0).getTriggerType())
+                .isEqualTo("failed");
     }
 
     @Test

@@ -2190,6 +2190,7 @@ public class DefaultCommandService implements CommandService {
             }
             String jobId = options.positionals.get(0);
             cronJobService.require(jobId);
+            runTriggerType = cronRunTriggerType(options, runTriggerType);
             if (cronScheduler == null) {
                 cronJobService.trigger(jobId);
                 return GatewayReply.ok("已标记定时任务将在下一次 tick 执行：" + jobId);
@@ -2202,6 +2203,48 @@ public class DefaultCommandService implements CommandService {
                 "用法："
                         + GatewayCommandConstants.SLASH_CRON
                         + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
+    }
+
+    private String cronRunTriggerType(CronFlagOptions options, String fallback) {
+        String value = options == null ? null : StrUtil.blankToDefault(options.triggerType, options.reason);
+        if (StrUtil.isBlank(value)) {
+            return fallback;
+        }
+        String normalized = normalizeCronTriggerType(value, fallback);
+        if ("scheduled".equals(normalized)) {
+            return fallback;
+        }
+        if ("retry".equals(fallback) && "manual".equals(normalized)) {
+            return "retry";
+        }
+        return normalized;
+    }
+
+    private String normalizeCronTriggerType(String value, String fallback) {
+        String text = StrUtil.nullToEmpty(value).trim().toLowerCase(java.util.Locale.ROOT);
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < text.length() && builder.length() < 40; i++) {
+            char ch = text.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                builder.append(ch);
+            } else if (ch == '_' || ch == '-' || ch == '.') {
+                builder.append(ch);
+            } else if (Character.isWhitespace(ch)) {
+                builder.append('_');
+            }
+        }
+        while (builder.length() > 0
+                && (builder.charAt(0) == '_' || builder.charAt(0) == '-' || builder.charAt(0) == '.')) {
+            builder.deleteCharAt(0);
+        }
+        while (builder.length() > 0) {
+            char ch = builder.charAt(builder.length() - 1);
+            if (ch != '_' && ch != '-' && ch != '.') {
+                break;
+            }
+            builder.deleteCharAt(builder.length() - 1);
+        }
+        return builder.length() == 0 ? fallback : builder.toString();
     }
 
     private String formatCronGuide(Map<String, Object> guide) {
@@ -2968,6 +3011,8 @@ public class DefaultCommandService implements CommandService {
                 options.limit = Integer.valueOf(tokens.get(++i));
             } else if ("--reason".equals(token) && i + 1 < tokens.size()) {
                 options.reason = tokens.get(++i);
+            } else if (("--trigger-type".equals(token) || "--trigger_type".equals(token)) && i + 1 < tokens.size()) {
+                options.triggerType = tokens.get(++i);
             } else if (("--skill".equals(token) || "-s".equals(token)) && i + 1 < tokens.size()) {
                 options.skills.add(tokens.get(++i));
             } else if ("--skills".equals(token) && i + 1 < tokens.size()) {
@@ -4223,6 +4268,7 @@ public class DefaultCommandService implements CommandService {
         private boolean clearRepeat;
         private Integer limit;
         private String reason;
+        private String triggerType;
         private final List<String> skills = new ArrayList<String>();
         private final List<String> addSkills = new ArrayList<String>();
         private final List<String> removeSkills = new ArrayList<String>();
