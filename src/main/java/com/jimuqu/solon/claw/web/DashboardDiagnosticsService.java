@@ -2280,6 +2280,16 @@ public class DashboardDiagnosticsService {
                         "IPv6 回环 URL 默认阻断",
                         "http://[::1]:8080/admin"));
         items.add(
+                privateUrlProbe(
+                        "protocol_relative_private_url",
+                        "协议相对内网 URL 默认阻断",
+                        "//127.0.0.1:8080/admin"));
+        items.add(
+                urlProbe(
+                        "unsupported_network_scheme",
+                        "不支持的网络协议阻断",
+                        "ftp://example.test/file.txt"));
+        items.add(
                 urlProbe(
                         "sensitive_query",
                         "敏感 URL 参数阻断",
