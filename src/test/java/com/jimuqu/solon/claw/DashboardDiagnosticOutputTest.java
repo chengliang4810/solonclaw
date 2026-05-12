@@ -3432,7 +3432,17 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> hardlinePolicy = (Map<String, Object>) coverage.get("hardlinePolicy");
         assertThat(hardlinePolicy.get("ruleCount")).isEqualTo(approvalPolicy.get("hardlineRuleCount"));
         assertThat(hardlinePolicy.get("approvalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("slashApproveBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("sessionApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("alwaysApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("yoloBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("smartApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("approvalRequired")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("blockingDecision")).isEqualTo("block");
         assertThat(hardlinePolicy.get("commandPreviewRedacted")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlinePolicy.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlinePolicy.get("pythonShellExtractionCovered")).isEqualTo(Boolean.TRUE);
+        assertThat(hardlinePolicy.get("javascriptChildProcessExtractionCovered")).isEqualTo(Boolean.TRUE);
         Map<String, Object> terminalGuardrailPolicy =
                 (Map<String, Object>) coverage.get("terminalGuardrailPolicy");
         assertThat(terminalGuardrailPolicy.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
