@@ -355,27 +355,27 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/cron/jobs/{id}/trigger", method = MethodType.POST)
     public Map<String, Object> trigger(String id, Context context) throws Exception {
-        return dashboardRunJob(id, context);
+        return dashboardRunJob(id, context, false);
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/run", method = MethodType.POST)
     public Map<String, Object> run(String id, Context context) throws Exception {
-        return dashboardRunJob(id, context);
+        return dashboardRunJob(id, context, false);
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/retry", method = MethodType.POST)
     public Map<String, Object> retry(String id, Context context) throws Exception {
-        return dashboardRunJob(id, context);
+        return dashboardRunJob(id, context, true);
     }
 
     @Mapping(value = "/api/cron/jobs/{id}/rerun", method = MethodType.POST)
     public Map<String, Object> rerun(String id, Context context) throws Exception {
-        return dashboardRunJob(id, context);
+        return dashboardRunJob(id, context, true);
     }
 
-    private Map<String, Object> dashboardRunJob(String id, Context context) throws Exception {
+    private Map<String, Object> dashboardRunJob(String id, Context context, boolean retry) throws Exception {
         try {
-            return DashboardResponse.ok(cronService.trigger(id));
+            return DashboardResponse.ok(retry ? cronService.retry(id) : cronService.trigger(id));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -387,28 +387,28 @@ public class DashboardCronController {
 
     @Mapping(value = "/api/jobs/{id}/run", method = MethodType.POST)
     public Map<String, Object> apiRun(String id, Context context) throws Exception {
-        return apiRunJob(id, context);
+        return apiRunJob(id, context, false);
     }
 
     @Mapping(value = "/api/jobs/{id}/trigger", method = MethodType.POST)
     public Map<String, Object> apiTrigger(String id, Context context) throws Exception {
-        return apiRunJob(id, context);
+        return apiRunJob(id, context, false);
     }
 
     @Mapping(value = "/api/jobs/{id}/retry", method = MethodType.POST)
     public Map<String, Object> apiRetry(String id, Context context) throws Exception {
-        return apiRunJob(id, context);
+        return apiRunJob(id, context, true);
     }
 
     @Mapping(value = "/api/jobs/{id}/rerun", method = MethodType.POST)
     public Map<String, Object> apiRerun(String id, Context context) throws Exception {
-        return apiRunJob(id, context);
+        return apiRunJob(id, context, true);
     }
 
-    private Map<String, Object> apiRunJob(String id, Context context) throws Exception {
+    private Map<String, Object> apiRunJob(String id, Context context, boolean retry) throws Exception {
         try {
             validateApiJobId(id);
-            return apiJobResponse(cronService.apiRun(id));
+            return apiJobResponse(retry ? cronService.apiRetry(id) : cronService.apiRun(id));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return apiError(e.getMessage());

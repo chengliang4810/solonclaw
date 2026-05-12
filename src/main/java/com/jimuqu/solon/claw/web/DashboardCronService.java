@@ -203,21 +203,31 @@ public class DashboardCronService {
     }
 
     public Map<String, Object> trigger(String id) throws Exception {
-        runOrTrigger(id);
+        runOrTrigger(id, "manual");
+        return get(id);
+    }
+
+    public Map<String, Object> retry(String id) throws Exception {
+        runOrTrigger(id, "retry");
         return get(id);
     }
 
     public Map<String, Object> apiRun(String id) throws Exception {
-        runOrTrigger(id);
+        runOrTrigger(id, "manual");
         return get(id);
     }
 
-    private void runOrTrigger(String id) throws Exception {
+    public Map<String, Object> apiRetry(String id) throws Exception {
+        runOrTrigger(id, "retry");
+        return get(id);
+    }
+
+    private void runOrTrigger(String id, String triggerType) throws Exception {
         if (cronScheduler == null) {
             cronJobService.trigger(id);
             return;
         }
-        cronScheduler.runNow(id);
+        cronScheduler.runNow(id, triggerType);
     }
 
     public Map<String, Object> delete(String id) throws Exception {

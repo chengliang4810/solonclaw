@@ -2036,6 +2036,7 @@ public class DefaultCommandService implements CommandService {
                         ? GatewayCommandConstants.ACTION_LIST
                         : parts[0].trim().toLowerCase(java.util.Locale.ROOT);
         String tail = parts.length > 1 ? parts[1] : "";
+        String runTriggerType = "manual";
         if (GatewayCommandConstants.ACTION_ADD.equals(action)) {
             action = GatewayCommandConstants.ACTION_CREATE;
         }
@@ -2053,7 +2054,11 @@ public class DefaultCommandService implements CommandService {
         if ("enable".equals(action) || "start".equals(action)) {
             action = GatewayCommandConstants.ACTION_RESUME;
         }
-        if ("retry".equals(action) || "rerun".equals(action) || "trigger".equals(action)) {
+        if ("retry".equals(action) || "rerun".equals(action)) {
+            runTriggerType = "retry";
+            action = GatewayCommandConstants.ACTION_RUN;
+        }
+        if ("trigger".equals(action)) {
             action = GatewayCommandConstants.ACTION_RUN;
         }
         if ("upcoming".equals(action)) {
@@ -2188,7 +2193,7 @@ public class DefaultCommandService implements CommandService {
                 cronJobService.trigger(jobId);
                 return GatewayReply.ok("已标记定时任务将在下一次 tick 执行：" + jobId);
             }
-            cronScheduler.runNow(jobId);
+            cronScheduler.runNow(jobId, runTriggerType);
             return GatewayReply.ok("已执行定时任务：" + jobId);
         }
 

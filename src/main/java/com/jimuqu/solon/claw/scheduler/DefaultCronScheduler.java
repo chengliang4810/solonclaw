@@ -470,9 +470,13 @@ public class DefaultCronScheduler {
     }
 
     public void runNow(String jobId) throws Exception {
+        runNow(jobId, "manual");
+    }
+
+    public void runNow(String jobId, String triggerType) throws Exception {
         CronJobRecord job = cronJobRepository.findById(jobId);
         if (job != null) {
-            execute(job, System.currentTimeMillis(), "manual");
+            execute(job, System.currentTimeMillis(), StrUtil.blankToDefault(triggerType, "manual"));
         }
     }
 
