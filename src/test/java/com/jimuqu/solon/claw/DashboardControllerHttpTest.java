@@ -2239,6 +2239,11 @@ public class DashboardControllerHttpTest {
                 .contains("--clear-repeat")
                 .contains("--clear-script")
                 .contains("--clear-enabled-toolsets");
+        assertThat(dashboardGuideData.get("api_routes").toJson())
+                .contains("DELETE /api/cron/jobs/{id}")
+                .contains("POST /api/cron/jobs/{id}/disable")
+                .contains("POST /api/cron/jobs/{id}/trigger")
+                .contains("POST /api/cron/jobs/{id}/rerun");
         assertThat(dashboardGuideData.get("security").get("prompt_scan").toJson()).contains("prompt_injection");
 
         HttpResult apiGuide = request("GET", "/api/jobs/guide", null, token);
