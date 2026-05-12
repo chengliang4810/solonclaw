@@ -2389,6 +2389,16 @@ public class DashboardDiagnosticsService {
                         "git config --global https.proxy http://169.254.169.254:8080"));
         items.add(
                 commandUrlPolicyProbe(
+                        "command_system_dns_policy",
+                        "命令系统 DNS URL 前置策略检查",
+                        "Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 169.254.169.254,8.8.8.8"));
+        items.add(
+                commandUrlPolicyProbe(
+                        "command_registry_proxy_policy",
+                        "命令注册表代理 URL 前置策略检查",
+                        "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings' -Name ProxyServer -Value 169.254.169.254:8080"));
+        items.add(
+                commandUrlPolicyProbe(
                         "command_local_management_socket",
                         "命令本地管理套接字阻断",
                         "DOCKER_HOST=unix:///var/run/docker.sock docker ps"));

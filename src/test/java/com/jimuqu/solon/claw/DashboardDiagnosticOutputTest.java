@@ -317,6 +317,10 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "command_proxy_bypass_policy");
         Map<String, Object> commandPersistentProxyPolicy =
                 findProbe(items, "command_persistent_proxy_policy");
+        Map<String, Object> commandSystemDnsPolicy =
+                findProbe(items, "command_system_dns_policy");
+        Map<String, Object> commandRegistryProxyPolicy =
+                findProbe(items, "command_registry_proxy_policy");
         Map<String, Object> commandLocalManagementSocket =
                 findProbe(items, "command_local_management_socket");
         Map<String, Object> commandLocalManagementPipe =
@@ -459,6 +463,18 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandPersistentProxyPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandPersistentProxyPolicy))
                 .contains("git config")
+                .contains("169.254.169.254");
+        assertThat(commandSystemDnsPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSystemDnsPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSystemDnsPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandSystemDnsPolicy))
+                .contains("Set-DnsClientServerAddress")
+                .contains("169.254.169.254");
+        assertThat(commandRegistryProxyPolicy.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistryProxyPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandRegistryProxyPolicy.get("skipped")).isNull();
+        assertThat(String.valueOf(commandRegistryProxyPolicy))
+                .contains("ProxyServer")
                 .contains("169.254.169.254");
         assertThat(commandLocalManagementSocket.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandLocalManagementSocket.get("blocked")).isEqualTo(Boolean.TRUE);
