@@ -2163,6 +2163,69 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldRejectUnsafeSlashConfirmSelectorWithoutLeakingDashboardInput() throws Exception {
+        String token = extractToken(request("GET", "/", null, null).body);
+        bean(SlashConfirmService.class)
+                .register(
+                        "MEMORY:dashboard-unsafe-confirm:user-token=ghp_sourcesecret12345",
+                        "security-selector-check --token=ghp_unsafecommandsecret12345",
+                        "确认刷新 Authorization: Bearer ghp_unsafepromptsecret12345");
+
+        HttpResult before =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        assertThat(before.status).isEqualTo(200);
+        ONode confirm =
+                findItemByStringField(
+                        ONode.ofJson(before.body).get("data").get("items"),
+                        "command_preview",
+                        "security-selector-check --token=***");
+        assertThat(confirm).isNotNull();
+        String confirmId = confirm.get("confirm_id").getString();
+        String unsafeConfirmId =
+                confirmId.substring(0, 8) + " " + confirmId.substring(8) + "\u202E";
+
+        HttpResult rejected =
+                request(
+                        "POST",
+                        "/api/diagnostics/slash-confirms/resolve",
+                        "{\"confirmId\":\""
+                                + jsonEscape(unsafeConfirmId)
+                                + "\",\"sourceKey\":\"MEMORY:dashboard-unsafe-confirm:user-token=ghp_sourcesecret12345\","
+                                + "\"action\":\"deny\"}",
+                        token);
+
+        assertThat(rejected.status).isEqualTo(200);
+        assertThat(rejected.body)
+                .contains("\"success\":false")
+                .contains("\"code\":\"confirm_not_found\"")
+                .doesNotContain(unsafeConfirmId)
+                .doesNotContain("\\u202E")
+                .doesNotContain("MEMORY:dashboard-unsafe-confirm")
+                .doesNotContain("ghp_sourcesecret12345")
+                .doesNotContain("ghp_unsafecommandsecret12345")
+                .doesNotContain("ghp_unsafepromptsecret12345");
+
+        HttpResult after =
+                request("GET", "/api/diagnostics/slash-confirms?limit=20", null, token);
+        assertThat(after.status).isEqualTo(200);
+        assertThat(after.body)
+                .contains("\"command_preview\":\"security-selector-check --token=***\"")
+                .contains("\"prompt_preview\":\"确认刷新 Authorization: Bearer ***\"")
+                .doesNotContain("MEMORY:dashboard-unsafe-confirm")
+                .doesNotContain("ghp_sourcesecret12345")
+                .doesNotContain("ghp_unsafecommandsecret12345")
+                .doesNotContain("ghp_unsafepromptsecret12345");
+
+        request(
+                "POST",
+                "/api/diagnostics/slash-confirms/resolve",
+                "{\"confirmId\":\""
+                        + jsonEscape(confirmId)
+                        + "\",\"action\":\"deny\"}",
+                token);
+    }
+
+    @Test
     void shouldRedactDashboardCronErrors() throws Exception {
         String token = extractToken(request("GET", "/", null, null).body);
         String leakedToken = "sk-dashboardcron12345";
