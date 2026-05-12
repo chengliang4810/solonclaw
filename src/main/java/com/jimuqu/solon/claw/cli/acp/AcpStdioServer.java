@@ -772,10 +772,10 @@ public class AcpStdioServer {
     private Map<String, Object> permissionItem(
             DangerousCommandApprovalService.PendingApproval pending, int index) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
-        String id = StrUtil.blankToDefault(pending.getApprovalId(), pending.approvalKey());
-        item.put("id", safePermissionPreview(id, 160));
-        item.put("approval_id", safePermissionPreview(pending.getApprovalId(), 160));
-        item.put("approvalId", safePermissionPreview(pending.getApprovalId(), 160));
+        String selector = DangerousCommandApprovalService.approvalSelector(pending);
+        item.put("id", safePermissionPreview(selector, 160));
+        item.put("approval_id", safePermissionPreview(selector, 160));
+        item.put("approvalId", safePermissionPreview(selector, 160));
         item.put("index", Integer.valueOf(index));
         item.put("tool_name", safePermissionPreview(pending.getToolName(), 160));
         item.put("toolName", safePermissionPreview(pending.getToolName(), 160));

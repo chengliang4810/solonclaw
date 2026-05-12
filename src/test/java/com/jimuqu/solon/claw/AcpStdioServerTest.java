@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -993,6 +994,77 @@ public class AcpStdioServerTest {
                 .isFalse();
         assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("recursive_delete"))
                 .isFalse();
+    }
+
+    @Test
+    void shouldUseSafeAcpPermissionSelectorForUnsafeStoredApprovalId() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AcpStdioServer server =
+                new AcpStdioServer(
+                        new CliRuntime(env.commandService, env.conversationOrchestrator),
+                        env.sessionRepository,
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase),
+                        env.dangerousCommandApprovalService);
+
+        String sessionId = extractSessionId(newAcpSession(server, 131));
+        SessionRecord session = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "token_ghp_acpunsafeidpattern123",
+                "unsafe id token=ghp_acpunsafeiddesc123",
+                "rm -rf runtime/cache --token ghp_acpunsafeidcommand123");
+
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        agentSession.getContext().get("_dangerous_command_pending_queue_");
+        queue.get(0).put("approvalId", "approval-unsafe token=ghp_acpapprovalid123");
+        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
+        agentSession.updateSnapshot();
+
+        String listed =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":132,\"method\":\"permissions/list_open\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\"}}");
+
+        assertThat(listed)
+                .contains("\"id\":132")
+                .contains("\"count\":1")
+                .contains("\"approval_id\":\"key_")
+                .contains("\"approvalId\":\"key_")
+                .contains("\"id\":\"key_")
+                .contains("token_ghp_***")
+                .contains("token=***")
+                .doesNotContain("approval-unsafe")
+                .doesNotContain("ghp_acpapprovalid123")
+                .doesNotContain("ghp_acpunsafeidpattern123")
+                .doesNotContain("ghp_acpunsafeiddesc123")
+                .doesNotContain("ghp_acpunsafeidcommand123");
+        String approvalId = extractJsonString(listed, "approval_id");
+
+        String denied =
+                server.handle(
+                        "{\"jsonrpc\":\"2.0\",\"id\":133,\"method\":\"permissions/respond\",\"params\":{\"session_id\":\""
+                                + sessionId
+                                + "\",\"approval_id\":\""
+                                + approvalId
+                                + "\",\"outcome\":\"deny\"}}");
+
+        SessionRecord updated = env.sessionRepository.findById(sessionId);
+        SqliteAgentSession updatedAgentSession =
+                new SqliteAgentSession(updated, env.sessionRepository);
+
+        assertThat(denied)
+                .contains("\"id\":133")
+                .contains("\"ok\":true")
+                .contains("\"id\":\"" + approvalId + "\"")
+                .contains("\"outcome\":\"deny\"")
+                .doesNotContain("approval-unsafe")
+                .doesNotContain("ghp_acpapprovalid123");
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession))
+                .isNull();
     }
 
     @Test
