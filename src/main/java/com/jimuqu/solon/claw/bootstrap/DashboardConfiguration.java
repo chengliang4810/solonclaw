@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.kanban.ConversationKanbanWorkerSpawner;
 import com.jimuqu.solon.claw.kanban.KanbanDispatcherService;
+import com.jimuqu.solon.claw.kanban.KanbanNotificationService;
 import com.jimuqu.solon.claw.kanban.KanbanRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
 import com.jimuqu.solon.claw.kanban.KanbanWorkerSpawner;
@@ -254,6 +255,12 @@ public class DashboardConfiguration {
                 new KanbanDispatcherService(kanbanRepository, kanbanService, kanbanWorkerSpawner);
         kanbanService.setDispatcherService(dispatcherService);
         return dispatcherService;
+    }
+
+    @Bean
+    public KanbanNotificationService kanbanNotificationService(
+            KanbanRepository kanbanRepository, DeliveryService deliveryService) {
+        return new KanbanNotificationService(kanbanRepository, deliveryService);
     }
 
     @Bean

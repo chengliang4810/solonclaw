@@ -345,6 +345,8 @@ public class KanbanService {
         if ("done".equals(normalized)) {
             recordCompleted(taskId, verifiedCards, summary, result);
             scanProseForPhantomIds(taskId, summary, result);
+        } else if ("blocked".equals(normalized)) {
+            recordBlocked(taskId, summary, result);
         }
         return task(taskId);
     }
@@ -3061,6 +3063,13 @@ public class KanbanService {
                 StrUtil.blankToDefault(summary, result),
                 ONode.serialize(payload),
                 null);
+    }
+
+    private void recordBlocked(String taskId, String summary, String result) throws Exception {
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("summary", summaryPreview(StrUtil.blankToDefault(summary, result)));
+        payload.put("reason", summaryPreview(StrUtil.blankToDefault(result, summary)));
+        addEvent(taskId, "blocked", payload);
     }
 
     private void scanProseForPhantomIds(String taskId, String summary, String result) throws Exception {
