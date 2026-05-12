@@ -195,9 +195,27 @@ public class AppUpdateServiceTest {
                 .doesNotContain(leakedToken);
     }
 
+    @Test
+    void shouldRedactUpdateFetchErrorAtStatusBoundary() {
+        String leakedToken = "ghp_updatefetch12345";
+        FakeVersionService versionService = new FakeVersionService(new AppConfig());
+        versionService.setCurrentVersion("0.0.1");
+        versionService.setCurrentTag("v0.0.1");
+        FakeUpdateService service = new FakeUpdateService(new AppConfig(), versionService);
+        service.setReleaseError("transport failed Authorization: Bearer " + leakedToken);
+
+        AppUpdateService.VersionStatus status = service.getVersionStatus(true);
+
+        assertThat(status.getUpdateErrorMessage())
+                .contains("GitHub Release API 请求失败")
+                .contains("Bearer ***")
+                .doesNotContain(leakedToken);
+    }
+
     private static class FakeUpdateService extends AppUpdateService {
         private int releaseStatus = 200;
         private String releaseBody = "";
+        private String releaseError;
         private int tagsStatus = 200;
         private String tagsBody = "";
         private final AppVersionService versionService;
@@ -214,6 +232,7 @@ public class AppUpdateServiceTest {
             if (url.equals(versionService.releaseApiUrl())) {
                 result.setStatusCode(releaseStatus);
                 result.setBody(releaseBody);
+                result.setErrorMessage(releaseError);
                 return result;
             }
             if (url.equals(versionService.tagsApiUrl())) {
@@ -231,6 +250,11 @@ public class AppUpdateServiceTest {
 
         private void setReleaseBody(String releaseBody) {
             this.releaseBody = releaseBody;
+        }
+
+        private void setReleaseError(String releaseError) {
+            this.releaseStatus = -1;
+            this.releaseError = releaseError;
         }
 
         private void setTagsBody(String tagsBody) {
@@ -319,6 +343,14 @@ public class AppUpdateServiceTest {
             extends SecurityPolicyService {
         private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
             super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrl(url);
         }
 
         @Override

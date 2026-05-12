@@ -570,7 +570,7 @@ public class AppUpdateService {
     }
 
     private void setLastError(String message) {
-        this.lastErrorMessage = StrUtil.nullToEmpty(message).trim();
+        this.lastErrorMessage = SecretRedactor.redact(StrUtil.nullToEmpty(message), 1000).trim();
         this.lastErrorAt = System.currentTimeMillis();
     }
 
