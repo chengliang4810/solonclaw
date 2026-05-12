@@ -317,6 +317,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> approvalCardSelector = findProbe(items, "approval_card_selector");
         Map<String, Object> approvalAuditRedaction = findProbe(items, "approval_audit_redaction");
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
+        Map<String, Object> slashConfirmExpiry = findProbe(items, "slash_confirm_expiry");
         Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
         Map<String, Object> tirithSecurity = findProbe(items, "tirith_security");
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
@@ -446,6 +447,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(slashConfirmSelector.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(slashConfirmSelector.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(slashConfirmSelector.get("skipped")).isNull();
+        assertThat(slashConfirmExpiry.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(slashConfirmExpiry.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(slashConfirmExpiry.get("skipped")).isNull();
         assertThat(websitePolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(websitePolicy.get("skipped")).isNull();

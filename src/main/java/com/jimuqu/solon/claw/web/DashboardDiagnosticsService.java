@@ -2438,6 +2438,10 @@ public class DashboardDiagnosticsService {
                 slashConfirmSelectorProbe(
                         "slash_confirm_selector",
                         "Slash 确认编号安全检查"));
+        items.add(
+                slashConfirmExpiryProbe(
+                        "slash_confirm_expiry",
+                        "Slash 确认过期清理检查"));
         result.put("count", Integer.valueOf(items.size()));
         result.put("passed", Boolean.valueOf(allProbePassed(items)));
         return result;
@@ -3835,6 +3839,32 @@ public class DashboardDiagnosticsService {
         } finally {
             slashConfirmService.clear(sourceKey);
         }
+    }
+
+    private Map<String, Object> slashConfirmExpiryProbe(String key, String label) {
+        if (slashConfirmService == null) {
+            return skippedPolicyProbeItem(
+                    key, label, "slash_confirm_expiry", "expired confirm", "Slash 确认服务尚未启用。");
+        }
+        String sourceKey = "dashboard-probe-slash-expiry-" + System.currentTimeMillis();
+        SlashConfirmService.PendingConfirm pending =
+                slashConfirmService.register(
+                        sourceKey, "reload-mcp", "dashboard slash confirm expiry probe");
+        pending.setCreatedAt(
+                System.currentTimeMillis() - SlashConfirmService.DEFAULT_TIMEOUT_MS - 1000L);
+        SlashConfirmService.PendingConfirm resolved =
+                slashConfirmService.resolve(sourceKey, pending.getConfirmId());
+        boolean expiredBlocked = resolved == null && slashConfirmService.getPending(sourceKey) == null;
+        return policyProbeItem(
+                key,
+                label,
+                "slash_confirm_expiry",
+                false,
+                !expiredBlocked,
+                "expired confirm",
+                expiredBlocked
+                        ? "过期 Slash 确认不会被消费，并会从待确认队列清理。"
+                        : "Slash 确认过期清理检查未通过。");
     }
 
     private Map<String, Object> skippedPolicyProbeItem(
