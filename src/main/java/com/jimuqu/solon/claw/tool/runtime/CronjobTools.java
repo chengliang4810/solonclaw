@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
@@ -48,6 +49,11 @@ public class CronjobTools {
                     String deliverThreadId,
             @Param(name = "skill", description = "单个技能名；兼容字符串或数组", required = false) Object skill,
             @Param(name = "skills", description = "技能列表；支持数组、JSON 数组或逗号分隔字符串", required = false) Object skills,
+            @Param(name = "add_skill", description = "update 时追加单个技能，不会重复添加", required = false) Object addSkill,
+            @Param(name = "add_skills", description = "update 时追加技能列表，支持数组、JSON 数组或逗号分隔字符串", required = false) Object addSkills,
+            @Param(name = "remove_skill", description = "update 时移除单个技能", required = false) Object removeSkill,
+            @Param(name = "remove_skills", description = "update 时移除技能列表，支持数组、JSON 数组或逗号分隔字符串", required = false) Object removeSkills,
+            @Param(name = "clear_skills", description = "update 时清空所有技能绑定", required = false) Boolean clearSkills,
             @Param(name = "repeat", description = "重复次数；0 表示无限", required = false) Integer repeat,
             @Param(name = "include_disabled", description = "list 时是否包含暂停任务；工具调用默认包含，传 false 可只看启用任务", required = false)
                     Boolean includeDisabled,
@@ -170,6 +176,11 @@ public class CronjobTools {
                             deliverThreadId,
                             skill,
                             skills,
+                            addSkill,
+                            addSkills,
+                            removeSkill,
+                            removeSkills,
+                            clearSkills,
                             repeat,
                             wrapResponse,
                             script,
@@ -246,6 +257,11 @@ public class CronjobTools {
                             deliverThreadId,
                             skill,
                             skills,
+                            addSkill,
+                            addSkills,
+                            removeSkill,
+                            removeSkills,
+                            clearSkills,
                             repeat,
                             wrapResponse,
                             script,
@@ -346,6 +362,11 @@ public class CronjobTools {
                 null,
                 skill,
                 skills,
+                null,
+                null,
+                null,
+                null,
+                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -377,6 +398,11 @@ public class CronjobTools {
             String deliverThreadId,
             Object skill,
             Object skills,
+            Object addSkill,
+            Object addSkills,
+            Object removeSkill,
+            Object removeSkills,
+            Boolean clearSkills,
             Integer repeat,
             Boolean includeDisabled,
             Boolean wrapResponse,
@@ -403,6 +429,11 @@ public class CronjobTools {
                 deliverThreadId,
                 skill,
                 skills,
+                addSkill,
+                addSkills,
+                removeSkill,
+                removeSkills,
+                clearSkills,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -456,6 +487,11 @@ public class CronjobTools {
                 null,
                 skill,
                 skills,
+                null,
+                null,
+                null,
+                null,
+                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -474,6 +510,130 @@ public class CronjobTools {
                 null,
                 limit,
                 null);
+    }
+
+    public String cronjob(
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            String deliverChatId,
+            String deliverThreadId,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object dependsOn,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Integer limit,
+            String reason)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                null,
+                null,
+                null,
+                null,
+                null,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                limit,
+                reason);
+    }
+
+    public String cronjob(
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            String deliverChatId,
+            String deliverThreadId,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object dependsOn,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Boolean enabled,
+            String status,
+            String state,
+            String pausedReason,
+            Integer limit,
+            String reason)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                null,
+                null,
+                null,
+                null,
+                null,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                enabled,
+                status,
+                state,
+                pausedReason,
+                limit,
+                reason);
     }
 
     public String cronjob(
@@ -510,6 +670,11 @@ public class CronjobTools {
                 null,
                 skill,
                 skills,
+                null,
+                null,
+                null,
+                null,
+                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -539,6 +704,11 @@ public class CronjobTools {
             String deliverThreadId,
             Object skill,
             Object skills,
+            Object addSkill,
+            Object addSkills,
+            Object removeSkill,
+            Object removeSkills,
+            Boolean clearSkills,
             Integer repeat,
             Boolean wrapResponse,
             String script,
@@ -561,8 +731,14 @@ public class CronjobTools {
         put(body, "deliver", deliver);
         put(body, "deliver_chat_id", deliverChatId);
         put(body, "deliver_thread_id", deliverThreadId);
-        put(body, "skill", skill);
-        put(body, "skills", skills);
+        if (Boolean.TRUE.equals(clearSkills)) {
+            body.put("skills", new ArrayList<String>());
+        } else if (skill != null || skills != null) {
+            put(body, "skill", skill);
+            put(body, "skills", skills);
+        } else if (addSkill != null || addSkills != null || removeSkill != null || removeSkills != null) {
+            put(body, "skills_delta", skillDelta(addSkill, addSkills, removeSkill, removeSkills));
+        }
         if (repeat != null) {
             body.put("repeat", repeat);
         }
@@ -587,6 +763,57 @@ public class CronjobTools {
         put(body, "state", state);
         put(body, "paused_reason", pausedReason);
         return body;
+    }
+
+    private Map<String, Object> skillDelta(
+            Object addSkill, Object addSkills, Object removeSkill, Object removeSkills) {
+        Map<String, Object> delta = new LinkedHashMap<String, Object>();
+        List<String> add = new ArrayList<String>();
+        addAllStrings(add, addSkill);
+        addAllStrings(add, addSkills);
+        List<String> remove = new ArrayList<String>();
+        addAllStrings(remove, removeSkill);
+        addAllStrings(remove, removeSkills);
+        delta.put("add", add);
+        delta.put("remove", remove);
+        return delta;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addAllStrings(List<String> result, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof Iterable) {
+            for (Object item : (Iterable<Object>) value) {
+                addString(result, item);
+            }
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (text.startsWith("[") && text.endsWith("]")) {
+            Object data = ONode.ofJson(text).toData();
+            if (data instanceof Iterable) {
+                for (Object item : (Iterable<Object>) data) {
+                    addString(result, item);
+                }
+                return;
+            }
+        }
+        for (String part : text.split(",")) {
+            addString(result, part);
+        }
+    }
+
+    private void addString(List<String> result, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (text.length() == 0 || result.contains(text)) {
+            return;
+        }
+        result.add(text);
     }
 
     private void put(Map<String, Object> body, String key, Object value) {

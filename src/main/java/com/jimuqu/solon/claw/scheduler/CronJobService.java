@@ -153,6 +153,8 @@ public class CronJobService {
         }
         if (body.containsKey("skills") || body.containsKey("skill")) {
             record.setSkillsJson(json(canonicalSkills(body)));
+        } else if (body.containsKey("skills_delta") || body.containsKey("skillsDelta")) {
+            record.setSkillsJson(json(applySkillsDelta(parseList(record.getSkillsJson()), body)));
         }
         if (body.containsKey("repeat")) {
             int repeat = intValue(body.get("repeat"), 0);
@@ -1462,6 +1464,35 @@ public class CronJobService {
             addString(result, item);
         }
         return result;
+    }
+
+    private List<String> applySkillsDelta(List<String> current, Map<String, Object> body) {
+        List<String> result = normalizedList(current);
+        Object raw = body.containsKey("skills_delta") ? body.get("skills_delta") : body.get("skillsDelta");
+        if (!(raw instanceof Map)) {
+            return result;
+        }
+        Map<?, ?> delta = (Map<?, ?>) raw;
+        List<String> remove = stringList(firstPresent(delta, "remove", "remove_skill", "remove_skills", "removeSkill", "removeSkills"));
+        if (!remove.isEmpty()) {
+            result.removeAll(remove);
+        }
+        for (String item : stringList(firstPresent(delta, "add", "add_skill", "add_skills", "addSkill", "addSkills"))) {
+            addString(result, item);
+        }
+        return result;
+    }
+
+    private Object firstPresent(Map<?, ?> map, String... keys) {
+        if (map == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (map.containsKey(key)) {
+                return map.get(key);
+            }
+        }
+        return null;
     }
 
     private String defaultJobName(

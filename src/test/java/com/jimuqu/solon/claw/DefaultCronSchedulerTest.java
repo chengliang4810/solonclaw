@@ -2442,6 +2442,124 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldIncrementallyEditCronjobToolSkills() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:tool-skill-room:user");
+
+        Map<?, ?> createPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "create",
+                                                null,
+                                                "tool-skill-target",
+                                                "30m",
+                                                "skill prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                java.util.Arrays.asList("alpha", "beta"),
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        String jobId = String.valueOf(createPayload.get("job_id"));
+        assertThat(((Map<?, ?>) createPayload.get("job")).get("skills"))
+                .isEqualTo(java.util.Arrays.asList("alpha", "beta"));
+
+        Map<?, ?> updatePayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "update",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                "gamma",
+                                                "[\"delta\",\"gamma\"]",
+                                                "alpha",
+                                                "missing",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(((Map<?, ?>) updatePayload.get("job")).get("skills"))
+                .isEqualTo(java.util.Arrays.asList("beta", "gamma", "delta"));
+
+        Map<?, ?> clearPayload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "update",
+                                                jobId,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                Boolean.TRUE,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null))
+                                .toData();
+        assertThat(((Map<?, ?>) clearPayload.get("job")).get("skills")).isEqualTo(java.util.Collections.emptyList());
+    }
+
+    @Test
     void shouldEditCronjobToolStateFields() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
