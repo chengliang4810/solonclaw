@@ -282,6 +282,9 @@ public class DashboardDiagnosticOutputTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
+        Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
+        Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
+        Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> slashConfirmSelector = findProbe(items, "slash_confirm_selector");
         assertThat(hardline.get("passed")).isEqualTo(Boolean.TRUE);
@@ -290,6 +293,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(terminal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(terminal.get("skipped")).isNull();
+        assertThat(credentialUpload.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialUpload.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(codeCredentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(codeCredentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalSelector.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(approvalSelector.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(approvalSelector.get("skipped")).isNull();
