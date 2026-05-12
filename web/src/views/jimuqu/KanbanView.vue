@@ -437,7 +437,12 @@ async function deliverNotificationsNow() {
   notificationDelivering.value = true
   try {
     const result = await deliverKanbanNotifications()
-    message.success(notificationDeliveryText(result))
+    const text = notificationDeliveryText(result)
+    if ((result.failed_events || 0) > 0) {
+      message.warning(text)
+    } else {
+      message.success(text)
+    }
     if (selectedTask.value) {
       await refreshSelectedTaskDrawer()
     }
@@ -676,7 +681,9 @@ function notificationSummary(notification: KanbanNotification): string {
 }
 
 function notificationDeliveryText(result: KanbanNotificationDeliveryResult): string {
-  return `通知投递：订阅 ${result.subscriptions || 0}，领取 ${result.claimed_events || 0}，成功 ${result.delivered_events || 0}，失败 ${result.failed_events || 0}`
+  const summary = `通知投递：订阅 ${result.subscriptions || 0}，领取 ${result.claimed_events || 0}，成功 ${result.delivered_events || 0}，失败 ${result.failed_events || 0}`
+  const errors = (result.errors || []).filter(Boolean)
+  return errors.length ? `${summary}；${errors.slice(0, 2).join('；')}` : summary
 }
 
 function homeNotificationSummary(channel: KanbanHomeNotificationChannel): string {
