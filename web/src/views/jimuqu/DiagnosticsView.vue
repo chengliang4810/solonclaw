@@ -97,6 +97,10 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const mcpRuntimePolicy = objectValue(securityCoverage.value.mcpRuntimePolicy)
   const mcpOAuthPolicy = objectValue(securityCoverage.value.mcpOAuthPolicy)
   const mcpPackageSecurityPolicy = objectValue(securityCoverage.value.mcpPackageSecurityPolicy)
+  const attachmentPolicy = objectValue(securityCoverage.value.attachmentPolicy)
+  const attachmentDownloadPolicy = objectValue(attachmentPolicy.downloadIo)
+  const attachmentMediaCachePolicy = objectValue(attachmentPolicy.mediaCache)
+  const attachmentTerminalPastePolicy = objectValue(attachmentPolicy.terminalPaste)
   const approvalPolicy = objectValue(securityApprovals.value.approval_policy)
   const hardlinePolicy = objectValue(securityApprovals.value.hardline_policy)
   const cronApprovalPolicy = objectValue(securityApprovals.value.cron_approval_policy)
@@ -276,6 +280,27 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
         metric('访问令牌脱敏', mcpOAuthPolicy.accessTokenRedacted),
         metric('包端点预检', mcpPackageSecurityPolicy.endpointUrlSafetyChecked),
         metric('恶意包阻断保存', mcpPackageSecurityPolicy.malwareBlocksSaveAndCheck),
+      ],
+    },
+    {
+      title: '附件安全',
+      items: [
+        metric('Hutool 下载守卫', attachmentDownloadPolicy.hutoolDownloadGuarded),
+        metric('OkHttp 下载守卫', attachmentDownloadPolicy.okHttpDownloadGuarded),
+        metric('初始 URL 检查', attachmentDownloadPolicy.initialUrlChecked),
+        metric('重定向 URL 预检', attachmentDownloadPolicy.redirectUrlCheckedBeforeFollow),
+        metric('跨站请求头阻断', attachmentDownloadPolicy.crossHostHeaderForwardingBlocked),
+        metric('阻断 URL 脱敏', attachmentDownloadPolicy.blockedUrlMasked),
+        metric('内容长度检查', attachmentDownloadPolicy.contentLengthChecked),
+        metric('流读取限额', attachmentDownloadPolicy.streamReadBounded),
+        metric('缓存字节限额', attachmentMediaCachePolicy.cacheBytesSizeChecked),
+        metric('原始文件名脱敏', attachmentMediaCachePolicy.safeOriginalNameSecretRedacted),
+        metric('媒体引用防穿越', attachmentMediaCachePolicy.mediaReferenceTraversalBlocked),
+        metric('宿主路径不返回', attachmentMediaCachePolicy.hostPathsNotReturnedInMediaReference),
+        metric('粘贴路径预检', attachmentTerminalPastePolicy.pathPolicyCheckedBeforeCache),
+        metric('凭据路径阻断', attachmentTerminalPastePolicy.credentialPathBlocked),
+        metric('阻断预览脱敏', attachmentTerminalPastePolicy.blockedPreviewRedacted),
+        metric('原始路径不进提示', attachmentTerminalPastePolicy.rawPathHiddenInPrompt),
       ],
     },
     {
