@@ -586,6 +586,29 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
         Map<String, Object> codeCredentialClipboard = findProbe(items, "code_credential_clipboard");
+        Map<String, Object> pythonRecursiveDelete =
+                findProbe(items, "python_recursive_delete");
+        Map<String, Object> pythonFileDelete = findProbe(items, "python_file_delete");
+        Map<String, Object> pythonShellExecution =
+                findProbe(items, "python_shell_execution");
+        Map<String, Object> pythonSubprocessCredentialOutput =
+                findProbe(items, "python_subprocess_credential_output");
+        Map<String, Object> pythonSubprocessExecution =
+                findProbe(items, "python_subprocess_execution");
+        Map<String, Object> pythonUnsafeDeserialization =
+                findProbe(items, "python_unsafe_deserialization");
+        Map<String, Object> pythonDynamicCodeExecution =
+                findProbe(items, "python_dynamic_code_execution");
+        Map<String, Object> pythonHttpCredentialHeaderSend =
+                findProbe(items, "python_http_credential_header_send");
+        Map<String, Object> jsChildProcessCredentialOutput =
+                findProbe(items, "js_child_process_credential_output");
+        Map<String, Object> jsChildProcessExecution =
+                findProbe(items, "js_child_process_execution");
+        Map<String, Object> jsRequireChildProcess = findProbe(items, "js_require_child_process");
+        Map<String, Object> jsDynamicCodeExecution =
+                findProbe(items, "js_dynamic_code_execution");
+        Map<String, Object> jsFileDelete = findProbe(items, "js_file_delete");
         Map<String, Object> hostFirewallDisable = findProbe(items, "host_firewall_disable");
         Map<String, Object> hostMacPolicyDisable = findProbe(items, "host_mac_policy_disable");
         Map<String, Object> hostServiceControl = findProbe(items, "host_service_control");
@@ -1652,6 +1675,59 @@ public class DashboardDiagnosticOutputTest {
         assertThat(credentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(codeCredentialClipboard.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeCredentialClipboard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonRecursiveDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonRecursiveDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonRecursiveDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonRecursiveDelete)).contains("shutil.rmtree");
+        assertThat(pythonFileDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonFileDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonFileDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonFileDelete)).contains("os.remove");
+        assertThat(pythonShellExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonShellExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonShellExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonShellExecution)).contains("os.system");
+        assertThat(pythonSubprocessCredentialOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonSubprocessCredentialOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonSubprocessCredentialOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonSubprocessCredentialOutput)).contains("subprocess.run");
+        assertThat(pythonSubprocessExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonSubprocessExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonSubprocessExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonSubprocessExecution)).contains("git");
+        assertThat(pythonUnsafeDeserialization.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonUnsafeDeserialization.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonUnsafeDeserialization.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonUnsafeDeserialization)).contains("pickle.loads");
+        assertThat(pythonDynamicCodeExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonDynamicCodeExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonDynamicCodeExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonDynamicCodeExecution)).contains("exec");
+        assertThat(pythonHttpCredentialHeaderSend.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialHeaderSend.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(pythonHttpCredentialHeaderSend.get("skipped")).isNull();
+        assertThat(String.valueOf(pythonHttpCredentialHeaderSend)).contains("Authorization");
+        assertThat(jsChildProcessCredentialOutput.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsChildProcessCredentialOutput.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsChildProcessCredentialOutput.get("skipped")).isNull();
+        assertThat(String.valueOf(jsChildProcessCredentialOutput))
+                .contains("child_process.execSync");
+        assertThat(jsChildProcessExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsChildProcessExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsChildProcessExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(jsChildProcessExecution)).contains("child_process.exec");
+        assertThat(jsRequireChildProcess.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsRequireChildProcess.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsRequireChildProcess.get("skipped")).isNull();
+        assertThat(String.valueOf(jsRequireChildProcess)).contains("child_process");
+        assertThat(jsDynamicCodeExecution.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsDynamicCodeExecution.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsDynamicCodeExecution.get("skipped")).isNull();
+        assertThat(String.valueOf(jsDynamicCodeExecution)).contains("eval");
+        assertThat(jsFileDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(jsFileDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(jsFileDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(jsFileDelete)).contains("fs.rmSync");
         assertThat(hostFirewallDisable.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hostFirewallDisable.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hostFirewallDisable.get("skipped")).isNull();
