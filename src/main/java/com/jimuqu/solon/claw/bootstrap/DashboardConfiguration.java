@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
+import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -267,8 +268,9 @@ public class DashboardConfiguration {
     }
 
     @Bean
-    public DashboardKanbanService dashboardKanbanService(KanbanService kanbanService) {
-        return new DashboardKanbanService(kanbanService);
+    public DashboardKanbanService dashboardKanbanService(
+            KanbanService kanbanService, GatewayPolicyRepository gatewayPolicyRepository) {
+        return new DashboardKanbanService(kanbanService, gatewayPolicyRepository);
     }
 
     @Bean

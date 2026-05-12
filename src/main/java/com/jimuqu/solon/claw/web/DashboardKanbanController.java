@@ -291,6 +291,37 @@ public class DashboardKanbanController {
         return kanbanService.notifyList(context.param("task"));
     }
 
+    @Mapping(value = "/api/kanban/notify-subscriptions/home-channels", method = MethodType.GET)
+    public List<Map<String, Object>> notifyHomeChannels(Context context) throws Exception {
+        return kanbanService.notifyHomeChannels(context.param("task"));
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/home-subscribe/{platform}", method = MethodType.POST)
+    public Map<String, Object> notifyHomeSubscribe(String taskId, String platform, Context context)
+            throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyHomeSubscribe(taskId, platform);
+                    }
+                });
+    }
+
+    @Mapping(value = "/api/kanban/tasks/{taskId}/home-subscribe/{platform}", method = MethodType.DELETE)
+    public Map<String, Object> notifyHomeUnsubscribe(String taskId, String platform, Context context)
+            throws Exception {
+        return safeKanban(
+                context,
+                new KanbanAction() {
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return kanbanService.notifyHomeUnsubscribe(taskId, platform);
+                    }
+                });
+    }
+
     @Mapping(value = "/api/kanban/notify-subscriptions/claim", method = MethodType.POST)
     public Map<String, Object> notifyClaim(Context context) throws Exception {
         return safeKanban(

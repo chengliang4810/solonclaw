@@ -1,6 +1,12 @@
 package com.jimuqu.solon.claw.web;
 
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
+import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.kanban.KanbanService;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -8,9 +14,15 @@ import org.noear.snack4.ONode;
 /** Dashboard Kanban application service. */
 public class DashboardKanbanService {
     private final KanbanService kanbanService;
+    private final GatewayPolicyRepository gatewayPolicyRepository;
 
     public DashboardKanbanService(KanbanService kanbanService) {
+        this(kanbanService, null);
+    }
+
+    public DashboardKanbanService(KanbanService kanbanService, GatewayPolicyRepository gatewayPolicyRepository) {
         this.kanbanService = kanbanService;
+        this.gatewayPolicyRepository = gatewayPolicyRepository;
     }
 
     public Map<String, Object> currentBoard() throws Exception {
@@ -167,6 +179,49 @@ public class DashboardKanbanService {
         return kanbanService.notifySubscribe(body);
     }
 
+    public List<Map<String, Object>> notifyHomeChannels(String taskId) throws Exception {
+        if (gatewayPolicyRepository == null) {
+            return new ArrayList<Map<String, Object>>();
+        }
+        List<HomeChannelRecord> homes = gatewayPolicyRepository.listHomeChannels();
+        List<Map<String, Object>> subscriptions =
+                StrUtil.isBlank(taskId) ? new ArrayList<Map<String, Object>>() : kanbanService.notifyList(taskId);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (HomeChannelRecord home : homes) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("platform", home.getPlatform() == null ? null : home.getPlatform().name().toLowerCase());
+            item.put("chat_id", home.getChatId());
+            item.put("thread_id", home.getThreadId());
+            item.put("chat_name", home.getChatName());
+            item.put("updated_at", Long.valueOf(home.getUpdatedAt()));
+            item.put("subscribed", Boolean.valueOf(isSubscribed(home, subscriptions)));
+            result.add(item);
+        }
+        return result;
+    }
+
+    public Map<String, Object> notifyHomeSubscribe(String taskId, String platformName) throws Exception {
+        PlatformType platform = requirePlatform(platformName);
+        HomeChannelRecord home = requireHome(platform);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("task_id", taskId);
+        body.put("platform", platform.name().toLowerCase());
+        body.put("chat_id", home.getChatId());
+        body.put("thread_id", home.getThreadId());
+        return kanbanService.notifySubscribe(body);
+    }
+
+    public Map<String, Object> notifyHomeUnsubscribe(String taskId, String platformName) throws Exception {
+        PlatformType platform = requirePlatform(platformName);
+        HomeChannelRecord home = requireHome(platform);
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("task_id", taskId);
+        body.put("platform", platform.name().toLowerCase());
+        body.put("chat_id", home.getChatId());
+        body.put("thread_id", home.getThreadId());
+        return kanbanService.notifyUnsubscribe(body);
+    }
+
     public Map<String, Object> notifyClaim(Map<String, Object> body) throws Exception {
         return kanbanService.notifyClaim(body);
     }
@@ -260,5 +315,39 @@ public class DashboardKanbanService {
     private String text(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private PlatformType requirePlatform(String platformName) {
+        PlatformType platform = PlatformType.fromName(platformName);
+        if (platform == null) {
+            throw new IllegalArgumentException("未知平台 / Unknown platform: " + platformName);
+        }
+        return platform;
+    }
+
+    private HomeChannelRecord requireHome(PlatformType platform) throws Exception {
+        if (gatewayPolicyRepository == null) {
+            throw new IllegalStateException("home channel repository is not available");
+        }
+        HomeChannelRecord home = gatewayPolicyRepository.getHomeChannel(platform);
+        if (home == null || StrUtil.isBlank(home.getChatId())) {
+            throw new IllegalArgumentException("未配置 home channel / Home channel is not configured: " + platform);
+        }
+        return home;
+    }
+
+    private boolean isSubscribed(HomeChannelRecord home, List<Map<String, Object>> subscriptions) {
+        if (home == null || home.getPlatform() == null) {
+            return false;
+        }
+        String platform = home.getPlatform().name().toLowerCase();
+        for (Map<String, Object> subscription : subscriptions) {
+            if (StrUtil.equals(platform, text(subscription, "platform"))
+                    && StrUtil.equals(home.getChatId(), text(subscription, "chat_id"))
+                    && StrUtil.equals(StrUtil.nullToEmpty(home.getThreadId()), StrUtil.nullToEmpty(text(subscription, "thread_id")))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

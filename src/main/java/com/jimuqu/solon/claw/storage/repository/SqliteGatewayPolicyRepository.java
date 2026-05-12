@@ -40,6 +40,28 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    public List<HomeChannelRecord> listHomeChannels() throws Exception {
+        List<HomeChannelRecord> records = new ArrayList<HomeChannelRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select platform, chat_id, thread_id, chat_name, updated_at from home_channels order by platform asc");
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    records.add(mapHome(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return records;
+    }
+
     public void saveHomeChannel(HomeChannelRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
