@@ -1371,6 +1371,13 @@ public class ToolRegistryExposureTest {
                 .contains("has_refresh_token")
                 .contains("has_client_secret")
                 .doesNotContain("secret-sudo");
+        ONode mcpPackagePolicy =
+                policyStatus.get("policy").get("coverage").get("mcpPackageSecurityPolicy");
+        assertThat(mcpPackagePolicy.get("malwareBlocksSaveAndCheck").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("requestFailureFailsOpen").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("unsafeEndpointBlocksBeforeNetwork").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("messageRedacted").getBoolean()).isTrue();
+        assertThat(String.valueOf(mcpPackagePolicy)).contains("npx").contains("uvx").contains("pipx");
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentUrlSafety").getBoolean())
                 .isTrue();
         assertThat(policyStatus.get("policy").get("coverage").get("attachmentCachePathSafety").getBoolean())

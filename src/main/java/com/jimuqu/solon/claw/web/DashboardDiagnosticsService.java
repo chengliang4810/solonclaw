@@ -420,6 +420,7 @@ public class DashboardDiagnosticsService {
         map.put("status", appConfig.getMcp().isEnabled() ? "enabled" : "disabled");
         map.put("runtime_policy", safeMcpRuntimePolicySummary());
         map.put("oauth_policy", safeMcpOAuthPolicySummary());
+        map.put("package_security_policy", safeMcpPackageSecurityPolicySummary());
         return map;
     }
 
@@ -953,6 +954,33 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "callbackErrorsRedacted");
             copyPolicyValue(summary, safe, "tokenErrorsRedacted");
             copyPolicyValue(summary, safe, "tokenResponseRequiresAccessToken");
+            return safe;
+        } catch (Exception e) {
+            return unavailablePolicy(e);
+        }
+    }
+
+    private Map<String, Object> safeMcpPackageSecurityPolicySummary() {
+        try {
+            Map<String, Object> summary = new McpPackageSecurityService(null).policySummary();
+            Map<String, Object> safe = new LinkedHashMap<String, Object>();
+            copyPolicyValue(summary, safe, "enabledForTransport");
+            copyPolicyValue(summary, safe, "checkedLaunchers");
+            copyPolicyValue(summary, safe, "supportedEcosystems");
+            copyPolicyValue(summary, safe, "endpointUrlSafetyChecked");
+            copyPolicyValue(summary, safe, "endpointOverrideEnvironment");
+            copyPolicyValue(summary, safe, "malwareAdvisoryPrefix");
+            copyPolicyValue(summary, safe, "nonMalwareVulnerabilitiesIgnored");
+            copyPolicyValue(summary, safe, "malwareBlocksSaveAndCheck");
+            copyPolicyValue(summary, safe, "requestFailureFailsOpen");
+            copyPolicyValue(summary, safe, "unsafeEndpointBlocksBeforeNetwork");
+            copyPolicyValue(summary, safe, "packageVersionParsed");
+            copyPolicyValue(summary, safe, "scopedNpmPackageParsed");
+            copyPolicyValue(summary, safe, "pypiExtrasIgnored");
+            copyPolicyValue(summary, safe, "jsonArgsSupported");
+            copyPolicyValue(summary, safe, "advisoryMessageLimit");
+            copyPolicyValue(summary, safe, "messageRedacted");
+            copyPolicyValue(summary, safe, "endpointRedacted");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
@@ -1826,6 +1854,9 @@ public class DashboardDiagnosticsService {
         }
         if (coverage.get("mcpOAuthPolicy") instanceof Map) {
             safe.put("mcpOAuthPolicy", safeMcpOAuthPolicySummary());
+        }
+        if (coverage.get("mcpPackageSecurityPolicy") instanceof Map) {
+            safe.put("mcpPackageSecurityPolicy", safeMcpPackageSecurityPolicySummary());
         }
         if (coverage.get("attachmentPolicy") instanceof Map) {
             safe.put(
