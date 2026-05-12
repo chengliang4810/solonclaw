@@ -2392,6 +2392,10 @@ public class DashboardDiagnosticsService {
                         "mcp_oauth_policy",
                         "MCP OAuth 安全策略检查"));
         items.add(
+                mcpToolChangePolicyProbe(
+                        "mcp_tool_change_policy",
+                        "MCP 工具变更通知策略检查"));
+        items.add(
                 mcpPackageSecurityProbe(
                         "mcp_package_security",
                         "MCP 包安全检查"));
@@ -2909,6 +2913,45 @@ public class DashboardDiagnosticsService {
                     false,
                     "authorization_endpoint, token_endpoint",
                     "MCP OAuth 探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
+    }
+
+    private Map<String, Object> mcpToolChangePolicyProbe(String key, String label) {
+        try {
+            Map<String, Object> summary = McpRuntimeService.policySummary(appConfig);
+            boolean notification =
+                    Boolean.TRUE.equals(summary.get("toolsChangeNotificationPersisted"))
+                            && Boolean.TRUE.equals(summary.get("toolChangeHashTracked"))
+                            && Boolean.TRUE.equals(summary.get("toolsChangeClearsProviderCache"));
+            boolean schemaSafety =
+                    Boolean.TRUE.equals(summary.get("inputSchemaSanitized"))
+                            && Boolean.TRUE.equals(summary.get("toolNamesPrefixed"))
+                            && Boolean.TRUE.equals(summary.get("blockedServersSuppressed"));
+            boolean executorSafety =
+                    Boolean.TRUE.equals(summary.get("toolCallExecutorBounded"))
+                            && numberValue(summary.get("toolCallExecutorMaxThreads")) != null
+                            && numberValue(summary.get("toolCallExecutorQueueCapacity")) != null;
+            boolean passed = notification && schemaSafety && executorSafety;
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_tool_change_policy",
+                    true,
+                    passed,
+                    "tools_hash, tool_changed_notification, provider_cache",
+                    passed
+                            ? "MCP 工具变更通知、hash 跟踪、schema 清洗和执行器边界已启用。"
+                            : "MCP 工具变更通知策略检查未通过。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "mcp_tool_change_policy",
+                    true,
+                    false,
+                    "tools_hash, tool_changed_notification",
+                    "MCP 工具变更探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
     }
