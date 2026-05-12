@@ -303,6 +303,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> toolResultStorage = findProbe(items, "tool_result_storage");
         Map<String, Object> attachmentDownloadUrl = findProbe(items, "attachment_download_url");
         Map<String, Object> attachmentMediaCache = findProbe(items, "attachment_media_cache");
+        Map<String, Object> attachmentTerminalPaste = findProbe(items, "attachment_terminal_paste");
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
         Map<String, Object> credentialUpload = findProbe(items, "credential_upload");
         Map<String, Object> credentialClipboard = findProbe(items, "credential_clipboard");
@@ -387,6 +388,12 @@ public class DashboardDiagnosticOutputTest {
         assertThat(attachmentMediaCache.get("skipped")).isNull();
         assertThat(String.valueOf(attachmentMediaCache))
                 .doesNotContain("sk-dashboardattachmentprobe12345");
+        assertThat(attachmentTerminalPaste.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPaste.get("allowed")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentTerminalPaste.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(attachmentTerminalPaste.get("skipped")).isNull();
+        assertThat(String.valueOf(attachmentTerminalPaste))
+                .doesNotContain("ghp-dashboardterminalpasteprobe12345");
         assertThat(patchParserPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchParserPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchParserPath.get("skipped")).isNull();

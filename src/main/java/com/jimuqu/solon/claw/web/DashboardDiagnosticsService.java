@@ -2348,6 +2348,10 @@ public class DashboardDiagnosticsService {
                         "attachment_media_cache",
                         "附件媒体缓存安全检查"));
         items.add(
+                attachmentTerminalPasteProbe(
+                        "attachment_terminal_paste",
+                        "附件终端粘贴安全检查"));
+        items.add(
                 patchParserPathProbe(
                         "patch_parser_path",
                         "补丁解析路径安全检查"));
@@ -2953,6 +2957,79 @@ public class DashboardDiagnosticsService {
                     false,
                     "media://, traversal, originalName, transcribedText",
                     "附件媒体缓存探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        } finally {
+            deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
+        }
+    }
+
+    private Map<String, Object> attachmentTerminalPasteProbe(String key, String label) {
+        File runtimeHome = null;
+        try {
+            runtimeHome = Files.createTempDirectory("dashboard-terminal-paste-probe").toFile();
+            AppConfig probeConfig = new AppConfig();
+            probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
+            probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            probeConfig.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+            File safeFile = new File(runtimeHome, "diagram space.png");
+            Files.write(
+                    safeFile.toPath(),
+                    new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
+            File secretDir = new File(runtimeHome, ".ssh");
+            Files.createDirectories(secretDir.toPath());
+            String secret = "ghp-dashboardterminalpasteprobe12345";
+            File privateKey = new File(secretDir, "id_ed25519-token=" + secret);
+            Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
+            File missing = new File(runtimeHome, "missing-token=" + secret + ".txt");
+            CliAttachmentResolver resolver =
+                    new CliAttachmentResolver(
+                            new AttachmentCacheService(probeConfig),
+                            new SecurityPolicyService(probeConfig));
+            String fileUri =
+                    "file:///"
+                            + safeFile.getAbsolutePath()
+                                    .replace('\\', '/')
+                                    .replace(" ", "%20");
+            CliAttachmentResolver.ResolvedInput resolved =
+                    resolver.resolve("分析 " + fileUri);
+            String preview = resolver.renderPreview(privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
+            Map<String, Object> summary = CliAttachmentResolver.policySummary();
+            boolean fileUriResolved =
+                    resolved.getAttachments().size() == 1
+                            && StrUtil.contains(resolved.getText(), "[附件: diagram space.png]")
+                            && !StrUtil.contains(resolved.getText(), safeFile.getAbsolutePath());
+            boolean unsafePreviewRedacted =
+                    StrUtil.contains(preview, "blocked")
+                            && StrUtil.contains(preview, "missing")
+                            && !StrUtil.contains(preview, secret)
+                            && !StrUtil.contains(preview, privateKey.getAbsolutePath());
+            boolean policyAdvertised =
+                    Boolean.TRUE.equals(summary.get("fileUriPercentDecoded"))
+                            && Boolean.TRUE.equals(summary.get("pathPolicyCheckedBeforeCache"))
+                            && Boolean.TRUE.equals(summary.get("credentialPathBlocked"))
+                            && Boolean.TRUE.equals(summary.get("rawPathHiddenInPrompt"));
+            boolean passed = fileUriResolved && unsafePreviewRedacted && policyAdvertised;
+            String message =
+                    passed
+                            ? "终端粘贴附件已支持 file URI 解析、路径策略预检和敏感预览脱敏。"
+                            : "终端粘贴附件解析、路径阻断或预览脱敏检查未通过。";
+            return policyProbeItem(
+                    key,
+                    label,
+                    "attachment_terminal_paste",
+                    true,
+                    passed,
+                    "file://, credential path, missing path preview",
+                    message);
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "attachment_terminal_paste",
+                    true,
+                    false,
+                    "file://, credential path, missing path preview",
+                    "附件终端粘贴探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         } finally {
             deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
