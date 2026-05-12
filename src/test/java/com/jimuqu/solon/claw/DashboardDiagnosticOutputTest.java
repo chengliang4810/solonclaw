@@ -304,6 +304,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> toolResultRetrievalRedaction =
                 findProbe(items, "tool_result_retrieval_redaction");
         Map<String, Object> attachmentDownloadUrl = findProbe(items, "attachment_download_url");
+        Map<String, Object> attachmentRedirectUrl = findProbe(items, "attachment_redirect_url");
         Map<String, Object> attachmentMediaCache = findProbe(items, "attachment_media_cache");
         Map<String, Object> attachmentTerminalPaste = findProbe(items, "attachment_terminal_paste");
         Map<String, Object> patchParserPath = findProbe(items, "patch_parser_path");
@@ -391,6 +392,13 @@ public class DashboardDiagnosticOutputTest {
                 .contains("169.254.169.254")
                 .contains("token=***")
                 .doesNotContain("dashboard-probe-secret");
+        assertThat(attachmentRedirectUrl.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentRedirectUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(attachmentRedirectUrl.get("skipped")).isNull();
+        assertThat(String.valueOf(attachmentRedirectUrl))
+                .contains("169.254.169.254")
+                .contains("token=***")
+                .doesNotContain("dashboard-redirect-probe-secret");
         assertThat(attachmentMediaCache.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(attachmentMediaCache.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(attachmentMediaCache.get("blocked")).isEqualTo(Boolean.FALSE);

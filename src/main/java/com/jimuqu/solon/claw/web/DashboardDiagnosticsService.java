@@ -2349,6 +2349,12 @@ public class DashboardDiagnosticsService {
                         "附件下载 URL 安全检查",
                         "http://169.254.169.254/latest/meta-data/?token=dashboard-probe-secret"));
         items.add(
+                attachmentRedirectUrlProbe(
+                        "attachment_redirect_url",
+                        "附件重定向 URL 安全检查",
+                        "https://download.example.test/file",
+                        "http://169.254.169.254/latest/meta-data/?token=dashboard-redirect-probe-secret"));
+        items.add(
                 attachmentMediaCacheProbe(
                         "attachment_media_cache",
                         "附件媒体缓存安全检查"));
@@ -2981,6 +2987,47 @@ public class DashboardDiagnosticsService {
                 allowed,
                 SecretRedactor.maskUrl(url),
                 StrUtil.blankToDefault(message, allowed ? "附件下载 URL 未被阻断。" : "附件下载 URL 已被阻断。"));
+    }
+
+    private Map<String, Object> attachmentRedirectUrlProbe(
+            String key, String label, String initialUrl, String redirectUrl) {
+        try {
+            Map<String, Object> summary = BoundedAttachmentIO.policySummary();
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(redirectUrl);
+            boolean redirectPolicyAdvertised =
+                    Boolean.TRUE.equals(summary.get("redirectUrlCheckedBeforeFollow"))
+                            && Boolean.TRUE.equals(summary.get("manualRedirectHandling"))
+                            && Boolean.TRUE.equals(summary.get("redirectUrlResolvedAgainstCurrentUrl"))
+                            && Boolean.TRUE.equals(summary.get("crossHostHeaderForwardingBlocked"))
+                            && Integer.valueOf(5).equals(summary.get("maxRedirects"));
+            boolean blocked = !verdict.isAllowed();
+            boolean passed = redirectPolicyAdvertised && blocked;
+            String target =
+                    "initial="
+                            + SecretRedactor.maskUrl(initialUrl)
+                            + " redirect="
+                            + SecretRedactor.maskUrl(redirectUrl);
+            return policyProbeItem(
+                    key,
+                    label,
+                    "attachment_redirect_url",
+                    false,
+                    !passed,
+                    target,
+                    passed
+                            ? "附件下载重定向目标会在跟随后重新执行 URL 安全检查，并阻断跨主机凭据转发。"
+                            : "附件下载重定向 URL 安全策略检查未通过。");
+        } catch (Exception e) {
+            return policyProbeItem(
+                    key,
+                    label,
+                    "attachment_redirect_url",
+                    false,
+                    true,
+                    SecretRedactor.maskUrl(redirectUrl),
+                    "附件重定向 URL 探针失败："
+                            + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        }
     }
 
     private Map<String, Object> attachmentMediaCacheProbe(String key, String label) {
