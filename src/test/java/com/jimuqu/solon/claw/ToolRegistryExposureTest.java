@@ -795,6 +795,8 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("dangerousCommandApproval").getBoolean())
                 .isTrue();
+        assertThat(policyStatus.get("policy").get("coverage").get("configuredCredentialCommandPathApproval").getBoolean())
+                .isTrue();
         ONode dangerousCommandApprovalPolicy =
                 policyStatus.get("policy").get("coverage").get("dangerousCommandApprovalPolicy");
         assertThat(dangerousCommandApprovalPolicy.get("dangerousRuleCount").getInt())
@@ -805,6 +807,8 @@ public class ToolRegistryExposureTest {
                 .isTrue();
         assertThat(dangerousCommandApprovalPolicy.get("approvalTimeoutSeconds").getInt())
                 .isGreaterThan(0);
+        assertThat(dangerousCommandApprovalPolicy.get("configuredCredentialCommandPathDetection").getBoolean())
+                .isTrue();
         assertThat(String.valueOf(dangerousCommandApprovalPolicy))
                 .contains("rm")
                 .contains("hardlinePolicy")
