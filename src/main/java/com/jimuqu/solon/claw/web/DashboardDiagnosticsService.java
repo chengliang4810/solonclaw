@@ -3410,6 +3410,62 @@ public class DashboardDiagnosticsService {
                         "aws s3api put-bucket-acl --bucket demo --acl public-read",
                         "object_storage_exposure_change"));
         items.add(
+                approvalDetectionProbe(
+                        "cloud_iam_permission_change",
+                        "云 IAM 权限变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "aws iam attach-user-policy --user-name deploy --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+                        "cloud_iam_permission_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "cloud_network_exposure_change",
+                        "云网络暴露规则变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "aws ec2 authorize-security-group-ingress --group-id sg-123 --cidr 0.0.0.0/0",
+                        "cloud_network_exposure_change"));
+        items.add(
+                approvalDetectionProbe(
+                        "gcloud_resource_delete",
+                        "GCP 资源删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "gcloud compute instances delete app-1",
+                        "gcloud_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "azure_resource_delete",
+                        "Azure 资源删除审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "az vm delete --name app-1 --resource-group rg",
+                        "azure_delete"));
+        items.add(
+                approvalDetectionProbe(
+                        "terraform_state_sensitive_read",
+                        "基础设施状态敏感读取审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "terraform state pull",
+                        "terraform_state_sensitive_read"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_credential_material_dump",
+                        "Windows 凭据材料转储审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "reg save HKLM\\SAM sam.save",
+                        "windows_credential_material_dump"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_credential_manager_read",
+                        "Windows 凭据管理器读取审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cmdkey /list",
+                        "windows_credential_manager_read"));
+        items.add(
+                approvalDetectionProbe(
+                        "windows_credential_manager_change",
+                        "Windows 凭据管理器变更审批",
+                        ToolNameConstants.EXECUTE_SHELL,
+                        "cmdkey /add:server /user:alice /pass:secret",
+                        "windows_credential_manager_change"));
+        items.add(
                 codeExecutionSandboxProbe(
                         "code_execution_sandbox",
                         "代码执行沙箱安全检查"));

@@ -633,6 +633,20 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "object_storage_recursive_remove");
         Map<String, Object> objectStorageExposureChange =
                 findProbe(items, "object_storage_exposure_change");
+        Map<String, Object> cloudIamPermissionChange =
+                findProbe(items, "cloud_iam_permission_change");
+        Map<String, Object> cloudNetworkExposureChange =
+                findProbe(items, "cloud_network_exposure_change");
+        Map<String, Object> gcloudResourceDelete = findProbe(items, "gcloud_resource_delete");
+        Map<String, Object> azureResourceDelete = findProbe(items, "azure_resource_delete");
+        Map<String, Object> terraformStateSensitiveRead =
+                findProbe(items, "terraform_state_sensitive_read");
+        Map<String, Object> windowsCredentialMaterialDump =
+                findProbe(items, "windows_credential_material_dump");
+        Map<String, Object> windowsCredentialManagerRead =
+                findProbe(items, "windows_credential_manager_read");
+        Map<String, Object> windowsCredentialManagerChange =
+                findProbe(items, "windows_credential_manager_change");
         Map<String, Object> codeExecutionSandbox = findProbe(items, "code_execution_sandbox");
         Map<String, Object> approvalSelector = findProbe(items, "approval_selector");
         Map<String, Object> approvalExpiryCleanup = findProbe(items, "approval_expiry_cleanup");
@@ -1725,6 +1739,38 @@ public class DashboardDiagnosticOutputTest {
         assertThat(objectStorageExposureChange.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(objectStorageExposureChange.get("skipped")).isNull();
         assertThat(String.valueOf(objectStorageExposureChange)).contains("public-read");
+        assertThat(cloudIamPermissionChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudIamPermissionChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudIamPermissionChange.get("skipped")).isNull();
+        assertThat(String.valueOf(cloudIamPermissionChange)).contains("attach-user-policy");
+        assertThat(cloudNetworkExposureChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudNetworkExposureChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(cloudNetworkExposureChange.get("skipped")).isNull();
+        assertThat(String.valueOf(cloudNetworkExposureChange)).contains("authorize-security-group-ingress");
+        assertThat(gcloudResourceDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(gcloudResourceDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(gcloudResourceDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(gcloudResourceDelete)).contains("instances delete");
+        assertThat(azureResourceDelete.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(azureResourceDelete.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(azureResourceDelete.get("skipped")).isNull();
+        assertThat(String.valueOf(azureResourceDelete)).contains("az vm delete");
+        assertThat(terraformStateSensitiveRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(terraformStateSensitiveRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(terraformStateSensitiveRead.get("skipped")).isNull();
+        assertThat(String.valueOf(terraformStateSensitiveRead)).contains("state pull");
+        assertThat(windowsCredentialMaterialDump.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsCredentialMaterialDump.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsCredentialMaterialDump.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsCredentialMaterialDump)).contains("HKLM\\SAM");
+        assertThat(windowsCredentialManagerRead.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsCredentialManagerRead.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsCredentialManagerRead.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsCredentialManagerRead)).contains("cmdkey /list");
+        assertThat(windowsCredentialManagerChange.get("passed")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsCredentialManagerChange.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(windowsCredentialManagerChange.get("skipped")).isNull();
+        assertThat(String.valueOf(windowsCredentialManagerChange)).contains("cmdkey /add");
         assertThat(codeExecutionSandbox.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("allowed")).isEqualTo(Boolean.TRUE);
         assertThat(codeExecutionSandbox.get("blocked")).isEqualTo(Boolean.FALSE);
