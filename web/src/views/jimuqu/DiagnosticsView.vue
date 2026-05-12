@@ -15,6 +15,7 @@ import {
   type ApprovalAuditEvent,
   type Diagnostics,
   type PendingApproval,
+  type PendingApprovalsResult,
   type PendingSlashConfirm,
   type SecurityAuditFinding,
   type SecurityAuditResult,
@@ -31,6 +32,7 @@ const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
+const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
 const alwaysApprovals = ref<AlwaysApproval[]>([])
 const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
@@ -98,6 +100,13 @@ const auditActionOptions = [
 ]
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
 const pendingCount = computed(() => pendingApprovals.value.length)
+const pendingApprovalScanText = computed(() => {
+  const meta = pendingApprovalMeta.value
+  if (!meta) return '扫描：-'
+  const scanned = meta.scanned_sessions ?? 0
+  const limit = meta.session_scan_limit ?? '-'
+  return `扫描：${scanned}/${limit} 个会话`
+})
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
@@ -162,6 +171,7 @@ async function loadApprovals() {
   approvalsLoading.value = true
   try {
     const result = await fetchPendingApprovals(100)
+    pendingApprovalMeta.value = result
     pendingApprovals.value = result.items || []
   } finally {
     approvalsLoading.value = false
@@ -584,10 +594,22 @@ onMounted(load)
             <h3>待审批命令</h3>
             <div class="panel-actions">
               <NTag size="small" :type="pendingCount ? 'warning' : 'success'">{{ pendingCount }}</NTag>
+              <NTag size="small" :type="pendingApprovalMeta?.session_scan_truncated ? 'warning' : 'default'">
+                {{ pendingApprovalScanText }}
+              </NTag>
               <NButton size="small" :loading="approvalsLoading" @click="loadApprovals">刷新</NButton>
             </div>
           </div>
           <NSpin :show="approvalsLoading">
+            <p v-if="pendingApprovalMeta?.available === false" class="approval-note">
+              {{ pendingApprovalMeta.message || '审批服务尚未启用。' }}
+            </p>
+            <p v-else-if="pendingApprovalMeta?.session_scan_truncated" class="approval-note">
+              仅扫描最近 {{ pendingApprovalMeta.scanned_sessions || 0 }} 个会话，窗口外可能仍有待审批项。
+            </p>
+            <p v-else-if="pendingApprovalMeta?.truncated" class="approval-note">
+              当前只显示前 {{ pendingApprovalMeta.count || pendingCount }} 个待审批项。
+            </p>
             <div v-if="pendingApprovals.length" class="approval-list">
               <article v-for="item in pendingApprovals" :key="`${item.session_id}:${item.selector || item.approval_id || item.command_hash}`" class="approval-item">
                 <div class="approval-head">

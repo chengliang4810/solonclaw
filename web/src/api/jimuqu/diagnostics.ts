@@ -73,6 +73,13 @@ export interface PendingApproval {
 export interface PendingApprovalsResult {
   count: number
   items: PendingApproval[]
+  session_scan_limit?: number
+  scanned_sessions?: number
+  truncated?: boolean
+  session_scan_truncated?: boolean
+  available?: boolean
+  code?: string
+  message?: string
 }
 
 export interface ApprovalAuditEvent {
