@@ -149,6 +149,16 @@ public class DangerousCommandApprovalCommandTest {
                         "room-queue",
                         "user-queue",
                         "/approve " + secondApprovalKey.substring(0, 16) + " session");
+        GatewayReply shortIdPrefixRejected =
+                env.send(
+                        "room-queue",
+                        "user-queue",
+                        "/approve " + secondSelector.substring(0, 7) + " session");
+        GatewayReply longIdPrefixApproved =
+                env.send(
+                        "room-queue",
+                        "user-queue",
+                        "/approve " + secondSelector.substring(0, 8) + " session");
         GatewayReply approved =
                 env.send("room-queue", "user-queue", "/approve " + secondSelector + " session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-queue:user-queue");
@@ -157,7 +167,9 @@ public class DangerousCommandApprovalCommandTest {
 
         assertThat(rawKeyRejected.isError()).isTrue();
         assertThat(rawKeyPrefixRejected.isError()).isTrue();
-        assertThat(approved.getContent()).isEqualTo("echo:resume");
+        assertThat(shortIdPrefixRejected.isError()).isTrue();
+        assertThat(longIdPrefixApproved.getContent()).isEqualTo("echo:resume");
+        assertThat(approved.isError()).isTrue();
         assertThat(env.dangerousCommandApprovalService.listPendingApprovals(updatedAgentSession))
                 .hasSize(1);
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(updatedAgentSession).getPatternKey())

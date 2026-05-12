@@ -50,6 +50,7 @@ public class DangerousCommandApprovalService {
     private static final long CURRENT_THREAD_APPROVAL_TTL_MILLIS = 30000L;
     private static final ThreadLocal<Map<String, Long>> CURRENT_THREAD_APPROVED_COMMANDS =
             new ThreadLocal<Map<String, Long>>();
+    private static final int APPROVAL_SELECTOR_PREFIX_MIN_LENGTH = 8;
 
     private static final String PATH_SEPARATOR = "[\\\\/]";
     private static final String HOME_PATH_PREFIX =
@@ -2703,6 +2704,9 @@ public class DangerousCommandApprovalService {
         summary.put("permanentApprovalAllowedExceptTirith", Boolean.TRUE);
         summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
         summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put(
+                "selectorPrefixMinLength",
+                Integer.valueOf(APPROVAL_SELECTOR_PREFIX_MIN_LENGTH));
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("approverRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
@@ -4249,9 +4253,11 @@ public class DangerousCommandApprovalService {
         String opaqueSelector = approvalSelector(item);
         return (StrUtil.isNotBlank(safeApprovalId) && value.equals(safeApprovalId))
                 || value.equals(opaqueSelector)
-                || (StrUtil.isNotBlank(safeApprovalId) && safeApprovalId.startsWith(value))
+                || (StrUtil.isNotBlank(safeApprovalId)
+                        && value.length() >= APPROVAL_SELECTOR_PREFIX_MIN_LENGTH
+                        && safeApprovalId.startsWith(value))
                 || (StrUtil.isNotBlank(opaqueSelector)
-                        && value.length() >= 8
+                        && value.length() >= APPROVAL_SELECTOR_PREFIX_MIN_LENGTH
                         && opaqueSelector.startsWith(value));
     }
 

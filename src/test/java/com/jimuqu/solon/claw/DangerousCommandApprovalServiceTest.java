@@ -514,6 +514,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("encodedUrlParameterRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalMetadataRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("selectorTokenPattern")).isEqualTo("[A-Za-z0-9_.-]{1,128}");
+        assertThat(summary.get("selectorPrefixMinLength")).isEqualTo(Integer.valueOf(8));
         assertThat(summary.get("unsafeSelectorRejected")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("observerEventsRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalTimeoutSeconds")).isEqualTo(Integer.valueOf(42));
